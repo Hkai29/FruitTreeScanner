@@ -23,7 +23,6 @@ jobs:
 
       - name: Build
         run: |
-          set +e  # 捕获 exit code，不自动退出
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
@@ -35,28 +34,28 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             clean build > /tmp/build.log 2>&1
           BUILD_EXIT=$?
+
           echo "=== BUILD EXIT CODE: $BUILD_EXIT ==="
-          echo "=== BUILD LOG (最后50行) ==="
-          tail -50 /tmp/build.log
-          echo "=== 查找 .app 文件 ==="
-          find build -name "*.app" -type d 2>/dev/null
-          echo "=== 列出 build/Build/Products ==="
-          ls -la build/Build/Products/ 2>/dev/null || echo "目录不存在"
-          ls -la build/Build/Products/Release-iphoneos/ 2>/dev/null || echo "Release-iphoneos 不存在"
-          # 如果 exit code=0 且找到 app，就创建 IPA
-          if [ $BUILD_EXIT -eq 0 ] && [ -n "$(find build -name '*.app' -type d 2>/dev/null)" ]; then
-            echo "✅ BUILD 成功，尝试打包 IPA"
-            APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
+          grep -E "error:|warning:|BUILD" /tmp/build.log | tail -30
+
+          APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
+          echo "APP路径: $APP"
+
+          if [ -n "$APP" ]; then
             mkdir -p Payload
             cp -r "$APP" Payload/
             zip -r FruitTreeScanner.ipa Payload/
             echo "✅ IPA 打包成功"
-            ls -lh FruitTreeScanner.ipa
-            exit 0
-          else
-            echo "❌ BUILD 失败或未找到 .app"
-            exit 1
           fi
+
+          gzip -c /tmp/build.log > build.log.gz
+
+          if [ $BUILD_EXIT -eq 0 ] && [ -f FruitTreeScanner.ipa ]; then
+            echo "✅ BUILD 成功"
+          else
+            echo "❌ BUILD 失败 (exit $BUILD_EXIT)"
+          fi
+          exit $BUILD_EXIT
 
       - name: Upload IPA artifact
         if: success()
@@ -65,3 +64,11 @@ jobs:
           name: FruitTreeScanner-IPA
           path: FruitTreeScanner.ipa
           retention-days: 7
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log.gz
+          retention-days: 3
