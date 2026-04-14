@@ -17,32 +17,16 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
       - name: Install XcodeGen
-        run: brew install xcodegen 2>&1 | tail -3
-
-      - name: Show directory structure
-        run: |
-          echo "=== 仓库根目录 ==="
-          ls -la
-          echo "=== Swift 文件 ==="
-          find . -name "*.swift" | head -20
+        run: which xcodegen || brew install xcodegen
 
       - name: Generate Xcode project
         run: |
-          xcodegen generate 2>&1
-          echo "=== xcodeproj 生成结果 ==="
-          ls -la *.xcodeproj 2>/dev/null && echo "✅ 成功" || echo "❌ 失败"
+          xcodegen generate
+          ls -la *.xcodeproj 2>/dev/null || echo "xcodeproj 未生成"
 
-      - name: Show project structure
-        if: success()
+      - name: Build
         run: |
-          echo "=== Generated pbxproj files ==="
-          find . -name "*.pbxproj" | head -5
-          echo "=== project.pbxproj 内容概览 ==="
-          wc -l *.xcodeproj/*/project.pbxproj 2>/dev/null
-
-      - name: Build (capture full output)
-        run: |
-          set -o pipefail
+          set +e  # 捕获 exit code，不自动退出
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
@@ -52,21 +36,30 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build 2>&1 | tee /tmp/build_full.log | grep -E "error:|warning:|BUILD|✗|✖|❌|✅|CompileSwift|Linking|Ld |" | tail -80
-          BUILD_EXIT=${PIPESTATUS[0]}
-          echo "=== BUILD FULL LOG TAIL ==="
-          tail -30 /tmp/build_full.log
-          echo "=== EXIT CODE: $BUILD_EXIT ==="
-
-      - name: Package IPA
-        if: success()
-        run: |
-          APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
-          echo "APP路径: $APP"
-          mkdir -p Payload
-          cp -r "$APP" Payload/
-          zip -r FruitTreeScanner.ipa Payload/
-          ls -lh FruitTreeScanner.ipa
+            clean build > /tmp/build.log 2>&1
+          BUILD_EXIT=$?
+          echo "=== BUILD EXIT CODE: $BUILD_EXIT ==="
+          echo "=== BUILD LOG (最后50行) ==="
+          tail -50 /tmp/build.log
+          echo "=== 查找 .app 文件 ==="
+          find build -name "*.app" -type d 2>/dev/null
+          echo "=== 列出 build/Build/Products ==="
+          ls -la build/Build/Products/ 2>/dev/null || echo "目录不存在"
+          ls -la build/Build/Products/Release-iphoneos/ 2>/dev/null || echo "Release-iphoneos 不存在"
+          # 如果 exit code=0 且找到 app，就创建 IPA
+          if [ $BUILD_EXIT -eq 0 ] && [ -n "$(find build -name '*.app' -type d 2>/dev/null)" ]; then
+            echo "✅ BUILD 成功，尝试打包 IPA"
+            APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
+            mkdir -p Payload
+            cp -r "$APP" Payload/
+            zip -r FruitTreeScanner.ipa Payload/
+            echo "✅ IPA 打包成功"
+            ls -lh FruitTreeScanner.ipa
+            exit 0
+          else
+            echo "❌ BUILD 失败或未找到 .app"
+            exit 1
+          fi
 
       - name: Upload IPA artifact
         if: success()
