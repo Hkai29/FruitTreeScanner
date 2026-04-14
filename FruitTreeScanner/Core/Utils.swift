@@ -56,7 +56,7 @@ func duplicatePixelBuffer(input: CVPixelBuffer) -> CVPixelBuffer {
     let bpr = CVPixelBufferGetBytesPerRow(input)
     let fmt = CVPixelBufferGetPixelFormatType(input)
     _ = CVPixelBufferCreate(kCFAllocatorDefault, w, h, fmt,
-                            CVBufferGetAttachments(input, .shouldPropagate), &copyOut)
+                            CVBufferCopyAttachments(input, .shouldPropagate) as CFDictionary, &copyOut)
     let output = copyOut!
     CVPixelBufferLockBaseAddress(input, .readOnly)
     CVPixelBufferLockBaseAddress(output, [])

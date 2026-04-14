@@ -52,9 +52,9 @@ struct ScanHistoryView: View {
     private func loadFiles() {
         let scansDir = getDocumentsDirectory().appendingPathComponent("scans")
         plyFiles = (try? FileManager.default.contentsOfDirectory(
-            at: scansDir, includingPropertiesForKeys: nil))
-            .flatMap { $0.filter { $0.pathExtension == "ply" } }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent } ?? []
+            at: scansDir, includingPropertiesForKeys: nil)) ?? []
+            .filter { $0.pathExtension == "ply" }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
     private func fileSize(url: URL) -> String {

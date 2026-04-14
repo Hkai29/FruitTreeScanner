@@ -330,7 +330,7 @@ class YieldEstimator {
         let center = SIMD3<Float>(cx, cy, cz)
 
         // 到中心距离的 85th percentile 作为半径
-        var dists = cluster.map { simd_distance($0.pos, center) }.sorted()
+        let dists = cluster.map { simd_distance($0.pos, center) }.sorted()
         let idx85 = max(0, Int(Float(dists.count) * 0.85) - 1)
         let radius = dists[idx85]
         let diam = radius * 2

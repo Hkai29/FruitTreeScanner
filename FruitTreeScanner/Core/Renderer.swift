@@ -11,7 +11,7 @@ import MetalKit
 import ARKit
 import UIKit
 
-final class Renderer {
+final class Renderer: NSObject {
     // MARK: - 公开属性
     public var isRecording = false
     public var currentFolder = ""
@@ -70,7 +70,7 @@ final class Renderer {
         return u
     }()
     private var pointCloudUniformsBuffers = [MetalBuffer<PointCloudUniforms>]()
-    private var particlesBuffer: MetalBuffer<ParticleUniforms>
+    public var particlesBuffer: MetalBuffer<ParticleUniforms>
     private var currentPointIndex = 0
     private var currentPointCount = 0
     private var sampleFrame: ARFrame { session.currentFrame! }
