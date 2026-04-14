@@ -7,13 +7,8 @@ Type-safe utility for working with MTLBuffers.
 
 import MetalKit
 
-protocol Resource {
-    associatedtype Element
-}
-
 /// A wrapper around MTLBuffer which provides type safe access and assignment to the underlying MTLBuffer's contents.
-
-struct MetalBuffer<Element>: Resource {
+struct MetalBuffer<Element> {
         
     /// The underlying MTLBuffer.
     fileprivate let buffer: MTLBuffer
@@ -60,7 +55,7 @@ struct MetalBuffer<Element>: Resource {
     }
     
     /// Replaces the buffer's memory with the values in the array.
-    func assign<Element>(with array: [Element]) {
+    func assign<E>(with array: [E]) {
         let byteCount = array.count * stride
         precondition(byteCount == buffer.length, "Mismatch between the byte count of the array's contents and the MTLBuffer length.")
         buffer.contents().copyMemory(from: array, byteCount: byteCount)

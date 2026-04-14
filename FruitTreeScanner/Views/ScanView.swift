@@ -54,7 +54,7 @@ struct ScanView: View {
 
             // 扫描完成 → 显示结果
             if showResult, let result = yieldResult {
-                ResultView(result: result, treeID: treeID) {
+                ResultView(treeID: treeID, result: result) {
                     presentationMode.wrappedValue.dismiss()
                 }
             }
@@ -84,7 +84,9 @@ struct ScanView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("树 #\(treeID)")
                     .font(.headline)
-                Text(gps.statusText)
+                Text(gps.isAvailable
+                     ? String(format: "%.5f, %.5f", gps.latitude, gps.longitude)
+                     : "GPS不可用")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
             }
@@ -295,7 +297,7 @@ struct MetalView: UIViewRepresentable {
         renderer.drawRectResized(size: UIScreen.main.bounds.size)
 
         // 绑定到 Coordinator
-        context.coordinator.coordinator.bind(session: arSession, renderer: renderer, mtkView: mtkView)
+        context.coordinator.coordinator?.bind(session: arSession, renderer: renderer, mtkView: mtkView)
 
         return mtkView
     }
