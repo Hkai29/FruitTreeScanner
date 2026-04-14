@@ -93,6 +93,7 @@ final class Renderer: NSObject {
         self.session = session
         self.device = device
         self.renderDestination = renderDestination
+        super.init()
         library = device.makeDefaultLibrary()!
         commandQueue = device.makeCommandQueue()!
         for _ in 0 ..< maxInFlightBuffers {
