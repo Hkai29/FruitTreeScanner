@@ -22,7 +22,9 @@ jobs:
           ls -la *.xcodeproj 2>/dev/null || echo "xcodeproj 未生成"
 
       - name: Build
+        id: build
         run: |
+          echo "### xcodebuild output" >> $GITHUB_STEP_SUMMARY
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
@@ -32,43 +34,35 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build > /tmp/build.log 2>&1
-          BUILD_EXIT=$?
+            clean build 2>&1 | tee build_output.txt
+          EXIT=${PIPESTATUS[0]}
+          echo "EXIT_CODE=$EXIT" >> $GITHUB_ENV
+          echo "Build exit code: $EXIT" >> $GITHUB_STEP_SUMMARY
 
-          echo "=== BUILD EXIT CODE: $BUILD_EXIT ==="
-          grep -E "error:|warning:|BUILD" /tmp/build.log | tail -30
+          # 提取错误
+          grep -E "^.*error:.*$" build_output.txt | head -10 >> $GITHUB_STEP_SUMMARY || true
 
           APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
-          echo "APP路径: $APP"
+          echo "APP_PATH=$APP" >> $GITHUB_ENV
 
-          if [ -n "$APP" ]; then
+          if [ -n "$APP" ] && [ $EXIT -eq 0 ]; then
             mkdir -p Payload
             cp -r "$APP" Payload/
             zip -r FruitTreeScanner.ipa Payload/
-            echo "✅ IPA 打包成功"
+            echo "IPA_CREATED=true" >> $GITHUB_ENV
           fi
 
-          gzip -c /tmp/build.log > build.log.gz
+          exit $EXIT
 
-          if [ $BUILD_EXIT -eq 0 ] && [ -f FruitTreeScanner.ipa ]; then
-            echo "✅ BUILD 成功"
-          else
-            echo "❌ BUILD 失败 (exit $BUILD_EXIT)"
-          fi
-          exit $BUILD_EXIT
+      - name: Package IPA
+        if: env.IPA_CREATED == 'true'
+        run: |
+          ls -lh FruitTreeScanner.ipa
 
       - name: Upload IPA artifact
-        if: success()
+        if: env.IPA_CREATED == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: FruitTreeScanner-IPA
           path: FruitTreeScanner.ipa
           retention-days: 7
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log.gz
-          retention-days: 3
