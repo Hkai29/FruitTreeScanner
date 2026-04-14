@@ -4,12 +4,14 @@ options:
   deploymentTarget:
     iOS: "16.0"
   xcodeVersion: "15.4"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
 
 settings:
   base:
-    SWIFT_VERSION: 5.9
+    SWIFT_VERSION: "5.0"
     ENABLE_BITCODE: NO
-    TARGETED_DEVICE_FAMILY: "1,2"  # iPhone + iPad
+    TARGETED_DEVICE_FAMILY: "1,2"
 
 targets:
   FruitTreeScanner:
@@ -20,26 +22,14 @@ targets:
       - path: FruitTreeScanner
         excludes:
           - "**/*.md"
+          - "project.yml"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hkai29.fruitscanner
         PRODUCT_NAME: FruitTreeScanner
         INFOPLIST_FILE: FruitTreeScanner/Info.plist
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
         SWIFT_OBJC_BRIDGING_HEADER: FruitTreeScanner/Core/Bridging-Header.h
-        METAL_ENABLE_DEBUG_INFO: NO
-    info:
-      path: FruitTreeScanner/Info.plist
-      properties:
-        CFBundleDisplayName: 果树扫描
-        CFBundleVersion: "1"
-        CFBundleShortVersionString: "1.0"
-        UILaunchStoryboardName: LaunchScreen
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
-          - UIInterfaceOrientationPortrait
-        NSCameraUsageDescription: "用于 LiDAR 点云采集，扫描果树三维结构"
-        NSLocationWhenInUseUsageDescription: "用于记录果树 GPS 坐标"
-        UIRequiredDeviceCapabilities:
-          - arkit
+        METAL_LIBRARY_OUTPUT_DIR: "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)"
