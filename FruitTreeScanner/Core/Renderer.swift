@@ -35,7 +35,7 @@ final class Renderer: NSObject {
     private let session: ARSession
     private let device: MTLDevice
     private let library: MTLLibrary
-    private let renderDestination: RenderDestinationProvider
+    private let renderDestination: MTKView
     private let relaxedStencilState: MTLDepthStencilState
     private let depthStencilState: MTLDepthStencilState
     private let commandQueue: MTLCommandQueue
@@ -89,7 +89,7 @@ final class Renderer: NSObject {
 
     // MARK: - Init
     init(session: ARSession, metalDevice device: MTLDevice,
-         renderDestination: RenderDestinationProvider) {
+         renderDestination: MTKView) {
         self.session = session
         self.device = device
         self.renderDestination = renderDestination
@@ -367,13 +367,4 @@ private extension Renderer {
     }
 }
 
-// MARK: - RenderDestinationProvider
-protocol RenderDestinationProvider {
-    var currentRenderPassDescriptor: MTLRenderPassDescriptor? { get }
-    var currentDrawable: CAMetalDrawable? { get }
-    var colorPixelFormat: MTLPixelFormat { get set }
-    var depthStencilPixelFormat: MTLPixelFormat { get set }
-    var sampleCount: Int { get set }
-}
 
-extension MTKView: RenderDestinationProvider {}

@@ -24,162 +24,171 @@ struct ScanView: View {
 
     var body: some View {
         ZStack {
-            // Metal 点云渲染视图
+            // 金属渲染层（真实 MTKView）
             MetalView(coordinator: coordinator)
                 .ignoresSafeArea()
 
-            // 绕树引导（4秒后消失）
+            // 扫描引导
             if showGuide {
                 VStack {
-                    Spacer()
-                    Text("📍 请缓慢绕树走一圈（30~60秒）")
-                        .font(.headline)
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
-                        .padding(.bottom, 120)
-                }
-                .transition(.opacity)
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                        withAnimation { showGuide = false }
+                    HStack {
+                        Button("跳过引导") { showGuide = false }
+                            .padding()
+                        Spacer()
                     }
+                    Spacer()
                 }
             }
 
-            // 顶部信息栏
+            // 顶部状态栏
             VStack {
-                HStack {
-                    Button {
-                        coordinator.stopRecording()
-                        presentationMode.wrappedValue.dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.title2.bold())
-                            .padding(10)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                    }
-                    .padding(.leading, 20)
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(treeID)
-                            .font(.headline.bold())
-                        Text("\(coordinator.pointCount) 点")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(10)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(10)
-                    .padding(.trailing, 20)
-                }
-                .padding(.top, 10)
-
+                topStatusBar
                 Spacer()
-
-                // 底部控制栏
-                HStack(spacing: 24) {
-                    // 录制按钮
-                    Button {
-                        if isRecording {
-                            coordinator.stopRecording()
-                        } else {
-                            coordinator.startRecording()
-                        }
-                        isRecording.toggle()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(isRecording ? Color.red : Color.green)
-                                .frame(width: 70, height: 70)
-                            Image(systemName: isRecording ? "stop.fill" : "record.circle")
-                                .font(.system(size: 28))
-                                .foregroundColor(.white)
-                        }
-                    }
-
-                    // 估算产量按钮（录制停止 + 有点云 才能用）
-                    Button {
-                        // 先导出 PLY
-                        coordinator.exportPLY(treeID: treeID,
-                                              lat: gps.latitude,
-                                              lon: gps.longitude) { filename in
-                            savedFilename = filename
-                        }
-                        // 跑产量估算
-                        isEstimating = true
-                        coordinator.runYieldEstimate(
-                            fruitType: fruitType,
-                            nVisual: nVisual,
-                            season: season
-                        ) { result in
-                            yieldResult = result
-                            isEstimating = false
-                            showResult = true
-                        }
-                    } label: {
-                        VStack(spacing: 4) {
-                            if isEstimating {
-                                ProgressView().tint(.white)
-                            } else {
-                                Image(systemName: "chart.bar.fill")
-                                    .font(.title2)
-                            }
-                            Text(isEstimating ? "估算中..." : "估算产量")
-                                .font(.caption.bold())
-                        }
-                        .padding(12)
-                        .background((isRecording || coordinator.pointCount == 0 || isEstimating)
-                                    ? Color.gray.opacity(0.5) : Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                    }
-                    .disabled(isRecording || coordinator.pointCount == 0 || isEstimating)
-                }
-                .padding(.bottom, 40)
             }
-        }
-        // 结果页
-        .sheet(isPresented: $showResult) {
-            if let r = yieldResult {
-                ResultView(treeID: treeID, result: r) {
-                    showResult = false
+
+            // 底部控制栏
+            VStack {
+                Spacer()
+                bottomControlBar
+            }
+
+            // 扫描完成 → 显示结果
+            if showResult, let result = yieldResult {
+                ResultView(result: result, treeID: treeID) {
                     presentationMode.wrappedValue.dismiss()
                 }
             }
+
+            // 正在估算
+            if isEstimating {
+                Color.black.opacity(0.5)
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("正在估算产量…")
+                        .foregroundColor(.white)
+                }
+            }
         }
-        .onAppear { coordinator.setup() }
-        .onDisappear { coordinator.teardown() }
+        .onAppear {
+            // MetalView 内部会启动 ARSession，这里只需要启动渲染
+        }
+        .onDisappear {
+            coordinator.teardown()
+        }
+    }
+
+    // MARK: - 顶部状态栏
+    private var topStatusBar: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("树 #\(treeID)")
+                    .font(.headline)
+                Text(gps.statusText)
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(coordinator.pointCount) 点")
+                    .font(.headline.monospacedDigit())
+                Circle()
+                    .fill(isRecording ? Color.red : Color.green)
+                    .frame(width: 10, height: 10)
+                Text(isRecording ? "采集中" : "就绪")
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.6))
+    }
+
+    // MARK: - 底部控制栏
+    private var bottomControlBar: some View {
+        HStack(spacing: 24) {
+            Button(action: { showGuide.toggle() }) {
+                Image(systemName: "questionmark.circle")
+                    .font(.title)
+            }
+            .foregroundColor(.white)
+
+            Button(action: toggleRecording) {
+                Circle()
+                    .fill(isRecording ? Color.red : Color.green)
+                    .frame(width: 70, height: 70)
+                    .overlay(
+                        Circle().stroke(Color.white, lineWidth: 3)
+                    )
+            }
+
+            Button(action: exportAndEstimate) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.title)
+            }
+            .foregroundColor(.white)
+            .disabled(isRecording || coordinator.pointCount == 0)
+        }
+        .padding()
+        .background(Color.black.opacity(0.6))
+    }
+
+    // MARK: - 录制切换
+    private func toggleRecording() {
+        if isRecording {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    private func startRecording() {
+        createDirectory(folder: "scans")
+        coordinator.startRecording()
+        isRecording = true
+        showGuide = false
+    }
+
+    private func stopRecording() {
+        coordinator.stopRecording()
+        isRecording = false
+    }
+
+    // MARK: - 导出 + 估算
+    private func exportAndEstimate() {
+        isEstimating = true
+        coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
+            savedFilename = filename
+            // 触发 iOS 端估算
+            coordinator.runYieldEstimate(fruitType: fruitType, nVisual: nVisual, season: season) { result in
+                isEstimating = false
+                yieldResult = result
+                showResult = true
+            }
+        }
     }
 }
 
 // MARK: - ScanCoordinator
-
 class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
     var renderer: Renderer?
     var session: ARSession?
-    var mtkView: MTKView?
+    weak var mtkView: MTKView?
 
     @Published var pointCount: Int = 0
 
     private var displayLink: CADisplayLink?
     private let estimator = YieldEstimator()
 
-    func setup() {
-        guard let device = MTLCreateSystemDefaultDevice() else { return }
-        let arSession = ARSession()
-        let r = Renderer(session: arSession, metalDevice: device,
-                         renderDestination: MTKView())
-        r.drawRectResized(size: UIScreen.main.bounds.size)
-        r.delegate = self
+    func bind(session: ARSession, renderer: Renderer, mtkView: MTKView) {
+        self.session = session
+        self.renderer = renderer
+        self.mtkView = mtkView
+        renderer.delegate = self
+
         let config = ARWorldTrackingConfiguration()
         config.frameSemantics = [.sceneDepth, .smoothedSceneDepth]
-        arSession.run(config)
-        self.session = arSession
-        self.renderer = r
+        session.run(config)
+
         displayLink = CADisplayLink(target: self, selector: #selector(updatePointCount))
         displayLink?.add(to: .main, forMode: .common)
         UIApplication.shared.isIdleTimerDisabled = true
@@ -187,7 +196,10 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
 
     func teardown() {
         displayLink?.invalidate()
+        displayLink = nil
         session?.pause()
+        renderer = nil
+        session = nil
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
@@ -203,12 +215,11 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
 
     func exportPLY(treeID: String, lat: Double, lon: Double,
                    completion: @escaping (String) -> Void) {
-        let filename = makeTreeFileName(treeID: treeID, lat: lat, lon: lon)
         renderer?.savePointCloud(treeID: treeID, gpsLat: lat, gpsLon: lon)
+        let filename = makeTreeFileName(treeID: treeID, lat: lat, lon: lon)
         completion(filename)
     }
 
-    /// 从当前点云粒子缓冲区提取 ColoredPoint 列表
     private func extractColoredPoints() -> [ColoredPoint] {
         guard let r = renderer else { return [] }
         var pts: [ColoredPoint] = []
@@ -223,7 +234,6 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
         return pts
     }
 
-    /// 产量估算（在后台线程跑，结果回主线程）
     func runYieldEstimate(fruitType: FruitType,
                           nVisual: Int?,
                           season: Season,
@@ -257,19 +267,48 @@ extension Renderer: MTKViewDelegate {
     func draw(in view: MTKView) { draw() }
 }
 
-// MARK: - MetalView
+// MARK: - MetalView（真实 MTKView 创建点）
 struct MetalView: UIViewRepresentable {
-    let coordinator: ScanCoordinator
-    func makeUIView(context: Context) -> MTKView {
-        guard let device = MTLCreateSystemDefaultDevice() else { return MTKView() }
-        let view = MTKView()
-        view.device = device
-        view.backgroundColor = .black
-        view.depthStencilPixelFormat = .depth32Float
-        view.contentScaleFactor = 1
-        if let r = coordinator.renderer { view.delegate = r }
-        coordinator.mtkView = view
-        return view
+    @ObservedObject var coordinator: ScanCoordinator
+
+    func makeCoordinator() -> MetalViewCoordinator {
+        MetalViewCoordinator(coordinator: coordinator)
     }
+
+    func makeUIView(context: Context) -> MTKView {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            return MTKView()
+        }
+
+        let mtkView = MTKView()
+        mtkView.device = device
+        mtkView.backgroundColor = .black
+        mtkView.depthStencilPixelFormat = .depth32Float
+        mtkView.contentScaleFactor = 1
+
+        // 创建 ARSession
+        let arSession = ARSession()
+
+        // 创建 Renderer（使用真实的 MTKView）
+        let renderer = Renderer(session: arSession, metalDevice: device,
+                                renderDestination: mtkView)
+        renderer.drawRectResized(size: UIScreen.main.bounds.size)
+
+        // 绑定到 Coordinator
+        context.coordinator.coordinator.bind(session: arSession, renderer: renderer, mtkView: mtkView)
+
+        return mtkView
+    }
+
     func updateUIView(_ uiView: MTKView, context: Context) {}
+}
+
+// MARK: - MetalViewCoordinator
+class MetalViewCoordinator: NSObject {
+    weak var coordinator: ScanCoordinator?
+
+    init(coordinator: ScanCoordinator) {
+        self.coordinator = coordinator
+        super.init()
+    }
 }
