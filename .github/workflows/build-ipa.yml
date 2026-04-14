@@ -59,10 +59,20 @@ jobs:
 
           exit $EXIT
 
-      - name: Upload build artifact
+      - name: Package as IPA
+        if: env.APP_FOUND == 'true'
+        run: |
+          APP_PATH=$(find build -name "*.app" -type d | head -1)
+          echo "Packaging: $APP_PATH"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r FruitTreeScanner.ipa Payload
+          echo "IPA created: $(ls -lh FruitTreeScanner.ipa)"
+
+      - name: Upload IPA
         if: env.APP_FOUND == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: FruitTreeScanner-build
-          path: build/Build/Products/
-          retention-days: 1
+          name: FruitTreeScanner-IPA
+          path: FruitTreeScanner.ipa
+          retention-days: 7
