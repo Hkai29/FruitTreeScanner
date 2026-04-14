@@ -17,14 +17,30 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
       - name: Install XcodeGen
-        run: which xcodegen || brew install xcodegen
+        run: brew install xcodegen 2>&1 | tail -3
+
+      - name: Show directory structure
+        run: |
+          echo "=== 仓库根目录 ==="
+          ls -la
+          echo "=== Swift 文件 ==="
+          find . -name "*.swift" | head -20
 
       - name: Generate Xcode project
         run: |
-          xcodegen generate
-          ls -la *.xcodeproj 2>/dev/null && echo "✅ xcodeproj 生成成功" || echo "❌ 未找到 xcodeproj"
+          xcodegen generate 2>&1
+          echo "=== xcodeproj 生成结果 ==="
+          ls -la *.xcodeproj 2>/dev/null && echo "✅ 成功" || echo "❌ 失败"
 
-      - name: Build (no signing)
+      - name: Show project structure
+        if: success()
+        run: |
+          echo "=== Generated pbxproj files ==="
+          find . -name "*.pbxproj" | head -5
+          echo "=== project.pbxproj 内容概览 ==="
+          wc -l *.xcodeproj/*/project.pbxproj 2>/dev/null
+
+      - name: Build (capture full output)
         run: |
           set -o pipefail
           xcodebuild \
@@ -36,30 +52,20 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build 2>&1 | tee build_output.txt
-          EXIT_CODE=$?
-          echo "--- BUILD EXIT CODE: $EXIT_CODE ---"
-          echo "=== 查找 .app 文件 ==="
-          find build -name "*.app" -type d 2>/dev/null | head -5
-          echo "=== DerivedData build 目录 ==="
-          ls -la build/Build/Products/Release-iphoneos/ 2>/dev/null || echo "未找到 Release-iphoneos"
-          exit $EXIT_CODE
+            clean build 2>&1 | tee /tmp/build_full.log | grep -E "error:|warning:|BUILD|✗|✖|❌|✅|CompileSwift|Linking|Ld |" | tail -80
+          BUILD_EXIT=${PIPESTATUS[0]}
+          echo "=== BUILD FULL LOG TAIL ==="
+          tail -30 /tmp/build_full.log
+          echo "=== EXIT CODE: $BUILD_EXIT ==="
 
       - name: Package IPA
+        if: success()
         run: |
-          echo "=== 查找 app bundle ==="
           APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
-          echo "找到 APP: $APP"
-          if [ -z "$APP" ]; then
-            echo "❌ 未找到 .app 文件！"
-            echo "=== build 目录结构 ==="
-            find build -maxdepth 4 -type d 2>/dev/null | head -20
-            exit 1
-          fi
+          echo "APP路径: $APP"
           mkdir -p Payload
           cp -r "$APP" Payload/
           zip -r FruitTreeScanner.ipa Payload/
-          echo "✅ IPA 打包完成"
           ls -lh FruitTreeScanner.ipa
 
       - name: Upload IPA artifact
