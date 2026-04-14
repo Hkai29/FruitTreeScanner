@@ -17,16 +17,16 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
       - name: Install XcodeGen
-        run: |
-          which xcodegen || brew install xcodegen
+        run: which xcodegen || brew install xcodegen
 
       - name: Generate Xcode project
         run: |
           xcodegen generate
-          ls -la *.xcodeproj 2>/dev/null || ls -la
+          ls -la *.xcodeproj 2>/dev/null && echo "✅ xcodeproj 生成成功" || echo "❌ 未找到 xcodeproj"
 
       - name: Build (no signing)
         run: |
+          set -o pipefail
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
@@ -36,19 +36,34 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build 2>&1 | tail -20
+            clean build 2>&1 | tee build_output.txt
+          EXIT_CODE=$?
+          echo "--- BUILD EXIT CODE: $EXIT_CODE ---"
+          echo "=== 查找 .app 文件 ==="
+          find build -name "*.app" -type d 2>/dev/null | head -5
+          echo "=== DerivedData build 目录 ==="
+          ls -la build/Build/Products/Release-iphoneos/ 2>/dev/null || echo "未找到 Release-iphoneos"
+          exit $EXIT_CODE
 
       - name: Package IPA
         run: |
-          APP=$(find build -name "*.app" -not -path "*/\.*" | head -1)
-          echo "Packaging: $APP"
+          echo "=== 查找 app bundle ==="
+          APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
+          echo "找到 APP: $APP"
+          if [ -z "$APP" ]; then
+            echo "❌ 未找到 .app 文件！"
+            echo "=== build 目录结构 ==="
+            find build -maxdepth 4 -type d 2>/dev/null | head -20
+            exit 1
+          fi
           mkdir -p Payload
           cp -r "$APP" Payload/
           zip -r FruitTreeScanner.ipa Payload/
-          ls -lh FruitTreeScanner.ipa || echo "打包失败"
+          echo "✅ IPA 打包完成"
+          ls -lh FruitTreeScanner.ipa
 
       - name: Upload IPA artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: FruitTreeScanner-IPA
