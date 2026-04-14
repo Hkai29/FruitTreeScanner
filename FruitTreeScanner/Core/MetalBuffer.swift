@@ -7,12 +7,8 @@ Type-safe utility for working with MTLBuffers.
 
 import MetalKit
 
-protocol RenderResource {
-    associatedtype Value
-}
-
 /// A wrapper around MTLBuffer which provides type safe access and assignment to the underlying MTLBuffer's contents.
-struct MetalBuffer<Element>: RenderResource {
+struct MetalBuffer<Element> {
         
     /// The underlying MTLBuffer.
     fileprivate let buffer: MTLBuffer
@@ -85,35 +81,8 @@ extension MTLRenderCommandEncoder {
     func setVertexBuffer<T>(_ vertexBuffer: MetalBuffer<T>, offset: Int = 0) {
         setVertexBuffer(vertexBuffer.buffer, offset: offset, index: vertexBuffer.index)
     }
-    
+
     func setFragmentBuffer<T>(_ fragmentBuffer: MetalBuffer<T>, offset: Int = 0) {
         setFragmentBuffer(fragmentBuffer.buffer, offset: offset, index: fragmentBuffer.index)
     }
-    
-    func setVertexResource<R: RenderResource>(_ resource: R) {
-        if let buffer = resource as? MetalBuffer<R.Value> {
-            setVertexBuffer(buffer)
-        }
-
-        if let texture = resource as? Texture {
-            setVertexTexture(texture.texture, index: texture.index)
-        }
-    }
-
-    func setFragmentResource<R: RenderResource>(_ resource: R) {
-        if let buffer = resource as? MetalBuffer<R.Value> {
-            setFragmentBuffer(buffer)
-        }
-
-        if let texture = resource as? Texture {
-            setFragmentTexture(texture.texture, index: texture.index)
-        }
-    }
-}
-
-struct Texture: RenderResource {
-    typealias Value = Any
-
-    let texture: MTLTexture
-    let index: Int
 }
