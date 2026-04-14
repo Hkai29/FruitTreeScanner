@@ -70,7 +70,7 @@ final class Renderer: NSObject {
         return u
     }()
     private var pointCloudUniformsBuffers = [MetalBuffer<PointCloudUniforms>]()
-    public var particlesBuffer: MetalBuffer<ParticleUniforms>
+    public lazy var particlesBuffer: MetalBuffer<ParticleUniforms> = .init(device: device, count: maxPoints, index: kParticleUniforms.rawValue)
     private var currentPointIndex = 0
     private var currentPointCount = 0
     private var sampleFrame: ARFrame { session.currentFrame! }
@@ -101,8 +101,7 @@ final class Renderer: NSObject {
             pointCloudUniformsBuffers.append(.init(device: device, count: 1,
                                                    index: kPointCloudUniforms.rawValue))
         }
-        particlesBuffer = .init(device: device, count: maxPoints, index: kParticleUniforms.rawValue)
-        let relaxedDesc = MTLDepthStencilDescriptor()
+let relaxedDesc = MTLDepthStencilDescriptor()
         relaxedStencilState = device.makeDepthStencilState(descriptor: relaxedDesc)!
         let depthDesc = MTLDepthStencilDescriptor()
         depthDesc.depthCompareFunction = .lessEqual
