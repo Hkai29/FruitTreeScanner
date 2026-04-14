@@ -16,15 +16,15 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate Xcode project
+      - name: Generate Xcode project (clean)
         run: |
-          xcodegen generate
-          ls -la *.xcodeproj 2>/dev/null || echo "xcodeproj 未生成"
+          rm -rf FruitTreeScanner.xcodeproj
+          xcodegen generate --spec project.yml
+          ls -la *.xcodeproj 2>/dev/null && echo "✅ xcodeproj 生成" || echo "❌ 失败"
 
       - name: Build
         id: build
         run: |
-          echo "### xcodebuild output" >> $GITHUB_STEP_SUMMARY
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
@@ -34,13 +34,18 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build 2>&1 | tee build_output.txt
+            clean build 2>&1 | tee /tmp/build_output.txt
           EXIT=${PIPESTATUS[0]}
           echo "EXIT_CODE=$EXIT" >> $GITHUB_ENV
-          echo "Build exit code: $EXIT" >> $GITHUB_STEP_SUMMARY
 
-          # 提取错误
-          grep -E "^.*error:.*$" build_output.txt | head -10 >> $GITHUB_STEP_SUMMARY || true
+          # 提取错误（写 step summary）
+          echo "### xcodebuild errors" >> $GITHUB_STEP_SUMMARY
+          grep -E "error:" /tmp/build_output.txt | head -20 >> $GITHUB_STEP_SUMMARY || echo "无错误" >> $GITHUB_STEP_SUMMARY
+          echo "EXIT CODE: $EXIT" >> $GITHUB_STEP_SUMMARY
+
+          # 提取警告
+          echo "### xcodebuild warnings (first 5)" >> $GITHUB_STEP_SUMMARY
+          grep -E "warning:" /tmp/build_output.txt | head -5 >> $GITHUB_STEP_SUMMARY || true
 
           APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
           echo "APP_PATH=$APP" >> $GITHUB_ENV
@@ -56,8 +61,7 @@ jobs:
 
       - name: Package IPA
         if: env.IPA_CREATED == 'true'
-        run: |
-          ls -lh FruitTreeScanner.ipa
+        run: ls -lh FruitTreeScanner.ipa
 
       - name: Upload IPA artifact
         if: env.IPA_CREATED == 'true'
