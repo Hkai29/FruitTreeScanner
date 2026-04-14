@@ -264,7 +264,7 @@ extension Renderer: MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         drawRectResized(size: size)
     }
-    func draw(in view: MTKView) { draw() }
+    func draw(in view: MTKView) { renderFrame() }
 }
 
 // MARK: - MetalView（真实 MTKView 创建点）

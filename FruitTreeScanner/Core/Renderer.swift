@@ -117,7 +117,7 @@ final class Renderer: NSObject {
     var currentPointCountPublic: Int { currentPointCount }
 
     // MARK: - Draw（原始不改动）
-    func draw() {
+    func renderFrame() {
         guard let currentFrame = session.currentFrame,
               let renderDescriptor = renderDestination.currentRenderPassDescriptor,
               let commandBuffer = commandQueue.makeCommandBuffer(),
