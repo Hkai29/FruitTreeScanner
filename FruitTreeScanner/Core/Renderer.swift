@@ -93,7 +93,7 @@ final class Renderer: NSObject {
         self.session = session
         self.device = device
         self.renderDestination = renderDestination
-        super.init()
+        // super.init() must be LAST: all let properties must be initialized before super.init()
         library = device.makeDefaultLibrary()!
         commandQueue = device.makeCommandQueue()!
         for _ in 0 ..< maxInFlightBuffers {
@@ -101,13 +101,14 @@ final class Renderer: NSObject {
             pointCloudUniformsBuffers.append(.init(device: device, count: 1,
                                                    index: kPointCloudUniforms.rawValue))
         }
-let relaxedDesc = MTLDepthStencilDescriptor()
+        let relaxedDesc = MTLDepthStencilDescriptor()
         relaxedStencilState = device.makeDepthStencilState(descriptor: relaxedDesc)!
         let depthDesc = MTLDepthStencilDescriptor()
         depthDesc.depthCompareFunction = .lessEqual
         depthDesc.isDepthWriteEnabled = true
         depthStencilState = device.makeDepthStencilState(descriptor: depthDesc)!
         inFlightSemaphore = DispatchSemaphore(value: maxInFlightBuffers)
+        super.init()
     }
 
     func drawRectResized(size: CGSize) { viewportSize = size }
