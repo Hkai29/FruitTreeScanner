@@ -5,6 +5,17 @@ import SwiftUI
 import MetalKit
 import ARKit
 
+// MARK: - RenderDestinationProvider（来源：ios-depth-point-cloud ViewController.swift）
+protocol RenderDestinationProvider {
+    var currentRenderPassDescriptor: MTLRenderPassDescriptor? { get }
+    var currentDrawable: CAMetalDrawable? { get }
+    var colorPixelFormat: MTLPixelFormat { get set }
+    var depthStencilPixelFormat: MTLPixelFormat { get set }
+    var sampleCount: Int { get set }
+}
+
+extension MTKView: RenderDestinationProvider {}
+
 struct ScanView: View {
     let treeID: String
     let fruitType: FruitType       // 果种
