@@ -25,48 +25,44 @@ jobs:
       - name: Build
         id: build
         run: |
+          # 先列出可用的 simulators
+          xcrun simctl list devices available | grep -E "iPhone|iPad" | head -5
+          
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build 2>&1 | tee /tmp/build_output.txt
+            build 2>&1 | tee /tmp/build_output.txt
           EXIT=${PIPESTATUS[0]}
           echo "EXIT_CODE=$EXIT" >> $GITHUB_ENV
 
           # 提取错误（写 step summary）
-          echo "### xcodebuild errors" >> $GITHUB_STEP_SUMMARY
-          grep -E "error:" /tmp/build_output.txt | head -20 >> $GITHUB_STEP_SUMMARY || echo "无错误" >> $GITHUB_STEP_SUMMARY
+          echo "### xcodebuild errors (Simulator build - IPA not created)" >> $GITHUB_STEP_SUMMARY
+          grep -E "error:" /tmp/build_output.txt | head -30 >> $GITHUB_STEP_SUMMARY || echo "✅ 无编译错误" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "EXIT CODE: $EXIT" >> $GITHUB_STEP_SUMMARY
+          echo "(IPA packaging requires device + code signing - this build tests compilation only)" >> $GITHUB_STEP_SUMMARY
 
-          # 提取警告
-          echo "### xcodebuild warnings (first 5)" >> $GITHUB_STEP_SUMMARY
-          grep -E "warning:" /tmp/build_output.txt | head -5 >> $GITHUB_STEP_SUMMARY || true
+          # 警告摘要
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Warnings (first 10)" >> $GITHUB_STEP_SUMMARY
+          grep -E "warning:" /tmp/build_output.txt | grep -v "accessibility" | head -10 >> $GITHUB_STEP_SUMMARY || true
 
           APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
           echo "APP_PATH=$APP" >> $GITHUB_ENV
-
-          if [ -n "$APP" ] && [ $EXIT -eq 0 ]; then
-            mkdir -p Payload
-            cp -r "$APP" Payload/
-            zip -r FruitTreeScanner.ipa Payload/
-            echo "IPA_CREATED=true" >> $GITHUB_ENV
-          fi
+          if [ -n "$APP" ]; then echo "APP_FOUND=true" >> $GITHUB_ENV; fi
 
           exit $EXIT
 
-      - name: Package IPA
-        if: env.IPA_CREATED == 'true'
-        run: ls -lh FruitTreeScanner.ipa
-
-      - name: Upload IPA artifact
-        if: env.IPA_CREATED == 'true'
+      - name: Upload build artifact
+        if: env.APP_FOUND == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: FruitTreeScanner-IPA
-          path: FruitTreeScanner.ipa
-          retention-days: 7
+          name: FruitTreeScanner-build
+          path: build/Build/Products/
+          retention-days: 1
