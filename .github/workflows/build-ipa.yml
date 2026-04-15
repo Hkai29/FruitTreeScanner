@@ -26,13 +26,16 @@ jobs:
         id: build
         run: |
           # 先列出可用的 simulators
+          # 列出已连接的设备（真机）
           xcrun simctl list devices available | grep -E "iPhone|iPad" | head -5
+          echo "---"
+          system_profiler SPUSBDataType 2>/dev/null | grep -E "iPad|iPhone" | head -5 || echo "未检测到USB设备"
           
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
