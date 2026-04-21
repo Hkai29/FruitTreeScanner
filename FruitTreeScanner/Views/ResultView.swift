@@ -1,5 +1,5 @@
 // ResultView.swift
-// 扫描完成后的产量估算结果页
+// 扫描完成后的产量估算结果页 - 统一深色科技风格
 
 import SwiftUI
 
@@ -9,118 +9,150 @@ struct ResultView: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
+        ZStack {
+            Color(hex: "0a1628")
+                .ignoresSafeArea()
 
-                    // ── 顶部产量卡片 ────────────────────
+            ScrollView {
+                VStack(spacing: 24) {
+                    // 顶部产量卡片
                     ZStack {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(confidenceColor.opacity(0.15))
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(Color.white.opacity(0.05))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .strokeBorder(confidenceColor, lineWidth: 2)
+                                RoundedRectangle(cornerRadius: 24)
+                                    .strokeBorder(confidenceColor.opacity(0.5), lineWidth: 1.5)
                             )
 
-                        VStack(spacing: 8) {
-                            Text(treeID)
-                                .font(.title3.bold())
-                                .foregroundColor(.secondary)
-                            Text(String(format: "%.1f kg", result.yieldFinalKg))
-                                .font(.system(size: 56, weight: .black))
+                        VStack(spacing: 16) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(confidenceColor)
+
+                                Text(treeID)
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+
+                            Text(String(format: "%.1f", result.yieldFinalKg))
+                                .font(.system(size: 72, weight: .heavy, design: .rounded))
                                 .foregroundColor(confidenceColor)
-                            HStack(spacing: 6) {
+
+                            Text("kg")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor(.white.opacity(0.5))
+
+                            HStack(spacing: 8) {
                                 Circle()
                                     .fill(confidenceColor)
                                     .frame(width: 8, height: 8)
                                 Text(confidenceLabel)
-                                    .font(.subheadline.bold())
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(confidenceColor)
                             }
+
                             if !result.note.isEmpty {
                                 Text(result.note)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white.opacity(0.5))
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal)
                             }
                         }
-                        .padding(24)
+                        .padding(32)
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
 
-                    // ── 路线B：果实检测 ─────────────────
+                    // 路线B
                     if result.nLidar > 0 {
-                        SectionCard(title: "路线B · 果实体积法", icon: "circle.grid.3x3") {
-                            InfoRow(label: "LiDAR 检测果实", value: "\(result.nLidar) 个")
+                        ResultSectionCard(
+                            title: "路线B · 果实体积法",
+                            icon: "circle.grid.3x3",
+                            color: "4ADE80"
+                        ) {
+                            ResultInfoRow(label: "LiDAR 检测果实", value: "\(result.nLidar) 个")
                             if let nV = result.nVisual {
-                                InfoRow(label: "视觉计数（校正用）", value: "\(nV) 个")
-                                InfoRow(label: "遮挡校正系数 K",
-                                        value: String(format: "×%.2f", result.correctionK))
+                                ResultInfoRow(label: "视觉计数", value: "\(nV) 个")
+                                ResultInfoRow(label: "遮挡校正系数", value: String(format: "×%.2f", result.correctionK))
                             }
-                            InfoRow(label: "可见部分重量",
-                                    value: String(format: "%.2f kg", result.yieldBVisibleKg))
-                            InfoRow(label: "校正后重量",
-                                    value: String(format: "%.2f kg", result.yieldBCorrectedKg),
-                                    highlight: true)
-                            InfoRow(label: "平均果实直径",
-                                    value: String(format: "%.1f cm", result.meanDiameterCm))
+                            ResultInfoRow(label: "可见部分重量", value: String(format: "%.2f kg", result.yieldBVisibleKg))
+                            ResultInfoRow(label: "校正后重量", value: String(format: "%.2f kg", result.yieldBCorrectedKg), highlight: true)
+                            ResultInfoRow(label: "平均果实直径", value: String(format: "%.1f cm", result.meanDiameterCm))
                         }
                     }
 
-                    // ── 路线A：冠层回归 ─────────────────
-                    if let yA = result.yieldAKg {
-                        SectionCard(title: "路线A · 冠层体积法", icon: "tree") {
-                            InfoRow(label: "回归预测产量",
-                                    value: String(format: "%.2f kg", yA),
-                                    highlight: true)
-                            InfoRow(label: "冠层体积",
-                                    value: String(format: "%.3f m³", result.crownVolM3))
-                            InfoRow(label: "树高",
-                                    value: String(format: "%.2f m", result.treeHeightM))
-                        }
-                    } else {
-                        SectionCard(title: "路线A · 冠层体积法", icon: "tree") {
-                            Text("路线A模型未训练\n（需采集称重数据后训练）")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
+                    // 路线A
+                    ResultSectionCard(
+                        title: "路线A · 冠层体积法",
+                        icon: "tree.fill",
+                        color: "60A5FA"
+                    ) {
+                        if let yA = result.yieldAKg {
+                            ResultInfoRow(label: "冠层回归产量", value: String(format: "%.2f kg", yA), highlight: true)
+                            ResultInfoRow(label: "冠层体积", value: String(format: "%.3f m³", result.crownVolM3))
+                            ResultInfoRow(label: "树高", value: String(format: "%.2f m", result.treeHeightM))
+                        } else {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundColor(.white.opacity(0.4))
+                                Text("路线A模型未训练，需采集称重数据后训练")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.white.opacity(0.4))
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
                         }
                     }
 
-                    // ── 操作按钮 ────────────────────────
+                    // 操作按钮
                     VStack(spacing: 12) {
+                        Button(action: onDismiss) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 18))
+                                Text("继续扫描下一棵")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(Color(hex: "0a1628"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hex: "4ADE80"), Color(hex: "22C55E")],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(14)
+                        }
+
                         Button {
-                            onDismiss()
+                            // 返回主界面
                         } label: {
-                            Label("继续扫描下一棵", systemImage: "plus.circle")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.green)
-                                .foregroundColor(.white)
-                                .cornerRadius(14)
+                            HStack(spacing: 8) {
+                                Image(systemName: "house.fill")
+                                    .font(.system(size: 16))
+                                Text("返回主界面")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                            .foregroundColor(.white.opacity(0.6))
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 30)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
                 }
-                .padding(.top, 20)
             }
-            .navigationTitle("产量估算结果")
-            .navigationBarTitleDisplayMode(.inline)
         }
     }
 
-    // MARK: - 置信度颜色/文字
-
     private var confidenceColor: Color {
         switch result.confidence {
-        case "high":          return .green
-        case "medium":        return .orange
-        case "manual_review": return .red
-        default:              return .gray
+        case "high":          return Color(hex: "4ADE80")
+        case "medium":        return Color(hex: "FBBF24")
+        case "manual_review": return Color(hex: "EF4444")
+        default:              return Color(hex: "9CA3AF")
         }
     }
 
@@ -134,29 +166,47 @@ struct ResultView: View {
     }
 }
 
-// MARK: - 子组件
-
-struct SectionCard<Content: View>: View {
+// MARK: - 结果卡片
+struct ResultSectionCard<Content: View>: View {
     let title: String
     let icon: String
+    let color: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: icon)
-                .font(.headline)
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(Color(hex: color))
+
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+
+                Spacer()
+            }
+
             Divider()
+                .background(Color.white.opacity(0.1))
+
             content()
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
-        .padding(.horizontal)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 24)
     }
 }
 
-struct InfoRow: View {
+// MARK: - 结果信息行
+struct ResultInfoRow: View {
     let label: String
     let value: String
     var highlight: Bool = false
@@ -164,12 +214,14 @@ struct InfoRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .foregroundColor(.secondary)
-                .font(.subheadline)
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.5))
+
             Spacer()
+
             Text(value)
-                .font(highlight ? .subheadline.bold() : .subheadline)
-                .foregroundColor(highlight ? .primary : .secondary)
+                .font(.system(size: 14, weight: highlight ? .bold : .medium, design: .monospaced))
+                .foregroundColor(highlight ? Color(hex: "4ADE80") : .white.opacity(0.8))
         }
     }
 }
