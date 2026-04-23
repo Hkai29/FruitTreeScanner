@@ -34,6 +34,7 @@ struct ScanItem: Identifiable, Equatable {
 
 // MARK: - HistoricalCompareView
 struct HistoricalCompareView: View {
+    @ObservedObject var historyStore = ScanHistoryStore.shared
     @State private var selectedScan1: ScanItem?
     @State private var selectedScan2: ScanItem?
     @State private var showScanPicker1 = false
@@ -79,9 +80,19 @@ struct HistoricalCompareView: View {
             .sorted { $0.scanDate > $1.scanDate }
     }
 
-    // Use real data if available, otherwise fall back to mock data
+    // Use real data from historyStore, otherwise fall back to mock data
     private var mockScans: [ScanItem] {
-        let realScans = loadAvailableScans()
+        let realScans = historyStore.scanFiles.map { record in
+            ScanItem(
+                id: record.id,
+                treeID: record.treeID,
+                scanDate: record.scanDate,
+                yieldKg: 0,
+                nLidar: 0,
+                meanDiameterCm: 0,
+                confidence: "medium"
+            )
+        }
         if realScans.isEmpty {
             // Fall back to mock data only when no real scans exist
             return [
@@ -130,6 +141,9 @@ struct HistoricalCompareView: View {
             ScanPickerView(scans: availableScans, selectedScan: $selectedScan2)
         }
         .onAppear {
+            availableScans = mockScans
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ScanHistoryStore.didUpdateNotification)) { _ in
             availableScans = mockScans
         }
     }
