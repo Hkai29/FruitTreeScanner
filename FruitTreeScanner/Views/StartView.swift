@@ -10,7 +10,7 @@ struct StartView: View {
     @State private var season: Season = .mature
     @State private var showScan = false
     @StateObject private var gps = GPSRecorder()
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
 
     private var nVisual: Int? { Int(nVisualStr) }
     private var canStart: Bool { !treeID.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -24,7 +24,7 @@ struct StartView: View {
                 // 顶部导航
                 HStack {
                     Button {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "chevron.left")

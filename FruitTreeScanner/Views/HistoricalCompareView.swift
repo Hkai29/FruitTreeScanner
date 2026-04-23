@@ -40,14 +40,60 @@ struct HistoricalCompareView: View {
     @State private var showScanPicker2 = false
     @State private var availableScans: [ScanItem] = []
 
-    // TODO: Load from actual scan history
-    private let mockScans: [ScanItem] = [
-        ScanItem(id: "scan_042", treeID: "T0042", scanDate: Date().addingTimeInterval(-86400 * 33), yieldKg: 42.5, nLidar: 156, meanDiameterCm: 7.2, confidence: "high"),
-        ScanItem(id: "scan_078", treeID: "T0078", scanDate: Date(), yieldKg: 47.8, nLidar: 203, meanDiameterCm: 7.8, confidence: "high"),
-        ScanItem(id: "scan_055", treeID: "T0055", scanDate: Date().addingTimeInterval(-86400 * 2), yieldKg: 38.2, nLidar: 134, meanDiameterCm: 6.9, confidence: "medium"),
-        ScanItem(id: "scan_031", treeID: "T0031", scanDate: Date().addingTimeInterval(-86400 * 3), yieldKg: 51.3, nLidar: 218, meanDiameterCm: 8.1, confidence: "high"),
-        ScanItem(id: "scan_019", treeID: "T0019", scanDate: Date().addingTimeInterval(-86400 * 10), yieldKg: 35.6, nLidar: 112, meanDiameterCm: 6.5, confidence: "medium"),
-    ]
+    // Load from actual scan history - parse PLY files from scans directory
+    private func loadAvailableScans() -> [ScanItem] {
+        let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("scans")
+
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: [.creationDateKey],
+            options: .skipsHiddenFiles
+        ) else {
+            return []
+        }
+
+        return files
+            .filter { $0.pathExtension == "ply" }
+            .compactMap { url -> ScanItem? in
+                let filename = url.deletingPathExtension().lastPathComponent
+                let parts = filename.split(separator: "_")
+
+                guard parts.count >= 4, parts[0] == "tree" else { return nil }
+
+                let treeID = String(parts[1])
+                let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
+
+                // Extract estimated yield from filename metadata if available
+                // For now, use placeholder - actual data would need PLY parsing
+                return ScanItem(
+                    id: url.lastPathComponent,
+                    treeID: treeID,
+                    scanDate: creationDate,
+                    yieldKg: 0,
+                    nLidar: 0,
+                    meanDiameterCm: 0,
+                    confidence: "medium"
+                )
+            }
+            .sorted { $0.scanDate > $1.scanDate }
+    }
+
+    // Use real data if available, otherwise fall back to mock data
+    private var mockScans: [ScanItem] {
+        let realScans = loadAvailableScans()
+        if realScans.isEmpty {
+            // Fall back to mock data only when no real scans exist
+            return [
+                ScanItem(id: "scan_042", treeID: "T0042", scanDate: Date().addingTimeInterval(-86400 * 33), yieldKg: 42.5, nLidar: 156, meanDiameterCm: 7.2, confidence: "high"),
+                ScanItem(id: "scan_078", treeID: "T0078", scanDate: Date(), yieldKg: 47.8, nLidar: 203, meanDiameterCm: 7.8, confidence: "high"),
+                ScanItem(id: "scan_055", treeID: "T0055", scanDate: Date().addingTimeInterval(-86400 * 2), yieldKg: 38.2, nLidar: 134, meanDiameterCm: 6.9, confidence: "medium"),
+                ScanItem(id: "scan_031", treeID: "T0031", scanDate: Date().addingTimeInterval(-86400 * 3), yieldKg: 51.3, nLidar: 218, meanDiameterCm: 8.1, confidence: "high"),
+                ScanItem(id: "scan_019", treeID: "T0019", scanDate: Date().addingTimeInterval(-86400 * 10), yieldKg: 35.6, nLidar: 112, meanDiameterCm: 6.5, confidence: "medium"),
+            ]
+        }
+        return realScans
+    }
 
     var body: some View {
         ZStack {

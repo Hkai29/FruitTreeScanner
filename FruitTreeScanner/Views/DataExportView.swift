@@ -136,9 +136,50 @@ struct DataExportView: View {
 
     // MARK: - 加载记录
     private func loadRecords() {
-        // 从 UserDefaults 或文件加载扫描记录
-        scanRecords = []
-        // TODO: 实现实际的数据加载
+        // Load from scans directory (same source as ScanHistoryView)
+        let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("scans")
+
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: [.creationDateKey],
+            options: .skipsHiddenFiles
+        ) else {
+            scanRecords = []
+            return
+        }
+
+        // Parse PLY files to create scan records
+        // Filename format: tree_\(treeID)_\(lat)_\(lon).ply
+        scanRecords = files
+            .filter { $0.pathExtension == "ply" }
+            .compactMap { url -> ScanRecord? in
+                let filename = url.deletingPathExtension().lastPathComponent
+                let parts = filename.split(separator: "_")
+
+                guard parts.count >= 4, parts[0] == "tree" else { return nil }
+
+                let treeID = String(parts[1])
+                let lat = Double(parts[2]) ?? 0
+                let lon = Double(parts[3]) ?? 0
+
+                // Get creation date
+                let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
+
+                // Estimate fruit count and yield from filename metadata
+                // For now, create placeholder records (actual data would need PLY parsing)
+                return ScanRecord(
+                    id: UUID(),
+                    treeID: treeID,
+                    fruitType: "apple",
+                    scanDate: creationDate,
+                    fruitCount: 0,
+                    yieldKg: 0,
+                    gpsLat: lat,
+                    gpsLon: lon
+                )
+            }
+            .sorted { $0.scanDate > $1.scanDate }
     }
 
     // MARK: - 导出数据

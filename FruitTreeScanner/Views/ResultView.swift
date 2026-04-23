@@ -129,7 +129,8 @@ struct ResultView: View {
                         }
 
                         Button {
-                            // 返回主界面
+                            // 返回主界面 - dismiss scan view to return to dashboard
+                            onDismiss()
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "house.fill")

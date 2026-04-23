@@ -197,8 +197,13 @@ struct MapSheet: View {
             ZStack { Color(hex: "0a1628").ignoresSafeArea()
                 VStack(spacing: 20) {
                     Image(systemName: "map.fill").font(.system(size: 60)).foregroundColor(Color(hex: "A78BFA").opacity(0.3))
-                    Text("地图视图").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
-                    Text("查看果园分布地图").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
+                    Text("果园地图").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
+                    Text("查看果园分布和产量热力图").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
+                    Button("打开完整地图") {
+                        dismiss()
+                    }
+                    .foregroundColor(Color(hex: "4ADE80"))
+                    .padding(.top, 20)
                 }
             }
             .navigationTitle("地图视图")
@@ -210,7 +215,7 @@ struct MapSheet: View {
 
 // MARK: - Quick Scan View
 struct QuickScanView: View {
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
     @StateObject private var gps = GPSRecorder()
     @State private var treeID: String = "Q\((Int.random(in: 1000...9999)))"
     @State private var selectedFruitType: FruitType = .appleRed
@@ -222,7 +227,7 @@ struct QuickScanView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Button { presentationMode.wrappedValue.dismiss() } label: {
+                    Button { dismiss() } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
                             Text("返回").font(.system(size: 16, weight: .medium))

@@ -13,7 +13,7 @@ struct ScanView: View {
     @ObservedObject var gps: GPSRecorder
 
     @StateObject private var coordinator = ScanCoordinator()
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
 
     @State private var isRecording = false
     @State private var showGuide = true
@@ -55,7 +55,7 @@ struct ScanView: View {
             // 扫描完成 → 显示结果
             if showResult, let result = yieldResult {
                 ResultView(treeID: treeID, result: result) {
-                    presentationMode.wrappedValue.dismiss()
+                    dismiss()
                 }
             }
 
