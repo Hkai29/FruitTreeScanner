@@ -8,6 +8,7 @@ struct DataExportView: View {
     @State private var isExporting = false
     @State private var showExportSheet = false
     @State private var exportedFileURL: URL?
+    @ObservedObject var historyStore = ScanHistoryStore.shared
 
     var body: some View {
         ZStack {
@@ -34,6 +35,9 @@ struct DataExportView: View {
             }
         }
         .onAppear {
+            loadRecords()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ScanHistoryStore.didUpdateNotification)) { _ in
             loadRecords()
         }
         .sheet(isPresented: $showExportSheet) {
