@@ -34,11 +34,13 @@ struct PointCloudUniforms {
     matrix_float4x4 localToWorld;
     matrix_float3x3 cameraIntrinsicsInversed;
     simd_float2 cameraResolution;
-    
+
     float particleSize;
     int maxPoints;
     int pointCloudCurrentIndex;
     int confidenceThreshold;
+    float minDepth;
+    float maxDepth;
 };
 
 struct ParticleUniforms {

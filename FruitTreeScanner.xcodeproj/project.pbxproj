@@ -1,0 +1,364 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1E134CEA8C8FB8B9B701C29A /* LaunchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B98D430D628A279343A437A /* LaunchScreen.swift */; };
+		23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115AA07F0ADF20776A78BADD /* ResultView.swift */; };
+		373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158ABA23ED3CD7468A81CFFE /* ScanView.swift */; };
+		3ED2D13CBE172639B6DE54B9 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = D20D286AA15B66451D7E4867 /* Shaders.metal */; };
+		4290FCA9BB47CE697C86A7ED /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688A076C865BB72C1E79F3EA /* StartView.swift */; };
+		4822243FDDCB5DFA48275638 /* FruitTreeScannerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD9EBAD864179E14E3FA66D1 /* FruitTreeScannerApp.swift */; };
+		49E97BEF76CC0DFADCDC98B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 916EE162272411D94609DBA3 /* Assets.xcassets */; };
+		51B82507BCDE6D1F33F0D359 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65EF14476A599F346D1770E5 /* Utils.swift */; };
+		582D39EDACD586789724BD9D /* MetalBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */; };
+		60D4C5AFE0DFAE56637E76E4 /* GPSRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */; };
+		67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */; };
+		85CF96DC4B950A88DE261E1A /* TransitionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9BA99AE3DEE3B688A50BCD /* TransitionPage.swift */; };
+		B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */; };
+		FUSION279228 /* PointCloudFusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSION987654321 /* PointCloudFusion.swift */; };
+		BBDDFD016D098E22AE2FB02C /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77242F7C9551310A23D45DBD /* Renderer.swift */; };
+		BFE751D382AA5DCD78668766 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 869591D63C1E6AC52725B236 /* Theme.swift */; };
+		C63AD22D581506A8A6D34BC6 /* Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6DCB54AA9A7278C13034D2E /* Helpers.swift */; };
+		C8C2F4B22F2D81D8B02A7708 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B3BAC8B3BDC2C17A17F80301 /* LaunchScreen.storyboard */; };
+		CALIB279228 /* CalibrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALIB794033 /* CalibrationView.swift */; };
+		HELP279228 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HELP1122334455 /* HelpView.swift */; };
+		EXPORT279228 /* DataExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EXPORT5566778899 /* DataExportView.swift */; };
+		DASH279228 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASH794033 /* DashboardView.swift */; };
+		MODEL279228 /* FruitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL987654321 /* FruitModels.swift */; };
+		CLUSTER279228 /* PointCloudCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUSTER987654321 /* PointCloudCluster.swift */; };
+		IMGDET279228 /* ImageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDET987654321 /* ImageDetector.swift */; };
+		FUSIONVAL279228 /* FusionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONVAL987654321 /* FusionValidator.swift */; };
+		FRUITCNT279228 /* FruitCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCNT987654321 /* FruitCounter.swift */; };
+		MODEL98765432101 /* FruitsDetector.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = MODEL9876543210 /* FruitsDetector.mlpackage */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSRecorder.swift; sourceTree = "<group>"; };
+		115AA07F0ADF20776A78BADD /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
+		158ABA23ED3CD7468A81CFFE /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
+		1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalBuffer.swift; sourceTree = "<group>"; };
+		2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryView.swift; sourceTree = "<group>"; };
+		2F9BA99AE3DEE3B688A50BCD /* TransitionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionPage.swift; sourceTree = "<group>"; };
+		3211BC7EF92CF0073528A047 /* ShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShaderTypes.h; sourceTree = "<group>"; };
+		3B98D430D628A279343A437A /* LaunchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreen.swift; sourceTree = "<group>"; };
+		65EF14476A599F346D1770E5 /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
+		688A076C865BB72C1E79F3EA /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
+		77242F7C9551310A23D45DBD /* Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderer.swift; sourceTree = "<group>"; };
+		869591D63C1E6AC52725B236 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		8A975936189FC1CB68D4EF5B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		916EE162272411D94609DBA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FruitTreeScanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB1927876412930FC1078524 /* Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Bridging-Header.h"; sourceTree = "<group>"; };
+		B3BAC8B3BDC2C17A17F80301 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		CD9EBAD864179E14E3FA66D1 /* FruitTreeScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitTreeScannerApp.swift; sourceTree = "<group>"; };
+		CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimator.swift; sourceTree = "<group>"; };
+		FUSION987654321 /* PointCloudFusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudFusion.swift; sourceTree = "<group>"; };
+		D20D286AA15B66451D7E4867 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		D6DCB54AA9A7278C13034D2E /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
+		CALIB794033 /* CalibrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationView.swift; sourceTree = "<group>"; };
+		HELP1122334455 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		EXPORT5566778899 /* DataExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataExportView.swift; sourceTree = "<group>"; };
+		DASH794033 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		MODEL987654321 /* FruitModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitModels.swift; sourceTree = "<group>"; };
+		CLUSTER987654321 /* PointCloudCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudCluster.swift; sourceTree = "<group>"; };
+		IMGDET987654321 /* ImageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetector.swift; sourceTree = "<group>"; };
+		FUSIONVAL987654321 /* FusionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidator.swift; sourceTree = "<group>"; };
+		FRUITCNT987654321 /* FruitCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCounter.swift; sourceTree = "<group>"; };
+		MODEL9876543210 /* FruitsDetector.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlmodel; path = FruitsDetector.mlpackage; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		080EE612D73BEFA8302D230F /* FruitTreeScanner */ = {
+			isa = PBXGroup;
+			children = (
+				916EE162272411D94609DBA3 /* Assets.xcassets */,
+				8A975936189FC1CB68D4EF5B /* Info.plist */,
+				B3BAC8B3BDC2C17A17F80301 /* LaunchScreen.storyboard */,
+				A6914CF85AB6C624A347CE78 /* App */,
+				BF8DCD53FFDD11E7060F4A69 /* Core */,
+				DD98D30826CA1066D0905621 /* Design */,
+				898DE573025C3A364767ABC3 /* GPS */,
+				77FCC2F2178481AB923AC132 /* Views */,
+			);
+			path = FruitTreeScanner;
+			sourceTree = "<group>";
+		};
+		27C890A81655BD147E0CEE77 = {
+			isa = PBXGroup;
+			children = (
+				080EE612D73BEFA8302D230F /* FruitTreeScanner */,
+				98B57B354ACEAED286563A16 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		77FCC2F2178481AB923AC132 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				3B98D430D628A279343A437A /* LaunchScreen.swift */,
+				115AA07F0ADF20776A78BADD /* ResultView.swift */,
+				2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */,
+				158ABA23ED3CD7468A81CFFE /* ScanView.swift */,
+				688A076C865BB72C1E79F3EA /* StartView.swift */,
+				2F9BA99AE3DEE3B688A50BCD /* TransitionPage.swift */,
+				CALIB794033 /* CalibrationView.swift */,
+				HELP1122334455 /* HelpView.swift */,
+				EXPORT5566778899 /* DataExportView.swift */,
+				DASH794033 /* DashboardView.swift */,
+
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		898DE573025C3A364767ABC3 /* GPS */ = {
+			isa = PBXGroup;
+			children = (
+				03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */,
+			);
+			path = GPS;
+			sourceTree = "<group>";
+		};
+		98B57B354ACEAED286563A16 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A6914CF85AB6C624A347CE78 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				CD9EBAD864179E14E3FA66D1 /* FruitTreeScannerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		BF8DCD53FFDD11E7060F4A69 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				AB1927876412930FC1078524 /* Bridging-Header.h */,
+				D6DCB54AA9A7278C13034D2E /* Helpers.swift */,
+				1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */,
+				77242F7C9551310A23D45DBD /* Renderer.swift */,
+				D20D286AA15B66451D7E4867 /* Shaders.metal */,
+				3211BC7EF92CF0073528A047 /* ShaderTypes.h */,
+				65EF14476A599F346D1770E5 /* Utils.swift */,
+				CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */,
+				FUSION987654321 /* PointCloudFusion.swift */,
+				MODEL987654321 /* FruitModels.swift */,
+				CLUSTER987654321 /* PointCloudCluster.swift */,
+				IMGDET987654321 /* ImageDetector.swift */,
+				FUSIONVAL987654321 /* FusionValidator.swift */,
+				FRUITCNT987654321 /* FruitCounter.swift */,
+				MODEL9876543210 /* FruitsDetector.mlpackage */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		DD98D30826CA1066D0905621 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				869591D63C1E6AC52725B236 /* Theme.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 28DEAD06C4CFCC309D35A921 /* Build configuration list for PBXNativeTarget "FruitTreeScanner" */;
+			buildPhases = (
+				4154A4CC6A67671CF02E6C91 /* Sources */,
+				F2A3946EACFD70D9981347A3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FruitTreeScanner;
+			packageProductDependencies = (
+			);
+			productName = FruitTreeScanner;
+			productReference = 91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BC5F14B9C19941556DF33AA0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					38BA72362BEB63A680EDB2B7 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 8E860B69EC509B6C947B6D17 /* Build configuration list for PBXProject "FruitTreeScanner" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 27C890A81655BD147E0CEE77;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 98B57B354ACEAED286563A16 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F2A3946EACFD70D9981347A3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				49E97BEF76CC0DFADCDC98B5 /* Assets.xcassets in Resources */,
+				C8C2F4B22F2D81D8B02A7708 /* LaunchScreen.storyboard in Resources */,
+				MODEL98765432101 /* FruitsDetector.mlpackage in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4154A4CC6A67671CF02E6C91 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4822243FDDCB5DFA48275638 /* FruitTreeScannerApp.swift in Sources */,
+				60D4C5AFE0DFAE56637E76E4 /* GPSRecorder.swift in Sources */,
+				C63AD22D581506A8A6D34BC6 /* Helpers.swift in Sources */,
+				1E134CEA8C8FB8B9B701C29A /* LaunchScreen.swift in Sources */,
+				582D39EDACD586789724BD9D /* MetalBuffer.swift in Sources */,
+				BBDDFD016D098E22AE2FB02C /* Renderer.swift in Sources */,
+				23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */,
+				67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */,
+				373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */,
+				3ED2D13CBE172639B6DE54B9 /* Shaders.metal in Sources */,
+				4290FCA9BB47CE697C86A7ED /* StartView.swift in Sources */,
+				BFE751D382AA5DCD78668766 /* Theme.swift in Sources */,
+				85CF96DC4B950A88DE261E1A /* TransitionPage.swift in Sources */,
+				51B82507BCDE6D1F33F0D359 /* Utils.swift in Sources */,
+				B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */,
+				FUSION279228 /* PointCloudFusion.swift in Sources */,
+				CALIB279228 /* CalibrationView.swift in Sources */,
+				HELP279228 /* HelpView.swift in Sources */,
+				EXPORT279228 /* DataExportView.swift in Sources */,
+				DASH279228 /* DashboardView.swift in Sources */,
+				MODEL279228 /* FruitModels.swift in Sources */,
+				CLUSTER279228 /* PointCloudCluster.swift in Sources */,
+				IMGDET279228 /* ImageDetector.swift in Sources */,
+				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
+				FRUITCNT279228 /* FruitCounter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		294AC179CF7107920C0CF944 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ENABLE_BITCODE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AA1D82E60D46C09058C32102 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UT5Z26973G;
+				INFOPLIST_FILE = FruitTreeScanner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner;
+				PRODUCT_NAME = FruitTreeScanner;
+				SWIFT_OBJC_BRIDGING_HEADER = "FruitTreeScanner/Core/Bridging-Header.h";
+			};
+			name = Release;
+		};
+		B8CF875EB11F19204078B8EA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ENABLE_BITCODE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D7EBF67862B62EB63E235D2B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UT5Z26973G;
+				INFOPLIST_FILE = FruitTreeScanner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner;
+				PRODUCT_NAME = FruitTreeScanner;
+				SWIFT_OBJC_BRIDGING_HEADER = "FruitTreeScanner/Core/Bridging-Header.h";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		28DEAD06C4CFCC309D35A921 /* Build configuration list for PBXNativeTarget "FruitTreeScanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7EBF67862B62EB63E235D2B /* Debug */,
+				AA1D82E60D46C09058C32102 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8E860B69EC509B6C947B6D17 /* Build configuration list for PBXProject "FruitTreeScanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B8CF875EB11F19204078B8EA /* Debug */,
+				294AC179CF7107920C0CF944 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = BC5F14B9C19941556DF33AA0 /* Project object */;
+}
