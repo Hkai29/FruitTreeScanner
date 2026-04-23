@@ -188,13 +188,12 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
         renderer.delegate = self
 
         let config = ARWorldTrackingConfiguration()
-        // 只启用 sceneDepth，移除 smoothedSceneDepth 避免兼容性问题
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             config.frameSemantics = .sceneDepth
         }
         session.run(config)
 
-        // 等 session 交付第一个 frame 后再启用 RGB 预览
+        // 延迟设置 rgbRadius，等 session 初始化完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.renderer?.rgbRadius = 3.0
         }
@@ -299,12 +298,15 @@ struct MetalView: UIViewRepresentable {
         // 创建 ARSession
         let arSession = ARSession()
 
-        // 创建 Renderer（此时 session 还未启动，currentFrame 为 nil）
+        // 创建 Renderer（使用真实的 MTKView）
         let renderer = Renderer(session: arSession, metalDevice: device,
                                 renderDestination: mtkView)
         renderer.drawRectResized(size: UIScreen.main.bounds.size)
 
-        // 绑定到 Coordinator（bind 中启动 session）
+        // 关键：设置 MTKView 的 delegate，让渲染循环启动
+        mtkView.delegate = renderer
+
+        // 绑定到 Coordinator
         context.coordinator.coordinator?.bind(session: arSession, renderer: renderer, mtkView: mtkView)
 
         return mtkView

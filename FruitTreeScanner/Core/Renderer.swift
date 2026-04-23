@@ -54,12 +54,25 @@ final class Renderer: NSObject {
     private lazy var gridPointsBuffer = MetalBuffer<Float2>(device: device,
                                                             array: makeGridPoints(),
                                                             index: kGridPoints.rawValue, options: [])
+    private lazy var viewToCameraMatrix: matrix_float3x3 = {
+        let t = viewToCamera
+        let a = Float(t.a)
+        let b = Float(t.b)
+        let c = Float(t.c)
+        let d = Float(t.d)
+        let tx = Float(t.tx)
+        let ty = Float(t.ty)
+        var result = matrix_float3x3()
+        result[0] = simd_float3(a, b, 0)
+        result[1] = simd_float3(c, d, 0)
+        result[2] = simd_float3(tx, ty, 1)
+        return result
+    }()
+
     private lazy var rgbUniforms: RGBUniforms = {
         var u = RGBUniforms()
         u.radius = rgbRadius
-        if let vtc = viewToCamera {
-            u.viewToCamera.copy(from: vtc)
-        }
+        u.viewToCamera = viewToCameraMatrix
         u.viewRatio = Float(viewportSize.width / viewportSize.height)
         return u
     }()
@@ -69,7 +82,7 @@ final class Renderer: NSObject {
         u.maxPoints = Int32(maxPoints)
         u.confidenceThreshold = Int32(confidenceThreshold)
         u.particleSize = particleSize
-        u.cameraResolution = cameraResolution ?? simd_float2(1920, 1080)
+        u.cameraResolution = cameraResolution
         return u
     }()
     private var pointCloudUniformsBuffers = [MetalBuffer<PointCloudUniforms>]()
@@ -77,20 +90,20 @@ final class Renderer: NSObject {
     private var currentPointIndex = 0
     private var currentPointCount = 0
     private var sampleFrame: ARFrame? {
-        guard hasReceivedFirstFrame else { return nil }
-        return session.currentFrame
+        guard hasReceivedFirstFrame, let frame = session.currentFrame else { return nil }
+        return frame
     }
-    private lazy var cameraResolution: Float2? = {
-        guard let frame = sampleFrame else { return nil }
+    private lazy var cameraResolution: Float2 = {
+        guard let frame = sampleFrame else { return Float2(1920, 1080) }
         return Float2(Float(frame.camera.imageResolution.width),
                       Float(frame.camera.imageResolution.height))
     }()
-    private lazy var viewToCamera: CGAffineTransform? = {
-        guard let frame = sampleFrame else { return nil }
+    private lazy var viewToCamera: CGAffineTransform = {
+        guard let frame = sampleFrame else { return .identity }
         return frame.displayTransform(for: orientation, viewportSize: viewportSize).inverted()
     }()
-    private lazy var lastCameraTransform: simd_float4x4? = {
-        guard let frame = sampleFrame else { return nil }
+    private lazy var lastCameraTransform: simd_float4x4 = {
+        guard let frame = sampleFrame else { return matrix_identity_float4x4 }
         return frame.camera.transform
     }()
 
@@ -268,10 +281,9 @@ final class Renderer: NSObject {
     private func shouldAccumulate(frame: ARFrame) -> Bool {
         guard isRecording else { return false }
         let ct = frame.camera.transform
-        let lastTransform = lastCameraTransform ?? simd_float4x4(1)
         return currentPointCount == 0
-            || dot(ct.columns.2, lastTransform.columns.2) <= cameraRotationThreshold
-            || distance_squared(ct.columns.3, lastTransform.columns.3) >= cameraTranslationThreshold
+            || dot(ct.columns.2, lastCameraTransform.columns.2) <= cameraRotationThreshold
+            || distance_squared(ct.columns.3, lastCameraTransform.columns.3) >= cameraTranslationThreshold
     }
 
     private func accumulatePoints(frame: ARFrame, commandBuffer: MTLCommandBuffer,
@@ -336,11 +348,10 @@ private extension Renderer {
     }
 
     func makeGridPoints() -> [Float2] {
-        let resolution = cameraResolution ?? Float2(1920, 1080)
-        let area = resolution.x * resolution.y
+        let area = cameraResolution.x * cameraResolution.y
         let spacing = sqrt(area / Float(numGridPoints))
-        let dx = Int(round(resolution.x / spacing))
-        let dy = Int(round(resolution.y / spacing))
+        let dx = Int(round(cameraResolution.x / spacing))
+        let dy = Int(round(cameraResolution.y / spacing))
         var pts = [Float2]()
         for gy in 0 ..< dy {
             let offX = Float(gy % 2) * spacing / 2
