@@ -397,13 +397,13 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                 // Step 4: 应用视觉计数校正（如果有）
                 var estimatedYield = Float(countResult.totalCount) * 0.2  // 粗估每个果实约 200g
                 if let nVisual = nVisual, nVisual > 0 {
-                    let lidarCount = validatedFruits.filter { $0.source == .cloudOnly }.count
-                    if lidarCount > 0 {
-                        let correctionFactor = Double(nVisual) / Double(lidarCount)
+                    let totalDetectedCount = validatedFruits.count
+                    if totalDetectedCount > 0 {
+                        let correctionFactor = Double(nVisual) / Double(totalDetectedCount)
                         // Clamp correction factor to reasonable range (0.5x to 2x)
                         let correctionFactorClamped = min(max(correctionFactor, 0.5), 2.0)
                         estimatedYield *= Float(correctionFactorClamped)
-                        print("🔍 [Fusion] 视觉校正: nVisual=\(nVisual), lidarCount=\(lidarCount), correctionFactor=\(correctionFactorClamped)")
+                        print("🔍 [Fusion] 视觉校正: nVisual=\(nVisual), totalDetectedCount=\(totalDetectedCount), correctionFactor=\(correctionFactorClamped)")
                     }
                 }
 
