@@ -58,7 +58,7 @@ struct MetalBuffer<Element> {
     func assign<E>(with array: [E]) {
         let byteCount = array.count * stride
         precondition(byteCount == buffer.length, "Mismatch between the byte count of the array's contents and the MTLBuffer length.")
-        buffer.contents().copyMemory(from: array, byteCount: byteCount)
+        buffer.contents().copyMemory(from:  array, byteCount: byteCount)
     }
     
     /// Returns a copy of the value at the specified element index in the buffer.

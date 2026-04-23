@@ -5,7 +5,7 @@ import SwiftUI
 
 struct ScanHistoryView: View {
     var customTitle: String = "扫描历史"
-    @State private var plyFiles: [URL] = []
+    @ObservedObject var historyStore = ScanHistoryStore.shared
     @State private var shareItems: [Any] = []
     @State private var showShareSheet = false
 
@@ -14,7 +14,7 @@ struct ScanHistoryView: View {
             Color(hex: "0a1628")
                 .ignoresSafeArea()
 
-            if plyFiles.isEmpty {
+            if historyStore.scanFiles.isEmpty {
                 VStack(spacing: 20) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 60))
@@ -31,12 +31,12 @@ struct ScanHistoryView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(plyFiles, id: \.self) { url in
-                            HistoryCard(url: url, onShare: {
-                                shareItems = [url]
+                        ForEach(historyStore.scanFiles) { record in
+                            HistoryCard(record: record, onShare: {
+                                shareItems = [record.fileURL]
                                 showShareSheet = true
                             }, onDelete: {
-                                deleteFile(at: url)
+                                historyStore.deleteRecord(record)
                             })
                         }
                     }
@@ -49,10 +49,10 @@ struct ScanHistoryView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                if !plyFiles.isEmpty {
+                if !historyStore.scanFiles.isEmpty {
                     Menu {
                         Button(role: .destructive) {
-                            deleteAllFiles()
+                            historyStore.scanFiles.forEach { historyStore.deleteRecord($0) }
                         } label: {
                             Label("清空全部", systemImage: "trash")
                         }
@@ -63,44 +63,17 @@ struct ScanHistoryView: View {
                 }
             }
         }
-        .onAppear { loadFiles() }
-        .refreshable { loadFiles() }
+        .onAppear { historyStore.loadRecords() }
+        .refreshable { historyStore.loadRecords() }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
         }
-    }
-
-    private func loadFiles() {
-        let scansDir = getDocumentsDirectory().appendingPathComponent("scans")
-        plyFiles = (try? FileManager.default.contentsOfDirectory(
-            at: scansDir, includingPropertiesForKeys: nil)) ?? []
-            .filter { $0.pathExtension == "ply" }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
-    }
-
-    private func fileSize(url: URL) -> String {
-        guard let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = attr[.size] as? Int else { return "未知大小" }
-        let mb = Double(size) / 1_048_576
-        return String(format: "%.1f MB", mb)
-    }
-
-    private func deleteFile(at url: URL) {
-        try? FileManager.default.removeItem(at: url)
-        loadFiles()
-    }
-
-    private func deleteAllFiles() {
-        plyFiles.forEach { url in
-            try? FileManager.default.removeItem(at: url)
-        }
-        loadFiles()
     }
 }
 
 // MARK: - 历史记录卡片
 struct HistoryCard: View {
-    let url: URL
+    let record: ScanFileRecord
     let onShare: () -> Void
     let onDelete: () -> Void
 
@@ -119,7 +92,7 @@ struct HistoryCard: View {
 
             // 信息
             VStack(alignment: .leading, spacing: 6) {
-                Text(url.lastPathComponent)
+                Text(record.fileURL.lastPathComponent)
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
                     .foregroundColor(.white)
                     .lineLimit(1)
@@ -164,18 +137,16 @@ struct HistoryCard: View {
     }
 
     private var fileSize: String {
-        guard let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
+        guard let attr = try? FileManager.default.attributesOfItem(atPath: record.fileURL.path),
               let size = attr[.size] as? Int else { return "未知" }
         let mb = Double(size) / 1_048_576
         return String(format: "%.1f MB", mb)
     }
 
     private var dateString: String {
-        guard let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let date = attr[.creationDate] as? Date else { return "未知日期" }
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: date)
+        return df.string(from: record.scanDate)
     }
 }
 

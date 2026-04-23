@@ -5,7 +5,7 @@ import Combine
 final class ScanHistoryStore: ObservableObject {
     static let shared = ScanHistoryStore()
 
-    @Published private(set) var scanRecords: [ScanRecord] = []
+    @Published private(set) var scanFiles: [ScanFileRecord] = []
 
     static let didUpdateNotification = Notification.Name("ScanHistoryStoreDidUpdate")
 
@@ -22,13 +22,13 @@ final class ScanHistoryStore: ObservableObject {
             includingPropertiesForKeys: [.creationDateKey],
             options: .skipsHiddenFiles
         ) else {
-            scanRecords = []
+            scanFiles = []
             return
         }
 
-        scanRecords = files
+        scanFiles = files
             .filter { $0.pathExtension == "ply" }
-            .compactMap { url -> ScanRecord? in
+            .compactMap { url -> ScanFileRecord? in
                 let filename = url.deletingPathExtension().lastPathComponent
                 let parts = filename.split(separator: "_")
                 guard parts.count >= 4, parts[0] == "tree" else { return nil }
@@ -36,32 +36,26 @@ final class ScanHistoryStore: ObservableObject {
                 let treeID = String(parts[1])
                 let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
 
-                return ScanRecord(
+                return ScanFileRecord(
                     id: url.lastPathComponent,
                     treeID: treeID,
                     fileURL: url,
-                    scanDate: creationDate,
-                    fruitType: "apple",
-                    fruitCount: 0,
-                    yieldKg: 0
+                    scanDate: creationDate
                 )
             }
             .sorted { $0.scanDate > $1.scanDate }
     }
 
-    func deleteRecord(_ record: ScanRecord) {
+    func deleteRecord(_ record: ScanFileRecord) {
         try? FileManager.default.removeItem(at: record.fileURL)
         loadRecords()
         NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
     }
 }
 
-struct ScanRecord: Identifiable, Equatable {
+struct ScanFileRecord: Identifiable, Equatable {
     let id: String
     let treeID: String
     let fileURL: URL
     let scanDate: Date
-    var fruitType: String
-    var fruitCount: Int
-    var yieldKg: Double
 }

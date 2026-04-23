@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1E134CEA8C8FB8B9B701C29A /* LaunchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B98D430D628A279343A437A /* LaunchScreen.swift */; };
+		SCANHIST279228 /* ScanHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANHIST987654321 /* ScanHistoryStore.swift */; };
 		23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115AA07F0ADF20776A78BADD /* ResultView.swift */; };
 		373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158ABA23ED3CD7468A81CFFE /* ScanView.swift */; };
 		3ED2D13CBE172639B6DE54B9 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = D20D286AA15B66451D7E4867 /* Shaders.metal */; };
@@ -39,6 +40,7 @@
 
 /* Begin PBXFileReference section */
 		03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSRecorder.swift; sourceTree = "<group>"; };
+		SCANHIST987654321 /* ScanHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryStore.swift; sourceTree = "<group>"; };
 		115AA07F0ADF20776A78BADD /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		158ABA23ED3CD7468A81CFFE /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalBuffer.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */,
 				FUSION987654321 /* PointCloudFusion.swift */,
 				MODEL987654321 /* FruitModels.swift */,
+				SCANHIST987654321 /* ScanHistoryStore.swift */,
 				CLUSTER987654321 /* PointCloudCluster.swift */,
 				IMGDET987654321 /* ImageDetector.swift */,
 				FUSIONVAL987654321 /* FusionValidator.swift */,
@@ -261,6 +264,7 @@
 				EXPORT279228 /* DataExportView.swift in Sources */,
 				DASH279228 /* DashboardView.swift in Sources */,
 				MODEL279228 /* FruitModels.swift in Sources */,
+				SCANHIST279228 /* ScanHistoryStore.swift in Sources */,
 				CLUSTER279228 /* PointCloudCluster.swift in Sources */,
 				IMGDET279228 /* ImageDetector.swift in Sources */,
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,

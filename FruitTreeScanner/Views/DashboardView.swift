@@ -18,6 +18,7 @@ struct DashboardView: View {
     @State private var showTrends = false
     @State private var showMapView = false
     @State private var recentScans: [URL] = []
+    @StateObject private var historyStore = ScanHistoryStore.shared
 
     var body: some View {
         ZStack {
@@ -28,7 +29,7 @@ struct DashboardView: View {
                 TopNavigationBar(
                     showSettings: $showSettings,
                     onHistoryTap: { showScanHistory = true },
-                    historyCount: recentScans.count
+                    historyCount: historyStore.scanFiles.count
                 )
                 .background(Color.black.opacity(0.3))
 
@@ -45,6 +46,10 @@ struct DashboardView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: ScanHistoryStore.didUpdateNotification)) { _ in
+            historyStore.loadRecords()
+            loadRecentScans()
+        }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .fullScreenCover(isPresented: $showStartView) { StartView() }
         .fullScreenCover(isPresented: $showQuickScan) { QuickScanView() }
@@ -57,7 +62,7 @@ struct DashboardView: View {
         .sheet(isPresented: $showCompare) { CompareSheet() }
         .sheet(isPresented: $showTrends) { TrendsSheet() }
         .sheet(isPresented: $showMapView) { MapSheet() }
-        .onAppear { loadRecentScans() }
+        .onAppear { historyStore.loadRecords(); loadRecentScans() }
     }
 
     private func handleQuickAction(_ action: QuickAction) {
