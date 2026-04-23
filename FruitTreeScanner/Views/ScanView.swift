@@ -376,7 +376,7 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                     for candidate in candidates {
                         // 严格条件：球形度 > 0.8 AND 颜色必须完全符合果实特征
                         if candidate.sphericity > 0.8 && candidate.hasFruitColor() {
-                            // 只接受球形度非常高的（接近完美球体）
+                            // cloudOnly has no image confirmation, category remains nil
                             let fruit = ValidatedFruit(
                                 category: nil,
                                 position: candidate.position,
