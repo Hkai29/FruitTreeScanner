@@ -171,7 +171,7 @@ struct ScanView: View {
 }
 
 // MARK: - ScanCoordinator
-class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
+class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDelegate {
     var renderer: Renderer?
     var session: ARSession?
     weak var mtkView: MTKView?
@@ -180,6 +180,38 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
 
     private var displayLink: CADisplayLink?
     private let estimator = YieldEstimator()
+
+    // MARK: - 多模态融合组件
+    private lazy var imageDetector: ImageDetector = {
+        let detector = ImageDetector(config: FruitScanConfig(
+            imageDetectionInterval: 10,
+            minConfidence: 0.5,
+            sizeTolerance: 0.2,
+            sphericityThreshold: 0.5
+        ))
+        return detector
+    }()
+    private lazy var pointCloudCluster: PointCloudCluster = {
+        PointCloudCluster(config: ClusterConfig(
+            minPoints: 5,
+            minDiameter: 0.04,
+            maxDiameter: 0.15,
+            baseEps: 0.1
+        ))
+    }()
+    private lazy var fusionValidator: FusionValidator = {
+        FusionValidator(config: FruitScanConfig(
+            imageDetectionInterval: 10,
+            minConfidence: 0.5,
+            sizeTolerance: 0.2,
+            sphericityThreshold: 0.5
+        ))
+    }()
+    private let fruitCounter = FruitCounter()
+
+    // 存储检测到的水果（用于事后融合）
+    private var detectedFruits: [DetectedFruit] = []
+    private let detectorLock = NSLock()
 
     func bind(session: ARSession, renderer: Renderer, mtkView: MTKView) {
         self.session = session
@@ -192,6 +224,15 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
             config.frameSemantics = .sceneDepth
         }
         session.run(config)
+
+        // 注册帧回调用于图像检测
+        session.delegate = self
+
+        // 设置图像检测器的 delegate
+        imageDetector.delegate = self
+
+        // 启动定期处理队列的定时器
+        startDetectionTimer()
 
         // 延迟设置 rgbRadius，等 session 初始化完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -206,10 +247,41 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
     func teardown() {
         displayLink?.invalidate()
         displayLink = nil
+        detectionTimer?.invalidate()
+        detectionTimer = nil
         session?.pause()
+        session?.delegate = nil
         renderer = nil
         session = nil
+        detectedFruits.removeAll()
         UIApplication.shared.isIdleTimerDisabled = false
+    }
+
+    // MARK: - 图像检测定时器
+    private var detectionTimer: Timer?
+
+    private func startDetectionTimer() {
+        // 每秒处理一次检测队列
+        detectionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.processDetectionQueue()
+        }
+    }
+
+    private func processDetectionQueue() {
+        Task { [weak self] in
+            guard let self = self else { return }
+            let detected = await self.imageDetector.processQueue()
+
+            if !detected.isEmpty {
+                print("📸 [ScanCoordinator] 检测到 \(detected.count) 个果实:")
+                for fruit in detected {
+                    print("      - \(fruit.category.displayName), 置信度: \(fruit.confidence), 边界框: \(fruit.boundingBox)")
+                }
+                self.detectorLock.lock()
+                self.detectedFruits.append(contentsOf: detected)
+                self.detectorLock.unlock()
+            }
+        }
     }
 
     func startRecording() {
@@ -243,20 +315,130 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
         return pts
     }
 
+    /// 多模态融合产量估算（新 pipeline）
+    func runMultiModalYieldEstimate(
+        fruitType: FruitType,
+        nVisual: Int?,
+        season: Season,
+        completion: @escaping (YieldResult, FruitCountResult?) -> Void
+    ) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            Task { [weak self] in
+                guard let self = self else { return }
+
+                let points = self.extractColoredPoints()
+                print("🔍 [Fusion] 共有 \(points.count) 个点云点")
+
+                // 取出并清空检测结果
+                self.detectorLock.lock()
+                let savedDetections = self.detectedFruits
+                self.detectedFruits.removeAll()
+                self.detectorLock.unlock()
+
+                print("🔍 [Fusion] 图像检测结果: \(savedDetections.count) 个")
+
+                // Step 1: 点云聚类
+                let candidates = await self.pointCloudCluster.processInMemory(
+                    position: points.map { $0.pos },
+                    colors: points.map { SIMD3<Float>($0.r, $0.g, $0.b) }
+                )
+                print("🔍 [Fusion] 点云聚类候选: \(candidates.count) 个")
+
+                // Step 2: 融合验证（如果有图像检测结果）
+                var validatedFruits: [ValidatedFruit] = []
+                if !savedDetections.isEmpty, let frame = self.session?.currentFrame {
+                    // 从 ARFrame 获取相机参数
+                    let depthMap = frame.sceneDepth?.depthMap
+                    let cameraIntrinsics = frame.camera.intrinsics
+                    let cameraTransform = frame.camera.transform
+                    let imageSize = CGSize(
+                        width: CGFloat(frame.camera.imageResolution.width),
+                        height: CGFloat(frame.camera.imageResolution.height)
+                    )
+
+                    validatedFruits = self.fusionValidator.validate(
+                        detections: savedDetections,
+                        candidates: candidates,
+                        depthMap: depthMap,
+                        cameraIntrinsics: cameraIntrinsics,
+                        cameraTransform: cameraTransform,
+                        imageSize: imageSize
+                    )
+                } else {
+                    // ⚠️ 重要：没有图像检测结果时，不应该只靠点云就判定为果实！
+                    // cloudOnly 路径现在默认拒绝所有候选，除非满足非常严格的条件
+                    print("🔍 [Fusion] ⚠️ 无图像检测，进入保守模式")
+                    print("🔍 [Fusion] 点云候选数: \(candidates.count)")
+
+                    // 只有当球形度非常高 (>0.8) 且颜色非常符合时才接受
+                    // 这大大减少了误判（窗帘、台灯、桌面物品等）
+                    var accepted = 0
+                    for candidate in candidates {
+                        // 严格条件：球形度 > 0.8 AND 颜色必须完全符合果实特征
+                        if candidate.sphericity > 0.8 && candidate.hasFruitColor() {
+                            // 只接受球形度非常高的（接近完美球体）
+                            let fruit = ValidatedFruit(
+                                category: nil,
+                                position: candidate.position,
+                                confidence: candidate.sphericity * 0.3,  // cloudOnly 权重很低
+                                source: .cloudOnly
+                            )
+                            validatedFruits.append(fruit)
+                            accepted += 1
+                        }
+                    }
+                    print("🔍 [Fusion] cloudOnly 保守模式: \(candidates.count) 候选, 只接受 \(accepted) 个（需要 sphericity>0.8 且颜色符合）")
+                }
+
+                // Step 3: 计数
+                print("🔍 [Fusion] 最终有效果实: \(validatedFruits.count) 个")
+                let countResult = self.fruitCounter.count(validatedFruits)
+
+                // Step 4: 只有当新 pipeline 找到果实时才输出结果
+                // 新 pipeline 为 0 时直接返回 0，不使用旧算法（因为旧算法误判太多）
+                var finalResult: YieldResult
+                if countResult.totalCount > 0 {
+                    // 新 pipeline 找到了果实，使用新结果
+                    print("🔍 [Fusion] ✅ 使用新 pipeline 结果: \(countResult.totalCount) 个果实")
+
+                    // 构建 YieldResult 从 countResult
+                    var yr = YieldResult()
+                    yr.nLidar = countResult.totalCount
+                    yr.yieldFinalKg = Float(countResult.totalCount) * 0.2  // 粗估每个果实约 200g
+                    yr.confidence = "medium"
+                    yr.methodUsed = "fusion_only"
+                    yr.note = "RGB+LiDAR 融合检测"
+                    finalResult = yr
+                } else {
+                    // ⚠️ 关键修复：不要再用旧算法！直接输出 0
+                    print("🔍 [Fusion] ⚠️ 新 pipeline 无检测，输出 0 kg（旧算法已禁用）")
+                    print("🔍 [Fusion] 原因: 没有图像检测确认的果实不可信")
+
+                    var yr = YieldResult()
+                    yr.nLidar = 0
+                    yr.yieldFinalKg = 0  // 直接设为 0！
+                    yr.confidence = "low"
+                    yr.methodUsed = "fusion_only"
+                    yr.note = "⚠️ RGB+LiDAR 未检测到果实（图像检测未确认）"
+                    finalResult = yr
+                }
+
+                await MainActor.run {
+                    completion(finalResult, countResult)
+                }
+            }
+        }
+    }
+
+    /// 原有产量估算（兼容模式）
     func runYieldEstimate(fruitType: FruitType,
                           nVisual: Int?,
                           season: Season,
                           completion: @escaping (YieldResult) -> Void) {
-        let points = extractColoredPoints()
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            let (_, result) = self.estimator.run(
-                points: points,
-                fruitType: fruitType,
-                nVisual: nVisual,
-                season: season
-            )
-            DispatchQueue.main.async { completion(result) }
+        runMultiModalYieldEstimate(fruitType: fruitType, nVisual: nVisual, season: season) { result, _ in
+            completion(result)
         }
     }
 
@@ -266,6 +448,22 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate {
 
     func didStartTask() {}
     func didFinishTask() {}
+
+    // MARK: - ImageDetectorDelegate
+    func imageDetector(_ detector: ImageDetector, didDetect fruits: [DetectedFruit]) {
+        print("📸 [Delegate] 收到 \(fruits.count) 个检测结果")
+        detectorLock.lock()
+        detectedFruits.append(contentsOf: fruits)
+        detectorLock.unlock()
+    }
+}
+
+// MARK: - ARSessionDelegate（帧回调用于图像检测）
+extension ScanCoordinator: ARSessionDelegate {
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // 入队 RGB 帧用于图像检测（每 N 帧处理一次）
+        imageDetector.enqueueFrame(frame.capturedImage, timestamp: frame.timestamp)
+    }
 }
 
 // MARK: - Renderer MTKViewDelegate

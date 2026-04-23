@@ -141,7 +141,9 @@ class YieldEstimator {
 
         // Step 1: 颜色过滤
         let filter = fruitType.colorFilter
+        print("🔴 [YieldEstimator] 颜色过滤: \(fruitType.rawValue), 过滤条件 r>=\(filter.rMin), g<=\(filter.gMax), b<=\(filter.bMax)")
         let filtered = points.filter { filter.matches(r: $0.r, g: $0.g, b: $0.b) }
+        print("🔴 [YieldEstimator] 颜色过滤后: \(filtered.count) / \(points.count) 点通过")
         guard filtered.count >= 10 else {
             result.note = "颜色过滤后点数不足（\(filtered.count)），无法检测果实"
             return ([], result)
@@ -153,6 +155,7 @@ class YieldEstimator {
 
         // Step 3: 按尺寸过滤 + 球体拟合
         var fruits: [FruitInfo] = []
+        print("🔴 [YieldEstimator] 聚类后: \(clusters.count) 个候选")
         for cluster in clusters {
             guard let info = fitSphere(cluster: cluster,
                                        density: fruitType.density,
@@ -162,6 +165,7 @@ class YieldEstimator {
         }
 
         result.nLidar = fruits.count
+        print("🔴 [YieldEstimator] 尺寸过滤后: \(fruits.count) 个果实")
 
         guard !fruits.isEmpty else {
             result.note = "未检测到符合尺寸的果实"

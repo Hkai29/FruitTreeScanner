@@ -10,10 +10,20 @@ import Metal
 import MetalKit
 import ARKit
 import UIKit
+import CoreVideo
 
 final class Renderer: NSObject {
     // MARK: - 公开属性
-    public var isRecording = false
+    public var isRecording = false {
+        didSet {
+            if isRecording {
+                // 开始新扫描时清空区域记录
+                scannedRegions.removeAll()
+                currentPointIndex = 0
+                currentPointCount = 0
+            }
+        }
+    }
     public var currentFolder = ""
     public var pickFrames = 5
     public var currentFrameIndex = 0
@@ -83,12 +93,21 @@ final class Renderer: NSObject {
         u.confidenceThreshold = Int32(confidenceThreshold)
         u.particleSize = particleSize
         u.cameraResolution = cameraResolution
+        u.minDepth = minDepth
+        u.maxDepth = maxDepth
         return u
     }()
     private var pointCloudUniformsBuffers = [MetalBuffer<PointCloudUniforms>]()
     public lazy var particlesBuffer: MetalBuffer<ParticleUniforms> = .init(device: device, count: maxPoints, index: kParticleUniforms.rawValue)
     private var currentPointIndex = 0
     private var currentPointCount = 0
+
+    // MARK: - 体素网格去重（避免重复扫描）
+    private let voxelSize: Float = 0.1  // 10cm 体素
+    private var occupiedVoxels: Set<String> = []
+    private var scannedRegions: Set<String> = []  // 已扫描的区域（相机位置离散化）
+    private let minDepth: Float = 0.5   // 0.5m
+    private let maxDepth: Float = 5.0   // 5.0m
     private var sampleFrame: ARFrame? {
         guard hasReceivedFirstFrame, let frame = session.currentFrame else { return nil }
         return frame
@@ -281,9 +300,66 @@ final class Renderer: NSObject {
     private func shouldAccumulate(frame: ARFrame) -> Bool {
         guard isRecording else { return false }
         let ct = frame.camera.transform
-        return currentPointCount == 0
+
+        // 检查相机是否移动到新区域
+        let cameraMoved = currentPointCount == 0
             || dot(ct.columns.2, lastCameraTransform.columns.2) <= cameraRotationThreshold
             || distance_squared(ct.columns.3, lastCameraTransform.columns.3) >= cameraTranslationThreshold
+
+        guard cameraMoved else { return false }
+
+        // 检查是否在有效深度范围内
+        guard let depthMap = frame.sceneDepth?.depthMap else { return false }
+
+        // 采样中心点深度（果树目标：0.5m - 5.0m）
+        let depthWidth = CVPixelBufferGetWidth(depthMap)
+        let depthHeight = CVPixelBufferGetHeight(depthMap)
+        let centerX = depthWidth / 2
+        let centerY = depthHeight / 2
+
+        let centerDepth = sampleDepth(from: depthMap, x: centerX, y: centerY)
+        guard centerDepth >= minDepth && centerDepth <= maxDepth else { return false }
+
+        // 检查相机位置区域是否已扫描（避免回看已扫描区域）
+        // 使用更细的 10cm 网格（原 20cm 太粗糙，导致扫描一棵树很快就填满）
+        // 只有当相机完全回到同一区域且点数已经很多时，才跳过累积
+        let cameraRegion = getCameraRegionKey(frame: frame)
+        if scannedRegions.contains(cameraRegion) && currentPointCount > 5000 {
+            // 相机回到已扫描区域且已有足够点数，不累积新点
+            return false
+        }
+        scannedRegions.insert(cameraRegion)
+
+        return true
+    }
+
+    /// 获取相机位置的区域键（离散化到 10cm 网格）
+    private func getCameraRegionKey(frame: ARFrame) -> String {
+        let pos = frame.camera.transform.columns.3
+        let regionSize: Float = 0.1  // 10cm 网格（原 20cm 太粗糙）
+        let x = Int(floor(pos.x / regionSize))
+        let y = Int(floor(pos.y / regionSize))
+        let z = Int(floor(pos.z / regionSize))
+        return "\(x),\(y),\(z)"
+    }
+
+    /// 从深度图采样单个点深度
+    private func sampleDepth(from depthMap: CVPixelBuffer, x: Int, y: Int) -> Float {
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        guard x >= 0 && x < width && y >= 0 && y < height else { return 0 }
+
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else { return 0 }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+
+        // ARKit sceneDepth 使用 Float32 格式
+        let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
+        let depth = floatBuffer[y * (bytesPerRow / MemoryLayout<Float>.size) + x]
+
+        return depth
     }
 
     private func accumulatePoints(frame: ARFrame, commandBuffer: MTLCommandBuffer,
