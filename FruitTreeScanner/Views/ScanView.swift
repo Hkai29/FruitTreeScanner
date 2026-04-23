@@ -394,7 +394,20 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                 print("🔍 [Fusion] 最终有效果实: \(validatedFruits.count) 个")
                 let countResult = self.fruitCounter.count(validatedFruits)
 
-                // Step 4: 只有当新 pipeline 找到果实时才输出结果
+                // Step 4: 应用视觉计数校正（如果有）
+                var estimatedYield = Float(countResult.totalCount) * 0.2  // 粗估每个果实约 200g
+                if let nVisual = nVisual, nVisual > 0 {
+                    let lidarCount = validatedFruits.filter { $0.source == .cloudOnly }.count
+                    if lidarCount > 0 {
+                        let correctionFactor = Double(nVisual) / Double(lidarCount)
+                        // Clamp correction factor to reasonable range (0.5x to 2x)
+                        let correctionFactorClamped = min(max(correctionFactor, 0.5), 2.0)
+                        estimatedYield *= Float(correctionFactorClamped)
+                        print("🔍 [Fusion] 视觉校正: nVisual=\(nVisual), lidarCount=\(lidarCount), correctionFactor=\(correctionFactorClamped)")
+                    }
+                }
+
+                // Step 5: 只有当新 pipeline 找到果实时才输出结果
                 // 新 pipeline 为 0 时直接返回 0，不使用旧算法（因为旧算法误判太多）
                 var finalResult: YieldResult
                 if countResult.totalCount > 0 {
@@ -404,10 +417,10 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                     // 构建 YieldResult 从 countResult
                     var yr = YieldResult()
                     yr.nLidar = countResult.totalCount
-                    yr.yieldFinalKg = Float(countResult.totalCount) * 0.2  // 粗估每个果实约 200g
+                    yr.yieldFinalKg = estimatedYield
                     yr.confidence = "medium"
                     yr.methodUsed = "fusion_only"
-                    yr.note = "RGB+LiDAR 融合检测"
+                    yr.note = nVisual != nil ? "RGB+LiDAR 融合检测 + 视觉校正" : "RGB+LiDAR 融合检测"
                     finalResult = yr
                 } else {
                     // ⚠️ 关键修复：不要再用旧算法！直接输出 0
