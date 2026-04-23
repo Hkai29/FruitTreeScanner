@@ -5,7 +5,6 @@ import SwiftUI
 
 struct StartView: View {
     @State private var treeID: String = ""
-    @State private var selectedFruitType: FruitType = .appleRed
     @State private var nVisualStr: String = ""
     @State private var season: Season = .mature
     @State private var showScan = false
@@ -112,43 +111,7 @@ struct StartView: View {
                             }
                         }
 
-                        // 果种选择（成熟期）
-                        if season == .mature {
-                            StartInputCard(title: "果实种类") {
-                                VStack(spacing: 16) {
-                                    Menu {
-                                        ForEach(FruitType.allCases, id: \.self) { ft in
-                                            Button(ft.rawValue) {
-                                                selectedFruitType = ft
-                                            }
-                                        }
-                                    } label: {
-                                        HStack {
-                                            Text(selectedFruitType.rawValue)
-                                                .font(.system(size: 17))
-                                                .foregroundColor(.white)
-                                            Spacer()
-                                            Image(systemName: "chevron.down")
-                                                .foregroundColor(Color(hex: "4ADE80"))
-                                        }
-                                        .padding(16)
-                                        .background(Color.white.opacity(0.05))
-                                        .cornerRadius(12)
-                                    }
-
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "circle.fill")
-                                            .font(.system(size: 8))
-                                            .foregroundColor(Color(hex: "4ADE80"))
-                                        Text("果实密度：\(String(format: "%.2f", selectedFruitType.density)) g/cm³")
-                                            .font(.system(size: 13))
-                                            .foregroundColor(.white.opacity(0.6))
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-
-                            // AI 视觉计数
+                        // AI 视觉计数（可选）
                             StartInputCard(title: "AI 视觉计数（可选）") {
                                 VStack(spacing: 12) {
                                     TextField("留空则不校正遮挡", text: $nVisualStr)
@@ -165,7 +128,6 @@ struct StartView: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
-                        }
 
                         // GPS 状态
                         HStack(spacing: 12) {
@@ -223,7 +185,6 @@ struct StartView: View {
         .fullScreenCover(isPresented: $showScan) {
             ScanView(
                 treeID: treeID.trimmingCharacters(in: .whitespaces),
-                fruitType: selectedFruitType,
                 nVisual: nVisual,
                 season: season,
                 gps: gps

@@ -7,7 +7,6 @@ import ARKit
 
 struct ScanView: View {
     let treeID: String
-    let fruitType: FruitType       // 果种
     let nVisual: Int?              // AI 视觉计数（可 nil）
     let season: Season             // mature / off
     @ObservedObject var gps: GPSRecorder
@@ -161,7 +160,7 @@ struct ScanView: View {
         coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
             savedFilename = filename
             // 触发 iOS 端估算
-            coordinator.runYieldEstimate(fruitType: fruitType, nVisual: nVisual, season: season) { result in
+            coordinator.runYieldEstimate(nVisual: nVisual, season: season) { result in
                 isEstimating = false
                 yieldResult = result
                 showResult = true
@@ -317,7 +316,6 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
 
     /// 多模态融合产量估算（新 pipeline）
     func runMultiModalYieldEstimate(
-        fruitType: FruitType,
         nVisual: Int?,
         season: Season,
         completion: @escaping (YieldResult, FruitCountResult?) -> Void
@@ -433,11 +431,10 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
     }
 
     /// 原有产量估算（兼容模式）
-    func runYieldEstimate(fruitType: FruitType,
-                          nVisual: Int?,
+    func runYieldEstimate(nVisual: Int?,
                           season: Season,
                           completion: @escaping (YieldResult) -> Void) {
-        runMultiModalYieldEstimate(fruitType: fruitType, nVisual: nVisual, season: season) { result, _ in
+        runMultiModalYieldEstimate(nVisual: nVisual, season: season) { result, _ in
             completion(result)
         }
     }

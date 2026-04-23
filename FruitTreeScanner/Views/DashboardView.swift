@@ -223,7 +223,6 @@ struct QuickScanView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var gps = GPSRecorder()
     @State private var treeID: String = "Q\((Int.random(in: 1000...9999)))"
-    @State private var selectedFruitType: FruitType = .appleRed
     @State private var showScan = false
 
     var body: some View {
@@ -262,19 +261,6 @@ struct QuickScanView: View {
                                 .padding(16).background(Color.white.opacity(0.05)).cornerRadius(12)
                         }
 
-                        InputCard(title: "果种") {
-                            Menu {
-                                ForEach(FruitType.allCases, id: \.self) { ft in Button(ft.rawValue) { selectedFruitType = ft } }
-                            } label: {
-                                HStack {
-                                    Text(selectedFruitType.rawValue).font(.system(size: 17)).foregroundColor(.white)
-                                    Spacer()
-                                    Image(systemName: "chevron.down").foregroundColor(Color(hex: "4ADE80"))
-                                }
-                                .padding(16).background(Color.white.opacity(0.05)).cornerRadius(12)
-                            }
-                        }
-
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 24)
@@ -298,7 +284,7 @@ struct QuickScanView: View {
             }
         }
         .fullScreenCover(isPresented: $showScan) {
-            ScanView(treeID: treeID, fruitType: selectedFruitType, nVisual: nil, season: .mature, gps: gps)
+            ScanView(treeID: treeID, nVisual: nil, season: .mature, gps: gps)
         }
     }
 }
