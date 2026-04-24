@@ -20,6 +20,10 @@ final class PointCloudCluster {
         self.config = config
     }
 
+    func updateConfig(_ newConfig: ClusterConfig) {
+        self.config = newConfig
+    }
+
     // MARK: - Public API
 
     /// 处理 ColoredPoint 数组（异步）

@@ -27,6 +27,10 @@ class FusionValidator {
         self.config = config
     }
 
+    func updateConfig(_ newConfig: FruitScanConfig) {
+        self.config = newConfig
+    }
+
     // MARK: - Validation
 
     func validate(

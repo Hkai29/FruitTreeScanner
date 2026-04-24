@@ -37,6 +37,7 @@ final class ImageDetector {
     ]
 
     // 字符串到 FruitCategory 的映射（用于 fallback 或 Vision 内置分类器）
+
     private let stringCategoryMapping: [String: FruitCategory] = [
         "apple": .apple,
         "orange": .orange,
@@ -51,6 +52,10 @@ final class ImageDetector {
     init(config: FruitScanConfig = .default) {
         self.config = config
         loadCoreMLModel()
+    }
+
+    func updateConfig(_ newConfig: FruitScanConfig) {
+        self.config = newConfig
     }
 
     /// 加载 CoreML 模型

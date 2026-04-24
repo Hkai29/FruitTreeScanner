@@ -35,6 +35,7 @@
 		IMGDET279228 /* ImageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDET987654321 /* ImageDetector.swift */; };
 		FUSIONVAL279228 /* FusionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONVAL987654321 /* FusionValidator.swift */; };
 		FRUITCNT279228 /* FruitCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCNT987654321 /* FruitCounter.swift */; };
+		SETTINGS279228 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGS987654321 /* SettingsStore.swift */; };
 		MODEL98765432101 /* FruitsDetector.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = MODEL9876543210 /* FruitsDetector.mlpackage */; };
 		HISTCOMP001122 /* HistoricalCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HISTCOMP334455 /* HistoricalCompareView.swift */; };
 		CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLOUDSYNC334455 /* CloudScanSyncView.swift */; };
@@ -75,6 +76,7 @@
 		IMGDET987654321 /* ImageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetector.swift; sourceTree = "<group>"; };
 		FUSIONVAL987654321 /* FusionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidator.swift; sourceTree = "<group>"; };
 		FRUITCNT987654321 /* FruitCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCounter.swift; sourceTree = "<group>"; };
+		SETTINGS987654321 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		MODEL9876543210 /* FruitsDetector.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlmodel; path = FruitsDetector.mlpackage; sourceTree = "<group>"; };
 		HISTCOMP334455 /* HistoricalCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalCompareView.swift; sourceTree = "<group>"; };
 		CLOUDSYNC334455 /* CloudScanSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudScanSyncView.swift; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 				IMGDET987654321 /* ImageDetector.swift */,
 				FUSIONVAL987654321 /* FusionValidator.swift */,
 				FRUITCNT987654321 /* FruitCounter.swift */,
+				SETTINGS987654321 /* SettingsStore.swift */,
 				MODEL9876543210 /* FruitsDetector.mlpackage */,
 			);
 			path = Core;
@@ -281,6 +284,7 @@
 				IMGDET279228 /* ImageDetector.swift in Sources */,
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
 				FRUITCNT279228 /* FruitCounter.swift in Sources */,
+				SETTINGS279228 /* SettingsStore.swift in Sources */,
 				HISTCOMP001122 /* HistoricalCompareView.swift in Sources */,
 				CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */,
 				ORCHARD001122 /* OrchardMapView.swift in Sources */,

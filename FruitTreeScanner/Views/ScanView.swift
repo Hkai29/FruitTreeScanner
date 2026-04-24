@@ -233,9 +233,10 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
         // 启动定期处理队列的定时器
         startDetectionTimer()
 
-        // 延迟设置 rgbRadius，等 session 初始化完成
+        // 延迟设置 rgbRadius 和加载算法配置，等 session 初始化完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.renderer?.rgbRadius = 3.0
+            self.loadSettings()
+            self.renderer?.rgbRadius = Float(SettingsStore.shared.rgbRadius)
         }
 
         displayLink = CADisplayLink(target: self, selector: #selector(updatePointCount))
@@ -264,6 +265,14 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
         detectionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.processDetectionQueue()
         }
+    }
+
+    // MARK: - Settings
+    private func loadSettings() {
+        let store = SettingsStore.shared
+        imageDetector.updateConfig(store.fruitScanConfig)
+        pointCloudCluster.updateConfig(store.clusterConfig)
+        fusionValidator.updateConfig(store.fruitScanConfig)
     }
 
     private func processDetectionQueue() {
