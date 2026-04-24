@@ -77,9 +77,9 @@ struct Orchard: Identifiable, Equatable {
 // MARK: - OrchardMapView
 @available(iOS 17, *)
 struct OrchardMapView: View {
+    @ObservedObject var historyStore = ScanHistoryStore.shared
     @State private var selectedOrchard: Orchard = .mockOrchards[0]
     @State private var selectedTree: TreeAnnotation?
-    @State private var trees: [TreeAnnotation] = []
     @State private var mapCameraPosition: MapCameraPosition = .automatic
     @State private var showOrchardPicker = false
     @State private var filterYieldLevel: YieldLevel?
@@ -93,6 +93,25 @@ struct OrchardMapView: View {
         TreeAnnotation(id: "t005", treeID: "T005", coordinate: CLLocationCoordinate2D(latitude: 30.5725, longitude: 114.2520), yieldKg: 32.8, confidence: "medium", scanDate: Date()),
         TreeAnnotation(id: "t006", treeID: "T006", coordinate: CLLocationCoordinate2D(latitude: 30.5734, longitude: 114.2528), yieldKg: 45.6, confidence: "high", scanDate: Date()),
     ]
+
+    var realTrees: [TreeAnnotation] {
+        historyStore.scanFiles
+            .filter { $0.gpsLat != 0 && $0.gpsLon != 0 }
+            .map { record in
+                TreeAnnotation(
+                    id: record.id,
+                    treeID: record.treeID,
+                    coordinate: CLLocationCoordinate2D(latitude: record.gpsLat, longitude: record.gpsLon),
+                    yieldKg: Double(record.yieldKg),
+                    confidence: "medium",
+                    scanDate: record.scanDate
+                )
+            }
+    }
+
+    var trees: [TreeAnnotation] {
+        realTrees.isEmpty ? mockTrees : realTrees
+    }
 
     var filteredTrees: [TreeAnnotation] {
         if let filter = filterYieldLevel {
@@ -135,7 +154,6 @@ struct OrchardMapView: View {
             }
         }
         .onAppear {
-            trees = mockTrees
             updateMapRegion()
         }
     }

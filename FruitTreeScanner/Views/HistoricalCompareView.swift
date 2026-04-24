@@ -87,8 +87,8 @@ struct HistoricalCompareView: View {
                 id: record.id,
                 treeID: record.treeID,
                 scanDate: record.scanDate,
-                yieldKg: 0,
-                nLidar: 0,
+                yieldKg: Double(record.yieldKg),
+                nLidar: record.fruitCount,
                 meanDiameterCm: 0,
                 confidence: "medium"
             )
