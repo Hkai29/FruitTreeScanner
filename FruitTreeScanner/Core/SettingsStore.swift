@@ -28,7 +28,6 @@ final class SettingsStore: ObservableObject {
         static let gpsUpdateRate = "gpsUpdateRate"
         static let autoSavePLY = "autoSavePLY"
         static let maxStorageMB = "maxStorageMB"
-        static let enableCloudSync = "enableCloudSync"
         static let autoExportCSV = "autoExportCSV"
         static let cameraResolution = "cameraResolution"
         static let cameraFrameRate = "cameraFrameRate"
@@ -44,7 +43,6 @@ final class SettingsStore: ObservableObject {
 
     private init() {
         // 初始化所有 @Published 属性
-        cloudSyncEnabled = (defaults.object(forKey: Keys.enableCloudSync) as? Bool) ?? false
         autoExportCSV = (defaults.object(forKey: Keys.autoExportCSV) as? Bool) ?? false
         cameraResolution = defaults.string(forKey: Keys.cameraResolution) ?? "1080p"
         cameraFrameRate = defaults.string(forKey: Keys.cameraFrameRate) ?? "60fps"
@@ -150,7 +148,6 @@ final class SettingsStore: ObservableObject {
     }
 
     // MARK: - 设置页面 @Published 属性（支持 $ 绑定）
-    @Published var cloudSyncEnabled: Bool
     @Published var autoExportCSV: Bool
     @Published var cameraResolution: String
     @Published var cameraFrameRate: String
@@ -174,10 +171,6 @@ final class SettingsStore: ObservableObject {
     var cameraFrameRateBinding: Binding<String> { Binding(
         get: { self.cameraFrameRate },
         set: { self.cameraFrameRate = $0 }
-    ) }
-    var cloudSyncEnabledBinding: Binding<Bool> { Binding(
-        get: { self.cloudSyncEnabled },
-        set: { self.cloudSyncEnabled = $0 }
     ) }
     var autoExportCSVBinding: Binding<Bool> { Binding(
         get: { self.autoExportCSV },

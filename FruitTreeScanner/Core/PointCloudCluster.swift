@@ -112,7 +112,8 @@ final class PointCloudCluster {
                 let newNeighbors = regionQuery(index: neighborIndex, points: points, kdtree: kdtree, eps: neighborEps)
 
                 if newNeighbors.count >= config.minPoints {
-                    neighborList.append(contentsOf: newNeighbors.filter { !neighborList.contains($0) })
+                    let existingNeighbors = Set(neighborList)
+                    neighborList.append(contentsOf: newNeighbors.filter { !existingNeighbors.contains($0) })
                 }
             }
 
@@ -155,7 +156,7 @@ final class PointCloudCluster {
         let sphericity = computeSphericity(positions: clusterPoints.map { $0.pos }, center: center)
 
         // 球形度过滤
-        if sphericity <= 0.5 {
+        if sphericity <= config.sphericityThreshold {
             return nil
         }
 

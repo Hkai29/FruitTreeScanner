@@ -219,11 +219,15 @@ final class Renderer: NSObject {
     func savePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
                         completion: @escaping (String?) -> Void = { _ in }) {
         delegate?.didStartTask()
+        // 原子性捕获 pointCount 和 currentIdx，避免二者不同步
         let pointCount = currentPointCount
-        // 深拷贝点云数据，避免异步访问竞争
+        let currentIdx = currentPointIndex
+        // 同步深拷贝点云数据（环形缓冲区顺序），避免异步访问竞争和 GPU 覆写
         var pointsCopy = [(position: SIMD3<Float>, color: SIMD3<Float>)]()
+        pointsCopy.reserveCapacity(pointCount)
         for i in 0 ..< pointCount {
-            let p = particlesBuffer[i]
+            let bufferIndex = (currentIdx - pointCount + i + maxPoints) % maxPoints
+            let p = particlesBuffer[bufferIndex]
             pointsCopy.append((p.position, p.color))
         }
 

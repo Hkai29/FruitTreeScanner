@@ -94,7 +94,7 @@ struct ScanView: View {
                 Text("\(coordinator.pointCount) 点")
                     .font(.headline.monospacedDigit())
                 Circle()
-                    .fill(isRecording ? Color.red : Color.green)
+                    .fill(isRecording ? Design.Colors.apple : Design.Colors.forest)
                     .frame(width: 10, height: 10)
                 Text(isRecording ? "采集中" : "就绪")
                     .font(.caption)
@@ -115,7 +115,7 @@ struct ScanView: View {
 
             Button(action: toggleRecording) {
                 Circle()
-                    .fill(isRecording ? Color.red : Color.green)
+                    .fill(isRecording ? Design.Colors.apple : Design.Colors.forest)
                     .frame(width: 70, height: 70)
                     .overlay(
                         Circle().stroke(Color.white, lineWidth: 3)
@@ -209,6 +209,7 @@ struct ScanView: View {
         do {
             try csvContent.write(to: csvPath, atomically: true, encoding: .utf8)
             print("📄 [ScanView] CSV 自动导出成功: \(csvPath.lastPathComponent)")
+            ScanHistoryStore.shared.notifyRecordsUpdated()
         } catch {
             print("❌ [ScanView] CSV 自动导出失败: \(error.localizedDescription)")
         }
@@ -300,6 +301,8 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
         detectionTimer = nil
         session?.pause()
         session?.delegate = nil
+        mtkView?.delegate = nil
+        mtkView = nil
         renderer = nil
         session = nil
         detectedFruits.removeAll()
@@ -574,7 +577,11 @@ struct MetalView: UIViewRepresentable {
         // 创建 Renderer（使用真实的 MTKView）
         let renderer = Renderer(session: arSession, metalDevice: device,
                                 renderDestination: mtkView)
-        renderer.drawRectResized(size: UIScreen.main.bounds.size)
+        // Use actual MTKView bounds instead of UIScreen.main.bounds to avoid 0x0 size
+        let viewSize = mtkView.bounds.size
+        if viewSize.width > 0 && viewSize.height > 0 {
+            renderer.drawRectResized(size: viewSize)
+        }
 
         // 关键：设置 MTKView 的 delegate，让渲染循环启动
         mtkView.delegate = renderer
@@ -585,7 +592,12 @@ struct MetalView: UIViewRepresentable {
         return mtkView
     }
 
-    func updateUIView(_ uiView: MTKView, context: Context) {}
+    func updateUIView(_ uiView: MTKView, context: Context) {
+        // Update viewport size when the MTKView size changes
+        if uiView.bounds.size.width > 0 && uiView.bounds.size.height > 0 {
+            context.coordinator.coordinator?.renderer?.drawRectResized(size: uiView.bounds.size)
+        }
+    }
 }
 
 // MARK: - MetalViewCoordinator

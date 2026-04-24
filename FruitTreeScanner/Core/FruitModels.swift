@@ -256,6 +256,7 @@ struct ClusterConfig {
     var minDiameter: Float = 0.02              // 最小直径（米）= 2cm（支持樱桃等小水果）
     var maxDiameter: Float = 0.15              // 最大直径（米）
     var baseEps: Float = 0.1                   // 基础邻域半径（米）
+    var sphericityThreshold: Float = 0.5       // 最小球形度阈值
 
     static let `default` = ClusterConfig()
 }

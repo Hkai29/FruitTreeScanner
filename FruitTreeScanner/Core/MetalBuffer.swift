@@ -48,6 +48,7 @@ struct MetalBuffer<Element> {
     
     /// Replaces the buffer's memory at the specified element index with the provided value.
     func assign<T>(_ value: T, at index: Int = 0) {
+        precondition(count > 0, "Cannot assign to an empty buffer")
         precondition(index <= count - 1, "Index \(index) is greater than maximum allowable index of \(count - 1) for this buffer.")
         withUnsafePointer(to: value) {
             buffer.contents().advanced(by: index * stride).copyMemory(from: $0, byteCount: stride)
@@ -64,6 +65,7 @@ struct MetalBuffer<Element> {
     /// Returns a copy of the value at the specified element index in the buffer.
     subscript(index: Int) -> Element {
         get {
+            precondition(count > 0, "Cannot read from an empty buffer")
             precondition(stride * index <= buffer.length - stride, "This buffer is not large enough to have an element at the index: \(index)")
             return buffer.contents().advanced(by: index * stride).load(as: Element.self)
         }

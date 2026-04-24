@@ -51,6 +51,9 @@ struct CalibrationParams {
 struct CalibrationView: View {
     @State private var calibrationRecords: [CalibrationRecord] = []
     @State private var showAddRecord = false
+    @State private var maxDiameter: Double = SettingsStore.shared.clusterMaxDiameter
+    @State private var minClusterPoints: Double = Double(SettingsStore.shared.clusterMinPoints)
+    @State private var sphericity: Double = SettingsStore.shared.sphericityThreshold
 
     var body: some View {
         ZStack {
@@ -91,18 +94,13 @@ struct CalibrationView: View {
         }
         .onAppear {
             loadRecords()
+            maxDiameter = SettingsStore.shared.clusterMaxDiameter
+            minClusterPoints = Double(SettingsStore.shared.clusterMinPoints)
+            sphericity = SettingsStore.shared.sphericityThreshold
         }
     }
 
     // MARK: - 参数调整卡片
-
-    // volume (m³) ↔ diameter (m)：球体积 V = π/6 × d³
-    private func volumeToDiameter(_ v: Double) -> Double {
-        pow(v * 6.0 / Double.pi, 1.0 / 3.0)
-    }
-    private func diameterToVolume(_ d: Double) -> Double {
-        Double.pi / 6.0 * pow(d, 3)
-    }
 
     private var paramsCard: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
@@ -127,35 +125,33 @@ struct CalibrationView: View {
                         .font(Design.Typography.subheadline)
                         .foregroundColor(Design.Colors.charcoal)
                     Spacer()
-                    Text("\(SettingsStore.shared.clusterMinPoints)")
+                    Text("\(Int(minClusterPoints))")
                         .font(Design.Typography.mono)
                         .foregroundColor(Design.Colors.forest)
                 }
-                Slider(value: Binding(
-                    get: { Double(SettingsStore.shared.clusterMinPoints) },
-                    set: { SettingsStore.shared.clusterMinPoints = Int($0) }
-                ), in: 3...150, step: 1)
-                .tint(Design.Colors.forest)
+                Slider(value: $minClusterPoints, in: 3...150, step: 1)
+                    .tint(Design.Colors.forest)
+                    .onChange(of: minClusterPoints) { newValue in
+                        SettingsStore.shared.clusterMinPoints = Int(newValue)
+                    }
             }
 
             // 最大聚类直径 → clusterMaxDiameter
             VStack(alignment: .leading, spacing: Design.Space.xs) {
-                let diameter = SettingsStore.shared.clusterMaxDiameter
-                let volume = diameterToVolume(Double(diameter))
                 HStack {
                     Text("最大聚类直径 (m)")
                         .font(Design.Typography.subheadline)
                         .foregroundColor(Design.Colors.charcoal)
                     Spacer()
-                    Text(String(format: "%.3f m", diameter))
+                    Text(String(format: "%.3f m", maxDiameter))
                         .font(Design.Typography.mono)
                         .foregroundColor(Design.Colors.forest)
                 }
-                Slider(value: Binding(
-                    get: { volume },
-                    set: { SettingsStore.shared.clusterMaxDiameter = volumeToDiameter($0) }
-                ), in: 0.03...0.3, step: 0.005)
-                .tint(Design.Colors.forest)
+                Slider(value: $maxDiameter, in: 0.04...0.20, step: 0.005)
+                    .tint(Design.Colors.forest)
+                    .onChange(of: maxDiameter) { newValue in
+                        SettingsStore.shared.clusterMaxDiameter = newValue
+                    }
             }
 
             // 最小球形度 → sphericityThreshold
@@ -165,15 +161,15 @@ struct CalibrationView: View {
                         .font(Design.Typography.subheadline)
                         .foregroundColor(Design.Colors.charcoal)
                     Spacer()
-                    Text(String(format: "%.2f", SettingsStore.shared.sphericityThreshold))
+                    Text(String(format: "%.2f", sphericity))
                         .font(Design.Typography.mono)
                         .foregroundColor(Design.Colors.forest)
                 }
-                Slider(value: Binding(
-                    get: { Double(SettingsStore.shared.sphericityThreshold) },
-                    set: { SettingsStore.shared.sphericityThreshold = $0 }
-                ), in: 0.2...0.8, step: 0.02)
-                .tint(Design.Colors.forest)
+                Slider(value: $sphericity, in: 0.2...0.8, step: 0.02)
+                    .tint(Design.Colors.forest)
+                    .onChange(of: sphericity) { newValue in
+                        SettingsStore.shared.sphericityThreshold = newValue
+                    }
             }
 
             // HSV 色调范围（只读显示）

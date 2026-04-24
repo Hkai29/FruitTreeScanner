@@ -125,7 +125,8 @@ class FusionValidator {
         // Back-project to camera space
         // K_inv * [u, v, 1]^T gives ray direction, scale by depth to get camera point
         let intrinsicsInverse = cameraIntrinsics.inverse
-        let direction = intrinsicsInverse * imagePoint
+        var direction = intrinsicsInverse * imagePoint
+        direction = simd_normalize(direction)  // Normalize to unit ray before scaling by depth
         let cameraPoint = direction * depth
 
         // Transform to world space

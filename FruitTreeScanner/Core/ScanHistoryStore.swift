@@ -29,51 +29,17 @@ final class ScanHistoryStore: ObservableObject {
         scanFiles = files
             .filter { $0.pathExtension == "ply" }
             .compactMap { url -> ScanFileRecord? in
-                let filename = url.deletingPathExtension().lastPathComponent
-                let parts = filename.split(separator: "_")
-                guard parts.count >= 5,
-                      parts[parts.count - 2].hasPrefix("lat"),
-                      parts[parts.count - 1].hasPrefix("lon") else { return nil }
-
-                let treeID = parts[0..<parts.count - 4].joined(separator: "_")
-                let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
-
-                // Parse GPS from filename: lat30.5728_lon114.2525 (no parentheses)
-                var gpsLat: Double = 0
-                var gpsLon: Double = 0
-                let latStr = String(parts[parts.count - 2])
-                let lonStr = String(parts[parts.count - 1])
-                if let latVal = Double(latStr.dropFirst(3)) {
-                    gpsLat = latVal
-                }
-                if let lonVal = Double(lonStr.dropFirst(3)) {
-                    gpsLon = lonVal
-                }
-
-                // Look for corresponding CSV file with yield data
-                let csvURL = url.deletingPathExtension().appendingPathExtension("csv")
-                var fruitCount = 0
-                var yieldKg: Float = 0
-                if let csvContent = try? String(contentsOf: csvURL, encoding: .utf8) {
-                    let lines = csvContent.split(separator: "\n")
-                    if lines.count >= 2 {
-                        let values = lines[1].split(separator: ",")
-                        if values.count >= 5 {
-                            fruitCount = Int(values[3]) ?? 0
-                            yieldKg = Float(values[4]) ?? 0
-                        }
-                    }
-                }
-
+                guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
                 return ScanFileRecord(
                     id: url.lastPathComponent,
-                    treeID: treeID,
+                    treeID: result.treeID,
                     fileURL: url,
-                    scanDate: creationDate,
-                    fruitCount: fruitCount,
-                    yieldKg: yieldKg,
-                    gpsLat: gpsLat,
-                    gpsLon: gpsLon
+                    scanDate: result.scanDate,
+                    fruitCount: result.fruitCount,
+                    yieldKg: result.yieldKg,
+                    gpsLat: result.gpsLat,
+                    gpsLon: result.gpsLon,
+                    fruitType: result.fruitType
                 )
             }
             .sorted { $0.scanDate > $1.scanDate }
@@ -81,6 +47,13 @@ final class ScanHistoryStore: ObservableObject {
 
     func deleteRecord(_ record: ScanFileRecord) {
         try? FileManager.default.removeItem(at: record.fileURL)
+        let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
+        try? FileManager.default.removeItem(at: csvURL)
+        loadRecords()
+        NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
+    }
+
+    func notifyRecordsUpdated() {
         loadRecords()
         NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
     }
@@ -95,8 +68,9 @@ struct ScanFileRecord: Identifiable, Equatable {
     let yieldKg: Float
     let gpsLat: Double
     let gpsLon: Double
+    let fruitType: String
 
-    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0) {
+    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple") {
         self.id = id
         self.treeID = treeID
         self.fileURL = fileURL
@@ -105,5 +79,6 @@ struct ScanFileRecord: Identifiable, Equatable {
         self.yieldKg = yieldKg
         self.gpsLat = gpsLat
         self.gpsLon = gpsLon
+        self.fruitType = fruitType
     }
 }

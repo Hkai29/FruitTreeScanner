@@ -187,6 +187,7 @@ class YieldEstimator {
 
         result.yieldBVisibleKg   = totalWeightG / 1000
         result.yieldBCorrectedKg = totalWeightG * k / 1000
+        guard !fruits.isEmpty else { return ([], result) }
         result.meanDiameterCm    = fruits.reduce(0) { $0 + $1.diameterCm } / Float(fruits.count)
         result.meanVolumeCm3     = totalVolCm3 / Float(fruits.count)
 
