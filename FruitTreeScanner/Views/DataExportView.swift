@@ -195,27 +195,95 @@ struct DataExportView: View {
         isExporting = true
 
         do {
-            // 生成 CSV 格式
-            var csvContent = "树编号,水果类型,扫描日期,果实数量,产量(kg),GPS纬度,GPS经度\n"
+            let format = SettingsStore.shared.exportFormat
+            let timestamp = getTimeStr()
+            let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("scans")
 
-            for record in scanRecords {
-                csvContent += "\(record.treeID),\(record.fruitType),\(formatDate(record.scanDate)),"
-                csvContent += "\(record.fruitCount),\(String(format: "%.2f", record.yieldKg)),"
-                csvContent += "\(String(format: "%.6f", record.gpsLat)),\(String(format: "%.6f", record.gpsLon))\n"
+            switch format {
+            case "PLY":
+                // 收集所有 PLY 文件打包导出
+                let plyFiles = scanRecords.compactMap { record -> URL? in
+                    let filename = makeTreeFileName(
+                        treeID: record.treeID,
+                        date: record.scanDate,
+                        lat: record.gpsLat,
+                        lon: record.gpsLon,
+                        ext: "ply"
+                    )
+                    return scansDir.appendingPathComponent(filename)
+                }.filter { FileManager.default.fileExists(atPath: $0.path) }
+
+                if plyFiles.isEmpty {
+                    throw NSError(domain: "DataExport", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "没有找到 PLY 文件"])
+                }
+
+                let tempDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("FruitScanner_Export_\(timestamp)")
+                try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                for src in plyFiles {
+                    try FileManager.default.copyItem(at: src,
+                        to: tempDir.appendingPathComponent(src.lastPathComponent))
+                }
+                exportedFileURL = tempDir
+
+            case "CSV":
+                var csvContent = "树编号,水果类型,扫描日期,果实数量,产量(kg),GPS纬度,GPS经度\n"
+                for record in scanRecords {
+                    csvContent += "\(record.treeID),\(record.fruitType),\(formatDate(record.scanDate)),"
+                    csvContent += "\(record.fruitCount),\(String(format: "%.2f", record.yieldKg)),"
+                    csvContent += "\(String(format: "%.6f", record.gpsLat)),\(String(format: "%.6f", record.gpsLon))\n"
+                }
+                let filename = "FruitScanner_Export_\(timestamp).csv"
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+                try csvContent.write(to: tempURL, atomically: true, encoding: .utf8)
+                exportedFileURL = tempURL
+
+            case "JSON":
+                let exportStruct = ScanExport(
+                    exportDate: ISO8601DateFormatter().string(from: Date()),
+                    totalTrees: scanRecords.count,
+                    totalFruits: scanRecords.reduce(0) { $0 + $1.fruitCount },
+                    totalYieldKg: scanRecords.reduce(0) { $0 + $1.yieldKg },
+                    records: scanRecords.map { record in
+                        RecordExport(
+                            treeID: record.treeID,
+                            fruitType: record.fruitType,
+                            scanDate: ISO8601DateFormatter().string(from: record.scanDate),
+                            fruitCount: record.fruitCount,
+                            yieldKg: record.yieldKg,
+                            gpsLat: record.gpsLat,
+                            gpsLon: record.gpsLon
+                        )
+                    }
+                )
+                let jsonData = try JSONEncoder().encode(exportStruct)
+                let filename = "FruitScanner_Export_\(timestamp).json"
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+                try jsonData.write(to: tempURL)
+                exportedFileURL = tempURL
+
+            default:
+                throw NSError(domain: "DataExport", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "不支持的格式: \(format)"])
             }
 
-            // 保存到临时文件
-            let filename = "FruitScanner_Export_\(getTimeStr()).csv"
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-
-            try csvContent.write(to: tempURL, atomically: true, encoding: .utf8)
-            exportedFileURL = tempURL
             showExportSheet = true
             isExporting = false
         } catch {
             print("❌ 导出失败: \(error.localizedDescription)")
             isExporting = false
         }
+    }
+
+    private func makeTreeFileName(treeID: String, date: Date, lat: Double, lon: Double, ext: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timeStr = formatter.string(from: date)
+        let latStr = String(format: "%.4f", abs(lat))
+        let lonStr = String(format: "%.4f", abs(lon))
+        return "\(treeID)_\(timeStr)_lat\(latStr)_lon\(lonStr).\(ext)"
     }
 
     private var totalFruits: Int {
@@ -237,6 +305,25 @@ struct DataExportView: View {
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         return formatter.string(from: Date())
     }
+}
+
+// MARK: - 导出模型
+struct RecordExport: Codable {
+    let treeID: String
+    let fruitType: String
+    let scanDate: String
+    let fruitCount: Int
+    let yieldKg: Float
+    let gpsLat: Double
+    let gpsLon: Double
+}
+
+struct ScanExport: Codable {
+    let exportDate: String
+    let totalTrees: Int
+    let totalFruits: Int
+    let totalYieldKg: Float
+    let records: [RecordExport]
 }
 
 // MARK: - 扫描记录

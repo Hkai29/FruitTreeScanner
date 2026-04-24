@@ -126,7 +126,7 @@ struct SettingsView: View {
 
             Divider().padding(.leading, 56)
 
-            // 分辨和帧率
+            // 实际分辨率和检测频率
             SettingReadOnlyRow(
                 icon: "rectangle.on.rectangle",
                 title: "实际分辨率",
@@ -148,37 +148,20 @@ struct SettingsView: View {
     @ViewBuilder
     private var dataSection: some View {
         VStack(spacing: 0) {
-            // 云同步
-            SettingToggle(
-                icon: "icloud",
-                title: "iCloud 同步",
-                isOn: SettingsStore.shared.cloudSyncEnabledBinding
-            )
-
-            Divider().padding(.leading, 56)
-
-            SettingToggle(
-                icon: "wifi",
-                title: "Wi-Fi 下自动上传",
-                isOn: SettingsStore.shared.wifiOnlyUploadBinding
-            )
-
-            Divider().padding(.leading, 56)
-
-            SettingToggle(
-                icon: "doc.text",
-                title: "扫描后自动导出 CSV",
-                isOn: SettingsStore.shared.autoExportCSVBinding
-            )
-
-            Divider().padding(.leading, 56)
-
             // 导出格式
             SettingPickerRow(
                 icon: "square.and.arrow.up",
                 title: "导出格式",
                 selection: SettingsStore.shared.exportFormatBinding,
                 options: ["PLY", "CSV", "JSON"]
+            )
+
+            Divider().padding(.leading, 56)
+
+            SettingToggle(
+                icon: "doc.text",
+                title: "扫描后自动导出",
+                isOn: SettingsStore.shared.autoExportCSVBinding
             )
         }
     }

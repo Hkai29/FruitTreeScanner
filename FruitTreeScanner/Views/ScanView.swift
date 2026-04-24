@@ -218,6 +218,9 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
         self.mtkView = mtkView
         renderer.delegate = self
 
+        // 重置分辨率显示，下次扫描时更新
+        SettingsStore.shared.currentCameraResolutionDisplay = "检测中..."
+
         let config = ARWorldTrackingConfiguration()
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             config.frameSemantics = .sceneDepth
