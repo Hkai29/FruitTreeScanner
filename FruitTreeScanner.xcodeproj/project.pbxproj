@@ -36,6 +36,10 @@
 		FUSIONVAL279228 /* FusionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONVAL987654321 /* FusionValidator.swift */; };
 		FRUITCNT279228 /* FruitCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCNT987654321 /* FruitCounter.swift */; };
 		MODEL98765432101 /* FruitsDetector.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = MODEL9876543210 /* FruitsDetector.mlpackage */; };
+		HISTCOMP001122 /* HistoricalCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HISTCOMP334455 /* HistoricalCompareView.swift */; };
+		CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLOUDSYNC334455 /* CloudScanSyncView.swift */; };
+		ORCHARD001122 /* OrchardMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARD334455 /* OrchardMapView.swift */; };
+		POINTCLD001122 /* PointCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCLD334455 /* PointCloudView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +76,10 @@
 		FUSIONVAL987654321 /* FusionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidator.swift; sourceTree = "<group>"; };
 		FRUITCNT987654321 /* FruitCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCounter.swift; sourceTree = "<group>"; };
 		MODEL9876543210 /* FruitsDetector.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlmodel; path = FruitsDetector.mlpackage; sourceTree = "<group>"; };
+		HISTCOMP334455 /* HistoricalCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalCompareView.swift; sourceTree = "<group>"; };
+		CLOUDSYNC334455 /* CloudScanSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudScanSyncView.swift; sourceTree = "<group>"; };
+		ORCHARD334455 /* OrchardMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapView.swift; sourceTree = "<group>"; };
+		POINTCLD334455 /* PointCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -111,6 +119,10 @@
 				HELP1122334455 /* HelpView.swift */,
 				EXPORT5566778899 /* DataExportView.swift */,
 				DASH794033 /* DashboardView.swift */,
+				HISTCOMP334455 /* HistoricalCompareView.swift */,
+				CLOUDSYNC334455 /* CloudScanSyncView.swift */,
+				ORCHARD334455 /* OrchardMapView.swift */,
+				POINTCLD334455 /* PointCloudView.swift */,
 
 			);
 			path = Views;
@@ -269,6 +281,10 @@
 				IMGDET279228 /* ImageDetector.swift in Sources */,
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
 				FRUITCNT279228 /* FruitCounter.swift in Sources */,
+				HISTCOMP001122 /* HistoricalCompareView.swift in Sources */,
+				CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */,
+				ORCHARD001122 /* OrchardMapView.swift in Sources */,
+				POINTCLD001122 /* PointCloudView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

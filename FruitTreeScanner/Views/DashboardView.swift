@@ -11,8 +11,8 @@ struct DashboardView: View {
     @State private var showCalibration = false
     @State private var showExport = false
     @State private var showScanHistory = false
-    @State private var showRecentScans = false
-    @State private var showFavorites = false
+    @State private var showCloudSync = false
+    @State private var showPointCloud = false
     @State private var showYieldReport = false
     @State private var showCompare = false
     @State private var showTrends = false
@@ -56,12 +56,18 @@ struct DashboardView: View {
         .sheet(isPresented: $showCalibration) { CalibrationView() }
         .sheet(isPresented: $showExport) { DataExportView() }
         .sheet(isPresented: $showScanHistory) { HistorySheetView() }
-        .sheet(isPresented: $showRecentScans) { RecentScansSheet() }
-        .sheet(isPresented: $showFavorites) { FavoritesSheet() }
+        .sheet(isPresented: $showCloudSync) { CloudSyncSheet() }
+        .sheet(isPresented: $showPointCloud) { PointCloudSheet() }
         .sheet(isPresented: $showYieldReport) { YieldReportSheet() }
-        .sheet(isPresented: $showCompare) { CompareSheet() }
+        .sheet(isPresented: $showCompare) { HistoricalCompareView() }
         .sheet(isPresented: $showTrends) { TrendsSheet() }
-        .sheet(isPresented: $showMapView) { MapSheet() }
+        .sheet(isPresented: $showMapView) {
+            if #available(iOS 17, *) {
+                MapSheet()
+            } else {
+                Text("地图功能需要 iOS 17")
+            }
+        }
         .onAppear { historyStore.loadRecords(); loadRecentScans() }
     }
 
@@ -72,8 +78,8 @@ struct DashboardView: View {
         case "校准设备": showCalibration = true
         case "数据导出": showExport = true
         case "全部扫描": showScanHistory = true
-        case "最近": showRecentScans = true
-        case "收藏": showFavorites = true
+        case "云同步": showCloudSync = true
+        case "点云预览": showPointCloud = true
         case "导出": showExport = true
         case "产量报告": showYieldReport = true
         case "对比分析": showCompare = true
@@ -111,32 +117,38 @@ struct HistorySheetView: View {
     }
 }
 
-struct RecentScansSheet: View {
+struct CloudSyncSheet: View {
     @Environment(\.dismiss) var dismiss
     var body: some View {
         NavigationView {
-            ZStack { Color(hex: "0a1628").ignoresSafeArea(); ScanHistoryView(customTitle: "最近扫描") }
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80")) } }
+            CloudScanSyncView()
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80"))
+                    }
+                }
         }
     }
 }
 
-struct FavoritesSheet: View {
+struct PointCloudSheet: View {
     @Environment(\.dismiss) var dismiss
     var body: some View {
-        NavigationView {
-            ZStack { Color(hex: "0a1628").ignoresSafeArea()
-                VStack(spacing: 20) {
-                    Image(systemName: "star.fill").font(.system(size: 60)).foregroundColor(.white.opacity(0.2))
-                    Text("暂无收藏").font(.system(size: 18, weight: .medium)).foregroundColor(.white.opacity(0.4))
-                    Text("收藏的扫描会显示在这里").font(.system(size: 14)).foregroundColor(.white.opacity(0.3))
+        ZStack {
+            PointCloudView(plyFileURL: nil)
+            VStack {
+                HStack {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white.opacity(0.8))
+                            .shadow(color: .black.opacity(0.3), radius: 4)
+                    }
+                    .padding(20)
+                    Spacer()
                 }
+                Spacer()
             }
-            .navigationTitle("收藏")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80")) } }
         }
     }
 }
@@ -163,16 +175,12 @@ struct CompareSheet: View {
     @Environment(\.dismiss) var dismiss
     var body: some View {
         NavigationView {
-            ZStack { Color(hex: "0a1628").ignoresSafeArea()
-                VStack(spacing: 20) {
-                    Image(systemName: "arrow.left.arrow.right").font(.system(size: 60)).foregroundColor(Color(hex: "FBBF24").opacity(0.3))
-                    Text("对比分析").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
-                    Text("选择多棵树进行产量对比").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
+            HistoricalCompareView()
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80"))
+                    }
                 }
-            }
-            .navigationTitle("对比分析")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80")) } }
         }
     }
 }
@@ -195,25 +203,25 @@ struct TrendsSheet: View {
     }
 }
 
+@available(iOS 17, *)
 struct MapSheet: View {
     @Environment(\.dismiss) var dismiss
     var body: some View {
-        NavigationView {
-            ZStack { Color(hex: "0a1628").ignoresSafeArea()
-                VStack(spacing: 20) {
-                    Image(systemName: "map.fill").font(.system(size: 60)).foregroundColor(Color(hex: "A78BFA").opacity(0.3))
-                    Text("果园地图").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
-                    Text("查看果园分布和产量热力图").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
-                    Button("打开完整地图") {
-                        dismiss()
+        ZStack {
+            OrchardMapView()
+            VStack {
+                HStack {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(Design.Colors.charcoal)
+                            .shadow(color: .black.opacity(0.15), radius: 4)
                     }
-                    .foregroundColor(Color(hex: "4ADE80"))
-                    .padding(.top, 20)
+                    .padding(20)
+                    Spacer()
                 }
+                Spacer()
             }
-            .navigationTitle("地图视图")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80")) } }
         }
     }
 }
@@ -439,8 +447,8 @@ struct QuickActionsGrid: View {
                     QuickAction(title: "数据导出", icon: "square.and.arrow.up", color: "A78BFA", description: "导出 PLY/CSV")]
         case .history:
             return [QuickAction(title: "全部扫描", icon: "folder.fill", color: "4ADE80", description: "查看所有记录"),
-                    QuickAction(title: "最近", icon: "clock.fill", color: "FBBF24", description: "最近的扫描"),
-                    QuickAction(title: "收藏", icon: "star.fill", color: "60A5FA", description: "标记的扫描"),
+                    QuickAction(title: "云同步", icon: "icloud.fill", color: "FBBF24", description: "上传扫描到云端"),
+                    QuickAction(title: "点云预览", icon: "point.3.connectedtriangleright.dottedpath", color: "60A5FA", description: "3D 点云可视化"),
                     QuickAction(title: "导出", icon: "square.and.arrow.up", color: "A78BFA", description: "批量导出")]
         case .analytics:
             return [QuickAction(title: "产量报告", icon: "chart.pie.fill", color: "4ADE80", description: "生成分析报告"),

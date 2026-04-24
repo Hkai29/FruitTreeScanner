@@ -5,13 +5,21 @@ import SwiftUI
 import MapKit
 
 // MARK: - Tree Annotation
-struct TreeAnnotation: Identifiable {
+struct TreeAnnotation: Identifiable, Hashable {
     let id: String
     let treeID: String
     let coordinate: CLLocationCoordinate2D
     let yieldKg: Double
     let confidence: String
     let scanDate: Date
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: TreeAnnotation, rhs: TreeAnnotation) -> Bool {
+        lhs.id == rhs.id
+    }
 
     var yieldLevel: YieldLevel {
         // Classify yield: >45 = high, 35-45 = medium, <35 = low
@@ -56,6 +64,10 @@ struct Orchard: Identifiable, Equatable {
     let coordinate: CLLocationCoordinate2D
     let span: MKCoordinateSpan
 
+    static func == (lhs: Orchard, rhs: Orchard) -> Bool {
+        lhs.id == rhs.id
+    }
+
     static let mockOrchards: [Orchard] = [
         Orchard(id: "east-south", name: "东南示范园", coordinate: CLLocationCoordinate2D(latitude: 30.5728, longitude: 114.2525), span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)),
         Orchard(id: "north", name: "北坡试验园", coordinate: CLLocationCoordinate2D(latitude: 30.5780, longitude: 114.2500), span: MKCoordinateSpan(latitudeDelta: 0.003, longitudeDelta: 0.003)),
@@ -63,6 +75,7 @@ struct Orchard: Identifiable, Equatable {
 }
 
 // MARK: - OrchardMapView
+@available(iOS 17, *)
 struct OrchardMapView: View {
     @State private var selectedOrchard: Orchard = .mockOrchards[0]
     @State private var selectedTree: TreeAnnotation?
@@ -511,5 +524,9 @@ struct OrchardPickerView: View {
 }
 
 #Preview {
-    OrchardMapView()
+    if #available(iOS 17, *) {
+        OrchardMapView()
+    } else {
+        Text("需要 iOS 17")
+    }
 }
