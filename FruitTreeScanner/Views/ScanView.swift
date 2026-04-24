@@ -486,6 +486,13 @@ extension ScanCoordinator: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         // 入队 RGB 帧用于图像检测（每 N 帧处理一次）
         imageDetector.enqueueFrame(frame.capturedImage, timestamp: frame.timestamp)
+
+        // 更新 ARKit 实际分辨率显示（只更新一次）
+        let res = frame.camera.imageResolution
+        let display = "\(Int(res.width))×\(Int(res.height))"
+        if SettingsStore.shared.currentCameraResolutionDisplay == "检测中..." {
+            SettingsStore.shared.currentCameraResolutionDisplay = display
+        }
     }
 }
 

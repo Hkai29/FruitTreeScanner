@@ -127,18 +127,17 @@ struct SettingsView: View {
             Divider().padding(.leading, 56)
 
             // 分辨和帧率
-            SettingPickerRow(
+            SettingReadOnlyRow(
                 icon: "rectangle.on.rectangle",
-                title: "分辨率",
-                selection: SettingsStore.shared.cameraResolutionBinding,
-                options: ["720p", "1080p", "4K"]
+                title: "实际分辨率",
+                value: SettingsStore.shared.currentCameraResolutionDisplay
             )
 
             Divider().padding(.leading, 56)
 
             SettingPickerRow(
                 icon: "speedometer",
-                title: "帧率",
+                title: "检测频率",
                 selection: SettingsStore.shared.cameraFrameRateBinding,
                 options: ["30fps", "60fps", "120fps"]
             )
@@ -384,6 +383,38 @@ struct SettingSliderRow: View {
     }
 }
 
+// MARK: - SettingReadOnlyRow（只读显示行）
+struct SettingReadOnlyRow: View {
+    let icon: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: Design.Space.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: Design.Radius.small)
+                    .fill(Design.Colors.forest.opacity(0.1))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Design.Colors.forest)
+            }
+
+            Text(title)
+                .font(Design.Typography.subheadlineMedium)
+                .foregroundColor(Design.Colors.charcoal)
+
+            Spacer()
+
+            Text(value)
+                .font(Design.Typography.subheadline)
+                .foregroundColor(Design.Colors.slate)
+        }
+        .padding(.horizontal, Design.Space.md)
+        .padding(.vertical, Design.Space.sm + 2)
+    }
+}
+
 // MARK: - SensorCalibrationView（传感器校准）
 struct SensorCalibrationView: View {
     @State private var calibrationState: CalibrationState = .ready
@@ -473,19 +504,20 @@ struct CameraSettingsView: View {
             Design.Colors.bgBase.ignoresSafeArea()
 
             VStack(spacing: Design.Space.lg) {
-                SettingPickerRow(
+                // ARKit 实际分辨率（只读）
+                SettingReadOnlyRow(
                     icon: "rectangle.on.rectangle",
-                    title: "分辨率",
-                    selection: SettingsStore.shared.cameraResolutionBinding,
-                    options: ["720p", "1080p", "4K"]
+                    title: "实际分辨率",
+                    value: SettingsStore.shared.currentCameraResolutionDisplay
                 )
                 .padding(Design.Space.md)
                 .background(Design.Colors.bgSurface)
                 .cornerRadius(Design.Radius.medium)
 
+                // 检测频率
                 SettingPickerRow(
                     icon: "speedometer",
-                    title: "帧率",
+                    title: "检测频率",
                     selection: SettingsStore.shared.cameraFrameRateBinding,
                     options: ["30fps", "60fps", "120fps"]
                 )
@@ -493,7 +525,7 @@ struct CameraSettingsView: View {
                 .background(Design.Colors.bgSurface)
                 .cornerRadius(Design.Radius.medium)
 
-                Text("注意：实际分辨率和帧率由设备硬件决定，设置仅为偏好记录")
+                Text("检测频率：控制图像检测算法的执行频率。实际帧率由设备硬件决定，不受此设置影响。")
                     .font(Design.Typography.caption)
                     .foregroundColor(Design.Colors.slate)
                     .multilineTextAlignment(.center)

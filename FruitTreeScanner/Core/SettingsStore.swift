@@ -157,6 +157,9 @@ final class SettingsStore: ObservableObject {
     @Published var scanPrecision: Double
     @Published var sensorCalibrationDone: Bool
 
+    // ARKit 实际分辨率（由 ScanCoordinator 在扫描时更新）
+    @Published var currentCameraResolutionDisplay: String = "检测中..."
+
     // MARK: - Binding 访问器（供 SwiftUI $ 绑定语法使用）
     var cameraResolutionBinding: Binding<String> { Binding(
         get: { self.cameraResolution },
@@ -199,36 +202,40 @@ final class SettingsStore: ObservableObject {
         set: { self.sensorCalibrationDone = $0 }
     ) }
 
-    // MARK: - 派生配置（融合 qualityPreset 和 scanPrecision）
+    // MARK: - 派生配置（融合 qualityPreset / cameraFrameRate / scanPrecision）
     var fruitScanConfig: FruitScanConfig {
-        // 基础参数可被用户调整，但受 qualityPreset 上下限约束
-        let baseInterval = detectionInterval
         let baseConfidence = Float(minConfidence)
         let baseSphericity = Float(sphericityThreshold)
 
-        // qualityPreset 覆盖：预设优先级最高
-        let (presetInterval, presetConfidence, presetSphericity): (Int, Float, Float)
+        // qualityPreset 影响置信度和球形度阈值
+        let (presetConfidence, presetSphericity): (Float, Float)
         switch qualityPreset {
         case "高":
-            presetInterval = min(baseInterval, 5)
             presetConfidence = max(baseConfidence, 0.7)
             presetSphericity = max(baseSphericity, 0.6)
         case "中":
-            presetInterval = baseInterval
             presetConfidence = baseConfidence
             presetSphericity = baseSphericity
         case "低":
-            presetInterval = max(baseInterval, 20)
             presetConfidence = min(baseConfidence, 0.3)
             presetSphericity = min(baseSphericity, 0.4)
         default:
-            presetInterval = baseInterval
             presetConfidence = baseConfidence
             presetSphericity = baseSphericity
         }
 
+        // cameraFrameRate 直接控制检测频率（以 60fps 为基准）
+        // 30fps → 每 2 帧检测一次；60fps → 每帧检测；120fps → 每帧检测
+        let detectionIntervalFromFps: Int
+        switch cameraFrameRate {
+        case "30fps": detectionIntervalFromFps = 2
+        case "60fps": detectionIntervalFromFps = 1
+        case "120fps": detectionIntervalFromFps = 1
+        default: detectionIntervalFromFps = 1
+        }
+
         return FruitScanConfig(
-            imageDetectionInterval: presetInterval,
+            imageDetectionInterval: detectionIntervalFromFps,
             minConfidence: presetConfidence,
             sizeTolerance: 0.2,
             sphericityThreshold: presetSphericity
