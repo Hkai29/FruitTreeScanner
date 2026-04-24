@@ -172,13 +172,13 @@ struct ScanView: View {
 
                 // 自动导出 CSV（如果开关开启）
                 if SettingsStore.shared.autoExportCSV {
-                    self.autoExportCSVIfEnabled(filename: filename)
+                    self.autoExportCSVIfEnabled(result: result, filename: filename)
                 }
             }
         }
     }
 
-    private func autoExportCSVIfEnabled(filename: String?) {
+    private func autoExportCSVIfEnabled(result: YieldResult?, filename: String?) {
         guard filename != nil else { return }
         let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("scans")
@@ -193,8 +193,8 @@ struct ScanView: View {
             treeID: treeID,
             fruitType: SettingsStore.shared.fruitType,
             scanDate: Date(),
-            fruitCount: Int(self.yieldResult?.nLidar ?? 0),
-            yieldKg: self.yieldResult?.yieldFinalKg ?? 0,
+            fruitCount: Int(result?.nLidar ?? 0),
+            yieldKg: result?.yieldFinalKg ?? 0,
             gpsLat: gps.latitude,
             gpsLon: gps.longitude
         )
