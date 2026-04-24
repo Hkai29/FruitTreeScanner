@@ -11,7 +11,6 @@ struct DashboardView: View {
     @State private var showCalibration = false
     @State private var showExport = false
     @State private var showScanHistory = false
-    @State private var showCloudSync = false
     @State private var showPointCloud = false
     @State private var showYieldReport = false
     @State private var showCompare = false
@@ -56,7 +55,6 @@ struct DashboardView: View {
         .sheet(isPresented: $showCalibration) { CalibrationView() }
         .sheet(isPresented: $showExport) { DataExportView() }
         .sheet(isPresented: $showScanHistory) { HistorySheetView() }
-        .sheet(isPresented: $showCloudSync) { CloudSyncSheet() }
         .sheet(isPresented: $showPointCloud) { PointCloudSheet() }
         .sheet(isPresented: $showYieldReport) { YieldReportSheet() }
         .sheet(isPresented: $showCompare) { HistoricalCompareView() }
@@ -78,7 +76,6 @@ struct DashboardView: View {
         case "校准设备": showCalibration = true
         case "数据导出": showExport = true
         case "全部扫描": showScanHistory = true
-        case "云同步": showCloudSync = true
         case "点云预览": showPointCloud = true
         case "导出": showExport = true
         case "产量报告": showYieldReport = true
@@ -117,20 +114,6 @@ struct HistorySheetView: View {
     }
 }
 
-struct CloudSyncSheet: View {
-    @Environment(\.dismiss) var dismiss
-    var body: some View {
-        NavigationView {
-            CloudScanSyncView()
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80"))
-                    }
-                }
-        }
-    }
-}
-
 struct PointCloudSheet: View {
     @Environment(\.dismiss) var dismiss
     var body: some View {
@@ -155,19 +138,91 @@ struct PointCloudSheet: View {
 
 struct YieldReportSheet: View {
     @Environment(\.dismiss) var dismiss
+    @ObservedObject var historyStore = ScanHistoryStore.shared
+
+    private var totalScans: Int { historyStore.scanFiles.count }
+    private var totalYield: Float { historyStore.scanFiles.reduce(0) { $0 + $1.yieldKg } }
+    private var avgYield: Float { totalScans > 0 ? totalYield / Float(totalScans) : 0 }
+    private var totalFruit: Int { historyStore.scanFiles.reduce(0) { $0 + $1.fruitCount } }
+
     var body: some View {
         NavigationView {
-            ZStack { Color(hex: "0a1628").ignoresSafeArea()
-                VStack(spacing: 20) {
-                    Image(systemName: "chart.pie.fill").font(.system(size: 60)).foregroundColor(Color(hex: "4ADE80").opacity(0.3))
-                    Text("产量报告").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
-                    Text("扫描数据后自动生成").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
+            ZStack {
+                Color(hex: "0a1628").ignoresSafeArea()
+
+                if historyStore.scanFiles.isEmpty {
+                    VStack(spacing: 20) {
+                        Image(systemName: "chart.pie.fill").font(.system(size: 60)).foregroundColor(Color(hex: "4ADE80").opacity(0.3))
+                        Text("产量报告").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
+                        Text("扫描数据后自动生成").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
+                    }
+                } else {
+                    ScrollView {
+                        VStack(spacing: Design.Space.lg) {
+                            // Summary Stats
+                            HStack(spacing: Design.Space.md) {
+                                YieldStatCard(title: "扫描次数", value: "\(totalScans)", icon: "cube.fill", color: Color(hex: "4ADE80"))
+                                YieldStatCard(title: "总产量", value: String(format: "%.1f kg", totalYield), icon: "scalemass.fill", color: Color(hex: "FBBF24"))
+                            }
+                            HStack(spacing: Design.Space.md) {
+                                YieldStatCard(title: "平均产量", value: String(format: "%.1f kg", avgYield), icon: "chart.bar.fill", color: Color(hex: "60A5FA"))
+                                YieldStatCard(title: "总果实", value: "\(totalFruit)", icon: "leaf.fill", color: Color(hex: "A78BFA"))
+                            }
+
+                            // Per-tree breakdown
+                            VStack(alignment: .leading, spacing: Design.Space.md) {
+                                Text("各树产量").font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                                ForEach(historyStore.scanFiles.prefix(20)) { record in
+                                    HStack {
+                                        VStack(alignment: .leading) {
+                                            Text("树 #\(record.treeID)").font(.system(size: 14, weight: .medium)).foregroundColor(.white)
+                                            Text(formatDate(record.scanDate)).font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
+                                        }
+                                        Spacer()
+                                        VStack(alignment: .trailing) {
+                                            Text(String(format: "%.1f kg", record.yieldKg)).font(.system(size: 14, weight: .semibold)).foregroundColor(Color(hex: "FBBF24"))
+                                            Text("\(record.fruitCount) 个果实").font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
+                                        }
+                                    }
+                                    .padding(Design.Space.md)
+                                    .background(Color.white.opacity(0.05))
+                                    .cornerRadius(Design.Radius.medium)
+                                }
+                            }
+                        }
+                        .padding(Design.Space.lg)
+                    }
                 }
             }
             .navigationTitle("产量报告")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80")) } }
         }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+}
+
+struct YieldStatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: Design.Space.sm) {
+            Image(systemName: icon).font(.system(size: 24)).foregroundColor(color)
+            Text(value).font(.system(size: 20, weight: .bold)).foregroundColor(.white)
+            Text(title).font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Design.Space.md)
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(Design.Radius.large)
     }
 }
 
@@ -187,19 +242,91 @@ struct CompareSheet: View {
 
 struct TrendsSheet: View {
     @Environment(\.dismiss) var dismiss
+    @ObservedObject var historyStore = ScanHistoryStore.shared
+
+    private var sortedRecords: [ScanFileRecord] {
+        historyStore.scanFiles.sorted { $0.scanDate < $1.scanDate }
+    }
+
+    private var maxYield: Float {
+        sortedRecords.map { $0.yieldKg }.max() ?? 1
+    }
+
     var body: some View {
         NavigationView {
             ZStack { Color(hex: "0a1628").ignoresSafeArea()
-                VStack(spacing: 20) {
-                    Image(systemName: "chart.xyaxis.line").font(.system(size: 60)).foregroundColor(Color(hex: "60A5FA").opacity(0.3))
-                    Text("趋势图表").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
-                    Text("查看产量随时间变化的趋势").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
+
+                if historyStore.scanFiles.isEmpty {
+                    VStack(spacing: 20) {
+                        Image(systemName: "chart.xyaxis.line").font(.system(size: 60)).foregroundColor(Color(hex: "60A5FA").opacity(0.3))
+                        Text("趋势图表").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
+                        Text("查看产量随时间变化的趋势").font(.system(size: 14)).foregroundColor(.white.opacity(0.5))
+                    }
+                } else {
+                    ScrollView {
+                        VStack(spacing: Design.Space.lg) {
+                            // Bar chart
+                            VStack(alignment: .leading, spacing: Design.Space.md) {
+                                Text("产量趋势").font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+
+                                HStack(alignment: .bottom, spacing: 8) {
+                                    ForEach(sortedRecords) { record in
+                                        VStack(spacing: 4) {
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(barColor(for: record.yieldKg))
+                                                .frame(width: 32, height: max(4, CGFloat(record.yieldKg / maxYield) * 150))
+
+                                            Text(shortDate(record.scanDate))
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.white.opacity(0.5))
+                                                .rotationEffect(.degrees(-45))
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .bottom)
+                                .padding(.vertical, Design.Space.md)
+                            }
+                            .padding(Design.Space.md)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(Design.Radius.large)
+
+                            // Data table
+                            VStack(alignment: .leading, spacing: Design.Space.md) {
+                                Text("详细数据").font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                                ForEach(sortedRecords) { record in
+                                    HStack {
+                                        Text("树 #\(record.treeID)").font(.system(size: 14)).foregroundColor(.white)
+                                        Spacer()
+                                        Text(String(format: "%.1f kg", record.yieldKg)).font(.system(size: 14, weight: .semibold)).foregroundColor(Color(hex: "FBBF24"))
+                                        Text("\(record.fruitCount) 个").font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
+                                    }
+                                }
+                            }
+                            .padding(Design.Space.md)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(Design.Radius.large)
+                        }
+                        .padding(Design.Space.lg)
+                    }
                 }
             }
             .navigationTitle("趋势图表")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80")) } }
         }
+    }
+
+    private func barColor(for yield: Float) -> Color {
+        let ratio = yield / maxYield
+        if ratio > 0.7 { return Color(hex: "4ADE80") }
+        if ratio > 0.4 { return Color(hex: "FBBF24") }
+        return Color(hex: "60A5FA")
+    }
+
+    private func shortDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd"
+        return formatter.string(from: date)
     }
 }
 
