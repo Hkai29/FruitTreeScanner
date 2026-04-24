@@ -158,7 +158,11 @@ struct ScanView: View {
     private func exportAndEstimate() {
         isEstimating = true
         coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
-            self.savedFilename = filename
+            self.savedFilename = filename ?? ""
+            guard filename != nil else {
+                self.isEstimating = false
+                return
+            }
 
             // 触发 iOS 端估算
             self.coordinator.runYieldEstimate(nVisual: self.nVisual, season: self.season) { result in
@@ -348,12 +352,8 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
     }
 
     func exportPLY(treeID: String, lat: Double, lon: Double,
-                   completion: @escaping (String) -> Void) {
+                   completion: @escaping (String?) -> Void) {
         renderer?.savePointCloud(treeID: treeID, gpsLat: lat, gpsLon: lon) { filename in
-            guard let filename = filename else {
-                print("❌ PLY 保存失败，跳过产量估算")
-                return
-            }
             completion(filename)
         }
     }
