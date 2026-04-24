@@ -30,9 +30,6 @@ struct PointCloudView: View {
     @State private var showExportSheet = false
     @State private var isLoading = true
 
-    // TODO: Connect to actual PLY file data
-    private let mockPointCount = 45_231
-
     var body: some View {
         ZStack {
             // SceneKit Point Cloud
@@ -57,9 +54,6 @@ struct PointCloudView: View {
             .padding(Design.Space.lg)
         }
         .navigationBarHidden(true)
-        .onAppear {
-            pointCount = mockPointCount
-        }
     }
 
     // MARK: - Top Bar
