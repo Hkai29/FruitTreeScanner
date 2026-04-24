@@ -36,6 +36,10 @@ final class SettingsStore: ObservableObject {
         static let qualityPreset = "qualityPreset"
         static let maxPointCount = "maxPointCount"
         static let scanPrecision = "scanPrecision"
+        static let hsvHMin = "hsvHMin"
+        static let hsvHMax = "hsvHMax"
+        static let hsvSMin = "hsvSMin"
+        static let hsvVMin = "hsvVMin"
     }
 
     private init() {
@@ -48,6 +52,10 @@ final class SettingsStore: ObservableObject {
         qualityPreset = defaults.string(forKey: Keys.qualityPreset) ?? "高"
         maxPointCount = (defaults.object(forKey: Keys.maxPointCount) as? Int) ?? 1000000
         scanPrecision = (defaults.object(forKey: Keys.scanPrecision) as? Double) ?? 0.01
+        hsvHMin = (defaults.object(forKey: Keys.hsvHMin) as? Float) ?? 330
+        hsvHMax = (defaults.object(forKey: Keys.hsvHMax) as? Float) ?? 25
+        hsvSMin = (defaults.object(forKey: Keys.hsvSMin) as? Float) ?? 0.3
+        hsvVMin = (defaults.object(forKey: Keys.hsvVMin) as? Float) ?? 0.3
     }
 
     // MARK: - 水果参数
@@ -150,6 +158,10 @@ final class SettingsStore: ObservableObject {
     @Published var qualityPreset: String
     @Published var maxPointCount: Int
     @Published var scanPrecision: Double
+    @Published var hsvHMin: Float
+    @Published var hsvHMax: Float
+    @Published var hsvSMin: Float
+    @Published var hsvVMin: Float
 
     // ARKit 实际分辨率（由 ScanCoordinator 在扫描时更新）
     @Published var currentCameraResolutionDisplay: String = "检测中..."
@@ -186,6 +198,22 @@ final class SettingsStore: ObservableObject {
     var scanPrecisionBinding: Binding<Double> { Binding(
         get: { self.scanPrecision },
         set: { self.scanPrecision = $0 }
+    ) }
+    var hsvHMinBinding: Binding<Float> { Binding(
+        get: { self.hsvHMin },
+        set: { self.hsvHMin = $0 }
+    ) }
+    var hsvHMaxBinding: Binding<Float> { Binding(
+        get: { self.hsvHMax },
+        set: { self.hsvHMax = $0 }
+    ) }
+    var hsvSMinBinding: Binding<Float> { Binding(
+        get: { self.hsvSMin },
+        set: { self.hsvSMin = $0 }
+    ) }
+    var hsvVMinBinding: Binding<Float> { Binding(
+        get: { self.hsvVMin },
+        set: { self.hsvVMin = $0 }
     ) }
 
     // MARK: - 派生配置（融合 qualityPreset / cameraFrameRate / scanPrecision）

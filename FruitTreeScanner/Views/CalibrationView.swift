@@ -51,7 +51,6 @@ struct CalibrationParams {
 struct CalibrationView: View {
     @State private var calibrationRecords: [CalibrationRecord] = []
     @State private var showAddRecord = false
-    @State private var params = CalibrationParams()
 
     var body: some View {
         ZStack {
@@ -97,6 +96,14 @@ struct CalibrationView: View {
 
     // MARK: - 参数调整卡片
 
+    // volume (m³) ↔ diameter (m)：球体积 V = π/6 × d³
+    private func volumeToDiameter(_ v: Double) -> Double {
+        pow(v * 6.0 / Double.pi, 1.0 / 3.0)
+    }
+    private func diameterToVolume(_ d: Double) -> Double {
+        Double.pi / 6.0 * pow(d, 3)
+    }
+
     private var paramsCard: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
             HStack {
@@ -113,68 +120,76 @@ struct CalibrationView: View {
 
             Divider()
 
-            // 最小聚类点数
+            // 最小聚类点数 → clusterMinPoints
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 HStack {
                     Text("最小聚类点数")
                         .font(Design.Typography.subheadline)
                         .foregroundColor(Design.Colors.charcoal)
                     Spacer()
-                    Text("\(params.minClusterPoints)")
+                    Text("\(SettingsStore.shared.clusterMinPoints)")
                         .font(Design.Typography.mono)
                         .foregroundColor(Design.Colors.forest)
                 }
                 Slider(value: Binding(
-                    get: { Double(params.minClusterPoints) },
-                    set: { params.minClusterPoints = Int($0) }
-                ), in: 20...150, step: 5)
+                    get: { Double(SettingsStore.shared.clusterMinPoints) },
+                    set: { SettingsStore.shared.clusterMinPoints = Int($0) }
+                ), in: 3...150, step: 1)
                 .tint(Design.Colors.forest)
             }
 
-            // 最大聚类体积
+            // 最大聚类直径 → clusterMaxDiameter
             VStack(alignment: .leading, spacing: Design.Space.xs) {
+                let diameter = SettingsStore.shared.clusterMaxDiameter
+                let volume = diameterToVolume(Double(diameter))
                 HStack {
-                    Text("最大聚类体积 (m³)")
+                    Text("最大聚类直径 (m)")
                         .font(Design.Typography.subheadline)
                         .foregroundColor(Design.Colors.charcoal)
                     Spacer()
-                    Text(String(format: "%.4f", params.maxClusterVolume))
+                    Text(String(format: "%.3f m", diameter))
                         .font(Design.Typography.mono)
                         .foregroundColor(Design.Colors.forest)
                 }
                 Slider(value: Binding(
-                    get: { Double(params.maxClusterVolume) },
-                    set: { params.maxClusterVolume = Float($0) }
-                ), in: 0.0001...0.005, step: 0.0001)
+                    get: { volume },
+                    set: { SettingsStore.shared.clusterMaxDiameter = volumeToDiameter($0) }
+                ), in: 0.03...0.3, step: 0.005)
                 .tint(Design.Colors.forest)
             }
 
-            // 最小球形度
+            // 最小球形度 → sphericityThreshold
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 HStack {
                     Text("最小球形度")
                         .font(Design.Typography.subheadline)
                         .foregroundColor(Design.Colors.charcoal)
                     Spacer()
-                    Text(String(format: "%.2f", params.minSphericity))
+                    Text(String(format: "%.2f", SettingsStore.shared.sphericityThreshold))
                         .font(Design.Typography.mono)
                         .foregroundColor(Design.Colors.forest)
                 }
-                Slider(value: $params.minSphericity, in: 0.2...0.8, step: 0.02)
-                    .tint(Design.Colors.forest)
+                Slider(value: Binding(
+                    get: { Double(SettingsStore.shared.sphericityThreshold) },
+                    set: { SettingsStore.shared.sphericityThreshold = $0 }
+                ), in: 0.2...0.8, step: 0.02)
+                .tint(Design.Colors.forest)
             }
 
-            // HSV 色调范围
+            // HSV 色调范围（只读显示）
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text("HSV 色调范围")
                     .font(Design.Typography.subheadline)
                     .foregroundColor(Design.Colors.charcoal)
 
                 HStack {
-                    Text("H: \(Int(params.hsvHMin))° - \(Int(params.hsvHMax))°")
+                    Text("H: \(Int(SettingsStore.shared.hsvHMin))° - \(Int(SettingsStore.shared.hsvHMax))°")
                         .font(Design.Typography.monoSmall)
                         .foregroundColor(Design.Colors.slate)
                     Spacer()
+                    Text("S≥\(String(format: "%.0f%%", SettingsStore.shared.hsvSMin * 100)) V≥\(String(format: "%.0f%%", SettingsStore.shared.hsvVMin * 100))")
+                        .font(Design.Typography.monoSmall)
+                        .foregroundColor(Design.Colors.slate)
                 }
             }
         }
