@@ -31,9 +31,11 @@ final class ScanHistoryStore: ObservableObject {
             .compactMap { url -> ScanFileRecord? in
                 let filename = url.deletingPathExtension().lastPathComponent
                 let parts = filename.split(separator: "_")
-                guard parts.count >= 4, parts[0] == "tree" else { return nil }
+                guard parts.count >= 5,
+                      parts[parts.count - 2].hasPrefix("lat"),
+                      parts[parts.count - 1].hasPrefix("lon") else { return nil }
 
-                let treeID = String(parts[1])
+                let treeID = parts[0..<parts.count - 4].joined(separator: "_")
                 let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
 
                 return ScanFileRecord(

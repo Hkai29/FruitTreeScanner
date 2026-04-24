@@ -154,18 +154,22 @@ struct DataExportView: View {
         }
 
         // Parse PLY files to create scan records
-        // Filename format: tree_\(treeID)_\(lat)_\(lon).ply
+        // Filename format: \(treeID)_\(yyyyMMdd)_\(HHmmss)_lat\(lat)_lon\(lon).ply
         scanRecords = files
             .filter { $0.pathExtension == "ply" }
             .compactMap { url -> ScanRecord? in
                 let filename = url.deletingPathExtension().lastPathComponent
                 let parts = filename.split(separator: "_")
 
-                guard parts.count >= 4, parts[0] == "tree" else { return nil }
+                guard parts.count >= 5,
+                      parts[parts.count - 2].hasPrefix("lat"),
+                      parts[parts.count - 1].hasPrefix("lon") else { return nil }
 
-                let treeID = String(parts[1])
-                let lat = Double(parts[2]) ?? 0
-                let lon = Double(parts[3]) ?? 0
+                let treeID = parts[0..<parts.count - 4].joined(separator: "_")
+                let latStr = parts[parts.count - 2].dropFirst(3)
+                let lonStr = parts[parts.count - 1].dropFirst(3)
+                let lat = Double(latStr) ?? 0
+                let lon = Double(lonStr) ?? 0
 
                 // Get creation date
                 let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
@@ -190,28 +194,28 @@ struct DataExportView: View {
     private func exportData() {
         isExporting = true
 
-        // 生成 CSV 格式
-        var csvContent = "树编号,水果类型,扫描日期,果实数量,产量(kg),GPS纬度,GPS经度\n"
-
-        for record in scanRecords {
-            csvContent += "\(record.treeID),\(record.fruitType),\(formatDate(record.scanDate)),"
-            csvContent += "\(record.fruitCount),\(String(format: "%.2f", record.yieldKg)),"
-            csvContent += "\(String(format: "%.6f", record.gpsLat)),\(String(format: "%.6f", record.gpsLon))\n"
-        }
-
-        // 保存到临时文件
-        let filename = "FruitScanner_Export_\(getTimeStr()).csv"
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-
         do {
+            // 生成 CSV 格式
+            var csvContent = "树编号,水果类型,扫描日期,果实数量,产量(kg),GPS纬度,GPS经度\n"
+
+            for record in scanRecords {
+                csvContent += "\(record.treeID),\(record.fruitType),\(formatDate(record.scanDate)),"
+                csvContent += "\(record.fruitCount),\(String(format: "%.2f", record.yieldKg)),"
+                csvContent += "\(String(format: "%.6f", record.gpsLat)),\(String(format: "%.6f", record.gpsLon))\n"
+            }
+
+            // 保存到临时文件
+            let filename = "FruitScanner_Export_\(getTimeStr()).csv"
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+
             try csvContent.write(to: tempURL, atomically: true, encoding: .utf8)
             exportedFileURL = tempURL
             showExportSheet = true
+            isExporting = false
         } catch {
             print("❌ 导出失败: \(error.localizedDescription)")
+            isExporting = false
         }
-
-        isExporting = false
     }
 
     private var totalFruits: Int {

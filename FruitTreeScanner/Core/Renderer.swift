@@ -214,7 +214,9 @@ final class Renderer: NSObject {
     ///   - treeID: 树木编号，如 "T001"
     ///   - gpsLat: GPS 纬度
     ///   - gpsLon: GPS 经度
-    func savePointCloud(treeID: String, gpsLat: Double, gpsLon: Double) {
+    ///   - completion: 保存完成后在主线程回调（成功时 filename 非空）
+    func savePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
+                        completion: @escaping (String?) -> Void = { _ in }) {
         delegate?.didStartTask()
         let pointCount = currentPointCount
         // 深拷贝点云数据，避免异步访问竞争
@@ -262,10 +264,12 @@ final class Renderer: NSObject {
                 try await saveFile(content: fileContent, filename: filename,
                                    folder: self.currentFolder)
                 print("✅ PLY 保存成功: \(filename)，共 \(pointCount) 点")
-                self.delegate?.didFinishTask()
+                await MainActor.run { completion(filename) }
             } catch {
                 print("❌ PLY 保存失败: \(error.localizedDescription)")
+                await MainActor.run { completion(nil) }
             }
+            await MainActor.run { self.delegate?.didFinishTask() }
         }
     }
 
@@ -333,14 +337,20 @@ final class Renderer: NSObject {
         return true
     }
 
-    /// 获取相机位置的区域键（离散化到 10cm 网格）
+    /// 获取相机位置+朝向的区域键（离散化到 10cm 网格 + ~17° 朝向区间）
+    /// 加入朝向维度后，站在同一位置旋转扫不同方向不会被误判为重复区域
     private func getCameraRegionKey(frame: ARFrame) -> String {
         let pos = frame.camera.transform.columns.3
-        let regionSize: Float = 0.1  // 10cm 网格（原 20cm 太粗糙）
+        let forward = -frame.camera.transform.columns.2  // 相机前方向量
+        let regionSize: Float = 0.1  // 10cm 网格
+        let angleBin: Float = 0.3    // ~17° 朝向区间
         let x = Int(floor(pos.x / regionSize))
         let y = Int(floor(pos.y / regionSize))
         let z = Int(floor(pos.z / regionSize))
-        return "\(x),\(y),\(z)"
+        let fx = Int(floor(forward.x / angleBin))
+        let fy = Int(floor(forward.y / angleBin))
+        let fz = Int(floor(forward.z / angleBin))
+        return "\(x),\(y),\(z),\(fx),\(fy),\(fz)"
     }
 
     /// 从深度图采样单个点深度

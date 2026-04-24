@@ -239,41 +239,36 @@ final class PointCloudCluster {
     }
 
     private func computeEigenvalues(_ matrix: simd_float3x3) -> [Float] {
-        // 使用幂迭代法求对称矩阵的特征值
-        var a = matrix
-
+        // 使用带正交化约束的幂迭代法求对称矩阵的特征值
         var eigenvalues: [Float] = []
-        var current = SIMD3<Float>(1, 0, 0)
+        var eigenvectors: [SIMD3<Float>] = []
 
         for _ in 0..<3 {
-            // 幂迭代
+            var current = SIMD3<Float>(1, 0, 0)
+
+            // 与已求得的特征向量正交化，确保收敛到新的特征方向
+            for v in eigenvectors {
+                current -= simd_dot(current, v) * v
+            }
+            let initNorm = simd_length(current)
+            if initNorm < 1e-6 { break }
+            current /= initNorm
+
+            // 幂迭代（每步正交化）
             for _ in 0..<10 {
-                let next: SIMD3<Float> = a * current
-                let norm: Float = simd_length(next)
+                var next: SIMD3<Float> = matrix * current
+                // 正交化约束：投影到已求特征向量的正交补空间
+                for v in eigenvectors {
+                    next -= simd_dot(next, v) * v
+                }
+                let norm = simd_length(next)
                 if norm < 1e-6 { break }
                 current = next / norm
             }
 
-            let lambda: Float = simd_dot(current, a * current)
+            let lambda = simd_dot(current, matrix * current)
             eigenvalues.append(lambda)
-
-            // 施密特正交化去迭代
-            for j in 0..<eigenvalues.count - 1 {
-                let vj: SIMD3<Float>
-                if eigenvalues.count == 1 {
-                    vj = SIMD3<Float>(1, 0, 0)
-                } else if j == 0 {
-                    vj = SIMD3<Float>(0, 1, 0)
-                } else {
-                    vj = SIMD3<Float>(0, 0, 1)
-                }
-                let proj = simd_dot(current, vj) / simd_dot(vj, vj) * vj
-                current = normalize(current - proj)
-            }
-
-            // Rayleigh 商迭代改进
-            let nextVec: SIMD3<Float> = a * current
-            current = normalize(nextVec)
+            eigenvectors.append(current)
         }
 
         return eigenvalues.sorted()

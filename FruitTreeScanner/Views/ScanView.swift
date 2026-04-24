@@ -295,9 +295,13 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
 
     func exportPLY(treeID: String, lat: Double, lon: Double,
                    completion: @escaping (String) -> Void) {
-        renderer?.savePointCloud(treeID: treeID, gpsLat: lat, gpsLon: lon)
-        let filename = makeTreeFileName(treeID: treeID, lat: lat, lon: lon)
-        completion(filename)
+        renderer?.savePointCloud(treeID: treeID, gpsLat: lat, gpsLon: lon) { filename in
+            guard let filename = filename else {
+                print("❌ PLY 保存失败，跳过产量估算")
+                return
+            }
+            completion(filename)
+        }
     }
 
     private func extractColoredPoints() -> [ColoredPoint] {

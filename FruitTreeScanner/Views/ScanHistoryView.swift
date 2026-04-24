@@ -52,7 +52,8 @@ struct ScanHistoryView: View {
                 if !historyStore.scanFiles.isEmpty {
                     Menu {
                         Button(role: .destructive) {
-                            historyStore.scanFiles.forEach { historyStore.deleteRecord($0) }
+                            let filesToDelete = historyStore.scanFiles
+                            filesToDelete.forEach { historyStore.deleteRecord($0) }
                         } label: {
                             Label("清空全部", systemImage: "trash")
                         }

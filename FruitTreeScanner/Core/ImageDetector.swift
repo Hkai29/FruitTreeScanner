@@ -127,13 +127,6 @@ final class ImageDetector {
             allDetectedFruits.append(contentsOf: fruits)
         }
 
-        // Notify delegate on main thread
-        if !allDetectedFruits.isEmpty {
-            await MainActor.run {
-                delegate?.imageDetector(self, didDetect: allDetectedFruits)
-            }
-        }
-
         return allDetectedFruits
     }
 

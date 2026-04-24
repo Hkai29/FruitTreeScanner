@@ -105,10 +105,14 @@ class FusionValidator {
         let centerX = (box.origin.x + box.size.width / 2) * imageSize.width
         let centerY = (box.origin.y + box.size.height / 2) * imageSize.height
 
-        // Get depth at center point
+        // Get depth at center point (scale from image coords to depth map coords)
         var depth: Float = 2.0 // Default depth if no depth map
         if let depthMap = depthMap {
-            depth = sampleDepth(depthMap: depthMap, x: Int(centerX), y: Int(centerY), imageSize: imageSize)
+            let depthW = CVPixelBufferGetWidth(depthMap)
+            let depthH = CVPixelBufferGetHeight(depthMap)
+            let depthX = Int(centerX * CGFloat(depthW) / imageSize.width)
+            let depthY = Int(centerY * CGFloat(depthH) / imageSize.height)
+            depth = sampleDepth(depthMap: depthMap, x: depthX, y: depthY, imageSize: imageSize)
         }
 
         // Create image point in camera coordinates (pixel)

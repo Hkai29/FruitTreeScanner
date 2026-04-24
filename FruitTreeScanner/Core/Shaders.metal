@@ -25,6 +25,7 @@ struct ParticleVertexOut {
 };
 
 constexpr sampler colorSampler(mip_filter::linear, mag_filter::linear, min_filter::linear);
+constexpr sampler nearestSampler(mip_filter::nearest, mag_filter::nearest, min_filter::nearest);
 constant auto yCbCrToRGB = float4x4(float4(+1.0000f, +1.0000f, +1.0000f, +0.0000f),
                                     float4(+0.0000f, -0.3441f, +1.7720f, +0.0000f),
                                     float4(+1.4020f, -0.7141f, +0.0000f, +0.0000f),
@@ -69,7 +70,7 @@ vertex void unprojectVertex(uint vertexID [[vertex_id]],
     const auto ycbcr = float4(capturedImageTextureY.sample(colorSampler, texCoord).r, capturedImageTextureCbCr.sample(colorSampler, texCoord.xy).rg, 1);
     const auto sampledColor = (yCbCrToRGB * ycbcr).rgb;
     // Sample the confidence map to get the confidence value
-    const auto confidence = confidenceTexture.sample(colorSampler, texCoord).r;
+    const auto confidence = confidenceTexture.sample(nearestSampler, texCoord).r;
 
     // Write the data to the buffer
     particleUniforms[currentPointIndex].position = position.xyz;
