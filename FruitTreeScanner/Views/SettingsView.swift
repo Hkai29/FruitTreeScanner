@@ -130,7 +130,7 @@ struct SettingsView: View {
             SettingPickerRow(
                 icon: "rectangle.on.rectangle",
                 title: "分辨率",
-                selection: $SettingsStore.shared.cameraResolution,
+                selection: SettingsStore.shared.cameraResolutionBinding,
                 options: ["720p", "1080p", "4K"]
             )
 
@@ -139,7 +139,7 @@ struct SettingsView: View {
             SettingPickerRow(
                 icon: "speedometer",
                 title: "帧率",
-                selection: $SettingsStore.shared.cameraFrameRate,
+                selection: SettingsStore.shared.cameraFrameRateBinding,
                 options: ["30fps", "60fps", "120fps"]
             )
         }
@@ -153,7 +153,7 @@ struct SettingsView: View {
             SettingToggle(
                 icon: "icloud",
                 title: "iCloud 同步",
-                isOn: $SettingsStore.shared.cloudSyncEnabled
+                isOn: SettingsStore.shared.cloudSyncEnabledBinding
             )
 
             Divider().padding(.leading, 56)
@@ -161,7 +161,7 @@ struct SettingsView: View {
             SettingToggle(
                 icon: "wifi",
                 title: "Wi-Fi 下自动上传",
-                isOn: $SettingsStore.shared.wifiOnlyUpload
+                isOn: SettingsStore.shared.wifiOnlyUploadBinding
             )
 
             Divider().padding(.leading, 56)
@@ -169,7 +169,7 @@ struct SettingsView: View {
             SettingToggle(
                 icon: "doc.text",
                 title: "扫描后自动导出 CSV",
-                isOn: $SettingsStore.shared.autoExportCSV
+                isOn: SettingsStore.shared.autoExportCSVBinding
             )
 
             Divider().padding(.leading, 56)
@@ -178,7 +178,7 @@ struct SettingsView: View {
             SettingPickerRow(
                 icon: "square.and.arrow.up",
                 title: "导出格式",
-                selection: $SettingsStore.shared.exportFormat,
+                selection: SettingsStore.shared.exportFormatBinding,
                 options: ["PLY", "CSV", "JSON"]
             )
         }
@@ -192,7 +192,7 @@ struct SettingsView: View {
             SettingPickerRow(
                 icon: "chart.bar",
                 title: "质量预设",
-                selection: $SettingsStore.shared.qualityPreset,
+                selection: SettingsStore.shared.qualityPresetBinding,
                 options: ["高", "中", "低"]
             )
 
@@ -217,7 +217,7 @@ struct SettingsView: View {
             SettingSliderRow(
                 icon: "scope",
                 title: "精度",
-                value: $SettingsStore.shared.scanPrecision,
+                value: SettingsStore.shared.scanPrecisionBinding,
                 range: 0.001...0.05,
                 step: 0.001,
                 displayValue: String(format: "%.3f", SettingsStore.shared.scanPrecision)
@@ -476,7 +476,7 @@ struct CameraSettingsView: View {
                 SettingPickerRow(
                     icon: "rectangle.on.rectangle",
                     title: "分辨率",
-                    selection: $SettingsStore.shared.cameraResolution,
+                    selection: SettingsStore.shared.cameraResolutionBinding,
                     options: ["720p", "1080p", "4K"]
                 )
                 .padding(Design.Space.md)
@@ -486,7 +486,7 @@ struct CameraSettingsView: View {
                 SettingPickerRow(
                     icon: "speedometer",
                     title: "帧率",
-                    selection: $SettingsStore.shared.cameraFrameRate,
+                    selection: SettingsStore.shared.cameraFrameRateBinding,
                     options: ["30fps", "60fps", "120fps"]
                 )
                 .padding(Design.Space.md)

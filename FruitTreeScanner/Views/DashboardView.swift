@@ -578,64 +578,6 @@ struct StatCard: View {
     }
 }
 
-// MARK: - Settings View
-
-struct SettingsView: View {
-    @Environment(\.dismiss) var dismiss
-    var body: some View {
-        NavigationView {
-            ZStack { Color(hex: "0a1628").ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 24) {
-                        SettingsSection(title: "设备") {
-                            SettingsRow(icon: "gyroscope", title: "校准", subtitle: "LiDAR 传感器校准")
-                            SettingsRow(icon: "camera.fill", title: "相机设置", subtitle: "分辨率和帧率")
-                        }
-                        SettingsSection(title: "扫描") {
-                            SettingsRow(icon: "slider.horizontal.3", title: "质量预设", subtitle: "高/中/低")
-                            SettingsRow(icon: "point.3.connectedtriangleright.dottedpath", title: "点云设置", subtitle: "最大点数和精度")
-                        }
-                        SettingsSection(title: "数据") {
-                            SettingsRow(icon: "icloud.fill", title: "云同步", subtitle: "iCloud 同步设置")
-                            SettingsRow(icon: "square.and.arrow.up", title: "导出格式", subtitle: "PLY / CSV / JSON")
-                        }
-                    }.padding()
-                }
-            }
-            .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("完成") { dismiss() }.foregroundColor(Color(hex: "4ADE80")) } }
-        }
-    }
-}
-
-struct SettingsSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundColor(.white.opacity(0.5)).textCase(.uppercase)
-            VStack(spacing: 0) { content() }
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.05)))
-        }
-    }
-}
-
-struct SettingsRow: View {
-    let icon: String, title: String, subtitle: String
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon).font(.system(size: 18)).foregroundColor(Color(hex: "4ADE80")).frame(width: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 15, weight: .medium)).foregroundColor(.white)
-                Text(subtitle).font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
-            }
-            Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.white.opacity(0.3))
-        }.padding(16)
-    }
-}
-
 // MARK: - Input Card
 
 struct InputCard<Content: View>: View {

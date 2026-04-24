@@ -41,6 +41,7 @@
 		CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLOUDSYNC334455 /* CloudScanSyncView.swift */; };
 		ORCHARD001122 /* OrchardMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARD334455 /* OrchardMapView.swift */; };
 		POINTCLD001122 /* PointCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCLD334455 /* PointCloudView.swift */; };
+		SETVIEW001122 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETVIEW334455 /* SettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -82,6 +83,7 @@
 		CLOUDSYNC334455 /* CloudScanSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudScanSyncView.swift; sourceTree = "<group>"; };
 		ORCHARD334455 /* OrchardMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapView.swift; sourceTree = "<group>"; };
 		POINTCLD334455 /* PointCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudView.swift; sourceTree = "<group>"; };
+		SETVIEW334455 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -125,6 +127,7 @@
 				CLOUDSYNC334455 /* CloudScanSyncView.swift */,
 				ORCHARD334455 /* OrchardMapView.swift */,
 				POINTCLD334455 /* PointCloudView.swift */,
+				SETVIEW334455 /* SettingsView.swift */,
 
 			);
 			path = Views;
@@ -289,6 +292,7 @@
 				CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */,
 				ORCHARD001122 /* OrchardMapView.swift in Sources */,
 				POINTCLD001122 /* PointCloudView.swift in Sources */,
+				SETVIEW001122 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

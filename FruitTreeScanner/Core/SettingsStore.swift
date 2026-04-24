@@ -2,12 +2,12 @@
 // 统一管理所有扫描参数，通过 UserDefaults 持久化
 
 import Foundation
+import Combine
+import SwiftUI
 
 final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
     private let defaults = UserDefaults.standard
-
-    private init() {}
 
     // MARK: - Keys
     private enum Keys {
@@ -31,6 +31,27 @@ final class SettingsStore: ObservableObject {
         static let enableCloudSync = "enableCloudSync"
         static let wifiOnlyUpload = "wifiOnlyUpload"
         static let autoExportCSV = "autoExportCSV"
+        static let cameraResolution = "cameraResolution"
+        static let cameraFrameRate = "cameraFrameRate"
+        static let exportFormat = "exportFormat"
+        static let qualityPreset = "qualityPreset"
+        static let maxPointCount = "maxPointCount"
+        static let scanPrecision = "scanPrecision"
+        static let sensorCalibrationDone = "sensorCalibrationDone"
+    }
+
+    private init() {
+        // 初始化所有 @Published 属性
+        cloudSyncEnabled = (defaults.object(forKey: Keys.enableCloudSync) as? Bool) ?? false
+        wifiOnlyUpload = (defaults.object(forKey: Keys.wifiOnlyUpload) as? Bool) ?? true
+        autoExportCSV = (defaults.object(forKey: Keys.autoExportCSV) as? Bool) ?? false
+        cameraResolution = defaults.string(forKey: Keys.cameraResolution) ?? "1080p"
+        cameraFrameRate = defaults.string(forKey: Keys.cameraFrameRate) ?? "60fps"
+        exportFormat = defaults.string(forKey: Keys.exportFormat) ?? "PLY"
+        qualityPreset = defaults.string(forKey: Keys.qualityPreset) ?? "高"
+        maxPointCount = (defaults.object(forKey: Keys.maxPointCount) as? Int) ?? 1000000
+        scanPrecision = (defaults.object(forKey: Keys.scanPrecision) as? Double) ?? 0.01
+        sensorCalibrationDone = (defaults.object(forKey: Keys.sensorCalibrationDone) as? Bool) ?? false
     }
 
     // MARK: - 水果参数
@@ -124,20 +145,59 @@ final class SettingsStore: ObservableObject {
         set { defaults.set(newValue, forKey: Keys.maxStorageMB) }
     }
 
-    var enableCloudSync: Bool {
-        get { defaults.object(forKey: Keys.enableCloudSync) as? Bool ?? false }
-        set { defaults.set(newValue, forKey: Keys.enableCloudSync) }
-    }
+    // MARK: - 设置页面 @Published 属性（支持 $ 绑定）
+    @Published var cloudSyncEnabled: Bool
+    @Published var wifiOnlyUpload: Bool
+    @Published var autoExportCSV: Bool
+    @Published var cameraResolution: String
+    @Published var cameraFrameRate: String
+    @Published var exportFormat: String
+    @Published var qualityPreset: String
+    @Published var maxPointCount: Int
+    @Published var scanPrecision: Double
+    @Published var sensorCalibrationDone: Bool
 
-    var wifiOnlyUpload: Bool {
-        get { defaults.object(forKey: Keys.wifiOnlyUpload) as? Bool ?? true }
-        set { defaults.set(newValue, forKey: Keys.wifiOnlyUpload) }
-    }
-
-    var autoExportCSV: Bool {
-        get { defaults.object(forKey: Keys.autoExportCSV) as? Bool ?? false }
-        set { defaults.set(newValue, forKey: Keys.autoExportCSV) }
-    }
+    // MARK: - Binding 访问器（供 SwiftUI $ 绑定语法使用）
+    var cameraResolutionBinding: Binding<String> { Binding(
+        get: { self.cameraResolution },
+        set: { self.cameraResolution = $0 }
+    ) }
+    var cameraFrameRateBinding: Binding<String> { Binding(
+        get: { self.cameraFrameRate },
+        set: { self.cameraFrameRate = $0 }
+    ) }
+    var cloudSyncEnabledBinding: Binding<Bool> { Binding(
+        get: { self.cloudSyncEnabled },
+        set: { self.cloudSyncEnabled = $0 }
+    ) }
+    var wifiOnlyUploadBinding: Binding<Bool> { Binding(
+        get: { self.wifiOnlyUpload },
+        set: { self.wifiOnlyUpload = $0 }
+    ) }
+    var autoExportCSVBinding: Binding<Bool> { Binding(
+        get: { self.autoExportCSV },
+        set: { self.autoExportCSV = $0 }
+    ) }
+    var exportFormatBinding: Binding<String> { Binding(
+        get: { self.exportFormat },
+        set: { self.exportFormat = $0 }
+    ) }
+    var qualityPresetBinding: Binding<String> { Binding(
+        get: { self.qualityPreset },
+        set: { self.qualityPreset = $0 }
+    ) }
+    var maxPointCountBinding: Binding<Int> { Binding(
+        get: { self.maxPointCount },
+        set: { self.maxPointCount = $0 }
+    ) }
+    var scanPrecisionBinding: Binding<Double> { Binding(
+        get: { self.scanPrecision },
+        set: { self.scanPrecision = $0 }
+    ) }
+    var sensorCalibrationDoneBinding: Binding<Bool> { Binding(
+        get: { self.sensorCalibrationDone },
+        set: { self.sensorCalibrationDone = $0 }
+    ) }
 
     // MARK: - 派生配置
     var fruitScanConfig: FruitScanConfig {
