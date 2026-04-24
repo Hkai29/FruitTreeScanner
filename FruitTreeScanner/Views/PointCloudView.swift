@@ -256,6 +256,63 @@ struct ControlButton: View {
     }
 }
 
+// MARK: - PLY Parser
+struct PLYPoint {
+    let x: Float, y: Float, z: Float
+    let r: UInt8, g: UInt8, b: UInt8
+}
+
+func parsePLY(url: URL) -> (vertices: [SCNVector3], colors: [UIColor], pointCount: Int)? {
+    guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+
+    let lines = content.split(separator: "\n")
+    var vertexCount = 0
+    var formatASCII = false
+
+    for line in lines {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("element vertex") {
+            let parts = trimmed.split(separator: " ")
+            if parts.count >= 3, let count = Int(parts[2]) {
+                vertexCount = count
+            }
+        } else if trimmed == "format ascii 1.0" || trimmed.hasPrefix("format ascii") {
+            formatASCII = true
+        } else if trimmed == "end_header" {
+            break
+        }
+    }
+
+    guard vertexCount > 0, formatASCII else { return nil }
+
+    // Find start of vertex data (after end_header line)
+    var vertexStartIndex = 0
+    for (index, line) in lines.enumerated() {
+        if line.trimmingCharacters(in: .whitespaces) == "end_header" {
+            vertexStartIndex = index + 1
+            break
+        }
+    }
+
+    var vertices: [SCNVector3] = []
+    var colors: [UIColor] = []
+
+    for i in vertexStartIndex..<lines.count {
+        let values = lines[i].split(separator: " ")
+        guard values.count >= 6 else { continue }
+
+        guard let x = Float(values[0]), let y = Float(values[1]), let z = Float(values[2]),
+              let r = UInt8(values[3]), let g = UInt8(values[4]), let b = UInt8(values[5]) else {
+            continue
+        }
+
+        vertices.append(SCNVector3(x, y, z))
+        colors.append(UIColor(red: CGFloat(r)/255.0, green: CGFloat(g)/255.0, blue: CGFloat(b)/255.0, alpha: 1.0))
+    }
+
+    return (vertices, colors, vertices.count)
+}
+
 // MARK: - SceneKit Point Cloud View
 struct SceneKitPointCloudView: UIViewRepresentable {
     let plyFileURL: URL?
@@ -269,32 +326,59 @@ struct SceneKitPointCloudView: UIViewRepresentable {
         sceneView.allowsCameraControl = true
         sceneView.autoenablesDefaultLighting = false
 
-        // Create scene
         let scene = SCNScene()
         sceneView.scene = scene
 
-        // Add camera
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
         cameraNode.position = SCNVector3(x: 0, y: 0, z: 5)
         scene.rootNode.addChildNode(cameraNode)
 
-        // Add ambient light
         let ambientLight = SCNNode()
         ambientLight.light = SCNLight()
         ambientLight.light?.type = .ambient
         ambientLight.light?.intensity = 500
         scene.rootNode.addChildNode(ambientLight)
 
-        // TODO: Load actual PLY file and create point cloud geometry
-        // For now, create a demo point cloud
-        createDemoPointCloud(in: scene)
+        if let url = plyFileURL, let parsed = parsePLY(url: url) {
+            createPLYPointCloud(vertices: parsed.vertices, colors: parsed.colors, in: scene)
+            pointCount = parsed.pointCount
+        } else {
+            createDemoPointCloud(in: scene)
+        }
 
         return sceneView
     }
 
-    func updateUIView(_ uiView: SCNView, context: Context) {
-        // Update color mode if needed
+    func updateUIView(_ uiView: SCNView, context: Context) {}
+
+    private func createPLYPointCloud(vertices: [SCNVector3], colors: [UIColor], in scene: SCNScene) {
+        // Center the point cloud
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+        for v in vertices {
+            minX = min(minX, v.x); maxX = max(maxX, v.x)
+            minY = min(minY, v.y); maxY = max(maxY, v.y)
+            minZ = min(minZ, v.z); maxZ = max(maxZ, v.z)
+        }
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+
+        for (index, vertex) in vertices.enumerated() {
+            let sphere = SCNSphere(radius: 0.006)
+            sphere.segmentCount = 6
+
+            let material = SCNMaterial()
+            material.diffuse.contents = colors[index]
+            material.lightingModel = .constant
+            sphere.materials = [material]
+
+            let node = SCNNode(geometry: sphere)
+            node.position = SCNVector3(vertex.x - centerX, vertex.y - centerY, vertex.z - centerZ)
+            scene.rootNode.addChildNode(node)
+        }
     }
 
     private func createDemoPointCloud(in scene: SCNScene) {

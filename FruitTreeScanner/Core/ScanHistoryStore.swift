@@ -38,11 +38,28 @@ final class ScanHistoryStore: ObservableObject {
                 let treeID = parts[0..<parts.count - 4].joined(separator: "_")
                 let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
 
+                // Look for corresponding CSV file with yield data
+                let csvURL = url.deletingPathExtension().appendingPathExtension("csv")
+                var fruitCount = 0
+                var yieldKg: Float = 0
+                if let csvContent = try? String(contentsOf: csvURL, encoding: .utf8) {
+                    let lines = csvContent.split(separator: "\n")
+                    if lines.count >= 2 {
+                        let values = lines[1].split(separator: ",")
+                        if values.count >= 5 {
+                            fruitCount = Int(values[3]) ?? 0
+                            yieldKg = Float(values[4]) ?? 0
+                        }
+                    }
+                }
+
                 return ScanFileRecord(
                     id: url.lastPathComponent,
                     treeID: treeID,
                     fileURL: url,
-                    scanDate: creationDate
+                    scanDate: creationDate,
+                    fruitCount: fruitCount,
+                    yieldKg: yieldKg
                 )
             }
             .sorted { $0.scanDate > $1.scanDate }
@@ -60,4 +77,15 @@ struct ScanFileRecord: Identifiable, Equatable {
     let treeID: String
     let fileURL: URL
     let scanDate: Date
+    let fruitCount: Int
+    let yieldKg: Float
+
+    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0) {
+        self.id = id
+        self.treeID = treeID
+        self.fileURL = fileURL
+        self.scanDate = scanDate
+        self.fruitCount = fruitCount
+        self.yieldKg = yieldKg
+    }
 }

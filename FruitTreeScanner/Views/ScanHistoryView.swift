@@ -107,6 +107,21 @@ struct HistoryCard: View {
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.4))
                 }
+
+                if record.fruitCount > 0 || record.yieldKg > 0 {
+                    HStack(spacing: 12) {
+                        if record.fruitCount > 0 {
+                            Label("\(record.fruitCount) 个", systemImage: "leaf.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(hex: "4ADE80"))
+                        }
+                        if record.yieldKg > 0 {
+                            Label(String(format: "%.1f kg", record.yieldKg), systemImage: "scalemass.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(hex: "FBBF24"))
+                        }
+                    }
+                }
             }
 
             Spacer()
