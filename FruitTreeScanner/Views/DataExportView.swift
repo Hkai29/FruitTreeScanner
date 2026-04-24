@@ -174,15 +174,30 @@ struct DataExportView: View {
                 // Get creation date
                 let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
 
-                // Estimate fruit count and yield from filename metadata
-                // For now, create placeholder records (actual data would need PLY parsing)
+                // Read corresponding CSV file for real yield data
+                let csvURL = url.deletingPathExtension().appendingPathExtension("csv")
+                var fruitCount = 0
+                var yieldKg: Float = 0
+                var fruitType = "apple"
+                if let csvContent = try? String(contentsOf: csvURL, encoding: .utf8) {
+                    let lines = csvContent.split(separator: "\n")
+                    if lines.count >= 2 {
+                        let values = lines[1].split(separator: ",")
+                        if values.count >= 6 {
+                            fruitType = String(values[1])
+                            fruitCount = Int(values[3]) ?? 0
+                            yieldKg = Float(values[4]) ?? 0
+                        }
+                    }
+                }
+
                 return ScanRecord(
                     id: UUID(),
                     treeID: treeID,
-                    fruitType: "apple",
+                    fruitType: fruitType,
                     scanDate: creationDate,
-                    fruitCount: 0,
-                    yieldKg: 0,
+                    fruitCount: fruitCount,
+                    yieldKg: yieldKg,
                     gpsLat: lat,
                     gpsLon: lon
                 )

@@ -38,15 +38,15 @@ final class ScanHistoryStore: ObservableObject {
                 let treeID = parts[0..<parts.count - 4].joined(separator: "_")
                 let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
 
-                // Parse GPS from filename: lat(30.5728)_lon(114.2525)
+                // Parse GPS from filename: lat30.5728_lon114.2525 (no parentheses)
                 var gpsLat: Double = 0
                 var gpsLon: Double = 0
-                if let latPart = parts[parts.count - 2].split(separator: "(").last,
-                   let latVal = Double(String(latPart.dropLast())) {
+                let latStr = String(parts[parts.count - 2])
+                let lonStr = String(parts[parts.count - 1])
+                if let latVal = Double(latStr.dropFirst(3)) {
                     gpsLat = latVal
                 }
-                if let lonPart = parts[parts.count - 1].split(separator: "(").last,
-                   let lonVal = Double(String(lonPart.dropLast())) {
+                if let lonVal = Double(lonStr.dropFirst(3)) {
                     gpsLon = lonVal
                 }
 
