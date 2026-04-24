@@ -110,23 +110,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var deviceSection: some View {
         VStack(spacing: 0) {
-            // 分隔线
-            Divider().padding(.leading, 56)
-
-            // 校准
-            NavItem(icon: "gyroscope", title: "传感器矫正", subtitle: "陀螺仪与加速计校准") {
-                SensorCalibrationView()
-            }
-
-            Divider().padding(.leading, 56)
-
-            NavItem(icon: "camera.metering.center.weighted", title: "矫正相机设置", subtitle: "分辨率和帧率") {
+            // 相机设置
+            NavItem(icon: "camera.metering.center.weighted", title: "相机设置", subtitle: "分辨率和检测频率") {
                 CameraSettingsView()
             }
 
             Divider().padding(.leading, 56)
 
-            // 实际分辨率和检测频率
+            // 实际分辨率
             SettingReadOnlyRow(
                 icon: "rectangle.on.rectangle",
                 title: "实际分辨率",
@@ -135,6 +126,7 @@ struct SettingsView: View {
 
             Divider().padding(.leading, 56)
 
+            // 检测频率
             SettingPickerRow(
                 icon: "speedometer",
                 title: "检测频率",
@@ -395,88 +387,6 @@ struct SettingReadOnlyRow: View {
         }
         .padding(.horizontal, Design.Space.md)
         .padding(.vertical, Design.Space.sm + 2)
-    }
-}
-
-// MARK: - SensorCalibrationView（传感器校准）
-struct SensorCalibrationView: View {
-    @State private var calibrationState: CalibrationState = .ready
-    @State private var instructionText = "请将设备放置在平稳表面上"
-
-    enum CalibrationState {
-        case ready, calibrating, done, failed
-    }
-
-    var body: some View {
-        ZStack {
-            Design.Colors.bgBase.ignoresSafeArea()
-
-            VStack(spacing: Design.Space.xl) {
-                Spacer()
-
-                ZStack {
-                    Circle()
-                        .fill(calibrationState == .done ? Design.Colors.success.opacity(0.15)
-                              : calibrationState == .calibrating ? Design.Colors.warning.opacity(0.15)
-                              : Design.Colors.sage.opacity(0.1))
-                        .frame(width: 160, height: 160)
-
-                    Image(systemName: calibrationState == .done ? "checkmark.circle.fill"
-                          : calibrationState == .calibrating ? "figure.walk"
-                          : "gyroscope")
-                        .font(.system(size: 60))
-                        .foregroundColor(calibrationState == .done ? Design.Colors.success
-                              : calibrationState == .calibrating ? Design.Colors.warning
-                              : Design.Colors.sage)
-                }
-
-                VStack(spacing: Design.Space.sm) {
-                    Text(calibrationState == .ready ? "准备校准"
-                         : calibrationState == .calibrating ? "校准中..."
-                         : calibrationState == .done ? "校准完成"
-                         : "校准失败")
-                        .font(Design.Typography.title2)
-                        .foregroundColor(Design.Colors.charcoal)
-
-                    Text(instructionText)
-                        .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.slate)
-                        .multilineTextAlignment(.center)
-                }
-
-                Spacer()
-
-                if calibrationState == .ready {
-                    Button("开始校准") {
-                        startCalibration()
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .padding(.horizontal, Design.Space.xl)
-                } else if calibrationState == .done {
-                    HStack(spacing: Design.Space.md) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(Design.Colors.success)
-                        Text("传感器已校准，扫描精度已优化")
-                            .font(Design.Typography.subheadline)
-                            .foregroundColor(Design.Colors.success)
-                    }
-                }
-            }
-            .padding(Design.Space.lg)
-        }
-        .navigationTitle("传感器矫正")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func startCalibration() {
-        calibrationState = .calibrating
-        instructionText = "请缓慢画 8 字动作..."
-        SettingsStore.shared.sensorCalibrationDone = true
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            calibrationState = .done
-            instructionText = "校准成功"
-        }
     }
 }
 

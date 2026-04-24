@@ -29,7 +29,6 @@ final class SettingsStore: ObservableObject {
         static let autoSavePLY = "autoSavePLY"
         static let maxStorageMB = "maxStorageMB"
         static let enableCloudSync = "enableCloudSync"
-        static let wifiOnlyUpload = "wifiOnlyUpload"
         static let autoExportCSV = "autoExportCSV"
         static let cameraResolution = "cameraResolution"
         static let cameraFrameRate = "cameraFrameRate"
@@ -37,13 +36,11 @@ final class SettingsStore: ObservableObject {
         static let qualityPreset = "qualityPreset"
         static let maxPointCount = "maxPointCount"
         static let scanPrecision = "scanPrecision"
-        static let sensorCalibrationDone = "sensorCalibrationDone"
     }
 
     private init() {
         // 初始化所有 @Published 属性
         cloudSyncEnabled = (defaults.object(forKey: Keys.enableCloudSync) as? Bool) ?? false
-        wifiOnlyUpload = (defaults.object(forKey: Keys.wifiOnlyUpload) as? Bool) ?? true
         autoExportCSV = (defaults.object(forKey: Keys.autoExportCSV) as? Bool) ?? false
         cameraResolution = defaults.string(forKey: Keys.cameraResolution) ?? "1080p"
         cameraFrameRate = defaults.string(forKey: Keys.cameraFrameRate) ?? "60fps"
@@ -51,7 +48,6 @@ final class SettingsStore: ObservableObject {
         qualityPreset = defaults.string(forKey: Keys.qualityPreset) ?? "高"
         maxPointCount = (defaults.object(forKey: Keys.maxPointCount) as? Int) ?? 1000000
         scanPrecision = (defaults.object(forKey: Keys.scanPrecision) as? Double) ?? 0.01
-        sensorCalibrationDone = (defaults.object(forKey: Keys.sensorCalibrationDone) as? Bool) ?? false
     }
 
     // MARK: - 水果参数
@@ -147,7 +143,6 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - 设置页面 @Published 属性（支持 $ 绑定）
     @Published var cloudSyncEnabled: Bool
-    @Published var wifiOnlyUpload: Bool
     @Published var autoExportCSV: Bool
     @Published var cameraResolution: String
     @Published var cameraFrameRate: String
@@ -155,7 +150,6 @@ final class SettingsStore: ObservableObject {
     @Published var qualityPreset: String
     @Published var maxPointCount: Int
     @Published var scanPrecision: Double
-    @Published var sensorCalibrationDone: Bool
 
     // ARKit 实际分辨率（由 ScanCoordinator 在扫描时更新）
     @Published var currentCameraResolutionDisplay: String = "检测中..."
@@ -172,10 +166,6 @@ final class SettingsStore: ObservableObject {
     var cloudSyncEnabledBinding: Binding<Bool> { Binding(
         get: { self.cloudSyncEnabled },
         set: { self.cloudSyncEnabled = $0 }
-    ) }
-    var wifiOnlyUploadBinding: Binding<Bool> { Binding(
-        get: { self.wifiOnlyUpload },
-        set: { self.wifiOnlyUpload = $0 }
     ) }
     var autoExportCSVBinding: Binding<Bool> { Binding(
         get: { self.autoExportCSV },
@@ -196,10 +186,6 @@ final class SettingsStore: ObservableObject {
     var scanPrecisionBinding: Binding<Double> { Binding(
         get: { self.scanPrecision },
         set: { self.scanPrecision = $0 }
-    ) }
-    var sensorCalibrationDoneBinding: Binding<Bool> { Binding(
-        get: { self.sensorCalibrationDone },
-        set: { self.sensorCalibrationDone = $0 }
     ) }
 
     // MARK: - 派生配置（融合 qualityPreset / cameraFrameRate / scanPrecision）

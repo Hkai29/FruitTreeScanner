@@ -158,13 +158,55 @@ struct ScanView: View {
     private func exportAndEstimate() {
         isEstimating = true
         coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
-            savedFilename = filename
+            self.savedFilename = filename
+
             // 触发 iOS 端估算
-            coordinator.runYieldEstimate(nVisual: nVisual, season: season) { result in
-                isEstimating = false
-                yieldResult = result
-                showResult = true
+            self.coordinator.runYieldEstimate(nVisual: self.nVisual, season: self.season) { result in
+                self.isEstimating = false
+                self.yieldResult = result
+                self.showResult = true
+
+                // 自动导出 CSV（如果开关开启）
+                if SettingsStore.shared.autoExportCSV {
+                    self.autoExportCSVIfEnabled(filename: filename)
+                }
             }
+        }
+    }
+
+    private func autoExportCSVIfEnabled(filename: String?) {
+        guard filename != nil else { return }
+        let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("scans")
+        let csvFilename = (filename as NSString?)?.deletingPathExtension ?? "scan"
+        let csvPath = scansDir.appendingPathComponent("\(csvFilename).csv")
+
+        // 如果 CSV 已存在则跳过
+        if FileManager.default.fileExists(atPath: csvPath.path) { return }
+
+        let record = ScanRecord(
+            id: UUID(),
+            treeID: treeID,
+            fruitType: SettingsStore.shared.fruitType,
+            scanDate: Date(),
+            fruitCount: Int(self.yieldResult?.nLidar ?? 0),
+            yieldKg: self.yieldResult?.yieldFinalKg ?? 0,
+            gpsLat: gps.latitude,
+            gpsLon: gps.longitude
+        )
+
+        var csvContent = "树编号,水果类型,扫描日期,果实数量,产量(kg),GPS纬度,GPS经度\n"
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        csvContent += "\(record.treeID),\(record.fruitType),\(formatter.string(from: record.scanDate)),"
+        csvContent += "\(record.fruitCount),\(String(format: "%.2f", record.yieldKg)),"
+        csvContent += "\(String(format: "%.6f", record.gpsLat)),\(String(format: "%.6f", record.gpsLon))\n"
+
+        do {
+            try csvContent.write(to: csvPath, atomically: true, encoding: .utf8)
+            print("📄 [ScanView] CSV 自动导出成功: \(csvPath.lastPathComponent)")
+        } catch {
+            print("❌ [ScanView] CSV 自动导出失败: \(error.localizedDescription)")
         }
     }
 }
