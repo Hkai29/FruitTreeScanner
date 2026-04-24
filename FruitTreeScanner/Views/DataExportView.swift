@@ -52,11 +52,11 @@ struct DataExportView: View {
         VStack(spacing: Design.Space.lg) {
             Image(systemName: "doc.text")
                 .font(.system(size: 60, weight: .light))
-                .foregroundColor(Design.Colors.pebble)
+                .foregroundColor(Color(hex: "C7C7CC"))
 
             Text("暂无扫描记录")
                 .font(Design.Typography.headline)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Color(hex: "1C1C1E"))
 
             Text("完成扫描后可以在这里导出数据")
                 .font(Design.Typography.subheadline)
@@ -110,7 +110,7 @@ struct DataExportView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("树 #\(record.treeID)")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 Text(record.fruitType)
                     .font(Design.Typography.caption)
@@ -126,7 +126,7 @@ struct DataExportView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("\(record.fruitCount) 个")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 Text(String(format: "%.2f kg", record.yieldKg))
                     .font(Design.Typography.monoSmall)
@@ -158,48 +158,16 @@ struct DataExportView: View {
         scanRecords = files
             .filter { $0.pathExtension == "ply" }
             .compactMap { url -> ScanRecord? in
-                let filename = url.deletingPathExtension().lastPathComponent
-                let parts = filename.split(separator: "_")
-
-                guard parts.count >= 5,
-                      parts[parts.count - 2].hasPrefix("lat"),
-                      parts[parts.count - 1].hasPrefix("lon") else { return nil }
-
-                let treeID = parts[0..<parts.count - 4].joined(separator: "_")
-                let latStr = parts[parts.count - 2].dropFirst(3)
-                let lonStr = parts[parts.count - 1].dropFirst(3)
-                let lat = Double(latStr) ?? 0
-                let lon = Double(lonStr) ?? 0
-
-                // Get creation date
-                let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
-
-                // Read corresponding CSV file for real yield data
-                let csvURL = url.deletingPathExtension().appendingPathExtension("csv")
-                var fruitCount = 0
-                var yieldKg: Float = 0
-                var fruitType = "apple"
-                if let csvContent = try? String(contentsOf: csvURL, encoding: .utf8) {
-                    let lines = csvContent.split(separator: "\n")
-                    if lines.count >= 2 {
-                        let values = lines[1].split(separator: ",")
-                        if values.count >= 6 {
-                            fruitType = String(values[1])
-                            fruitCount = Int(values[3]) ?? 0
-                            yieldKg = Float(values[4]) ?? 0
-                        }
-                    }
-                }
-
+                guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
                 return ScanRecord(
                     id: UUID(),
-                    treeID: treeID,
-                    fruitType: fruitType,
-                    scanDate: creationDate,
-                    fruitCount: fruitCount,
-                    yieldKg: yieldKg,
-                    gpsLat: lat,
-                    gpsLon: lon
+                    treeID: result.treeID,
+                    fruitType: result.fruitType,
+                    scanDate: result.scanDate,
+                    fruitCount: result.fruitCount,
+                    yieldKg: result.yieldKg,
+                    gpsLat: result.gpsLat,
+                    gpsLon: result.gpsLon
                 )
             }
             .sorted { $0.scanDate > $1.scanDate }

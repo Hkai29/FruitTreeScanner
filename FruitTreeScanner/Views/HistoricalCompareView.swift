@@ -158,7 +158,7 @@ struct HistoricalCompareView: View {
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text("选择两条扫描进行对比")
                     .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 Text("分析不同时间段的产量变化")
                     .font(Design.Typography.caption)
@@ -212,14 +212,14 @@ struct HistoricalCompareView: View {
         VStack(spacing: Design.Space.md) {
             Text("产量对比")
                 .font(Design.Typography.headline)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Color(hex: "1C1C1E"))
 
             HStack(alignment: .firstTextBaseline, spacing: Design.Space.md) {
                 // Scan 1 Yield
                 VStack(spacing: Design.Space.xs) {
                     Text(selectedScan1?.yieldFormatted ?? "--")
                         .font(Design.Typography.title1)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Color(hex: "1C1C1E"))
 
                     Text("扫描 #\(selectedScan1?.treeID ?? "--")")
                         .font(Design.Typography.caption)
@@ -242,7 +242,7 @@ struct HistoricalCompareView: View {
                 VStack(spacing: Design.Space.xs) {
                     Text(selectedScan2?.yieldFormatted ?? "--")
                         .font(Design.Typography.title1)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Color(hex: "1C1C1E"))
 
                     Text("扫描 #\(selectedScan2?.treeID ?? "--")")
                         .font(Design.Typography.caption)
@@ -259,7 +259,7 @@ struct HistoricalCompareView: View {
     }
 
     private var yieldChange: Double {
-        guard let s1 = selectedScan1, let s2 = selectedScan2 else { return 0 }
+        guard let s1 = selectedScan1, let s2 = selectedScan2, s1.yieldKg > 0 else { return 0 }
         return ((s2.yieldKg - s1.yieldKg) / s1.yieldKg) * 100
     }
 
@@ -362,7 +362,7 @@ struct ScanSelectionCard: View {
                     VStack(spacing: Design.Space.sm) {
                         Text("树 #\(scan.treeID)")
                             .font(Design.Typography.headline)
-                            .foregroundColor(Design.Colors.charcoal)
+                            .foregroundColor(Color(hex: "1C1C1E"))
 
                         Text(scan.dateFormatted)
                             .font(Design.Typography.caption)
@@ -377,7 +377,7 @@ struct ScanSelectionCard: View {
                     VStack(spacing: Design.Space.sm) {
                         Image(systemName: "plus.circle")
                             .font(.system(size: 32, weight: .light))
-                            .foregroundColor(Design.Colors.pebble)
+                            .foregroundColor(Color(hex: "C7C7CC"))
 
                         Text("选择扫描")
                             .font(Design.Typography.subheadline)
@@ -426,7 +426,7 @@ struct StatCompareCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(value1)
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Color(hex: "1C1C1E"))
                     if !unit.isEmpty && value1 != "--" {
                         Text(unit)
                             .font(Design.Typography.caption)
@@ -445,7 +445,7 @@ struct StatCompareCard: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(value2)
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Color(hex: "1C1C1E"))
                     if !unit.isEmpty && value2 != "--" {
                         Text(unit)
                             .font(Design.Typography.caption)
@@ -522,7 +522,7 @@ struct ScanPickerRow: View {
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text("树 #\(scan.treeID)")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 HStack(spacing: Design.Space.md) {
                     Text(scan.dateFormatted)

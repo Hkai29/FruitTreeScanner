@@ -85,7 +85,7 @@ struct HelpView: View {
 
                 Text(title)
                     .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
             }
 
             VStack(alignment: .leading, spacing: Design.Space.sm) {
@@ -95,7 +95,7 @@ struct HelpView: View {
                             .foregroundColor(Design.Colors.slate)
                         Text(item)
                             .font(Design.Typography.body)
-                            .foregroundColor(Design.Colors.charcoal)
+                            .foregroundColor(Color(hex: "1C1C1E"))
                     }
                 }
             }

@@ -1,5 +1,5 @@
 // ScanHistoryView.swift
-// 扫描历史列表 - 统一深色科技风格
+// 扫描历史列表 - 自然有机风格
 
 import SwiftUI
 
@@ -11,22 +11,22 @@ struct ScanHistoryView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "0a1628")
+            Color.white
                 .ignoresSafeArea()
 
             if historyStore.scanFiles.isEmpty {
                 VStack(spacing: 20) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 60))
-                        .foregroundColor(.white.opacity(0.2))
+                        .foregroundColor(Color(hex: "C7C7CC"))
 
                     Text("暂无扫描记录")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(Color(hex: "8E8E93"))
 
                     Text("开始扫描以创建历史记录")
                         .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.3))
+                        .foregroundColor(Color(hex: "C7C7CC"))
                 }
             } else {
                 ScrollView {
@@ -59,7 +59,7 @@ struct ScanHistoryView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
-                            .foregroundColor(Color(hex: "4ADE80"))
+                            .foregroundColor(Design.Colors.forest)
                     }
                 }
             }
@@ -83,29 +83,29 @@ struct HistoryCard: View {
             // 图标
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(hex: "4ADE80").opacity(0.15))
+                    .fill(Design.Colors.forest.opacity(0.15))
                     .frame(width: 52, height: 52)
 
                 Image(systemName: "cube.fill")
                     .font(.system(size: 22))
-                    .foregroundColor(Color(hex: "4ADE80"))
+                    .foregroundColor(Design.Colors.forest)
             }
 
             // 信息
             VStack(alignment: .leading, spacing: 6) {
                 Text(record.fileURL.lastPathComponent)
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(hex: "1C1C1E"))
                     .lineLimit(1)
 
                 HStack(spacing: 12) {
                     Label(fileSize, systemImage: "doc")
                         .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(Color(hex: "8E8E93"))
 
                     Label(dateString, systemImage: "calendar")
                         .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(Color(hex: "8E8E93"))
                 }
 
                 if record.fruitCount > 0 || record.yieldKg > 0 {
@@ -113,12 +113,12 @@ struct HistoryCard: View {
                         if record.fruitCount > 0 {
                             Label("\(record.fruitCount) 个", systemImage: "leaf.fill")
                                 .font(.system(size: 12))
-                                .foregroundColor(Color(hex: "4ADE80"))
+                                .foregroundColor(Design.Colors.forest)
                         }
                         if record.yieldKg > 0 {
                             Label(String(format: "%.1f kg", record.yieldKg), systemImage: "scalemass.fill")
                                 .font(.system(size: 12))
-                                .foregroundColor(Color(hex: "FBBF24"))
+                                .foregroundColor(Design.Colors.harvest)
                         }
                     }
                 }
@@ -131,23 +131,23 @@ struct HistoryCard: View {
                 Button(action: onShare) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 18))
-                        .foregroundColor(Color(hex: "60A5FA"))
+                        .foregroundColor(Design.Colors.info)
                 }
 
                 Button(action: onDelete) {
                     Image(systemName: "trash")
                         .font(.system(size: 18))
-                        .foregroundColor(Color(hex: "EF4444"))
+                        .foregroundColor(Design.Colors.error)
                 }
             }
         }
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
+                .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                        .strokeBorder(Design.Colors.forest.opacity(0.3), lineWidth: 1)
                 )
         )
     }
@@ -171,9 +171,9 @@ struct HistoryCard: View {
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 
-    func makeUIViewController(context: Context) -> UIActivityViewController {
+    func makeUIViewController(context: Context) -> UIViewController {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }

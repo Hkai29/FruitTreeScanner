@@ -29,6 +29,8 @@ struct PointCloudView: View {
     @State private var colorMode: PointCloudColorMode = .height
     @State private var showExportSheet = false
     @State private var isLoading = true
+    @StateObject private var cameraCoordinator = SceneKitPointCloudViewCoordinator()
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
         ZStack {
@@ -37,7 +39,8 @@ struct PointCloudView: View {
                 plyFileURL: plyFileURL,
                 colorMode: colorMode,
                 pointCount: $pointCount,
-                isLoading: $isLoading
+                isLoading: $isLoading,
+                cameraCoordinator: cameraCoordinator
             )
             .ignoresSafeArea()
 
@@ -59,17 +62,8 @@ struct PointCloudView: View {
     // MARK: - Top Bar
     private var topBar: some View {
         HStack(spacing: Design.Space.md) {
-            // Back Button
-            Button {
-                // Navigate back
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-            }
+            // 占位，保持标题居中
+            Spacer().frame(width: 36)
 
             Spacer()
 
@@ -124,8 +118,8 @@ struct PointCloudView: View {
             // Control Toolbar
             HStack(spacing: Design.Space.md) {
                 // Reset View
-                ControlButton(icon: "arrow.counterclockwise", label: "重置") {
-                    // Reset camera
+                ControlButton(icon: "arrow.uturn.backward", label: "重置") {
+                    cameraCoordinator.resetCamera()
                 }
 
                 // Color Mode
@@ -145,13 +139,19 @@ struct PointCloudView: View {
                     }
                 } label: {
                     VStack(spacing: Design.Space.xs) {
-                        Image(systemName: colorMode.icon)
-                            .font(.system(size: 20, weight: .medium))
+                        ZStack {
+                            Circle()
+                                .fill(Design.Colors.forest)
+                                .frame(width: 28, height: 28)
+                            Image(systemName: colorMode.icon)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                        }
 
                         Text("色彩")
                             .font(Design.Typography.caption)
+                            .foregroundColor(.white.opacity(0.8))
                     }
-                    .foregroundColor(.white)
                     .frame(width: 60, height: 56)
                     .background(
                         RoundedRectangle(cornerRadius: Design.Radius.medium)
@@ -160,13 +160,13 @@ struct PointCloudView: View {
                 }
 
                 // Zoom In
-                ControlButton(icon: "plus.magnifyingglass", label: "放大") {
-                    // Zoom in
+                ControlButton(icon: "plus.viewfinder", label: "放大") {
+                    cameraCoordinator.zoomIn()
                 }
 
                 // Zoom Out
-                ControlButton(icon: "minus.magnifyingglass", label: "缩小") {
-                    // Zoom out
+                ControlButton(icon: "minus.viewfinder", label: "缩小") {
+                    cameraCoordinator.zoomOut()
                 }
             }
 
@@ -188,19 +188,19 @@ struct PointCloudView: View {
             switch colorMode {
             case .height:
                 HStack(spacing: Design.Space.xs) {
-                    Rectangle().fill(Color.blue).frame(width: 16, height: 8).cornerRadius(2)
+                    Rectangle().fill(Design.Colors.forest).frame(width: 16, height: 8).cornerRadius(2)
                     Text("低").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
                     Image(systemName: "arrow.right").font(.system(size: 8)).foregroundColor(.white.opacity(0.5))
-                    Rectangle().fill(Color.red).frame(width: 16, height: 8).cornerRadius(2)
+                    Rectangle().fill(Design.Colors.harvest).frame(width: 16, height: 8).cornerRadius(2)
                     Text("高").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
                 }
 
             case .density:
                 HStack(spacing: Design.Space.xs) {
-                    Rectangle().fill(Color.gray.opacity(0.3)).frame(width: 16, height: 8).cornerRadius(2)
+                    Rectangle().fill(Color(hex: "8E8E93").opacity(0.3)).frame(width: 16, height: 8).cornerRadius(2)
                     Text("稀疏").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
                     Image(systemName: "arrow.right").font(.system(size: 8)).foregroundColor(.white.opacity(0.5))
-                    Rectangle().fill(Color.gray.opacity(1.0)).frame(width: 16, height: 8).cornerRadius(2)
+                    Rectangle().fill(Design.Colors.slate).frame(width: 16, height: 8).cornerRadius(2)
                     Text("密集").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
                 }
 
@@ -246,6 +246,47 @@ struct ControlButton: View {
                 RoundedRectangle(cornerRadius: Design.Radius.medium)
                     .fill(.ultraThinMaterial)
             )
+        }
+    }
+}
+
+// MARK: - SceneKit Camera Controller
+class PointCloudCameraController: NSObject, ObservableObject {
+    weak var sceneView: SCNView?
+
+    func resetCamera() {
+        guard let sceneView = sceneView else { return }
+        // Animate camera back to default position
+        if let cameraNode = sceneView.scene?.rootNode.childNode(withName: "camera", recursively: true) {
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 0.3
+            cameraNode.position = SCNVector3(x: 0, y: 0, z: 5)
+            cameraNode.eulerAngles = SCNVector3(0, 0, 0)
+            SCNTransaction.commit()
+        }
+    }
+
+    func zoomIn() {
+        guard let sceneView = sceneView else { return }
+        if let cameraNode = sceneView.scene?.rootNode.childNode(withName: "camera", recursively: true) {
+            let currentZ = cameraNode.position.z
+            let newZ = max(currentZ * 0.7, 0.5)  // Zoom in by reducing distance
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 0.2
+            cameraNode.position.z = newZ
+            SCNTransaction.commit()
+        }
+    }
+
+    func zoomOut() {
+        guard let sceneView = sceneView else { return }
+        if let cameraNode = sceneView.scene?.rootNode.childNode(withName: "camera", recursively: true) {
+            let currentZ = cameraNode.position.z
+            let newZ = min(currentZ * 1.3, 20)  // Zoom out by increasing distance
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 0.2
+            cameraNode.position.z = newZ
+            SCNTransaction.commit()
         }
     }
 }
@@ -301,10 +342,53 @@ func parsePLY(url: URL) -> (vertices: [SCNVector3], colors: [UIColor], pointCoun
         }
 
         vertices.append(SCNVector3(x, y, z))
-        colors.append(UIColor(red: CGFloat(r)/255.0, green: CGFloat(g)/255.0, blue: CGFloat(b)/255.0, alpha: 1.0))
+        // Clamp RGB values to valid 0-255 range to avoid UIColor out-of-range warning
+        colors.append(UIColor(
+            red: CGFloat(min(max(r, 0), 255)) / 255.0,
+            green: CGFloat(min(max(g, 0), 255)) / 255.0,
+            blue: CGFloat(min(max(b, 0), 255)) / 255.0,
+            alpha: 1.0
+        ))
     }
 
     return (vertices, colors, vertices.count)
+}
+
+// MARK: - SceneKit Camera Coordinator
+class SceneKitPointCloudViewCoordinator: NSObject, ObservableObject {
+    weak var sceneView: SCNView?
+
+    func resetCamera() {
+        guard let sceneView = sceneView,
+              let cameraNode = sceneView.scene?.rootNode.childNode(withName: "camera", recursively: true) else { return }
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.3
+        cameraNode.position = SCNVector3(x: 0, y: 0, z: 5)
+        cameraNode.eulerAngles = SCNVector3(0, 0, 0)
+        SCNTransaction.commit()
+    }
+
+    func zoomIn() {
+        guard let sceneView = sceneView,
+              let cameraNode = sceneView.scene?.rootNode.childNode(withName: "camera", recursively: true) else { return }
+        let currentZ = cameraNode.position.z
+        let newZ = max(currentZ * 0.7, 0.5)
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.2
+        cameraNode.position.z = newZ
+        SCNTransaction.commit()
+    }
+
+    func zoomOut() {
+        guard let sceneView = sceneView,
+              let cameraNode = sceneView.scene?.rootNode.childNode(withName: "camera", recursively: true) else { return }
+        let currentZ = cameraNode.position.z
+        let newZ = min(currentZ * 1.3, 20)
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.2
+        cameraNode.position.z = newZ
+        SCNTransaction.commit()
+    }
 }
 
 // MARK: - SceneKit Point Cloud View
@@ -313,17 +397,20 @@ struct SceneKitPointCloudView: UIViewRepresentable {
     let colorMode: PointCloudColorMode
     @Binding var pointCount: Int
     @Binding var isLoading: Bool
+    @ObservedObject var cameraCoordinator: SceneKitPointCloudViewCoordinator
 
     func makeUIView(context: Context) -> SCNView {
         let sceneView = SCNView()
-        sceneView.backgroundColor = UIColor(Design.Colors.charcoal)
+        sceneView.backgroundColor = UIColor(Color(hex: "1C1C1E"))
         sceneView.allowsCameraControl = true
         sceneView.autoenablesDefaultLighting = false
+        sceneView.pointOfView?.name = "camera"
 
         let scene = SCNScene()
         sceneView.scene = scene
 
         let cameraNode = SCNNode()
+        cameraNode.name = "camera"
         cameraNode.camera = SCNCamera()
         cameraNode.position = SCNVector3(x: 0, y: 0, z: 5)
         scene.rootNode.addChildNode(cameraNode)
@@ -339,6 +426,11 @@ struct SceneKitPointCloudView: UIViewRepresentable {
             pointCount = parsed.pointCount
         } else {
             createDemoPointCloud(in: scene)
+        }
+
+        // Store reference for camera control
+        DispatchQueue.main.async {
+            self.cameraCoordinator.sceneView = sceneView
         }
 
         return sceneView
@@ -365,7 +457,7 @@ struct SceneKitPointCloudView: UIViewRepresentable {
             sphere.segmentCount = 6
 
             let material = SCNMaterial()
-            material.diffuse.contents = colors[index]
+            material.diffuse.contents = index < colors.count ? colors[index] : UIColor(Design.Colors.slate)
             material.lightingModel = .constant
             sphere.materials = [material]
 
@@ -406,9 +498,9 @@ struct SceneKitPointCloudView: UIViewRepresentable {
             if heightRatio > 0.7 {
                 colors.append(UIColor(Design.Colors.forest))
             } else if heightRatio > 0.4 {
-                colors.append(UIColor(Design.Colors.sage))
+                colors.append(UIColor(Design.Colors.earth))
             } else {
-                colors.append(UIColor(Design.Colors.sageLight))
+                colors.append(UIColor(Design.Colors.earthLight))
             }
         }
 

@@ -1,5 +1,5 @@
 // StartView.swift
-// 扫描前配置页面 - 统一深色科技风格
+// 扫描前配置页面 - 自然有机风格
 
 import SwiftUI
 
@@ -16,7 +16,7 @@ struct StartView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "0a1628")
+            Color.white
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -31,7 +31,7 @@ struct StartView: View {
                             Text("返回")
                                 .font(.system(size: 16, weight: .medium))
                         }
-                        .foregroundColor(Color(hex: "4ADE80"))
+                        .foregroundColor(Design.Colors.forest)
                     }
 
                     Spacer()
@@ -45,25 +45,25 @@ struct StartView: View {
                         VStack(spacing: 16) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(hex: "4ADE80").opacity(0.15))
+                                    .fill(Design.Colors.forest.opacity(0.15))
                                     .frame(width: 100, height: 100)
 
                                 Circle()
-                                    .strokeBorder(Color(hex: "4ADE80").opacity(0.5), lineWidth: 2)
+                                    .strokeBorder(Design.Colors.forest.opacity(0.5), lineWidth: 2)
                                     .frame(width: 90, height: 90)
 
                                 Image(systemName: "viewfinder")
                                     .font(.system(size: 40))
-                                    .foregroundColor(Color(hex: "4ADE80"))
+                                    .foregroundColor(Design.Colors.forest)
                             }
 
                             Text("新建扫描")
                                 .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(Color(hex: "1C1C1E"))
 
                             Text("配置扫描参数并开始采集")
                                 .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(Color(hex: "8E8E93"))
                         }
                         .padding(.top, 20)
 
@@ -71,9 +71,9 @@ struct StartView: View {
                         StartInputCard(title: "树木编号") {
                             TextField("例：T001", text: $treeID)
                                 .font(.system(size: 17))
-                                .foregroundColor(.white)
+                                .foregroundColor(Color(hex: "1C1C1E"))
                                 .padding(16)
-                                .background(Color.white.opacity(0.05))
+                                .background(Color(hex: "F2F2F7"))
                                 .cornerRadius(12)
                                 .autocapitalization(.allCharacters)
                                 .disableAutocorrection(true)
@@ -105,7 +105,7 @@ struct StartView: View {
                                 if season == .off {
                                     Text("非成熟期只跑冠层体积法（路线A）")
                                         .font(.system(size: 12))
-                                        .foregroundColor(.white.opacity(0.5))
+                                        .foregroundColor(Color(hex: "8E8E93"))
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
@@ -116,15 +116,15 @@ struct StartView: View {
                                 VStack(spacing: 12) {
                                     TextField("留空则不校正遮挡", text: $nVisualStr)
                                         .font(.system(size: 17))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(Color(hex: "1C1C1E"))
                                         .keyboardType(.numberPad)
                                         .padding(16)
-                                        .background(Color.white.opacity(0.05))
+                                        .background(Color(hex: "F2F2F7"))
                                         .cornerRadius(12)
 
                                     Text("输入 YOLO 等视觉模型检测到的果实数量\n用于校正 LiDAR 遮挡损失")
                                         .font(.system(size: 12))
-                                        .foregroundColor(.white.opacity(0.5))
+                                        .foregroundColor(Color(hex: "8E8E93"))
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
@@ -132,17 +132,17 @@ struct StartView: View {
                         // GPS 状态
                         HStack(spacing: 12) {
                             Image(systemName: gps.isAvailable ? "location.fill" : "location.slash")
-                                .foregroundColor(gps.isAvailable ? Color(hex: "4ADE80") : .white.opacity(0.4))
+                                .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.slate)
 
                             Text(gps.isAvailable
                                  ? String(format: "GPS: %.4f, %.4f", gps.latitude, gps.longitude)
                                  : "GPS 获取中...")
                                 .font(.system(size: 13, design: .monospaced))
-                                .foregroundColor(gps.isAvailable ? .white.opacity(0.7) : .white.opacity(0.4))
+                                .foregroundColor(gps.isAvailable ? Design.Colors.slate : Design.Colors.slate.opacity(0.6))
                         }
                         .padding(.vertical, 12)
                         .padding(.horizontal, 16)
-                        .background(Color.white.opacity(0.05))
+                        .background(Color(hex: "F2F2F7"))
                         .cornerRadius(10)
 
                         // 开始按钮
@@ -155,23 +155,24 @@ struct StartView: View {
                                 Text("开始扫描")
                                     .font(.system(size: 18, weight: .bold))
                             }
-                            .foregroundColor(Color(hex: "0a1628"))
+                            .foregroundColor(Color(hex: "1C1C1E"))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 18)
                             .background(
                                 canStart
                                     ? LinearGradient(
-                                        colors: [Color(hex: "4ADE80"), Color(hex: "22C55E")],
+                                        colors: [Design.Colors.forest, Design.Colors.forestLight],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                                     : LinearGradient(
-                                        colors: [Color.gray.opacity(0.5), Color.gray.opacity(0.3)],
+                                        colors: [Design.Colors.slate.opacity(0.5), Design.Colors.slate.opacity(0.3)],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                             )
                             .cornerRadius(16)
+                            .shadow(color: canStart ? Design.Colors.forest.opacity(0.3) : .clear, radius: 8, y: 4)
                         }
                         .disabled(!canStart)
                         .padding(.top, 8)
@@ -202,7 +203,7 @@ struct StartInputCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color(hex: "8E8E93"))
 
             content()
         }
@@ -210,10 +211,10 @@ struct StartInputCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
+                .fill(Design.Colors.bgSurface.opacity(0.05))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                        .strokeBorder(Design.Colors.forest.opacity(0.3), lineWidth: 1)
                 )
         )
     }
@@ -232,25 +233,25 @@ struct SeasonButton: View {
             VStack(spacing: 8) {
                 Image(systemName: icon)
                     .font(.system(size: 24))
-                    .foregroundColor(isSelected ? Color(hex: "4ADE80") : .white.opacity(0.5))
+                    .foregroundColor(isSelected ? Design.Colors.forest : Design.Colors.slate)
 
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 Text(subtitle)
                     .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(Color(hex: "8E8E93"))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color(hex: "4ADE80").opacity(0.15) : Color.white.opacity(0.03))
+                    .fill(isSelected ? Design.Colors.forest.opacity(0.15) : Design.Colors.bgSurface.opacity(0.03))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(isSelected ? Color(hex: "4ADE80") : Color.clear, lineWidth: 1.5)
+                    .strokeBorder(isSelected ? Design.Colors.forest : Color.clear, lineWidth: 1.5)
             )
         }
     }

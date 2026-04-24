@@ -117,7 +117,7 @@ struct CloudScanSyncView: View {
             VStack(spacing: Design.Space.xs) {
                 Text(statusTitle)
                     .font(Design.Typography.title2)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 Text(statusSubtitle)
                     .font(Design.Typography.subheadline)
@@ -188,7 +188,7 @@ struct CloudScanSyncView: View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
             Text("同步历史")
                 .font(Design.Typography.headline)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Color(hex: "1C1C1E"))
                 .padding(.leading, Design.Space.xs)
 
             if syncHistory.isEmpty {
@@ -209,7 +209,7 @@ struct CloudScanSyncView: View {
         VStack(spacing: Design.Space.md) {
             Image(systemName: "icloud.slash")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(Design.Colors.pebble)
+                .foregroundColor(Color(hex: "C7C7CC"))
 
             Text("暂无同步记录")
                 .font(Design.Typography.subheadline)
@@ -266,7 +266,7 @@ struct SyncHistoryRow: View {
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text(item.fileName)
                     .font(Design.Typography.subheadline)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
                     .lineLimit(1)
 
                 HStack(spacing: Design.Space.md) {

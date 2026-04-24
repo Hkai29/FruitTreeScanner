@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var deviceExpanded = true
     @State private var dataExpanded = true
     @State private var scanExpanded = true
+    @ObservedObject private var settings = SettingsStore.shared
 
     var body: some View {
         NavigationView {
@@ -79,7 +80,7 @@ struct SettingsView: View {
 
                     Text(title)
                         .font(Design.Typography.headline)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Color(hex: "1C1C1E"))
 
                     Spacer()
 
@@ -224,7 +225,7 @@ struct NavItem<Destination: View>: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(Design.Typography.subheadlineMedium)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Color(hex: "1C1C1E"))
                     Text(subtitle)
                         .font(Design.Typography.caption)
                         .foregroundColor(Design.Colors.slate)
@@ -234,7 +235,7 @@ struct NavItem<Destination: View>: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Design.Colors.pebble)
+                    .foregroundColor(Color(hex: "C7C7CC"))
             }
             .padding(.horizontal, Design.Space.md)
             .padding(.vertical, Design.Space.sm + 2)
@@ -261,7 +262,7 @@ struct SettingToggle: View {
 
             Text(title)
                 .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Color(hex: "1C1C1E"))
 
             Spacer()
 
@@ -285,16 +286,16 @@ struct SettingPickerRow: View {
         HStack(spacing: Design.Space.md) {
             ZStack {
                 RoundedRectangle(cornerRadius: Design.Radius.small)
-                    .fill(Design.Colors.sage.opacity(0.15))
+                    .fill(Design.Colors.forest.opacity(0.12))
                     .frame(width: 32, height: 32)
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Design.Colors.sage)
+                    .foregroundColor(Design.Colors.forest)
             }
 
             Text(title)
                 .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Color(hex: "1C1C1E"))
 
             Spacer()
 
@@ -341,7 +342,7 @@ struct SettingSliderRow: View {
 
                 Text(title)
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 Spacer()
 
@@ -377,7 +378,7 @@ struct SettingReadOnlyRow: View {
 
             Text(title)
                 .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Color(hex: "1C1C1E"))
 
             Spacer()
 
@@ -392,6 +393,8 @@ struct SettingReadOnlyRow: View {
 
 // MARK: - CameraSettingsView（相机设置）
 struct CameraSettingsView: View {
+    @ObservedObject private var settings = SettingsStore.shared
+
     var body: some View {
         ZStack {
             Design.Colors.bgBase.ignoresSafeArea()

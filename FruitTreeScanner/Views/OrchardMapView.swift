@@ -9,9 +9,10 @@ struct TreeAnnotation: Identifiable, Hashable {
     let id: String
     let treeID: String
     let coordinate: CLLocationCoordinate2D
-    let yieldKg: Double
+    let weight: Double
     let confidence: String
     let scanDate: Date
+    let fruitCount: Int
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -23,8 +24,8 @@ struct TreeAnnotation: Identifiable, Hashable {
 
     var yieldLevel: YieldLevel {
         // Classify yield: >45 = high, 35-45 = medium, <35 = low
-        if yieldKg > 45 { return .high }
-        if yieldKg >= 35 { return .medium }
+        if weight > 45 { return .high }
+        if weight >= 35 { return .medium }
         return .low
     }
 }
@@ -78,21 +79,12 @@ struct Orchard: Identifiable, Equatable {
 @available(iOS 17, *)
 struct OrchardMapView: View {
     @ObservedObject var historyStore = ScanHistoryStore.shared
-    @State private var selectedOrchard: Orchard = .mockOrchards[0]
+    @State private var selectedOrchard: Orchard?
     @State private var selectedTree: TreeAnnotation?
     @State private var mapCameraPosition: MapCameraPosition = .automatic
     @State private var showOrchardPicker = false
     @State private var filterYieldLevel: YieldLevel?
-
-    // TODO: Load from backend API
-    private let mockTrees: [TreeAnnotation] = [
-        TreeAnnotation(id: "t001", treeID: "T001", coordinate: CLLocationCoordinate2D(latitude: 30.5728, longitude: 114.2525), yieldKg: 48.2, confidence: "high", scanDate: Date()),
-        TreeAnnotation(id: "t002", treeID: "T002", coordinate: CLLocationCoordinate2D(latitude: 30.5730, longitude: 114.2527), yieldKg: 42.5, confidence: "high", scanDate: Date()),
-        TreeAnnotation(id: "t003", treeID: "T003", coordinate: CLLocationCoordinate2D(latitude: 30.5726, longitude: 114.2523), yieldKg: 38.1, confidence: "medium", scanDate: Date()),
-        TreeAnnotation(id: "t004", treeID: "T004", coordinate: CLLocationCoordinate2D(latitude: 30.5732, longitude: 114.2530), yieldKg: 51.3, confidence: "high", scanDate: Date()),
-        TreeAnnotation(id: "t005", treeID: "T005", coordinate: CLLocationCoordinate2D(latitude: 30.5725, longitude: 114.2520), yieldKg: 32.8, confidence: "medium", scanDate: Date()),
-        TreeAnnotation(id: "t006", treeID: "T006", coordinate: CLLocationCoordinate2D(latitude: 30.5734, longitude: 114.2528), yieldKg: 45.6, confidence: "high", scanDate: Date()),
-    ]
+    @State private var hasLoadedRealData = false
 
     var realTrees: [TreeAnnotation] {
         historyStore.scanFiles
@@ -102,15 +94,16 @@ struct OrchardMapView: View {
                     id: record.id,
                     treeID: record.treeID,
                     coordinate: CLLocationCoordinate2D(latitude: record.gpsLat, longitude: record.gpsLon),
-                    yieldKg: Double(record.yieldKg),
+                    weight: Double(record.yieldKg),
                     confidence: "medium",
-                    scanDate: record.scanDate
+                    scanDate: record.scanDate,
+                    fruitCount: record.fruitCount
                 )
             }
     }
 
     var trees: [TreeAnnotation] {
-        realTrees.isEmpty ? mockTrees : realTrees
+        realTrees
     }
 
     var filteredTrees: [TreeAnnotation] {
@@ -121,6 +114,47 @@ struct OrchardMapView: View {
     }
 
     var body: some View {
+        ZStack {
+            if trees.isEmpty {
+                // Empty state - no real scan data
+                emptyStateView
+            } else {
+                // Map with real data
+                mapView
+            }
+        }
+        .navigationBarHidden(true)
+        .sheet(isPresented: $showOrchardPicker) {
+            OrchardPickerView(orchards: Orchard.mockOrchards, selectedOrchard: $selectedOrchard) {
+                updateMapRegion()
+            }
+        }
+        .onAppear {
+            historyStore.loadRecords()
+            updateMapRegion()
+        }
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "map")
+                .font(.system(size: 60))
+                .foregroundColor(Design.Colors.forest.opacity(0.3))
+
+            Text("暂无果园数据")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.white)
+
+            Text("请先完成果树扫描")
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.5))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
+        .ignoresSafeArea()
+    }
+
+    private var mapView: some View {
         ZStack {
             // Map
             Map(position: $mapCameraPosition, selection: $selectedTree) {
@@ -147,15 +181,6 @@ struct OrchardMapView: View {
             }
             .padding(Design.Space.lg)
         }
-        .navigationBarHidden(true)
-        .sheet(isPresented: $showOrchardPicker) {
-            OrchardPickerView(orchards: Orchard.mockOrchards, selectedOrchard: $selectedOrchard) {
-                updateMapRegion()
-            }
-        }
-        .onAppear {
-            updateMapRegion()
-        }
     }
 
     // MARK: - Top Bar
@@ -167,7 +192,7 @@ struct OrchardMapView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
                     .frame(width: 36, height: 36)
                     .background(Design.Colors.bgSurface)
                     .clipShape(Circle())
@@ -176,28 +201,16 @@ struct OrchardMapView: View {
 
             Spacer()
 
-            // Orchard Selector
-            Button {
-                showOrchardPicker = true
-            } label: {
-                HStack(spacing: Design.Space.sm) {
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Design.Colors.forest)
-
-                    Text(selectedOrchard.name)
-                        .font(Design.Typography.subheadlineMedium)
-                        .foregroundColor(Design.Colors.charcoal)
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(Design.Colors.slate)
-                }
-                .padding(.horizontal, Design.Space.md)
-                .padding(.vertical, Design.Space.sm)
-                .background(Design.Colors.bgSurface)
-                .clipShape(Capsule())
-                .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
+            // Stats info
+            if !trees.isEmpty {
+                Text("\(trees.count) 棵果树")
+                    .font(Design.Typography.subheadlineMedium)
+                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .padding(.horizontal, Design.Space.md)
+                    .padding(.vertical, Design.Space.sm)
+                    .background(Design.Colors.bgSurface)
+                    .clipShape(Capsule())
+                    .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
             }
         }
     }
@@ -275,7 +288,7 @@ struct OrchardMapView: View {
 
                 Text("\(filteredTrees.count) 棵")
                     .font(Design.Typography.title2)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Color(hex: "1C1C1E"))
             }
 
             Spacer()
@@ -307,7 +320,7 @@ struct OrchardMapView: View {
 
                     Text("树 #\(tree.treeID)")
                         .font(Design.Typography.headline)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Color(hex: "1C1C1E"))
                 }
 
                 Spacer()
@@ -328,10 +341,9 @@ struct OrchardMapView: View {
 
             // Stats Row
             HStack(spacing: Design.Space.xl) {
-                TreeStatItem(label: "预估产量", value: String(format: "%.1f kg", tree.yieldKg), color: Design.Colors.forest)
-
+                TreeStatItem(label: "预估产量", value: String(format: "%.1f kg", tree.weight), color: Design.Colors.forest)
+                TreeStatItem(label: "果实数", value: "\(tree.fruitCount) 个", color: Design.Colors.forest)
                 TreeStatItem(label: "置信度", value: confidenceLabel(tree.confidence), color: confidenceColor(tree.confidence))
-
                 TreeStatItem(label: "扫描日期", value: formatDate(tree.scanDate), color: Design.Colors.slate)
             }
 
@@ -390,7 +402,26 @@ struct OrchardMapView: View {
 
     // MARK: - Helpers
     private func updateMapRegion() {
-        mapCameraPosition = .region(MKCoordinateRegion(center: selectedOrchard.coordinate, span: selectedOrchard.span))
+        if let firstTree = trees.first {
+            // Calculate a span based on tree distribution
+            let latValues = trees.map { $0.coordinate.latitude }
+            let lonValues = trees.map { $0.coordinate.longitude }
+
+            let minLat = latValues.min() ?? firstTree.coordinate.latitude
+            let maxLat = latValues.max() ?? firstTree.coordinate.latitude
+            let minLon = lonValues.min() ?? firstTree.coordinate.longitude
+            let maxLon = lonValues.max() ?? firstTree.coordinate.longitude
+
+            let latDelta = max((maxLat - minLat) * 1.5, 0.005)
+            let lonDelta = max((maxLon - minLon) * 1.5, 0.005)
+
+            let center = CLLocationCoordinate2D(
+                latitude: (minLat + maxLat) / 2,
+                longitude: (minLon + maxLon) / 2
+            )
+
+            mapCameraPosition = .region(MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)))
+        }
     }
 }
 
@@ -447,7 +478,7 @@ struct YieldStatMini: View {
 
             Text("\(count)")
                 .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Color(hex: "1C1C1E"))
         }
     }
 }
@@ -474,7 +505,7 @@ struct TreeStatItem: View {
 // MARK: - Orchard Picker View
 struct OrchardPickerView: View {
     let orchards: [Orchard]
-    @Binding var selectedOrchard: Orchard
+    @Binding var selectedOrchard: Orchard?
     let onSelect: () -> Void
     @Environment(\.dismiss) var dismiss
 
@@ -495,21 +526,21 @@ struct OrchardPickerView: View {
                                 HStack(spacing: Design.Space.md) {
                                     ZStack {
                                         Circle()
-                                            .fill(orchard.id == selectedOrchard.id ? Design.Colors.forest.opacity(0.12) : Design.Colors.stone)
+                                            .fill(orchard.id == selectedOrchard?.id ? Design.Colors.forest.opacity(0.12) : Design.Colors.stone)
                                             .frame(width: 44, height: 44)
 
                                         Image(systemName: "leaf.fill")
                                             .font(.system(size: 18, weight: .medium))
-                                            .foregroundColor(orchard.id == selectedOrchard.id ? Design.Colors.forest : Design.Colors.slate)
+                                            .foregroundColor(orchard.id == selectedOrchard?.id ? Design.Colors.forest : Design.Colors.slate)
                                     }
 
                                     Text(orchard.name)
                                         .font(Design.Typography.subheadlineMedium)
-                                        .foregroundColor(Design.Colors.charcoal)
+                                        .foregroundColor(Color(hex: "1C1C1E"))
 
                                     Spacer()
 
-                                    if orchard.id == selectedOrchard.id {
+                                    if orchard.id == selectedOrchard?.id {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 22))
                                             .foregroundColor(Design.Colors.forest)
@@ -520,7 +551,7 @@ struct OrchardPickerView: View {
                                 .cornerRadius(Design.Radius.large)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: Design.Radius.large)
-                                        .stroke(orchard.id == selectedOrchard.id ? Design.Colors.forest : Color.clear, lineWidth: 2)
+                                        .stroke(orchard.id == selectedOrchard?.id ? Design.Colors.forest : Color.clear, lineWidth: 2)
                                 )
                             }
                         }

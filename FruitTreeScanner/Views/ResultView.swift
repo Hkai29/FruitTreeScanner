@@ -1,5 +1,5 @@
 // ResultView.swift
-// 扫描完成后的产量估算结果页 - 统一深色科技风格
+// 扫描完成后的产量估算结果页 - 自然有机风格
 
 import SwiftUI
 
@@ -10,7 +10,8 @@ struct ResultView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "0a1628")
+            // iOS 白底背景
+            Color.white
                 .ignoresSafeArea()
 
             ScrollView {
@@ -18,10 +19,10 @@ struct ResultView: View {
                     // 顶部产量卡片
                     ZStack {
                         RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.white.opacity(0.05))
+                            .fill(Color.white)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 24)
-                                    .strokeBorder(confidenceColor.opacity(0.5), lineWidth: 1.5)
+                                    .strokeBorder(confidenceColor.opacity(0.3), lineWidth: 1.5)
                             )
 
                         VStack(spacing: 16) {
@@ -32,7 +33,7 @@ struct ResultView: View {
 
                                 Text(treeID)
                                     .font(.system(size: 20, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(Color(hex: "1C1C1E"))
                             }
 
                             Text(String(format: "%.1f", result.yieldFinalKg))
@@ -41,7 +42,7 @@ struct ResultView: View {
 
                             Text("kg")
                                 .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(.white.opacity(0.5))
+                                .foregroundColor(Color(hex: "8E8E93"))
 
                             HStack(spacing: 8) {
                                 Circle()
@@ -51,11 +52,12 @@ struct ResultView: View {
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(confidenceColor)
                             }
+                            .padding(.top, 4)
 
                             if !result.note.isEmpty {
                                 Text(result.note)
                                     .font(.system(size: 12))
-                                    .foregroundColor(.white.opacity(0.5))
+                                    .foregroundColor(Color(hex: "8E8E93"))
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal)
                             }
@@ -70,7 +72,7 @@ struct ResultView: View {
                         ResultSectionCard(
                             title: "路线B · 果实体积法",
                             icon: "circle.grid.3x3",
-                            color: "4ADE80"
+                            color: Design.Colors.forest
                         ) {
                             ResultInfoRow(label: "LiDAR 检测果实", value: "\(result.nLidar) 个")
                             if let nV = result.nVisual {
@@ -87,7 +89,7 @@ struct ResultView: View {
                     ResultSectionCard(
                         title: "路线A · 冠层体积法",
                         icon: "tree.fill",
-                        color: "60A5FA"
+                        color: Design.Colors.harvest
                     ) {
                         if let yA = result.yieldAKg {
                             ResultInfoRow(label: "冠层回归产量", value: String(format: "%.2f kg", yA), highlight: true)
@@ -96,10 +98,10 @@ struct ResultView: View {
                         } else {
                             HStack {
                                 Image(systemName: "exclamationmark.triangle")
-                                    .foregroundColor(.white.opacity(0.4))
+                                    .foregroundColor(Color(hex: "8E8E93"))
                                 Text("路线A模型未训练，需采集称重数据后训练")
                                     .font(.system(size: 13))
-                                    .foregroundColor(.white.opacity(0.4))
+                                    .foregroundColor(Color(hex: "8E8E93"))
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 8)
@@ -115,21 +117,21 @@ struct ResultView: View {
                                 Text("继续扫描下一棵")
                                     .font(.system(size: 16, weight: .semibold))
                             }
-                            .foregroundColor(Color(hex: "0a1628"))
+                            .foregroundColor(Color(hex: "1C1C1E"))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                             .background(
                                 LinearGradient(
-                                    colors: [Color(hex: "4ADE80"), Color(hex: "22C55E")],
+                                    colors: [Design.Colors.forest, Design.Colors.forestLight],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
                             .cornerRadius(14)
+                            .shadow(color: Design.Colors.forest.opacity(0.3), radius: 8, y: 4)
                         }
 
                         Button {
-                            // 返回主界面 - dismiss scan view to return to dashboard
                             onDismiss()
                         } label: {
                             HStack(spacing: 8) {
@@ -138,7 +140,7 @@ struct ResultView: View {
                                 Text("返回主界面")
                                     .font(.system(size: 16, weight: .medium))
                             }
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color(hex: "8E8E93"))
                         }
                     }
                     .padding(.horizontal, 24)
@@ -150,10 +152,10 @@ struct ResultView: View {
 
     private var confidenceColor: Color {
         switch result.confidence {
-        case "high":          return Color(hex: "4ADE80")
-        case "medium":        return Color(hex: "FBBF24")
-        case "manual_review": return Color(hex: "EF4444")
-        default:              return Color(hex: "9CA3AF")
+        case "high":          return Design.Colors.forest
+        case "medium":        return Design.Colors.harvest
+        case "manual_review": return Design.Colors.apple
+        default:              return Design.Colors.slate
         }
     }
 
@@ -171,7 +173,7 @@ struct ResultView: View {
 struct ResultSectionCard<Content: View>: View {
     let title: String
     let icon: String
-    let color: String
+    let color: Color
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -179,27 +181,27 @@ struct ResultSectionCard<Content: View>: View {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 16))
-                    .foregroundColor(Color(hex: color))
+                    .foregroundColor(color)
 
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(hex: "1C1C1E"))
 
                 Spacer()
             }
 
             Divider()
-                .background(Color.white.opacity(0.1))
+                .background(Color(hex: "E5E5EA"))
 
             content()
         }
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
+                .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                        .strokeBorder(Design.Colors.forest.opacity(0.3), lineWidth: 1)
                 )
         )
         .padding(.horizontal, 24)
@@ -216,13 +218,13 @@ struct ResultInfoRow: View {
         HStack {
             Text(label)
                 .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(Color(hex: "8E8E93"))
 
             Spacer()
 
             Text(value)
                 .font(.system(size: 14, weight: highlight ? .bold : .medium, design: .monospaced))
-                .foregroundColor(highlight ? Color(hex: "4ADE80") : .white.opacity(0.8))
+                .foregroundColor(highlight ? Design.Colors.forest : Color(hex: "1C1C1E"))
         }
     }
 }
