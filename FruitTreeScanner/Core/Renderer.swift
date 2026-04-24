@@ -29,9 +29,10 @@ final class Renderer: NSObject {
     public var currentFrameIndex = 0
     public weak var delegate: TaskDelegate?
 
-    // MARK: - 关键改动：maxPoints 从 50万 → 200万
+    // MARK: - 关键改动：maxPoints 从 50万 → 200万（果树点云更大）
     // 原始：private let maxPoints = 500_000
-    private let maxPoints = 2_000_000
+    // 注意：实际点数上限由 SettingsStore.shared.maxPointCount 控制
+    private var maxPoints: Int { SettingsStore.shared.maxPointCount }
 
     // MARK: - 私有属性（原始不改动）
     private let numGridPoints = 500

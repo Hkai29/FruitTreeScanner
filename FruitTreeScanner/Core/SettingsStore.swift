@@ -199,22 +199,68 @@ final class SettingsStore: ObservableObject {
         set: { self.sensorCalibrationDone = $0 }
     ) }
 
-    // MARK: - 派生配置
+    // MARK: - 派生配置（融合 qualityPreset 和 scanPrecision）
     var fruitScanConfig: FruitScanConfig {
-        FruitScanConfig(
-            imageDetectionInterval: detectionInterval,
-            minConfidence: Float(minConfidence),
+        // 基础参数可被用户调整，但受 qualityPreset 上下限约束
+        let baseInterval = detectionInterval
+        let baseConfidence = Float(minConfidence)
+        let baseSphericity = Float(sphericityThreshold)
+
+        // qualityPreset 覆盖：预设优先级最高
+        let (presetInterval, presetConfidence, presetSphericity): (Int, Float, Float)
+        switch qualityPreset {
+        case "高":
+            presetInterval = min(baseInterval, 5)
+            presetConfidence = max(baseConfidence, 0.7)
+            presetSphericity = max(baseSphericity, 0.6)
+        case "中":
+            presetInterval = baseInterval
+            presetConfidence = baseConfidence
+            presetSphericity = baseSphericity
+        case "低":
+            presetInterval = max(baseInterval, 20)
+            presetConfidence = min(baseConfidence, 0.3)
+            presetSphericity = min(baseSphericity, 0.4)
+        default:
+            presetInterval = baseInterval
+            presetConfidence = baseConfidence
+            presetSphericity = baseSphericity
+        }
+
+        return FruitScanConfig(
+            imageDetectionInterval: presetInterval,
+            minConfidence: presetConfidence,
             sizeTolerance: 0.2,
-            sphericityThreshold: Float(sphericityThreshold)
+            sphericityThreshold: presetSphericity
         )
     }
 
     var clusterConfig: ClusterConfig {
-        ClusterConfig(
-            minPoints: clusterMinPoints,
+        // scanPrecision 直接映射到 baseEps（精度越高 eps 越小）
+        // scanPrecision 范围 0.001~0.05，对应精细~粗糙
+        let mappedBaseEps = Float(scanPrecision)
+
+        let (presetMinPoints, presetMaxDiameter): (Int, Float)
+        switch qualityPreset {
+        case "高":
+            presetMinPoints = max(clusterMinPoints - 2, 3)
+            presetMaxDiameter = Float(clusterMaxDiameter)
+        case "中":
+            presetMinPoints = clusterMinPoints
+            presetMaxDiameter = Float(clusterMaxDiameter)
+        case "低":
+            presetMinPoints = clusterMinPoints + 3
+            presetMaxDiameter = Float(clusterMaxDiameter) * 1.2
+        default:
+            presetMinPoints = clusterMinPoints
+            presetMaxDiameter = Float(clusterMaxDiameter)
+        }
+
+        return ClusterConfig(
+            minPoints: presetMinPoints,
             minDiameter: Float(clusterMinDiameter),
-            maxDiameter: Float(clusterMaxDiameter),
-            baseEps: Float(clusterBaseEps)
+            maxDiameter: presetMaxDiameter,
+            baseEps: max(mappedBaseEps, 0.001)
         )
     }
 }
