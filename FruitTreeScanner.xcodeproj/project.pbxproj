@@ -43,7 +43,17 @@
 		POINTCLD001122 /* PointCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCLD334455 /* PointCloudView.swift */; };
 		SETVIEW001122 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETVIEW334455 /* SettingsView.swift */; };
 		D3FED03E2595575AB25CD050 /* PLYParserHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA290049668D55498B3D9885 /* PLYParserHelper.swift */; };
-/* End PBXBuildFile section */
+
+		TAGSTORE001122 /* TagStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGSTORE77889900 /* TagStore.swift */; };
+	
+		PLOTEDIT001122 /* PlotEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLOTEDIT778899 /* PlotEditView.swift */; };
+	
+		TAGEDIT001122 /* TagEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGEDIT778899 /* TagEditView.swift */; };
+	
+		TAGMGMG001122 /* TagManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGMGMG778899 /* TagManagementView.swift */; };
+	
+		TREEFILT001122 /* TreeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILT778899 /* TreeFilterView.swift */; };
+	/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSRecorder.swift; sourceTree = "<group>"; };
@@ -86,7 +96,17 @@
 		POINTCLD334455 /* PointCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudView.swift; sourceTree = "<group>"; };
 		SETVIEW334455 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FA290049668D55498B3D9885 /* PLYParserHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYParserHelper.swift; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+
+		TAGSTORE77889900 /* TagStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagStore.swift; sourceTree = "<group>"; };
+	
+		PLOTEDIT778899 /* PlotEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlotEditView.swift; sourceTree = "<group>"; };
+	
+		TAGEDIT778899 /* TagEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagEditView.swift; sourceTree = "<group>"; };
+	
+		TAGMGMG778899 /* TagManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementView.swift; sourceTree = "<group>"; };
+	
+		TREEFILT778899 /* TreeFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterView.swift; sourceTree = "<group>"; };
+	/* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		080EE612D73BEFA8302D230F /* FruitTreeScanner */ = {
@@ -130,7 +150,10 @@
 				ORCHARD334455 /* OrchardMapView.swift */,
 				POINTCLD334455 /* PointCloudView.swift */,
 				SETVIEW334455 /* SettingsView.swift */,
-
+				PLOTEDIT778899 /* PlotEditView.swift */,
+				TAGEDIT778899 /* TagEditView.swift */,
+				TAGMGMG778899 /* TagManagementView.swift */,
+				TREEFILT778899 /* TreeFilterView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -180,6 +203,7 @@
 				SETTINGS987654321 /* SettingsStore.swift */,
 				MODEL9876543210 /* FruitsDetector.mlpackage */,
 				FA290049668D55498B3D9885 /* PLYParserHelper.swift */,
+				TAGSTORE77889900 /* TagStore.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -297,6 +321,11 @@
 				POINTCLD001122 /* PointCloudView.swift in Sources */,
 				D3FED03E2595575AB25CD050 /* PLYParserHelper.swift in Sources */,
 				SETVIEW001122 /* SettingsView.swift in Sources */,
+				TAGSTORE001122 /* TagStore.swift in Sources */,
+				PLOTEDIT001122 /* PlotEditView.swift in Sources */,
+				TAGEDIT001122 /* TagEditView.swift in Sources */,
+				TAGMGMG001122 /* TagManagementView.swift in Sources */,
+				TREEFILT001122 /* TreeFilterView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
