@@ -59,7 +59,9 @@ struct DashboardView: View {
         .sheet(isPresented: $showExport) { DataExportView() }
         .sheet(isPresented: $showScanHistory) { HistorySheetView() }
         .sheet(isPresented: $showPointCloud) { PointCloudSheet() }
-        .sheet(isPresented: $showTagManagement) { Text("标签管理") }
+        .sheet(isPresented: $showTagManagement) {
+    TagManagementView()
+}
         .sheet(isPresented: $showYieldReport) { YieldReportSheet() }
         .sheet(isPresented: $showCompare) { HistoricalCompareView() }
         .sheet(isPresented: $showTrends) { TrendsSheet() }
