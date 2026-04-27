@@ -12,7 +12,7 @@ struct DashboardView: View {
     @State private var showExport = false
     @State private var showScanHistory = false
     @State private var showPointCloud = false
-    @State private var showTagManagement = false  // Placeholder
+    @State private var showTagManagement = false
     @State private var showYieldReport = false
     @State private var showCompare = false
     @State private var showTrends = false
@@ -83,7 +83,7 @@ struct DashboardView: View {
         case "数据导出": showExport = true
         case "全部扫描": showScanHistory = true
         case "点云预览": showPointCloud = true
-        case "标签管理": break
+        case "标签管理": showTagManagement = true
         case "导出": showExport = true
         case "产量报告": showYieldReport = true
         case "对比分析": showCompare = true
