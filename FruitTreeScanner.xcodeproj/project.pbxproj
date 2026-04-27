@@ -53,6 +53,7 @@
 		TAGMGMG001122 /* TagManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGMGMG778899 /* TagManagementView.swift */; };
 	
 		TREEFILT001122 /* TreeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILT778899 /* TreeFilterView.swift */; };
+		FILTERCHIP001122 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FILTERCHIP778899 /* FilterChip.swift */; };
 	/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -106,6 +107,7 @@
 		TAGMGMG778899 /* TagManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementView.swift; sourceTree = "<group>"; };
 	
 		TREEFILT778899 /* TreeFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterView.swift; sourceTree = "<group>"; };
+		FILTERCHIP778899 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
 	/* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -154,6 +156,7 @@
 				TAGEDIT778899 /* TagEditView.swift */,
 				TAGMGMG778899 /* TagManagementView.swift */,
 				TREEFILT778899 /* TreeFilterView.swift */,
+				FILTERCHIP778899 /* FilterChip.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -326,6 +329,7 @@
 				TAGEDIT001122 /* TagEditView.swift in Sources */,
 				TAGMGMG001122 /* TagManagementView.swift in Sources */,
 				TREEFILT001122 /* TreeFilterView.swift in Sources */,
+				FILTERCHIP001122 /* FilterChip.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
