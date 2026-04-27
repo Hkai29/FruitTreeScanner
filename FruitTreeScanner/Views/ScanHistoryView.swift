@@ -6,6 +6,9 @@ import SwiftUI
 struct ScanHistoryView: View {
     var customTitle: String = "扫描历史"
     @ObservedObject var historyStore = ScanHistoryStore.shared
+    @StateObject private var tagStore = TagStore.shared
+    @State private var selectedPlotId: UUID?
+    @State private var selectedStatus: ScanStatus?
     @State private var shareItems: [Any] = []
     @State private var showShareSheet = false
 
@@ -29,19 +32,27 @@ struct ScanHistoryView: View {
                         .foregroundColor(Color(hex: "C7C7CC"))
                 }
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(historyStore.scanFiles) { record in
-                            HistoryCard(record: record, onShare: {
-                                shareItems = [record.fileURL]
-                                showShareSheet = true
-                            }, onDelete: {
-                                historyStore.deleteRecord(record)
-                            })
+                VStack(spacing: 0) {
+                    // Filter bar
+                    filterBar
+                        .padding(.horizontal, Design.Space.md)
+                        .padding(.vertical, Design.Space.sm)
+
+                    // Scan list
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(filteredScans) { record in
+                                HistoryCard(record: record, onShare: {
+                                    shareItems = [record.fileURL]
+                                    showShareSheet = true
+                                }, onDelete: {
+                                    historyStore.deleteRecord(record)
+                                })
+                            }
                         }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 16)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
                 }
             }
         }
@@ -68,6 +79,95 @@ struct ScanHistoryView: View {
         .refreshable { historyStore.loadRecords() }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
+        }
+    }
+
+    // MARK: - Filtered Scans
+    private var filteredScans: [ScanFileRecord] {
+        historyStore.scanFiles.filter { record in
+            // Plot filter
+            if let plotId = selectedPlotId {
+                let assignment = tagStore.getAssignment(treeId: record.treeID)
+                if assignment?.plotId != plotId { return false }
+            }
+            // Status filter
+            if let status = selectedStatus {
+                let assignment = tagStore.getAssignment(treeId: record.treeID)
+                if assignment?.status != status { return false }
+            }
+            return true
+        }
+    }
+
+    // MARK: - Filter Bar
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Design.Space.sm) {
+                // Plot filter
+                FilterChip(
+                    title: selectedPlotId == nil ? "全部地块" : (tagStore.getPlot(id: selectedPlotId!)?.name ?? "地块"),
+                    isSelected: selectedPlotId != nil
+                ) {
+                    Menu {
+                        Button("全部地块") { selectedPlotId = nil }
+                        Divider()
+                        ForEach(tagStore.plots) { plot in
+                            Button(plot.name) { selectedPlotId = plot.id }
+                        }
+                    } label: {
+                        EmptyView()
+                    }
+                }
+
+                // Status filter
+                FilterChip(
+                    title: selectedStatus == nil ? "全部状态" : (selectedStatus?.rawValue ?? "状态"),
+                    isSelected: selectedStatus != nil
+                ) {
+                    Menu {
+                        Button("全部状态") { selectedStatus = nil }
+                        Divider()
+                        ForEach(ScanStatus.allCases, id: \.self) { status in
+                            Button(status.rawValue) { selectedStatus = status }
+                        }
+                    } label: {
+                        EmptyView()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - FilterChip
+struct FilterChip: View {
+    let title: String
+    let isSelected: Bool
+    let menu: () -> Menu<Void, Never>
+
+    var body: some View {
+        Menu {
+            menu()
+        } label: {
+            HStack(spacing: Design.Space.xs) {
+                Text(title)
+                    .font(Design.Typography.subheadlineMedium)
+                    .foregroundColor(isSelected ? .white : Design.Colors.charcoal)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(isSelected ? .white : Design.Colors.slate)
+            }
+            .padding(.horizontal, Design.Space.md)
+            .padding(.vertical, Design.Space.sm + 2)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Design.Colors.forest : Design.Colors.bgSurface)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(isSelected ? Color.clear : Design.Colors.pebble, lineWidth: 1)
+            )
         }
     }
 }
