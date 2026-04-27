@@ -663,7 +663,6 @@ struct Step4_TagSelection: View {
         .padding(.vertical, Design.Space.md)
     }
 
-    @ViewBuilder
     private var selectedTags: [GroupTag] {
         tags.filter { selectedTagIds.contains($0.id) }
     }
