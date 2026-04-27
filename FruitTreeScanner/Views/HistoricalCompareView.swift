@@ -41,45 +41,6 @@ struct HistoricalCompareView: View {
     @State private var showScanPicker2 = false
     @State private var availableScans: [ScanItem] = []
 
-    // Load from actual scan history - parse PLY files from scans directory
-    private func loadAvailableScans() -> [ScanItem] {
-        let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("scans")
-
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: scansDir,
-            includingPropertiesForKeys: [.creationDateKey],
-            options: .skipsHiddenFiles
-        ) else {
-            return []
-        }
-
-        return files
-            .filter { $0.pathExtension == "ply" }
-            .compactMap { url -> ScanItem? in
-                let filename = url.deletingPathExtension().lastPathComponent
-                let parts = filename.split(separator: "_")
-
-                guard parts.count >= 4, parts[0] == "tree" else { return nil }
-
-                let treeID = String(parts[1])
-                let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
-
-                // Extract estimated yield from filename metadata if available
-                // For now, use placeholder - actual data would need PLY parsing
-                return ScanItem(
-                    id: url.lastPathComponent,
-                    treeID: treeID,
-                    scanDate: creationDate,
-                    yieldKg: 0,
-                    nLidar: 0,
-                    meanDiameterCm: 0,
-                    confidence: "medium"
-                )
-            }
-            .sorted { $0.scanDate > $1.scanDate }
-    }
-
     // Use real data from historyStore
     private var comparisonData: [ScanItem] {
         historyStore.scanFiles.map { record in
