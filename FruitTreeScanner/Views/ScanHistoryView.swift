@@ -101,14 +101,10 @@ struct ScanHistoryView: View {
                     title: selectedPlotId == nil ? "全部地块" : (tagStore.getPlot(id: selectedPlotId!)?.name ?? "地块"),
                     isSelected: selectedPlotId != nil
                 ) {
-                    Menu {
-                        Button("全部地块") { selectedPlotId = nil }
-                        Divider()
-                        ForEach(tagStore.plots) { plot in
-                            Button(plot.name) { selectedPlotId = plot.id }
-                        }
-                    } label: {
-                        EmptyView()
+                    Button("全部地块") { selectedPlotId = nil }
+                    Divider()
+                    ForEach(tagStore.plots) { plot in
+                        Button(plot.name) { selectedPlotId = plot.id }
                     }
                 }
 
@@ -117,14 +113,10 @@ struct ScanHistoryView: View {
                     title: selectedStatus == nil ? "全部状态" : (selectedStatus?.rawValue ?? "状态"),
                     isSelected: selectedStatus != nil
                 ) {
-                    Menu {
-                        Button("全部状态") { selectedStatus = nil }
-                        Divider()
-                        ForEach(ScanStatus.allCases, id: \.self) { status in
-                            Button(status.rawValue) { selectedStatus = status }
-                        }
-                    } label: {
-                        EmptyView()
+                    Button("全部状态") { selectedStatus = nil }
+                    Divider()
+                    ForEach(ScanStatus.allCases, id: \.self) { status in
+                        Button(status.rawValue) { selectedStatus = status }
                     }
                 }
             }

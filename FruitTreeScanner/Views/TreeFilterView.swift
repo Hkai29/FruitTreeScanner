@@ -40,14 +40,10 @@ struct TreeFilterView: View {
                     title: selectedPlotId == nil ? "全部地块" : (tagStore.getPlot(id: selectedPlotId!)?.name ?? "地块"),
                     isSelected: selectedPlotId != nil
                 ) {
-                    Menu {
-                        Button("全部地块") { selectedPlotId = nil }
-                        Divider()
-                        ForEach(tagStore.plots) { plot in
-                            Button(plot.name) { selectedPlotId = plot.id }
-                        }
-                    } label: {
-                        EmptyView()
+                    Button("全部地块") { selectedPlotId = nil }
+                    Divider()
+                    ForEach(tagStore.plots) { plot in
+                        Button(plot.name) { selectedPlotId = plot.id }
                     }
                 }
 
@@ -56,27 +52,23 @@ struct TreeFilterView: View {
                     title: selectedTagIds.isEmpty ? "全部标签" : "\(selectedTagIds.count) 个标签",
                     isSelected: !selectedTagIds.isEmpty
                 ) {
-                    Menu {
-                        Button("全部标签") { selectedTagIds = [] }
-                        Divider()
-                        ForEach(tagStore.tags) { tag in
-                            Button {
+                    Button("全部标签") { selectedTagIds = [] }
+                    Divider()
+                    ForEach(tagStore.tags) { tag in
+                        Button {
+                            if selectedTagIds.contains(tag.id) {
+                                selectedTagIds.remove(tag.id)
+                            } else {
+                                selectedTagIds.insert(tag.id)
+                            }
+                        } label: {
+                            HStack {
+                                Text(tag.name)
                                 if selectedTagIds.contains(tag.id) {
-                                    selectedTagIds.remove(tag.id)
-                                } else {
-                                    selectedTagIds.insert(tag.id)
-                                }
-                            } label: {
-                                HStack {
-                                    Text(tag.name)
-                                    if selectedTagIds.contains(tag.id) {
-                                        Image(systemName: "checkmark")
-                                    }
+                                    Image(systemName: "checkmark")
                                 }
                             }
                         }
-                    } label: {
-                        EmptyView()
                     }
                 }
 
@@ -85,14 +77,10 @@ struct TreeFilterView: View {
                     title: selectedStatus == nil ? "全部状态" : (selectedStatus?.rawValue ?? "状态"),
                     isSelected: selectedStatus != nil
                 ) {
-                    Menu {
-                        Button("全部状态") { selectedStatus = nil }
-                        Divider()
-                        ForEach(ScanStatus.allCases, id: \.self) { status in
-                            Button(status.rawValue) { selectedStatus = status }
-                        }
-                    } label: {
-                        EmptyView()
+                    Button("全部状态") { selectedStatus = nil }
+                    Divider()
+                    ForEach(ScanStatus.allCases, id: \.self) { status in
+                        Button(status.rawValue) { selectedStatus = status }
                     }
                 }
             }

@@ -3,34 +3,29 @@
 
 import SwiftUI
 
-struct FilterChip: View {
+struct FilterChip<Content: View>: View {
     let title: String
     let isSelected: Bool
-    let menu: () -> Menu<Void, Never>
+    @ViewBuilder let content: () -> Content
 
     var body: some View {
         Menu {
-            menu()
+            content()
         } label: {
-            HStack(spacing: Design.Space.xs) {
+            HStack(spacing: 4) {
                 Text(title)
-                    .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(isSelected ? .white : Design.Colors.charcoal)
+                    .font(.subheadline)
+                    .foregroundColor(isSelected ? .white : Color(hex: "3D3A36"))
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(isSelected ? .white : Design.Colors.slate)
+                    .font(.caption2)
+                    .foregroundColor(isSelected ? .white : Color(hex: "8E8E93"))
             }
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, Design.Space.sm + 2)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Design.Colors.forest : Design.Colors.bgSurface)
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(isSelected ? Color.clear : Design.Colors.pebble, lineWidth: 1)
-            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(isSelected ? Color(hex: "007AFF").opacity(0.1) : Color(hex: "F2F2F7"))
+            .foregroundColor(isSelected ? Color(hex: "007AFF") : Color(hex: "1C1C1E"))
+            .clipShape(Capsule())
         }
     }
 }
