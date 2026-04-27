@@ -97,11 +97,19 @@ struct TreeFilterView: View {
 
         return Group {
             if filtered.isEmpty {
-                ContentUnavailableView(
-                    "暂无果树",
-                    systemImage: "leaf.fill",
-                    description: Text("当前筛选条件下没有果树记录")
-                )
+                VStack(spacing: 16) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(Color(hex: "8E8E93"))
+                    Text("暂无果树")
+                        .font(.headline)
+                        .foregroundColor(Color(hex: "3D3A36"))
+                    Text("当前筛选条件下没有果树记录")
+                        .font(.subheadline)
+                        .foregroundColor(Color(hex: "8E8E93"))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.top, 100)
             } else {
                 ScrollView {
                     LazyVStack(spacing: Design.Space.sm) {
