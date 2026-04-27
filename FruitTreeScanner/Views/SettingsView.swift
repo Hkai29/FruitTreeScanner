@@ -430,7 +430,7 @@ struct CameraSettingsView: View {
             }
             .padding(Design.Space.lg)
         }
-        .navigationTitle("矫正相机设置")
+        .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
