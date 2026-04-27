@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 
 // MARK: - Data Models
 
@@ -105,7 +104,8 @@ final class TagStore: ObservableObject {
     // MARK: - Plot Operations
 
     func addPlot(name: String, colorHex: String = "#007AFF") {
-        let displayOrder = plots.count
+        let maxOrder = plots.map { $0.displayOrder }.max() ?? -1
+        let displayOrder = maxOrder + 1
         let plot = Plot(name: name, colorHex: colorHex, displayOrder: displayOrder)
         plots.append(plot)
         savePlots()
@@ -129,14 +129,8 @@ final class TagStore: ObservableObject {
         saveAssignments()
     }
 
-    func movePlot(from source: Int, to destination: Int) {
-        guard source != destination,
-              source >= 0, source < plots.count,
-              destination >= 0, destination < plots.count else { return }
-
-        let plot = plots.remove(at: source)
-        plots.insert(plot, at: destination)
-
+    func movePlot(from source: IndexSet, to destination: Int) {
+        plots.move(fromOffsets: source, toOffset: destination)
         for i in plots.indices {
             plots[i].displayOrder = i
         }
@@ -213,12 +207,12 @@ final class TagStore: ObservableObject {
         tags.first { $0.id == id }
     }
 
-    func filteredAssignments(plotId: UUID?, tagIds: [UUID]?, status: ScanStatus?) -> [TreeAssignment] {
+    func filteredAssignments(plotId: UUID?, tagIds: [UUID], status: ScanStatus?) -> [TreeAssignment] {
         assignments.filter { assignment in
             if let plotId = plotId, assignment.plotId != plotId {
                 return false
             }
-            if let tagIds = tagIds, !tagIds.isEmpty {
+            if !tagIds.isEmpty {
                 let hasMatchingTag = tagIds.contains { assignment.tagIds.contains($0) }
                 if !hasMatchingTag { return false }
             }
