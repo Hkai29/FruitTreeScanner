@@ -13,11 +13,22 @@ struct ResultView: View {
     @State private var selectedTagIds: Set<UUID> = []
     @State private var selectedStatus: ScanStatus = .scanned
 
+    private var selectedPlotName: String {
+        selectedPlotId.flatMap { tagStore.getPlot(id: $0) }?.name ?? "选择地块"
+    }
+
     var body: some View {
         ZStack {
             // iOS 白底背景
             Color.white
                 .ignoresSafeArea()
+                .task {
+                    if let existing = tagStore.getAssignment(treeId: treeID) {
+                        selectedPlotId = existing.plotId
+                        selectedTagIds = Set(existing.tagIds)
+                        selectedStatus = existing.status
+                    }
+                }
 
             ScrollView {
                 VStack(spacing: 24) {
@@ -133,7 +144,7 @@ struct ResultView: View {
                             HStack {
                                 Image(systemName: "map")
                                     .foregroundColor(Design.Colors.earth)
-                                Text(selectedPlotId.flatMap { tagStore.getPlot(id: $0) }?.name ?? "选择地块")
+                                Text(selectedPlotName)
                                     .font(.system(size: 14))
                                 Spacer()
                                 Image(systemName: "chevron.down")
