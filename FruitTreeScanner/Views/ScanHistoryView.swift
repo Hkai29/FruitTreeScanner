@@ -85,16 +85,9 @@ struct ScanHistoryView: View {
     // MARK: - Filtered Scans
     private var filteredScans: [ScanFileRecord] {
         historyStore.scanFiles.filter { record in
-            // Plot filter
-            if let plotId = selectedPlotId {
-                let assignment = tagStore.getAssignment(treeId: record.treeID)
-                if assignment?.plotId != plotId { return false }
-            }
-            // Status filter
-            if let status = selectedStatus {
-                let assignment = tagStore.getAssignment(treeId: record.treeID)
-                if assignment?.status != status { return false }
-            }
+            let assignment = tagStore.getAssignment(treeId: record.treeID)
+            if let plotId = selectedPlotId, assignment?.plotId != plotId { return false }
+            if let status = selectedStatus, assignment?.status != status { return false }
             return true
         }
     }
