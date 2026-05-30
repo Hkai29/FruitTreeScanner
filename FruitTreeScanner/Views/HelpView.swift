@@ -71,7 +71,7 @@ struct HelpView: View {
             }
             .padding(Design.Space.lg)
         }
-        .background(Design.Colors.bgBase.ignoresSafeArea())
+        .background(Design.Colors.Dark.bgDeep.ignoresSafeArea())
         .navigationTitle("使用帮助")
         .navigationBarTitleDisplayMode(.large)
     }
@@ -81,28 +81,28 @@ struct HelpView: View {
             HStack {
                 Image(systemName: icon)
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.Dark.glow)
 
                 Text(title)
                     .font(Design.Typography.headline)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
             }
 
             VStack(alignment: .leading, spacing: Design.Space.sm) {
                 ForEach(items, id: \.self) { item in
                     HStack(alignment: .top, spacing: Design.Space.sm) {
                         Text("•")
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                         Text(item)
                             .font(Design.Typography.body)
-                            .foregroundColor(Color(hex: "1C1C1E"))
+                            .foregroundColor(Design.Colors.Dark.textPrimary)
                     }
                 }
             }
         }
         .padding(Design.Space.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Design.Colors.bgSurface)
+        .background(Design.Colors.Dark.bgSurface)
         .cornerRadius(Design.Radius.large)
     }
 }

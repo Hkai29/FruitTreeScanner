@@ -10,6 +10,8 @@ struct StartView: View {
     @State private var season: Season = .mature
     @State private var selectedTagIds: Set<UUID> = []
     @State private var showScan = false
+    @State private var showPlotEdit = false
+    @State private var showTagEdit = false
 
     @StateObject private var tagStore = TagStore.shared
     @StateObject private var gps = GPSRecorder()
@@ -34,7 +36,12 @@ struct StartView: View {
 
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
+            // 暗色渐变背景
+            Design.Colors.darkGradient
+                .ignoresSafeArea()
+
+            // 手指光效
+            FingerGlowOverlay()
 
             VStack(spacing: 0) {
                 // 顶部导航
@@ -83,6 +90,16 @@ struct StartView: View {
                 gps: gps
             )
         }
+        .sheet(isPresented: $showPlotEdit) {
+            PlotEditView(onSave: { newPlot in
+                TagStore.shared.addPlot(name: newPlot.name, colorHex: newPlot.colorHex)
+            })
+        }
+        .sheet(isPresented: $showTagEdit) {
+            TagEditView(onSave: { newTag in
+                TagStore.shared.addTag(name: newTag.name, colorHex: newTag.colorHex)
+            })
+        }
     }
 
     // MARK: - Top Navigation
@@ -92,13 +109,13 @@ struct StartView: View {
                 dismiss()
             }
             .font(.system(size: 16, weight: .medium))
-            .foregroundColor(Design.Colors.forest)
+            .foregroundColor(Design.Colors.harvest)
 
             Spacer()
 
             Text("新建扫描")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Color(hex: "1C1C1E"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Spacer()
 
@@ -121,7 +138,7 @@ struct StartView: View {
             Step2_PlotSelection(
                 plots: tagStore.plots,
                 selectedPlotId: $selectedPlotId,
-                onAddPlot: { /* TODO: 跳转添加地块 */ }
+                onAddPlot: { showPlotEdit = true }
             )
         case 3:
             Step3_SeasonSelection(season: $season)
@@ -129,7 +146,7 @@ struct StartView: View {
             Step4_TagSelection(
                 tags: tagStore.tags,
                 selectedTagIds: $selectedTagIds,
-                onAddTag: { /* TODO: 跳转添加标签 */ }
+                onAddTag: { showTagEdit = true }
             )
         case 5:
             Step5_Confirmation(
@@ -216,7 +233,7 @@ struct StepNavigationBar: View {
                         Text("上一步")
                             .font(.system(size: 15, weight: .medium))
                     }
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.harvest)
                     .padding(.vertical, 14)
                     .padding(.horizontal, 20)
                 }
@@ -227,7 +244,7 @@ struct StepNavigationBar: View {
             // 步骤指示
             Text("\(currentStep) / \(totalSteps)")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Color(hex: "8E8E93"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Spacer()
 
@@ -268,15 +285,15 @@ struct Step1_IDEntry: View {
             VStack(alignment: .leading, spacing: Design.Space.sm) {
                 Image(systemName: "number")
                     .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.harvest)
 
                 Text("输入果树编号")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("为扫描的果树设置唯一编号")
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -285,13 +302,13 @@ struct Step1_IDEntry: View {
             VStack(alignment: .leading, spacing: Design.Space.sm) {
                 Text("果树编号")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                 TextField("例：T001", text: $treeID)
                     .font(.system(size: 20, weight: .medium, design: .monospaced))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
                     .padding(Design.Space.md)
-                    .background(Color(hex: "F2F2F7"))
+                    .background(Design.Colors.Dark.bgElevated)
                     .cornerRadius(12)
                     .autocapitalization(.allCharacters)
                     .disableAutocorrection(true)
@@ -310,7 +327,7 @@ struct Step1_IDEntry: View {
                     .foregroundColor(Design.Colors.harvest)
                 Text("提示：编号将用于后续数据关联，建议使用易于识别的格式")
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -331,15 +348,15 @@ struct Step2_PlotSelection: View {
             VStack(alignment: .leading, spacing: Design.Space.sm) {
                 Image(systemName: "map.fill")
                     .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.harvest)
 
                 Text("选择地块")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("将果树分配到对应的种植区域")
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -370,7 +387,7 @@ struct Step2_PlotSelection: View {
 
                             Text("添加新地块")
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(Color(hex: "8E8E93"))
+                                .foregroundColor(Design.Colors.Dark.textSecondary)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Design.Space.lg)
@@ -395,7 +412,7 @@ struct Step2_PlotSelection: View {
 
             Text("暂无地块")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color(hex: "8E8E93"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Button(action: onAddPlot) {
                 HStack(spacing: Design.Space.xs) {
@@ -403,7 +420,7 @@ struct Step2_PlotSelection: View {
                     Text("创建第一个地块")
                 }
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.forest)
+                .foregroundColor(Design.Colors.harvest)
                 .padding(.vertical, 12)
                 .padding(.horizontal, 20)
                 .background(
@@ -466,15 +483,15 @@ struct Step3_SeasonSelection: View {
             VStack(alignment: .leading, spacing: Design.Space.sm) {
                 Image(systemName: season == .mature ? "apple.logo" : "leaf.fill")
                     .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.harvest)
 
                 Text("选择扫描季节")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("季节影响产量估算的计算方法")
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -511,7 +528,7 @@ struct Step3_SeasonSelection: View {
                     .foregroundColor(Design.Colors.info)
                 Text("成熟期估算结果更精确，但需要更多采集时间")
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -548,7 +565,7 @@ struct SeasonCard: View {
 
                 Text(subtitle)
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Color(hex: "636366"))
 
                 Text(description)
                     .font(.system(size: 11))
@@ -582,15 +599,15 @@ struct Step4_TagSelection: View {
             VStack(alignment: .leading, spacing: Design.Space.sm) {
                 Image(systemName: "tag.fill")
                     .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.harvest)
 
                 Text("添加标签")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("为果树添加分类标签（可选）")
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -620,7 +637,7 @@ struct Step4_TagSelection: View {
                             Text("添加标签")
                         }
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Design.Colors.forest)
+                        .foregroundColor(Design.Colors.harvest)
                         .padding(.horizontal, Design.Space.md)
                         .padding(.vertical, Design.Space.sm)
                         .background(
@@ -636,7 +653,7 @@ struct Step4_TagSelection: View {
                 VStack(alignment: .leading, spacing: Design.Space.xs) {
                     Text("已选标签")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color(hex: "8E8E93"))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
 
                     HStack(spacing: Design.Space.xs) {
                         ForEach(selectedTags, id: \.id) { tag in
@@ -675,7 +692,7 @@ struct Step4_TagSelection: View {
 
             Text("暂无标签")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color(hex: "8E8E93"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Button(action: onAddTag) {
                 HStack(spacing: Design.Space.xs) {
@@ -683,7 +700,7 @@ struct Step4_TagSelection: View {
                     Text("创建第一个标签")
                 }
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.forest)
+                .foregroundColor(Design.Colors.harvest)
             }
         }
         .frame(maxWidth: .infinity)
@@ -780,15 +797,15 @@ struct Step5_Confirmation: View {
             VStack(alignment: .leading, spacing: Design.Space.sm) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.harvest)
 
                 Text("确认配置")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("请确认以下配置信息")
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -824,12 +841,12 @@ struct Step5_Confirmation: View {
                 HStack(spacing: Design.Space.md) {
                     Image(systemName: "tag.fill")
                         .font(.system(size: 16))
-                        .foregroundColor(Design.Colors.forest)
+                        .foregroundColor(Design.Colors.harvest)
                         .frame(width: 24)
 
                     Text("标签")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "8E8E93"))
+                        .foregroundColor(Color(hex: "636366"))
 
                     Spacer()
 
@@ -845,6 +862,7 @@ struct Step5_Confirmation: View {
                                     .frame(width: 8, height: 8)
                                 Text(tag.name)
                                     .font(.system(size: 12))
+                                    .foregroundColor(Color(hex: "1C1C1E"))
                             }
                             if tags.count > 3 {
                                 Text("+\(tags.count - 3)")
@@ -866,7 +884,7 @@ struct Step5_Confirmation: View {
 
                     Text("GPS")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "8E8E93"))
+                        .foregroundColor(Color(hex: "636366"))
 
                     Spacer()
 
@@ -898,12 +916,12 @@ struct ConfirmationRow: View {
         HStack(spacing: Design.Space.md) {
             Image(systemName: icon)
                 .font(.system(size: 16))
-                .foregroundColor(Design.Colors.forest)
+                .foregroundColor(Design.Colors.harvest)
                 .frame(width: 24)
 
             Text(label)
                 .font(.system(size: 14))
-                .foregroundColor(Color(hex: "8E8E93"))
+                .foregroundColor(Color(hex: "636366"))
 
             Spacer()
 

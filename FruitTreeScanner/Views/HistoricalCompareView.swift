@@ -25,9 +25,9 @@ struct ScanItem: Identifiable, Equatable {
 
     var confidenceColor: Color {
         switch confidence {
-        case "high": return Design.Colors.success
-        case "medium": return Design.Colors.warning
-        default: return Design.Colors.error
+        case "high": return Design.Colors.Dark.success
+        case "medium": return Design.Colors.Dark.warning
+        default: return Design.Colors.Dark.error
         }
     }
 }
@@ -58,31 +58,27 @@ struct HistoricalCompareView: View {
 
     var body: some View {
         ZStack {
-            Design.Colors.bgBase
+            Design.Colors.Dark.bgDeep
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Design.Space.lg) {
-                    // Header
                     headerSection
                         .padding(.top, Design.Space.md)
-
-                    // Scan Selection Cards
                     scanSelectionSection
-
-                    // Comparison Results
                     if selectedScan1 != nil && selectedScan2 != nil {
                         comparisonSection
                     }
-
                     Spacer(minLength: Design.Space.xxl)
                 }
                 .padding(.horizontal, Design.Space.lg)
             }
         }
+        .overlay(FingerGlowOverlay())
+        .preferredColorScheme(.dark)
         .navigationTitle("历史对比")
         .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(Design.Colors.bgBase, for: .navigationBar)
+        .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .sheet(isPresented: $showScanPicker1) {
             ScanPickerView(scans: availableScans, selectedScan: $selectedScan1)
@@ -103,43 +99,38 @@ struct HistoricalCompareView: View {
         HStack(spacing: Design.Space.md) {
             Image(systemName: "chart.bar.doc.horizontal")
                 .font(.system(size: 24, weight: .medium))
-                .foregroundColor(Design.Colors.forest)
+                .foregroundColor(Design.Colors.Dark.glow)
 
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text("选择两条扫描进行对比")
                     .font(Design.Typography.headline)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("分析不同时间段的产量变化")
                     .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
         }
         .padding(Design.Space.md)
-        .background(Design.Colors.bgSurface)
-        .cornerRadius(Design.Radius.large)
-        .shadow(color: Design.Shadow.subtle.color, radius: Design.Shadow.subtle.radius, y: Design.Shadow.subtle.y)
+        .background(Design.Colors.Dark.bgSurface.glassCardStyle())
     }
 
     // MARK: - Scan Selection Section
     private var scanSelectionSection: some View {
         HStack(spacing: Design.Space.md) {
-            // Scan 1
             ScanSelectionCard(scan: selectedScan1, label: "扫描 A") {
                 showScanPicker1 = true
             }
 
-            // VS Badge
             VStack {
                 Text("VS")
                     .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
             .frame(width: 40)
 
-            // Scan 2
             ScanSelectionCard(scan: selectedScan2, label: "扫描 B") {
                 showScanPicker2 = true
             }
@@ -162,18 +153,18 @@ struct HistoricalCompareView: View {
         VStack(spacing: Design.Space.md) {
             Text("产量对比")
                 .font(Design.Typography.headline)
-                .foregroundColor(Color(hex: "1C1C1E"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             HStack(alignment: .firstTextBaseline, spacing: Design.Space.md) {
                 // Scan 1 Yield
                 VStack(spacing: Design.Space.xs) {
                     Text(selectedScan1?.yieldFormatted ?? "--")
                         .font(Design.Typography.title1)
-                        .foregroundColor(Color(hex: "1C1C1E"))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
 
                     Text("扫描 #\(selectedScan1?.treeID ?? "--")")
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
 
                 // Arrow
@@ -192,20 +183,18 @@ struct HistoricalCompareView: View {
                 VStack(spacing: Design.Space.xs) {
                     Text(selectedScan2?.yieldFormatted ?? "--")
                         .font(Design.Typography.title1)
-                        .foregroundColor(Color(hex: "1C1C1E"))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
 
                     Text("扫描 #\(selectedScan2?.treeID ?? "--")")
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Design.Space.lg)
         .padding(.horizontal, Design.Space.md)
-        .background(Design.Colors.bgSurface)
-        .cornerRadius(Design.Radius.xl)
-        .shadow(color: Design.Shadow.small.color, radius: Design.Shadow.small.radius, y: Design.Shadow.small.y)
+        .glassCardStyle(cornerRadius: Design.Radius.xl)
     }
 
     private var yieldChange: Double {
@@ -218,7 +207,7 @@ struct HistoricalCompareView: View {
     }
 
     private var yieldChangeColor: Color {
-        yieldChange > 0 ? Design.Colors.success : (yieldChange < 0 ? Design.Colors.error : Design.Colors.slate)
+        yieldChange > 0 ? Design.Colors.Dark.success : (yieldChange < 0 ? Design.Colors.Dark.error : Design.Colors.Dark.textSecondary)
     }
 
     private var yieldChangePercent: String {
@@ -291,9 +280,9 @@ enum TrendDirection {
 
     var color: Color {
         switch self {
-        case .up: return Design.Colors.success
-        case .down: return Design.Colors.error
-        case .neutral: return Design.Colors.slate
+        case .up: return Design.Colors.Dark.success
+        case .down: return Design.Colors.Dark.error
+        case .neutral: return Design.Colors.Dark.textSecondary
         }
     }
 }
@@ -312,36 +301,36 @@ struct ScanSelectionCard: View {
                     VStack(spacing: Design.Space.sm) {
                         Text("树 #\(scan.treeID)")
                             .font(Design.Typography.headline)
-                            .foregroundColor(Color(hex: "1C1C1E"))
+                            .foregroundColor(Design.Colors.Dark.textPrimary)
 
                         Text(scan.dateFormatted)
                             .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
 
                         Text(scan.yieldFormatted)
                             .font(Design.Typography.title2)
-                            .foregroundColor(Design.Colors.forest)
+                            .foregroundColor(Design.Colors.Dark.glow)
                     }
                 } else {
                     // Empty state
                     VStack(spacing: Design.Space.sm) {
                         Image(systemName: "plus.circle")
                             .font(.system(size: 32, weight: .light))
-                            .foregroundColor(Color(hex: "C7C7CC"))
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
 
                         Text("选择扫描")
                             .font(Design.Typography.subheadline)
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                     }
                 }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Design.Space.lg)
-            .background(Design.Colors.bgSurface)
+            .background(Design.Colors.Dark.bgSurface)
             .cornerRadius(Design.Radius.large)
             .overlay(
                 RoundedRectangle(cornerRadius: Design.Radius.large)
-                    .stroke(scan != nil ? Design.Colors.forest.opacity(0.3) : Design.Colors.sand, lineWidth: 1.5)
+                    .stroke(scan != nil ? Design.Colors.Dark.glow.opacity(0.3) : Design.Colors.sand, lineWidth: 1.5)
             )
             .shadow(color: Design.Shadow.subtle.color, radius: Design.Shadow.subtle.radius, y: Design.Shadow.subtle.y)
         }
@@ -364,11 +353,11 @@ struct StatCompareCard: View {
             HStack {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                 Text(title)
                     .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             // Values
@@ -376,11 +365,11 @@ struct StatCompareCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(value1)
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Color(hex: "1C1C1E"))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                     if !unit.isEmpty && value1 != "--" {
                         Text(unit)
                             .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                     }
                 }
 
@@ -395,17 +384,17 @@ struct StatCompareCard: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(value2)
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Color(hex: "1C1C1E"))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                     if !unit.isEmpty && value2 != "--" {
                         Text(unit)
                             .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                     }
                 }
             }
         }
         .padding(Design.Space.md)
-        .background(Design.Colors.bgSurface)
+        .background(Design.Colors.Dark.bgSurface)
         .cornerRadius(Design.Radius.medium)
         .shadow(color: Design.Shadow.subtle.color, radius: Design.Shadow.subtle.radius, y: Design.Shadow.subtle.y)
     }
@@ -420,7 +409,7 @@ struct ScanPickerView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Design.Colors.bgBase
+                Design.Colors.Dark.bgDeep
                     .ignoresSafeArea()
 
                 ScrollView {
@@ -460,28 +449,28 @@ struct ScanPickerRow: View {
             // Icon
             ZStack {
                 Circle()
-                    .fill(isSelected ? Design.Colors.forest.opacity(0.12) : Design.Colors.stone)
+                    .fill(isSelected ? Design.Colors.Dark.glow.opacity(0.12) : Design.Colors.Dark.bgSurface)
                     .frame(width: 44, height: 44)
 
                 Image(systemName: "doc.text.fill")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(isSelected ? Design.Colors.forest : Design.Colors.slate)
+                    .foregroundColor(isSelected ? Design.Colors.Dark.glow : Design.Colors.Dark.textSecondary)
             }
 
             // Info
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text("树 #\(scan.treeID)")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 HStack(spacing: Design.Space.md) {
                     Text(scan.dateFormatted)
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
 
                     Text(scan.yieldFormatted)
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.forest)
+                        .foregroundColor(Design.Colors.Dark.glow)
                 }
             }
 
@@ -491,15 +480,15 @@ struct ScanPickerRow: View {
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 22))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.Dark.glow)
             }
         }
         .padding(Design.Space.md)
-        .background(Design.Colors.bgSurface)
+        .background(Design.Colors.Dark.bgSurface)
         .cornerRadius(Design.Radius.large)
         .overlay(
             RoundedRectangle(cornerRadius: Design.Radius.large)
-                .stroke(isSelected ? Design.Colors.forest : Color.clear, lineWidth: 2)
+                .stroke(isSelected ? Design.Colors.Dark.glow : Color.clear, lineWidth: 2)
         )
         .shadow(color: Design.Shadow.subtle.color, radius: Design.Shadow.subtle.radius, y: Design.Shadow.subtle.y)
     }

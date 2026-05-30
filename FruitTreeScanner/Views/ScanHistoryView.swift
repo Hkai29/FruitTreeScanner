@@ -14,22 +14,22 @@ struct ScanHistoryView: View {
 
     var body: some View {
         ZStack {
-            Color.white
+            Design.Colors.Dark.bgDeep
                 .ignoresSafeArea()
 
             if historyStore.scanFiles.isEmpty {
                 VStack(spacing: 20) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 60))
-                        .foregroundColor(Color(hex: "C7C7CC"))
+                        .foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.5))
 
                     Text("暂无扫描记录")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(Color(hex: "8E8E93"))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
 
                     Text("开始扫描以创建历史记录")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "C7C7CC"))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
             } else {
                 VStack(spacing: 0) {
@@ -135,29 +135,29 @@ struct HistoryCard: View {
             // 图标
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Design.Colors.forest.opacity(0.15))
+                    .fill(Design.Colors.harvest.opacity(0.15))
                     .frame(width: 52, height: 52)
 
                 Image(systemName: "cube.fill")
                     .font(.system(size: 22))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.harvest)
             }
 
             // 信息
             VStack(alignment: .leading, spacing: 6) {
                 Text(record.fileURL.lastPathComponent)
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
                     .lineLimit(1)
 
                 HStack(spacing: 12) {
                     Label(fileSize, systemImage: "doc")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "8E8E93"))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
 
                     Label(dateString, systemImage: "calendar")
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "8E8E93"))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
 
                 if record.fruitCount > 0 || record.yieldKg > 0 {
@@ -165,7 +165,7 @@ struct HistoryCard: View {
                         if record.fruitCount > 0 {
                             Label("\(record.fruitCount) 个", systemImage: "leaf.fill")
                                 .font(.system(size: 12))
-                                .foregroundColor(Design.Colors.forest)
+                                .foregroundColor(Design.Colors.harvest)
                         }
                         if record.yieldKg > 0 {
                             Label(String(format: "%.1f kg", record.yieldKg), systemImage: "scalemass.fill")
@@ -183,7 +183,7 @@ struct HistoryCard: View {
                 Button(action: onShare) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 18))
-                        .foregroundColor(Design.Colors.info)
+                        .foregroundColor(Design.Colors.Dark.info)
                 }
 
                 Button(action: onDelete) {
@@ -195,12 +195,10 @@ struct HistoryCard: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Design.Colors.forest.opacity(0.3), lineWidth: 1)
-                )
+            GlassCard(cornerRadius: 16, padding: 0) {
+                EmptyView()
+            }
+            .opacity(0.8)
         )
     }
 

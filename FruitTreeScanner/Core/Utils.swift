@@ -30,7 +30,9 @@ func getTimeStr() -> String {
 
 /// 保存文本文件到 Documents 目录
 func saveFile(content: String, filename: String, folder: String) async throws {
+    #if DEBUG
     print("Saving: \(folder)/\(filename)")
+    #endif
     let url = getDocumentsDirectory()
         .appendingPathComponent(folder, isDirectory: true)
         .appendingPathComponent(filename)

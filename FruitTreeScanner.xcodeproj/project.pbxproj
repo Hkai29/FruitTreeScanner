@@ -54,6 +54,10 @@
 	
 		TREEFILT001122 /* TreeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILT778899 /* TreeFilterView.swift */; };
 		FILTERCHIP001122 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FILTERCHIP778899 /* FilterChip.swift */; };
+		GLASSCARD001122G /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = GLASSCARD001122 /* GlassCard.swift */; };
+		FINGRGLOW001122G /* FingerGlowOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FINGRGLOW001122 /* FingerGlowOverlay.swift */; };
+		HUDPILL001122G /* HUDPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = HUDPILL001122 /* HUDPill.swift */; };
+		THEMEDARK001122G /* Theme+Dark.swift in Sources */ = {isa = PBXBuildFile; fileRef = THEMEDARK001122 /* Theme+Dark.swift */; };
 	/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -108,6 +112,10 @@
 	
 		TREEFILT778899 /* TreeFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterView.swift; sourceTree = "<group>"; };
 		FILTERCHIP778899 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
+		GLASSCARD001122 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		FINGRGLOW001122 /* FingerGlowOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FingerGlowOverlay.swift; sourceTree = "<group>"; };
+		HUDPILL001122 /* HUDPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDPill.swift; sourceTree = "<group>"; };
+		THEMEDARK001122 /* Theme+Dark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme+Dark.swift"; sourceTree = "<group>"; };
 	/* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -120,6 +128,7 @@
 				A6914CF85AB6C624A347CE78 /* App */,
 				BF8DCD53FFDD11E7060F4A69 /* Core */,
 				DD98D30826CA1066D0905621 /* Design */,
+				COMPONENTS001122 /* Components */,
 				898DE573025C3A364767ABC3 /* GPS */,
 				77FCC2F2178481AB923AC132 /* Views */,
 			);
@@ -215,11 +224,22 @@
 			isa = PBXGroup;
 			children = (
 				869591D63C1E6AC52725B236 /* Theme.swift */,
+				THEMEDARK001122 /* Theme+Dark.swift */,
 			);
 			path = Design;
 			sourceTree = "<group>";
 		};
-/* End PBXGroup section */
+		COMPONENTS001122 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				GLASSCARD001122 /* GlassCard.swift */,
+				FINGRGLOW001122 /* FingerGlowOverlay.swift */,
+				HUDPILL001122 /* HUDPill.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+	/* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */ = {
@@ -330,10 +350,14 @@
 				TAGMGMG001122 /* TagManagementView.swift in Sources */,
 				TREEFILT001122 /* TreeFilterView.swift in Sources */,
 				FILTERCHIP001122 /* FilterChip.swift in Sources */,
+				GLASSCARD001122G /* GlassCard.swift in Sources */,
+				FINGRGLOW001122G /* FingerGlowOverlay.swift in Sources */,
+				HUDPILL001122G /* HUDPill.swift in Sources */,
+				THEMEDARK001122G /* Theme+Dark.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXSourcesBuildPhase section */
+	/* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		294AC179CF7107920C0CF944 /* Release */ = {

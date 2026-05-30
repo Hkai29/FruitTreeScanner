@@ -65,9 +65,13 @@ final class ImageDetector {
         // 如果模型不存在，使用 Vision 内置分类器作为 fallback
         if let model = try? loadModel(named: "FruitsDetector") {
             coreMLModel = model
+            #if DEBUG
             print("ImageDetector: CoreML model loaded successfully")
+            #endif
         } else {
+            #if DEBUG
             print("ImageDetector: Using Vision built-in classifier (no custom model found)")
+            #endif
         }
     }
 
@@ -76,20 +80,28 @@ final class ImageDetector {
         // 注意：.mlmodelc 是已编译的模型目录，直接使用；.mlmodel 需要编译
         if let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodelc") {
             // .mlmodelc 已编译，直接加载
+            #if DEBUG
             print("🔍 [ImageDetector] 找到已编译模型: \(name).mlmodelc")
+            #endif
             let mlModel = try MLModel(contentsOf: modelURL)
             let model = try VNCoreMLModel(for: mlModel)
+            #if DEBUG
             print("🔍 [ImageDetector] 模型加载成功!")
+            #endif
             return model
         }
 
         if let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodel") {
             // .mlmodel 需要先编译
+            #if DEBUG
             print("🔍 [ImageDetector] 找到未编译模型: \(name).mlmodel，开始编译...")
+            #endif
             let compiledURL = try MLModel.compileModel(at: modelURL)
             let mlModel = try MLModel(contentsOf: compiledURL)
             let model = try VNCoreMLModel(for: mlModel)
+            #if DEBUG
             print("🔍 [ImageDetector] 模型编译并加载成功!")
+            #endif
             return model
         }
 
@@ -172,18 +184,24 @@ final class ImageDetector {
             guard let self = self,
                   error == nil,
                   let observations = request.results as? [VNRecognizedObjectObservation] else {
+                #if DEBUG
                 print("🔍 [ImageDetector] CoreML观察结果为空或出错: \(error?.localizedDescription ?? "无结果")")
+                #endif
                 completion([])
                 return
             }
 
+            #if DEBUG
             print("🔍 [ImageDetector] 检测到 \(observations.count) 个物体候选")
             for obs in observations {
                 print("      类别: \(obs.labels.first?.identifier ?? "未知"), 置信度: \(obs.confidence)")
             }
+            #endif
 
             let detectedFruits = self.mapObjectObservationsToFruits(observations: observations, timestamp: timestamp)
+            #if DEBUG
             print("🔍 [ImageDetector] 映射后得到 \(detectedFruits.count) 个果实")
+            #endif
             completion(detectedFruits)
         }
 
@@ -195,7 +213,9 @@ final class ImageDetector {
         do {
             try handler.perform([request])
         } catch {
+            #if DEBUG
             print("ImageDetector: CoreML detection failed - \(error.localizedDescription)")
+            #endif
             completion([])
         }
     }
@@ -227,7 +247,9 @@ final class ImageDetector {
             }
 
             if let fruitCategory = category {
+                #if DEBUG
                 print("🔍 [ImageDetector] 映射成功: \(topLabel.identifier) -> \(fruitCategory.displayName)")
+                #endif
                 let fruit = DetectedFruit(
                     category: fruitCategory,
                     boundingBox: observation.boundingBox,
@@ -264,7 +286,9 @@ final class ImageDetector {
         do {
             try handler.perform([classifyRequest])
         } catch {
+            #if DEBUG
             print("ImageDetector: Vision classification failed - \(error.localizedDescription)")
+            #endif
             completion([])
         }
     }

@@ -57,7 +57,7 @@ struct CalibrationView: View {
 
     var body: some View {
         ZStack {
-            Design.Colors.bgBase
+            Design.Colors.Dark.bgDeep
                 .ignoresSafeArea()
 
             ScrollView {
@@ -74,8 +74,12 @@ struct CalibrationView: View {
                 .padding(Design.Space.lg)
             }
         }
+        .preferredColorScheme(.dark)
+        .overlay(FingerGlowOverlay())
         .navigationTitle("算法校准")
         .navigationBarTitleDisplayMode(.large)
+        .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -83,6 +87,7 @@ struct CalibrationView: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 22))
+                        .foregroundColor(Design.Colors.Dark.glow)
                 }
             }
         }
@@ -107,30 +112,30 @@ struct CalibrationView: View {
             HStack {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.Dark.glow)
 
                 Text("算法参数")
                     .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Spacer()
             }
 
-            Divider()
+            Divider().background(Design.Colors.Dark.glassBorder)
 
             // 最小聚类点数 → clusterMinPoints
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 HStack {
                     Text("最小聚类点数")
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                     Spacer()
                     Text("\(Int(minClusterPoints))")
                         .font(Design.Typography.mono)
-                        .foregroundColor(Design.Colors.forest)
+                        .foregroundColor(Design.Colors.Dark.glow)
                 }
                 Slider(value: $minClusterPoints, in: 3...150, step: 1)
-                    .tint(Design.Colors.forest)
+                    .tint(Design.Colors.Dark.glow)
                     .onChange(of: minClusterPoints) { newValue in
                         SettingsStore.shared.clusterMinPoints = Int(newValue)
                     }
@@ -141,14 +146,14 @@ struct CalibrationView: View {
                 HStack {
                     Text("最大聚类直径 (m)")
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                     Spacer()
                     Text(String(format: "%.3f m", maxDiameter))
                         .font(Design.Typography.mono)
-                        .foregroundColor(Design.Colors.forest)
+                        .foregroundColor(Design.Colors.Dark.glow)
                 }
                 Slider(value: $maxDiameter, in: 0.04...0.20, step: 0.005)
-                    .tint(Design.Colors.forest)
+                    .tint(Design.Colors.Dark.glow)
                     .onChange(of: maxDiameter) { newValue in
                         SettingsStore.shared.clusterMaxDiameter = newValue
                     }
@@ -159,14 +164,14 @@ struct CalibrationView: View {
                 HStack {
                     Text("最小球形度")
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                     Spacer()
                     Text(String(format: "%.2f", sphericity))
                         .font(Design.Typography.mono)
-                        .foregroundColor(Design.Colors.forest)
+                        .foregroundColor(Design.Colors.Dark.glow)
                 }
                 Slider(value: $sphericity, in: 0.2...0.8, step: 0.02)
-                    .tint(Design.Colors.forest)
+                    .tint(Design.Colors.Dark.glow)
                     .onChange(of: sphericity) { newValue in
                         SettingsStore.shared.sphericityThreshold = newValue
                     }
@@ -176,23 +181,23 @@ struct CalibrationView: View {
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text("HSV 色调范围")
                     .font(Design.Typography.subheadline)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 HStack {
                     Text("H: \(Int(SettingsStore.shared.hsvHMin))° - \(Int(SettingsStore.shared.hsvHMax))°")
                         .font(Design.Typography.monoSmall)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                     Spacer()
                     Text("S≥\(String(format: "%.0f%%", SettingsStore.shared.hsvSMin * 100)) V≥\(String(format: "%.0f%%", SettingsStore.shared.hsvVMin * 100))")
                         .font(Design.Typography.monoSmall)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
             }
         }
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.bgSurface)
+                .fill(Design.Colors.Dark.bgSurface)
                 .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
         )
     }
@@ -204,11 +209,11 @@ struct CalibrationView: View {
             HStack {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.Dark.glow)
 
                 Text("误差统计")
                     .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Spacer()
             }
@@ -219,7 +224,7 @@ struct CalibrationView: View {
             if validRecords.isEmpty {
                 Text("暂无校准数据")
                     .font(Design.Typography.subheadline)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, Design.Space.md)
             } else {
@@ -248,7 +253,7 @@ struct CalibrationView: View {
                     StatBox(
                         title: "校准次数",
                         value: "\(validRecords.count)",
-                        color: Design.Colors.forest
+                        color: Design.Colors.Dark.glow
                     )
                 }
             }
@@ -256,7 +261,7 @@ struct CalibrationView: View {
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.bgSurface)
+                .fill(Design.Colors.Dark.bgSurface)
                 .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
         )
     }
@@ -268,11 +273,11 @@ struct CalibrationView: View {
             HStack {
                 Image(systemName: "list.bullet.clipboard")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.Dark.glow)
 
                 Text("校准记录")
                     .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Spacer()
             }
@@ -283,15 +288,15 @@ struct CalibrationView: View {
                 VStack(spacing: Design.Space.md) {
                     Image(systemName: "leaf")
                         .font(.system(size: 40))
-                        .foregroundColor(Design.Colors.slate.opacity(0.5))
+                        .foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.5))
 
                     Text("暂无校准记录")
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
 
                     Text("点击右上角 + 添加校准记录")
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.slate.opacity(0.7))
+                        .foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Design.Space.xl)
@@ -304,7 +309,7 @@ struct CalibrationView: View {
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.bgSurface)
+                .fill(Design.Colors.Dark.bgSurface)
                 .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
         )
     }
@@ -313,9 +318,9 @@ struct CalibrationView: View {
 
     private func errorColor(_ error: Double) -> Color {
         let absError = abs(error)
-        if absError <= 10 { return Design.Colors.success }
-        if absError <= 20 { return Design.Colors.warning }
-        return Design.Colors.error
+        if absError <= 10 { return Design.Colors.Dark.success }
+        if absError <= 20 { return Design.Colors.Dark.warning }
+        return Design.Colors.Dark.error
     }
 
     private func loadRecords() {
@@ -349,7 +354,7 @@ struct StatBox: View {
 
             Text(title)
                 .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.slate)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -365,46 +370,46 @@ struct CalibrationRecordRow: View {
             HStack {
                 Text("树 #\(record.treeID)")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Design.Colors.charcoal)
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Spacer()
 
                 Text(formatDate(record.scanDate))
                     .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             HStack(spacing: Design.Space.lg) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("估算")
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                     Text("\(record.estimatedFruitCount) 个 / \(String(format: "%.1f", record.estimatedYieldKg)) kg")
                         .font(Design.Typography.monoSmall)
-                        .foregroundColor(Design.Colors.charcoal)
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                 }
 
                 if record.manualFruitCount != nil || record.actualYieldKg != nil {
                     Image(systemName: "arrow.right")
                         .font(.system(size: 10))
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("实际")
                             .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                         if let manual = record.manualFruitCount, let actual = record.actualYieldKg {
                             Text("\(manual) 个 / \(String(format: "%.1f", actual)) kg")
                                 .font(Design.Typography.monoSmall)
-                                .foregroundColor(Design.Colors.charcoal)
+                                .foregroundColor(Design.Colors.Dark.textPrimary)
                         } else if let manual = record.manualFruitCount {
                             Text("\(manual) 个")
                                 .font(Design.Typography.monoSmall)
-                                .foregroundColor(Design.Colors.charcoal)
+                                .foregroundColor(Design.Colors.Dark.textPrimary)
                         } else if let actual = record.actualYieldKg {
                             Text("\(String(format: "%.1f", actual)) kg")
                                 .font(Design.Typography.monoSmall)
-                                .foregroundColor(Design.Colors.charcoal)
+                                .foregroundColor(Design.Colors.Dark.textPrimary)
                         }
                     }
                 }
@@ -423,7 +428,7 @@ struct CalibrationRecordRow: View {
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.medium)
-                .fill(Design.Colors.stone.opacity(0.3))
+                .fill(Design.Colors.Dark.bgSurface.opacity(0.3))
         )
     }
 
@@ -443,9 +448,9 @@ struct ErrorBadge: View {
     var body: some View {
         let color: Color = {
             let absError = abs(error)
-            if absError <= 10 { return Design.Colors.success }
-            if absError <= 20 { return Design.Colors.warning }
-            return Design.Colors.error
+            if absError <= 10 { return Design.Colors.Dark.success }
+            if absError <= 20 { return Design.Colors.Dark.warning }
+            return Design.Colors.Dark.error
         }()
 
         VStack(spacing: 2) {
@@ -455,7 +460,7 @@ struct ErrorBadge: View {
 
             Text(label)
                 .font(.system(size: 8))
-                .foregroundColor(Design.Colors.slate)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .padding(.horizontal, Design.Space.sm)
         .padding(.vertical, Design.Space.xs)
@@ -481,7 +486,7 @@ struct AddCalibrationRecordView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Design.Colors.bgBase
+                Design.Colors.Dark.bgDeep
                     .ignoresSafeArea()
 
                 ScrollView {
@@ -491,7 +496,7 @@ struct AddCalibrationRecordView: View {
                             VStack(alignment: .leading, spacing: Design.Space.md) {
                                 Text("基本信息")
                                     .font(Design.Typography.subheadlineMedium)
-                                    .foregroundColor(Design.Colors.slate)
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                                 TextField("树木编号 (如 T001)", text: $treeID)
                                     .textFieldStyle(.roundedBorder)
@@ -510,7 +515,7 @@ struct AddCalibrationRecordView: View {
                             VStack(alignment: .leading, spacing: Design.Space.md) {
                                 Text("算法估算结果")
                                     .font(Design.Typography.subheadlineMedium)
-                                    .foregroundColor(Design.Colors.slate)
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                                 HStack {
                                     TextField("果实数量", text: $estimatedFruitCount)
@@ -518,7 +523,7 @@ struct AddCalibrationRecordView: View {
                                         .keyboardType(.numberPad)
 
                                     Text("个")
-                                        .foregroundColor(Design.Colors.slate)
+                                        .foregroundColor(Design.Colors.Dark.textSecondary)
                                 }
 
                                 HStack {
@@ -527,7 +532,7 @@ struct AddCalibrationRecordView: View {
                                         .keyboardType(.decimalPad)
 
                                     Text("kg")
-                                        .foregroundColor(Design.Colors.slate)
+                                        .foregroundColor(Design.Colors.Dark.textSecondary)
                                 }
                             }
                         }
@@ -537,11 +542,11 @@ struct AddCalibrationRecordView: View {
                             VStack(alignment: .leading, spacing: Design.Space.md) {
                                 Text("实际数据（可选）")
                                     .font(Design.Typography.subheadlineMedium)
-                                    .foregroundColor(Design.Colors.slate)
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                                 Text("录入实际数据后，系统会自动计算误差")
                                     .font(Design.Typography.caption)
-                                    .foregroundColor(Design.Colors.slate)
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                                 HStack {
                                     TextField("人工计数", text: $manualFruitCount)
@@ -549,7 +554,7 @@ struct AddCalibrationRecordView: View {
                                         .keyboardType(.numberPad)
 
                                     Text("个")
-                                        .foregroundColor(Design.Colors.slate)
+                                        .foregroundColor(Design.Colors.Dark.textSecondary)
                                 }
 
                                 HStack {
@@ -558,7 +563,7 @@ struct AddCalibrationRecordView: View {
                                         .keyboardType(.decimalPad)
 
                                     Text("kg")
-                                        .foregroundColor(Design.Colors.slate)
+                                        .foregroundColor(Design.Colors.Dark.textSecondary)
                                 }
                             }
                         }

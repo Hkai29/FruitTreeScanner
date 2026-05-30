@@ -7,6 +7,7 @@ struct ResultView: View {
     let treeID: String
     let result: YieldResult
     let onDismiss: () -> Void
+    let onDismissToHome: () -> Void
 
     @StateObject private var tagStore = TagStore.shared
     @State private var selectedPlotId: UUID?
@@ -267,7 +268,7 @@ struct ResultView: View {
                         }
 
                         Button {
-                            onDismiss()
+                            onDismissToHome()
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "house.fill")

@@ -35,9 +35,9 @@ enum YieldLevel {
 
     var color: Color {
         switch self {
-        case .high: return Design.Colors.success
-        case .medium: return Design.Colors.warning
-        case .low: return Design.Colors.error
+        case .high: return Design.Colors.Dark.success
+        case .medium: return Design.Colors.Dark.warning
+        case .low: return Design.Colors.Dark.error
         }
     }
 
@@ -115,6 +115,9 @@ struct OrchardMapView: View {
 
     var body: some View {
         ZStack {
+            Design.Colors.Dark.bgDeep
+                .ignoresSafeArea()
+
             if trees.isEmpty {
                 // Empty state - no real scan data
                 emptyStateView
@@ -123,6 +126,8 @@ struct OrchardMapView: View {
                 mapView
             }
         }
+        .overlay(FingerGlowOverlay())
+        .preferredColorScheme(.dark)
         .navigationBarHidden(true)
         .sheet(isPresented: $showOrchardPicker) {
             OrchardPickerView(orchards: Orchard.mockOrchards, selectedOrchard: $selectedOrchard) {
@@ -139,18 +144,18 @@ struct OrchardMapView: View {
         VStack(spacing: 20) {
             Image(systemName: "map")
                 .font(.system(size: 60))
-                .foregroundColor(Design.Colors.forest.opacity(0.3))
+                .foregroundColor(Design.Colors.Dark.glassBorder)
 
             Text("暂无果园数据")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Text("请先完成果树扫描")
                 .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white)
+        .background(Design.Colors.Dark.bgDeep)
         .ignoresSafeArea()
     }
 
@@ -192,9 +197,9 @@ struct OrchardMapView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
                     .frame(width: 36, height: 36)
-                    .background(Design.Colors.bgSurface)
+                    .background(Design.Colors.Dark.bgSurface)
                     .clipShape(Circle())
                     .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
             }
@@ -205,10 +210,10 @@ struct OrchardMapView: View {
             if !trees.isEmpty {
                 Text("\(trees.count) 棵果树")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
                     .padding(.horizontal, Design.Space.md)
                     .padding(.vertical, Design.Space.sm)
-                    .background(Design.Colors.bgSurface)
+                    .background(Design.Colors.Dark.bgSurface)
                     .clipShape(Capsule())
                     .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
             }
@@ -248,7 +253,7 @@ struct OrchardMapView: View {
 
                         Text(level.label)
                             .font(Design.Typography.caption)
-                            .foregroundColor(filterYieldLevel == level ? level.color : Design.Colors.charcoal)
+                            .foregroundColor(filterYieldLevel == level ? level.color : Design.Colors.Dark.textPrimary)
                     }
                     .padding(.horizontal, Design.Space.sm)
                     .padding(.vertical, Design.Space.xs)
@@ -266,14 +271,14 @@ struct OrchardMapView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
             }
         }
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.bgSurface)
+                .fill(Design.Colors.Dark.bgSurface)
                 .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
         )
     }
@@ -284,11 +289,11 @@ struct OrchardMapView: View {
             VStack(alignment: .leading, spacing: Design.Space.xs) {
                 Text("园区树木")
                     .font(Design.Typography.subheadline)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                 Text("\(filteredTrees.count) 棵")
                     .font(Design.Typography.title2)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
             }
 
             Spacer()
@@ -303,7 +308,7 @@ struct OrchardMapView: View {
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.bgSurface)
+                .fill(Design.Colors.Dark.bgSurface)
                 .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
         )
     }
@@ -320,7 +325,7 @@ struct OrchardMapView: View {
 
                     Text("树 #\(tree.treeID)")
                         .font(Design.Typography.headline)
-                        .foregroundColor(Color(hex: "1C1C1E"))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                 }
 
                 Spacer()
@@ -330,9 +335,9 @@ struct OrchardMapView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                         .frame(width: 28, height: 28)
-                        .background(Design.Colors.stone)
+                        .background(Design.Colors.Dark.bgSurface)
                         .clipShape(Circle())
                 }
             }
@@ -341,17 +346,17 @@ struct OrchardMapView: View {
 
             // Stats Row
             HStack(spacing: Design.Space.xl) {
-                TreeStatItem(label: "预估产量", value: String(format: "%.1f kg", tree.weight), color: Design.Colors.forest)
-                TreeStatItem(label: "果实数", value: "\(tree.fruitCount) 个", color: Design.Colors.forest)
+                TreeStatItem(label: "预估产量", value: String(format: "%.1f kg", tree.weight), color: Design.Colors.Dark.glow)
+                TreeStatItem(label: "果实数", value: "\(tree.fruitCount) 个", color: Design.Colors.Dark.glow)
                 TreeStatItem(label: "置信度", value: confidenceLabel(tree.confidence), color: confidenceColor(tree.confidence))
-                TreeStatItem(label: "扫描日期", value: formatDate(tree.scanDate), color: Design.Colors.slate)
+                TreeStatItem(label: "扫描日期", value: formatDate(tree.scanDate), color: Design.Colors.Dark.textSecondary)
             }
 
             // Yield Level Badge
             HStack {
                 Text("产量等级")
                     .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                 Spacer()
 
@@ -373,7 +378,7 @@ struct OrchardMapView: View {
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.bgSurface)
+                .fill(Design.Colors.Dark.bgSurface)
                 .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
         )
     }
@@ -388,9 +393,9 @@ struct OrchardMapView: View {
 
     private func confidenceColor(_ confidence: String) -> Color {
         switch confidence {
-        case "high": return Design.Colors.success
-        case "medium": return Design.Colors.warning
-        default: return Design.Colors.error
+        case "high": return Design.Colors.Dark.success
+        case "medium": return Design.Colors.Dark.warning
+        default: return Design.Colors.Dark.error
         }
     }
 
@@ -478,7 +483,7 @@ struct YieldStatMini: View {
 
             Text("\(count)")
                 .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Color(hex: "1C1C1E"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
         }
     }
 }
@@ -493,7 +498,7 @@ struct TreeStatItem: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.slate)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Text(value)
                 .font(Design.Typography.subheadlineMedium)
@@ -512,7 +517,7 @@ struct OrchardPickerView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Design.Colors.bgBase
+                Design.Colors.Dark.bgDeep
                     .ignoresSafeArea()
 
                 ScrollView {
@@ -526,32 +531,32 @@ struct OrchardPickerView: View {
                                 HStack(spacing: Design.Space.md) {
                                     ZStack {
                                         Circle()
-                                            .fill(orchard.id == selectedOrchard?.id ? Design.Colors.forest.opacity(0.12) : Design.Colors.stone)
+                                            .fill(orchard.id == selectedOrchard?.id ? Design.Colors.Dark.glow.opacity(0.12) : Design.Colors.Dark.bgSurface)
                                             .frame(width: 44, height: 44)
 
                                         Image(systemName: "leaf.fill")
                                             .font(.system(size: 18, weight: .medium))
-                                            .foregroundColor(orchard.id == selectedOrchard?.id ? Design.Colors.forest : Design.Colors.slate)
+                                            .foregroundColor(orchard.id == selectedOrchard?.id ? Design.Colors.Dark.glow : Design.Colors.Dark.textSecondary)
                                     }
 
                                     Text(orchard.name)
                                         .font(Design.Typography.subheadlineMedium)
-                                        .foregroundColor(Color(hex: "1C1C1E"))
+                                        .foregroundColor(Design.Colors.Dark.textPrimary)
 
                                     Spacer()
 
                                     if orchard.id == selectedOrchard?.id {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 22))
-                                            .foregroundColor(Design.Colors.forest)
+                                            .foregroundColor(Design.Colors.Dark.glow)
                                     }
                                 }
                                 .padding(Design.Space.md)
-                                .background(Design.Colors.bgSurface)
+                                .background(Design.Colors.Dark.bgSurface)
                                 .cornerRadius(Design.Radius.large)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: Design.Radius.large)
-                                        .stroke(orchard.id == selectedOrchard?.id ? Design.Colors.forest : Color.clear, lineWidth: 2)
+                                        .stroke(orchard.id == selectedOrchard?.id ? Design.Colors.Dark.glow : Color.clear, lineWidth: 2)
                                 )
                             }
                         }

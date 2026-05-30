@@ -12,7 +12,7 @@ struct DataExportView: View {
 
     var body: some View {
         ZStack {
-            Design.Colors.bgBase
+            Design.Colors.Dark.bgDeep
                 .ignoresSafeArea()
 
             if scanRecords.isEmpty {
@@ -21,6 +21,8 @@ struct DataExportView: View {
                 recordsList
             }
         }
+        .overlay(FingerGlowOverlay())
+        .preferredColorScheme(.dark)
         .navigationTitle("数据导出")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -52,15 +54,15 @@ struct DataExportView: View {
         VStack(spacing: Design.Space.lg) {
             Image(systemName: "doc.text")
                 .font(.system(size: 60, weight: .light))
-                .foregroundColor(Color(hex: "C7C7CC"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Text("暂无扫描记录")
                 .font(Design.Typography.headline)
-                .foregroundColor(Color(hex: "1C1C1E"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Text("完成扫描后可以在这里导出数据")
                 .font(Design.Typography.subheadline)
-                .foregroundColor(Design.Colors.slate)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
     }
 
@@ -88,7 +90,7 @@ struct DataExportView: View {
             statBox(value: String(format: "%.1f", totalYield), label: "产量(kg)")
         }
         .padding(Design.Space.md)
-        .background(Design.Colors.bgSurface)
+        .background(Design.Colors.Dark.bgSurface)
         .cornerRadius(Design.Radius.large)
     }
 
@@ -96,10 +98,10 @@ struct DataExportView: View {
         VStack(spacing: Design.Space.xs) {
             Text(value)
                 .font(Design.Typography.title2)
-                .foregroundColor(Design.Colors.forest)
+                .foregroundColor(Design.Colors.Dark.glow)
             Text(label)
                 .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.slate)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -110,15 +112,15 @@ struct DataExportView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("树 #\(record.treeID)")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text(record.fruitType)
                     .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                 Text(formatDate(record.scanDate))
                     .font(Design.Typography.monoSmall)
-                    .foregroundColor(Design.Colors.slate)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
@@ -126,15 +128,15 @@ struct DataExportView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("\(record.fruitCount) 个")
                     .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text(String(format: "%.2f kg", record.yieldKg))
                     .font(Design.Typography.monoSmall)
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.Dark.glow)
             }
         }
         .padding(Design.Space.md)
-        .background(Design.Colors.bgSurface)
+        .background(Design.Colors.Dark.bgSurface)
         .cornerRadius(Design.Radius.medium)
     }
 
@@ -255,7 +257,9 @@ struct DataExportView: View {
             showExportSheet = true
             isExporting = false
         } catch {
+            #if DEBUG
             print("❌ 导出失败: \(error.localizedDescription)")
+            #endif
             isExporting = false
         }
     }

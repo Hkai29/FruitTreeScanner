@@ -162,6 +162,7 @@ final class Renderer: NSObject {
 
     // MARK: - 当前点数（供 UI 显示）
     var currentPointCountPublic: Int { currentPointCount }
+    var scannedRegionCountPublic: Int { scannedRegions.count }
 
     // MARK: - Draw（原始不改动）
     func renderFrame() {
@@ -268,10 +269,14 @@ final class Renderer: NSObject {
                 let filename = makeTreeFileName(treeID: treeID, lat: gpsLat, lon: gpsLon)
                 try await saveFile(content: fileContent, filename: filename,
                                    folder: self.currentFolder)
+                #if DEBUG
                 print("✅ PLY 保存成功: \(filename)，共 \(pointCount) 点")
+                #endif
                 await MainActor.run { completion(filename) }
             } catch {
+                #if DEBUG
                 print("❌ PLY 保存失败: \(error.localizedDescription)")
+                #endif
                 await MainActor.run { completion(nil) }
             }
             await MainActor.run { self.delegate?.didFinishTask() }

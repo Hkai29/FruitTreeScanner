@@ -43,7 +43,9 @@ class FusionValidator {
     ) -> [ValidatedFruit] {
         var validatedFruits: [ValidatedFruit] = []
 
+        #if DEBUG
         print("🔍 [FusionValidator] 开始融合: \(detections.count) 个检测, \(candidates.count) 个候选")
+        #endif
 
         // Match detections to candidates
         for detection in detections {
@@ -55,7 +57,9 @@ class FusionValidator {
                 imageSize: imageSize
             )
 
+            #if DEBUG
             print("       检测: \(detection.category.displayName), 投影位置: \(projectedPosition)")
+            #endif
 
             // Find nearest candidate within tolerance
             let matchedCandidate = findNearestCandidate(
@@ -66,7 +70,9 @@ class FusionValidator {
 
             if let candidate = matchedCandidate {
                 // Fused: both image and point cloud validated
+                #if DEBUG
                 print("       → 匹配到候选: 位置\(candidate.position), 球形度\(candidate.sphericity)")
+                #endif
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: candidate.position,
@@ -76,7 +82,9 @@ class FusionValidator {
                 validatedFruits.append(validatedFruit)
             } else {
                 // Image only: no matching candidate found
+                #if DEBUG
                 print("       → 无匹配候选 (imageOnly)")
+                #endif
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: projectedPosition,
@@ -87,7 +95,9 @@ class FusionValidator {
             }
         }
 
+        #if DEBUG
         print("🔍 [FusionValidator] 融合结果: \(validatedFruits.count) 个 (fused + imageOnly)")
+        #endif
 
         // Notify delegate
         delegate?.fusionValidator(self, didValidate: validatedFruits)

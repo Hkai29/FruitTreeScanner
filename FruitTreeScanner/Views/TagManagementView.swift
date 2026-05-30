@@ -14,7 +14,7 @@ struct TagManagementView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Design.Colors.bgBase.ignoresSafeArea()
+                Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Tab Picker
@@ -129,18 +129,18 @@ struct PlotListView: View {
         VStack(spacing: Design.Space.md) {
             Image(systemName: "map")
                 .font(.system(size: 48))
-                .foregroundColor(Design.Colors.pebble)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Text("暂无地块")
                 .font(Design.Typography.headline)
-                .foregroundColor(Color(hex: "3D3A36"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Text("点击右上角 + 添加地块")
                 .font(Design.Typography.subheadline)
-                .foregroundColor(Color(hex: "8E8E93"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Design.Colors.bgBase)
+        .background(Design.Colors.Dark.bgDeep)
     }
 }
 
@@ -159,18 +159,18 @@ struct PlotRowView: View {
             VStack(alignment: .leading, spacing: Design.Space.xxs) {
                 Text(plot.name)
                     .font(Design.Typography.headline)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("\(treeCount) 棵树")
                     .font(Design.Typography.subheadline)
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Design.Colors.pebble)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .padding(.vertical, Design.Space.sm)
     }
@@ -213,18 +213,18 @@ struct TagListView: View {
         VStack(spacing: Design.Space.md) {
             Image(systemName: "tag")
                 .font(.system(size: 48))
-                .foregroundColor(Design.Colors.pebble)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Text("暂无标签")
                 .font(Design.Typography.headline)
-                .foregroundColor(Color(hex: "3D3A36"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Text("点击右上角 + 添加标签")
                 .font(Design.Typography.subheadline)
-                .foregroundColor(Color(hex: "8E8E93"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Design.Colors.bgBase)
+        .background(Design.Colors.Dark.bgDeep)
     }
 }
 

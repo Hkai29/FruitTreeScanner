@@ -54,6 +54,9 @@ struct ScanView: View {
             // 扫描完成 → 显示结果
             if showResult, let result = yieldResult {
                 ResultView(treeID: treeID, result: result) {
+                    showResult = false
+                } onDismissToHome: {
+                    showResult = false
                     dismiss()
                 }
             }
@@ -79,58 +82,71 @@ struct ScanView: View {
 
     // MARK: - 顶部状态栏
     private var topStatusBar: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("树 #\(treeID)")
-                    .font(.headline)
-                Text(gps.isAvailable
-                     ? String(format: "%.5f, %.5f", gps.latitude, gps.longitude)
-                     : "GPS不可用")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-            }
+        HStack(spacing: 12) {
+            // 树编号
+            HUDPill(label: "TREE", value: treeID, accentColor: Design.Colors.harvest)
+
+            // 点数
+            HUDPill(label: "PTS", value: "\(coordinator.pointCount)", accentColor: Design.Colors.harvest)
+
+            // 覆盖区域
+            HUDPill(label: "AREA", value: "\(coordinator.scannedRegionCount)", accentColor: Design.Colors.forest)
+
             Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("\(coordinator.pointCount) 点")
-                    .font(.headline.monospacedDigit())
-                Circle()
-                    .fill(isRecording ? Design.Colors.apple : Design.Colors.forest)
-                    .frame(width: 10, height: 10)
-                Text(isRecording ? "采集中" : "就绪")
-                    .font(.caption)
+
+            // 状态
+            if isRecording {
+                StatusIndicator(status: .recording)
+            } else {
+                StatusIndicator(status: .ready)
             }
         }
-        .padding()
-        .background(Color.black.opacity(0.6))
+        .padding(.horizontal, Design.Space.md)
+        .padding(.vertical, Design.Space.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
+                .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
+        )
+        .padding(.horizontal, Design.Space.md)
+        .padding(.top, Design.Space.md)
     }
 
     // MARK: - 底部控制栏
     private var bottomControlBar: some View {
         HStack(spacing: 24) {
-            Button(action: { showGuide.toggle() }) {
-                Image(systemName: "questionmark.circle")
-                    .font(.title)
-            }
-            .foregroundColor(.white)
-
-            Button(action: toggleRecording) {
-                Circle()
-                    .fill(isRecording ? Design.Colors.apple : Design.Colors.forest)
-                    .frame(width: 70, height: 70)
-                    .overlay(
-                        Circle().stroke(Color.white, lineWidth: 3)
-                    )
+            // 引导按钮
+            GlassIconButton(icon: "questionmark.circle", size: 44) {
+                showGuide.toggle()
             }
 
-            Button(action: exportAndEstimate) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.title)
+            // 录制按钮
+            ScanRecordButton(isRecording: isRecording) {
+                toggleRecording()
             }
-            .foregroundColor(.white)
+
+            // 导出按钮
+            GlassIconButton(icon: "square.and.arrow.up", size: 44) {
+                exportAndEstimate()
+            }
             .disabled(isRecording || coordinator.pointCount == 0)
+            .opacity(isRecording || coordinator.pointCount == 0 ? 0.5 : 1)
         }
-        .padding()
-        .background(Color.black.opacity(0.6))
+        .padding(.horizontal, Design.Space.lg)
+        .padding(.vertical, Design.Space.md)
+        .background(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.large)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.large)
+                .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
+        )
+        .padding(.horizontal, Design.Space.md)
+        .padding(.bottom, Design.Space.lg)
     }
 
     // MARK: - 录制切换
@@ -208,10 +224,14 @@ struct ScanView: View {
 
         do {
             try csvContent.write(to: csvPath, atomically: true, encoding: .utf8)
+            #if DEBUG
             print("📄 [ScanView] CSV 自动导出成功: \(csvPath.lastPathComponent)")
+            #endif
             ScanHistoryStore.shared.notifyRecordsUpdated()
         } catch {
+            #if DEBUG
             print("❌ [ScanView] CSV 自动导出失败: \(error.localizedDescription)")
+            #endif
         }
     }
 }
@@ -223,6 +243,7 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
     weak var mtkView: MTKView?
 
     @Published var pointCount: Int = 0
+    @Published var scannedRegionCount: Int = 0
 
     private var displayLink: CADisplayLink?
     private let estimator = YieldEstimator()
@@ -333,10 +354,12 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
             let detected = await self.imageDetector.processQueue()
 
             if !detected.isEmpty {
+                #if DEBUG
                 print("📸 [ScanCoordinator] 检测到 \(detected.count) 个果实:")
                 for fruit in detected {
                     print("      - \(fruit.category.displayName), 置信度: \(fruit.confidence), 边界框: \(fruit.boundingBox)")
                 }
+                #endif
                 self.detectorLock.lock()
                 self.detectedFruits.append(contentsOf: detected)
                 self.detectorLock.unlock()
@@ -388,7 +411,9 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                 guard let self = self else { return }
 
                 let points = self.extractColoredPoints()
+                #if DEBUG
                 print("🔍 [Fusion] 共有 \(points.count) 个点云点")
+                #endif
 
                 // 取出并清空检测结果
                 self.detectorLock.lock()
@@ -396,14 +421,18 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                 self.detectedFruits.removeAll()
                 self.detectorLock.unlock()
 
+                #if DEBUG
                 print("🔍 [Fusion] 图像检测结果: \(savedDetections.count) 个")
+                #endif
 
                 // Step 1: 点云聚类
                 let candidates = await self.pointCloudCluster.processInMemory(
                     position: points.map { $0.pos },
                     colors: points.map { SIMD3<Float>($0.r, $0.g, $0.b) }
                 )
+                #if DEBUG
                 print("🔍 [Fusion] 点云聚类候选: \(candidates.count) 个")
+                #endif
 
                 // Step 2: 融合验证（如果有图像检测结果）
                 var validatedFruits: [ValidatedFruit] = []
@@ -428,8 +457,10 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                 } else {
                     // ⚠️ 重要：没有图像检测结果时，不应该只靠点云就判定为果实！
                     // cloudOnly 路径现在默认拒绝所有候选，除非满足非常严格的条件
+                    #if DEBUG
                     print("🔍 [Fusion] ⚠️ 无图像检测，进入保守模式")
                     print("🔍 [Fusion] 点云候选数: \(candidates.count)")
+                    #endif
 
                     // 只有当球形度非常高 (>0.8) 且颜色非常符合时才接受
                     // 这大大减少了误判（窗帘、台灯、桌面物品等）
@@ -448,11 +479,15 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                             accepted += 1
                         }
                     }
+                    #if DEBUG
                     print("🔍 [Fusion] cloudOnly 保守模式: \(candidates.count) 候选, 只接受 \(accepted) 个（需要 sphericity>0.8 且颜色符合）")
+                    #endif
                 }
 
                 // Step 3: 计数
+                #if DEBUG
                 print("🔍 [Fusion] 最终有效果实: \(validatedFruits.count) 个")
+                #endif
                 let countResult = self.fruitCounter.count(validatedFruits)
 
                 // Step 4: 应用视觉计数校正（如果有）
@@ -464,7 +499,9 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                         // Clamp correction factor to reasonable range (0.5x to 2x)
                         let correctionFactorClamped = min(max(correctionFactor, 0.5), 2.0)
                         estimatedYield *= Float(correctionFactorClamped)
+                        #if DEBUG
                         print("🔍 [Fusion] 视觉校正: nVisual=\(nVisual), totalDetectedCount=\(totalDetectedCount), correctionFactor=\(correctionFactorClamped)")
+                        #endif
                     }
                 }
 
@@ -473,7 +510,9 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                 var finalResult: YieldResult
                 if countResult.totalCount > 0 {
                     // 新 pipeline 找到了果实，使用新结果
+                    #if DEBUG
                     print("🔍 [Fusion] ✅ 使用新 pipeline 结果: \(countResult.totalCount) 个果实")
+                    #endif
 
                     // 构建 YieldResult 从 countResult
                     var yr = YieldResult()
@@ -485,8 +524,10 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
                     finalResult = yr
                 } else {
                     // ⚠️ 关键修复：不要再用旧算法！直接输出 0
+                    #if DEBUG
                     print("🔍 [Fusion] ⚠️ 新 pipeline 无检测，输出 0 kg（旧算法已禁用）")
                     print("🔍 [Fusion] 原因: 没有图像检测确认的果实不可信")
+                    #endif
 
                     var yr = YieldResult()
                     yr.nLidar = 0
@@ -515,6 +556,7 @@ class ScanCoordinator: NSObject, ObservableObject, TaskDelegate, ImageDetectorDe
 
     @objc private func updatePointCount() {
         pointCount = renderer?.currentPointCountPublic ?? 0
+        scannedRegionCount = renderer?.scannedRegionCountPublic ?? 0
     }
 
     func didStartTask() {}
@@ -607,5 +649,102 @@ class MetalViewCoordinator: NSObject {
     init(coordinator: ScanCoordinator) {
         self.coordinator = coordinator
         super.init()
+    }
+}
+
+// MARK: - Glass Icon Button
+struct GlassIconButton: View {
+    let icon: String
+    var size: CGFloat = 50
+    let action: () -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .frame(width: size, height: size)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(isPressed ? 0.15 : 0.08))
+                )
+        }
+        .scaleEffect(isPressed ? 0.95 : 1.0)
+        .animation(.easeOut(duration: 0.12), value: isPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in isPressed = true }
+                .onEnded { _ in isPressed = false }
+        )
+    }
+}
+
+// MARK: - Scan Record Button
+struct ScanRecordButton: View {
+    let isRecording: Bool
+    let action: () -> Void
+
+    @State private var isPressed = false
+    @State private var pulseScale: CGFloat = 1.0
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                // 外圈
+                Circle()
+                    .stroke(
+                        isRecording ? Design.Colors.apple : Design.Colors.harvest,
+                        lineWidth: 3
+                    )
+                    .frame(width: 70, height: 70)
+
+                // 内部填充
+                if isRecording {
+                    // 录制中：显示停止图标
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Design.Colors.apple)
+                        .frame(width: 24, height: 24)
+                } else {
+                    // 就绪：显示录制点
+                    Circle()
+                        .fill(Design.Colors.harvest)
+                        .frame(width: 56, height: 56)
+                }
+
+                // 录制中脉冲动画
+                if isRecording {
+                    Circle()
+                        .stroke(Design.Colors.apple.opacity(0.5), lineWidth: 2)
+                        .frame(width: 70, height: 70)
+                        .scaleEffect(pulseScale)
+                        .opacity(2 - pulseScale)
+                }
+            }
+        }
+        .scaleEffect(isPressed ? 0.95 : 1.0)
+        .animation(.easeOut(duration: 0.12), value: isPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in isPressed = true }
+                .onEnded { _ in isPressed = false }
+        )
+        .onAppear {
+            if isRecording {
+                withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: false)) {
+                    pulseScale = 1.5
+                }
+            }
+        }
+        .onChange(of: isRecording) { newValue in
+            if newValue {
+                withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: false)) {
+                    pulseScale = 1.5
+                }
+            } else {
+                pulseScale = 1.0
+            }
+        }
     }
 }
