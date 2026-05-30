@@ -87,7 +87,7 @@ Recent deep learning approaches for fruit detection include YOLO variants (Jiang
 
 ### 3.1 System Overview
 
-Our system, named **FruitTreeScanner**, runs on an iPad Pro (M2 chip, LiDAR) and processes the environment in real time as the user walks through an orchard. The processing pipeline consists of five stages, as illustrated in Figure 1:
+Our system, named **FruitTreeScanner**, runs on an iPad Pro (M2 chip, LiDAR) and processes the environment in real time as the user walks through an orchard. The processing pipeline consists of six sequential stages:
 
 1. **Data Acquisition**: ARKit captures synchronized RGB frames, depth maps, and point clouds with camera poses at 60 Hz.
 2. **Frame Fusion**: Point cloud frames are aligned using AR camera poses and fused into a unified world coordinate system using voxel downsampling.
