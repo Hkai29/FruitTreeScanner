@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Data Models
 
-struct Plot: Identifiable, Codable, Equatable {
+struct Plot: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     var name: String
     var colorHex: String
@@ -18,7 +18,7 @@ struct Plot: Identifiable, Codable, Equatable {
     }
 }
 
-struct GroupTag: Identifiable, Codable, Equatable {
+struct GroupTag: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     var name: String
     var colorHex: String
@@ -32,14 +32,14 @@ struct GroupTag: Identifiable, Codable, Equatable {
     }
 }
 
-enum ScanStatus: String, Codable, CaseIterable {
+enum ScanStatus: String, Codable, CaseIterable, Sendable {
     case notScanned = "未扫描"
     case scanned = "已扫描"
     case reviewing = "复查中"
     case completed = "已完成"
 }
 
-struct TreeAssignment: Identifiable, Codable, Equatable {
+struct TreeAssignment: Identifiable, Codable, Equatable, Sendable {
     var id: String { treeId }
     let treeId: String
     var plotId: UUID?
@@ -54,6 +54,12 @@ struct TreeAssignment: Identifiable, Codable, Equatable {
     }
 }
 
+private struct TagStoreSnapshot: Sendable {
+    let plots: [Plot]
+    let tags: [GroupTag]
+    let assignments: [TreeAssignment]
+}
+
 // MARK: - TagStore
 
 @MainActor
@@ -66,9 +72,14 @@ final class TagStore: ObservableObject {
 
     static let didUpdateNotification = Notification.Name("TagStoreDidUpdate")
 
-    private let plotsKey = "TagStore.plots"
-    private let tagsKey = "TagStore.tags"
-    private let assignmentsKey = "TagStore.assignments"
+    private enum StorageKeys {
+        static let plots = "TagStore.plots"
+        static let tags = "TagStore.tags"
+        static let assignments = "TagStore.assignments"
+    }
+
+    private var saveTask: Task<Void, Never>?
+    private var saveGeneration = 0
 
     private init() {
         loadData()
@@ -77,24 +88,65 @@ final class TagStore: ObservableObject {
     // MARK: - Persistence
 
     private func loadData() {
-        plots = (try? UserDefaults.standard.getObject(forKey: plotsKey)) ?? []
-        tags = (try? UserDefaults.standard.getObject(forKey: tagsKey)) ?? []
-        assignments = (try? UserDefaults.standard.getObject(forKey: assignmentsKey)) ?? []
+        do {
+            plots = try UserDefaults.standard.getObject(forKey: StorageKeys.plots) ?? []
+        } catch {
+            #if DEBUG
+            print("[TagStore] Failed to load plots: \(error)")
+            #endif
+            plots = []
+        }
+        do {
+            tags = try UserDefaults.standard.getObject(forKey: StorageKeys.tags) ?? []
+        } catch {
+            #if DEBUG
+            print("[TagStore] Failed to load tags: \(error)")
+            #endif
+            tags = []
+        }
+        do {
+            assignments = try UserDefaults.standard.getObject(forKey: StorageKeys.assignments) ?? []
+        } catch {
+            #if DEBUG
+            print("[TagStore] Failed to load assignments: \(error)")
+            #endif
+            assignments = []
+        }
     }
 
-    private func savePlots() {
-        try? UserDefaults.standard.setObject(plots, forKey: plotsKey)
+    private func persistChanges() {
+        saveGeneration += 1
+        let generation = saveGeneration
+        let snapshot = TagStoreSnapshot(plots: plots, tags: tags, assignments: assignments)
+        saveTask?.cancel()
+        saveTask = Task.detached(priority: .utility) { [weak self] in
+            do {
+                try Task.checkCancellation()
+                try Self.writeSnapshot(snapshot)
+                try Task.checkCancellation()
+                await self?.finishPersisting(generation: generation)
+            } catch is CancellationError {
+            } catch {
+                #if DEBUG
+                print("[TagStore] Failed to save data: \(error)")
+                #endif
+            }
+        }
         notifyUpdate()
     }
 
-    private func saveTags() {
-        try? UserDefaults.standard.setObject(tags, forKey: tagsKey)
-        notifyUpdate()
+    private func finishPersisting(generation: Int) {
+        if saveGeneration == generation {
+            saveTask = nil
+        }
     }
 
-    private func saveAssignments() {
-        try? UserDefaults.standard.setObject(assignments, forKey: assignmentsKey)
-        notifyUpdate()
+    nonisolated private static func writeSnapshot(_ snapshot: TagStoreSnapshot) throws {
+        try UserDefaults.standard.setObject(snapshot.plots, forKey: StorageKeys.plots)
+        try Task.checkCancellation()
+        try UserDefaults.standard.setObject(snapshot.tags, forKey: StorageKeys.tags)
+        try Task.checkCancellation()
+        try UserDefaults.standard.setObject(snapshot.assignments, forKey: StorageKeys.assignments)
     }
 
     private func notifyUpdate() {
@@ -108,13 +160,13 @@ final class TagStore: ObservableObject {
         let displayOrder = maxOrder + 1
         let plot = Plot(name: name, colorHex: colorHex, displayOrder: displayOrder)
         plots.append(plot)
-        savePlots()
+        persistChanges()
     }
 
     func updatePlot(_ plot: Plot) {
         guard let index = plots.firstIndex(where: { $0.id == plot.id }) else { return }
         plots[index] = plot
-        savePlots()
+        persistChanges()
     }
 
     func deletePlot(id: UUID) {
@@ -125,8 +177,7 @@ final class TagStore: ObservableObject {
                 assignments[i].plotId = nil
             }
         }
-        savePlots()
-        saveAssignments()
+        persistChanges()
     }
 
     func movePlot(from source: IndexSet, to destination: Int) {
@@ -134,7 +185,7 @@ final class TagStore: ObservableObject {
         for i in plots.indices {
             plots[i].displayOrder = i
         }
-        savePlots()
+        persistChanges()
     }
 
     // MARK: - Tag Operations
@@ -142,13 +193,13 @@ final class TagStore: ObservableObject {
     func addTag(name: String, colorHex: String = "#34C759") {
         let tag = GroupTag(name: name, colorHex: colorHex)
         tags.append(tag)
-        saveTags()
+        persistChanges()
     }
 
     func updateTag(_ tag: GroupTag) {
         guard let index = tags.firstIndex(where: { $0.id == tag.id }) else { return }
         tags[index] = tag
-        saveTags()
+        persistChanges()
     }
 
     func deleteTag(id: UUID) {
@@ -157,8 +208,7 @@ final class TagStore: ObservableObject {
         for i in assignments.indices {
             assignments[i].tagIds.removeAll { $0 == id }
         }
-        saveTags()
-        saveAssignments()
+        persistChanges()
     }
 
     // MARK: - Assignment Operations
@@ -176,13 +226,13 @@ final class TagStore: ObservableObject {
             let assignment = TreeAssignment(treeId: treeId, plotId: plotId, tagIds: tagIds, status: status)
             assignments.append(assignment)
         }
-        saveAssignments()
+        persistChanges()
     }
 
     func updateAssignmentStatus(treeId: String, status: ScanStatus) {
         guard let index = assignments.firstIndex(where: { $0.treeId == treeId }) else { return }
         assignments[index].status = status
-        saveAssignments()
+        persistChanges()
     }
 
     // MARK: - Query Methods

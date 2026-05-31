@@ -126,7 +126,6 @@ struct OrchardMapView: View {
                 mapView
             }
         }
-        .overlay(FingerGlowOverlay())
         .preferredColorScheme(.dark)
         .navigationBarHidden(true)
         .sheet(isPresented: $showOrchardPicker) {

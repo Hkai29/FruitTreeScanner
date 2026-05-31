@@ -8,39 +8,39 @@ extension Design.Colors {
     /// 专业扫描软件暗色主题颜色
     struct Dark {
         // 背景层次
-        static let bgDeep = Color(hex: "0A0A0F")           // 极深背景
-        static let bgSurface = Color(hex: "14141A")        // 卡片表面
-        static let bgElevated = Color(hex: "1E1E26")       // 浮起元素
+        static let bgDeep = Color(hex: "0F1115")           // 主背景
+        static let bgSurface = Color(hex: "181B21")        // 页面表面
+        static let bgElevated = Color(hex: "22262E")       // 控件表面
 
-        // 发光效果 - 橙色 (Harvest)
+        // 强调色
         static let glow = Design.Colors.harvest             // #FF9500
         static let glowLight = Design.Colors.harvestLight   // #FF9F0A
 
         // 文字颜色
-        static let textPrimary = Color.white.opacity(0.9)   // 主要文字
-        static let textSecondary = Color.white.opacity(0.6) // 次要文字
-        static let textMuted = Color.white.opacity(0.4)    // 弱化文字
+        static let textPrimary = Color.white.opacity(0.95)   // 主要文字 (WCAG AAA)
+        static let textSecondary = Color.white.opacity(0.7) // 次要文字 (WCAG AA 4.5:1+)
+        static let textMuted = Color.white.opacity(0.5)    // 弱化文字 (WCAG AA 3:1+)
 
         // 玻璃效果
-        static let glassBorder = Color.white.opacity(0.15)  // 玻璃边框
-        static let glassHighlight = Color.white.opacity(0.08) // 高光
-        static let glassFill = Color.white.opacity(0.05)    // 玻璃填充
+        static let glassBorder = Color.white.opacity(0.10)  // 细边框
+        static let glassHighlight = Color.white.opacity(0.04)
+        static let glassFill = Color(hex: "1A1D24")
 
         // 状态色
-        static let success = Color(hex: "00FF88")          // 成功/追踪OK
+        static let success = Color(hex: "34C759")          // 成功/追踪OK
         static let warning = Design.Colors.harvest          // 警告
         static let error = Design.Colors.apple              // 错误
-        static let info = Color(hex: "00D4FF")             // 信息
+        static let info = Color(hex: "5AC8FA")             // 信息
 
         // HUD 专用
-        static let hudBackground = Color.white.opacity(0.1) // HUD背景
-        static let hudBorder = Color.white.opacity(0.2)    // HUD边框
+        static let hudBackground = Color(hex: "171A20").opacity(0.92)
+        static let hudBorder = Color.white.opacity(0.12)
     }
 
     /// 暗色渐变
     static var darkGradient: LinearGradient {
         LinearGradient(
-            colors: [Dark.bgDeep, Dark.bgSurface, Dark.bgDeep],
+            colors: [Dark.bgDeep, Color(hex: "12151A")],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -61,10 +61,10 @@ extension Design.Colors {
 extension Design.Radius {
     /// 玻璃卡片专用圆角
     struct Glass {
-        static let small: CGFloat = 12
-        static let medium: CGFloat = 16
-        static let large: CGFloat = 20
-        static let xl: CGFloat = 24
+        static let small: CGFloat = 8
+        static let medium: CGFloat = 10
+        static let large: CGFloat = 12
+        static let xl: CGFloat = 14
     }
 }
 
@@ -72,39 +72,28 @@ extension Design.Radius {
 extension Design.Shadow {
     /// 暗色主题阴影
     static let glassShadow = (
-        color: Color.black.opacity(0.4),
-        radius: CGFloat(20),
-        y: CGFloat(10)
+        color: Color.black.opacity(0.18),
+        radius: CGFloat(10),
+        y: CGFloat(4)
     )
 
     static let hudShadow = (
-        color: Color.black.opacity(0.3),
-        radius: CGFloat(12),
-        y: CGFloat(6)
+        color: Color.black.opacity(0.22),
+        radius: CGFloat(8),
+        y: CGFloat(3)
     )
 }
 
 // MARK: - View Modifiers for Dark Theme
 extension View {
-    /// 玻璃拟态卡片样式
+    /// 深色表面卡片样式
     func glassCardStyle(cornerRadius: CGFloat = Design.Radius.Glass.medium) -> some View {
         self
-            .background(.ultraThinMaterial)
+            .background(Design.Colors.Dark.glassFill)
             .cornerRadius(cornerRadius)
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.2),
-                                Color.white.opacity(0.05),
-                                Color.white.opacity(0.02)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
+                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
             )
             .shadow(
                 color: Design.Shadow.glassShadow.color,
@@ -144,7 +133,7 @@ struct DarkPrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, Design.Space.md + 2)
             .background(
                 RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .fill(isEnabled ? Design.Colors.harvest : Color.gray)
+                    .fill(isEnabled ? Design.Colors.forest : Color.gray)
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
@@ -160,7 +149,11 @@ struct DarkSecondaryButtonStyle: ButtonStyle {
             .padding(.vertical, Design.Space.md + 2)
             .background(
                 RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1.5)
+                    .fill(Design.Colors.Dark.bgElevated)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
+                            .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
+                    )
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)

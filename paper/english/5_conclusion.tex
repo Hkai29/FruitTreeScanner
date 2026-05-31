@@ -1,0 +1,16 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper presented the design and implementation of FruitTreeScanner, a system for fruit yield estimation using consumer-grade LiDAR devices. The system combines LiDAR-based 3D point cloud acquisition with CoreML image detection through a multi-modal fusion strategy. Key contributions include an adaptive DBSCAN clustering algorithm that addresses distance-dependent density variation in LiDAR data, a multi-modal fusion approach that leverages complementary 2D and 3D detection capabilities, and a dual-route yield estimation strategy combining volume-based and canopy regression methods.
+
+Experimental results on simulated data demonstrate technical feasibility of the approach, with detection precision exceeding 80\% under moderate occlusion conditions. However, these results require validation through field experiments with real orchard data before drawing conclusions about real-world performance.
+
+Limitations of the current work include reliance on simulated data for evaluation, which cannot capture the full complexity of real orchard environments. The occlusion correction model uses simplified statistical assumptions that may not represent all canopy structures. The system also faces challenges from variable lighting conditions, background vegetation complexity, and fruit appearance variations.
+
+Future work directions include conducting comprehensive field validation trials across different fruit varieties and orchard conditions, improving the occlusion correction model through learning-based approaches trained on multi-view captures, optimizing algorithms for real-time processing on mobile devices, and integrating with farm management information systems for practical deployment.
+
+\section*{Acknowledgments}
+This work presents system design and feasibility analysis. All experimental data awaits field validation.
+
+\section*{Data Availability}
+System implementation code and processing algorithms are based on the FruitTreeScanner iOS application. Evaluation data used in this study is simulated and will be supplemented with real orchard data in future field studies.

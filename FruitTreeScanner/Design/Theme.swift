@@ -99,11 +99,11 @@ struct Design {
         static let monoSmall = Font.system(size: 13, weight: .medium, design: .monospaced)
     }
 
-    // MARK: Spacing
+    // MARK: Spacing (4/8dp rhythm)
     struct Space {
-        static let xxs: CGFloat = 2
-        static let xs: CGFloat = 4
-        static let sm: CGFloat = 8
+        static let xxs: CGFloat = 4
+        static let xs: CGFloat = 8
+        static let sm: CGFloat = 12
         static let md: CGFloat = 16
         static let lg: CGFloat = 24
         static let xl: CGFloat = 32
@@ -111,13 +111,29 @@ struct Design {
         static let xxxl: CGFloat = 64
     }
 
-    // MARK: Radii - iOS 风格圆角
+    // MARK: Radii
     struct Radius {
         static let small: CGFloat = 8
-        static let medium: CGFloat = 10
-        static let large: CGFloat = 12
-        static let xl: CGFloat = 14
+        static let medium: CGFloat = 12
+        static let large: CGFloat = 16
+        static let xl: CGFloat = 20
         static let full: CGFloat = 999
+    }
+
+    // MARK: Animation
+    struct Animation {
+        static let micro: Double = 0.15
+        static let standard: Double = 0.2
+        static let gentle: Double = 0.3
+        static let springResponse: Double = 0.3
+        static let springDamping: Double = 0.8
+    }
+
+    // MARK: Touch Targets
+    struct Touch {
+        static let minimumHeight: CGFloat = 44
+        static let minimumWidth: CGFloat = 44
+        static let iconHitArea: CGFloat = 44
     }
 
     // MARK: Shadows - iOS 柔和阴影
@@ -235,13 +251,13 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(Design.Typography.headline)
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, Design.Space.md + 2)
+            .frame(minHeight: Design.Touch.minimumHeight)
             .background(
                 RoundedRectangle(cornerRadius: Design.Radius.medium)
                     .fill(isEnabled ? Design.Colors.forest : Color(hex: "C7C7CC"))
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+            .animation(.easeOut(duration: Design.Animation.micro), value: configuration.isPressed)
     }
 }
 
@@ -251,13 +267,13 @@ struct SecondaryButtonStyle: ButtonStyle {
             .font(Design.Typography.headline)
             .foregroundColor(Design.Colors.forest)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, Design.Space.md + 2)
+            .frame(minHeight: Design.Touch.minimumHeight)
             .background(
                 RoundedRectangle(cornerRadius: Design.Radius.medium)
                     .strokeBorder(Design.Colors.forest, lineWidth: 1.5)
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+            .animation(.easeOut(duration: Design.Animation.micro), value: configuration.isPressed)
     }
 }
 
@@ -268,12 +284,13 @@ struct TertiaryButtonStyle: ButtonStyle {
             .foregroundColor(Design.Colors.forest)
             .padding(.vertical, Design.Space.sm)
             .padding(.horizontal, Design.Space.md)
+            .frame(minHeight: Design.Touch.minimumHeight)
             .background(
                 RoundedRectangle(cornerRadius: Design.Radius.small)
                     .fill(Design.Colors.forest.opacity(configuration.isPressed ? 0.1 : 0.08))
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+            .animation(.easeOut(duration: Design.Animation.micro), value: configuration.isPressed)
     }
 }
 

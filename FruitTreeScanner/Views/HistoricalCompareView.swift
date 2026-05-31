@@ -13,10 +13,14 @@ struct ScanItem: Identifiable, Equatable {
     let meanDiameterCm: Double
     let confidence: String
 
-    var dateFormatted: String {
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        return formatter.string(from: scanDate)
+        return formatter
+    }()
+
+    var dateFormatted: String {
+        Self.dateFormatter.string(from: scanDate)
     }
 
     var yieldFormatted: String {
@@ -39,10 +43,9 @@ struct HistoricalCompareView: View {
     @State private var selectedScan2: ScanItem?
     @State private var showScanPicker1 = false
     @State private var showScanPicker2 = false
-    @State private var availableScans: [ScanItem] = []
 
     // Use real data from historyStore
-    private var comparisonData: [ScanItem] {
+    private var availableScans: [ScanItem] {
         historyStore.scanFiles.map { record in
             ScanItem(
                 id: record.id,
@@ -74,7 +77,6 @@ struct HistoricalCompareView: View {
                 .padding(.horizontal, Design.Space.lg)
             }
         }
-        .overlay(FingerGlowOverlay())
         .preferredColorScheme(.dark)
         .navigationTitle("历史对比")
         .navigationBarTitleDisplayMode(.large)
@@ -85,12 +87,6 @@ struct HistoricalCompareView: View {
         }
         .sheet(isPresented: $showScanPicker2) {
             ScanPickerView(scans: availableScans, selectedScan: $selectedScan2)
-        }
-        .onAppear {
-            availableScans = comparisonData
-        }
-        .onReceive(NotificationCenter.default.publisher(for: ScanHistoryStore.didUpdateNotification)) { _ in
-            availableScans = comparisonData
         }
     }
 

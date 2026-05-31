@@ -9,7 +9,7 @@ struct ResultView: View {
     let onDismiss: () -> Void
     let onDismissToHome: () -> Void
 
-    @StateObject private var tagStore = TagStore.shared
+    @ObservedObject private var tagStore = TagStore.shared
     @State private var selectedPlotId: UUID?
     @State private var selectedTagIds: Set<UUID> = []
     @State private var selectedStatus: ScanStatus = .scanned
@@ -20,91 +20,82 @@ struct ResultView: View {
 
     var body: some View {
         ZStack {
-            // iOS 白底背景
-            Color.white
+            Design.Colors.Dark.bgDeep
                 .ignoresSafeArea()
                 .task {
                     if let existing = tagStore.getAssignment(treeId: treeID) {
                         selectedPlotId = existing.plotId
                         selectedTagIds = Set(existing.tagIds)
-                        selectedStatus = existing.status
+                        selectedStatus = existing.status == .reviewing ? .scanned : existing.status
                     }
                 }
 
             ScrollView {
                 VStack(spacing: 24) {
-                    // 顶部产量卡片
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .strokeBorder(confidenceColor.opacity(0.3), lineWidth: 1.5)
-                            )
-
-                        VStack(spacing: 16) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 28))
-                                    .foregroundColor(confidenceColor)
-
-                                Text(treeID)
-                                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                                    .foregroundColor(Color(hex: "1C1C1E"))
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("扫描结果")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                                Text("树 \(treeID)")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundColor(Design.Colors.Dark.textPrimary)
                             }
-
-                            Text(String(format: "%.1f", result.yieldFinalKg))
-                                .font(.system(size: 72, weight: .heavy, design: .rounded))
-                                .foregroundColor(confidenceColor)
-
-                            Text("kg")
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(Color(hex: "8E8E93"))
-
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(confidenceColor)
-                                    .frame(width: 8, height: 8)
-                                Text(confidenceLabel)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(confidenceColor)
-                            }
-                            .padding(.top, 4)
-
-                            if !result.note.isEmpty {
-                                Text(result.note)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "8E8E93"))
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
+                            Spacer()
+                            ConfidenceBadge(label: confidenceLabel, color: confidenceColor)
                         }
-                        .padding(32)
+
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(String(format: "%.1f", result.yieldFinalKg))
+                                .font(.system(size: 64, weight: .semibold, design: .monospaced))
+                                .foregroundColor(confidenceColor)
+                            Text("kg")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(Design.Colors.Dark.textSecondary)
+                        }
+
+                        HStack(spacing: 8) {
+                            ResultSummaryPill(label: "果实", value: "\(result.nLidar)")
+                            ResultSummaryPill(label: "点云", value: result.pointCloudSize > 0 ? "\(result.pointCloudSize)" : "--")
+                            ResultSummaryPill(label: "方法", value: result.methodUsed.isEmpty ? "估算" : result.methodUsed)
+                        }
+
+                        if !result.note.isEmpty {
+                            Text(result.note)
+                                .font(.system(size: 12))
+                                .foregroundColor(Design.Colors.Dark.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
+                    .padding(18)
+                    .resultSurface(cornerRadius: 14)
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
 
                     // 路线B
                     if result.nLidar > 0 {
                         ResultSectionCard(
-                            title: "路线B · 果实体积法",
+                            title: "果实体积法",
                             icon: "circle.grid.3x3",
                             color: Design.Colors.forest
                         ) {
-                            ResultInfoRow(label: "LiDAR 检测果实", value: "\(result.nLidar) 个")
+                            ResultInfoRow(label: "校正后果实数", value: "\(result.nLidar) 个")
                             if let nV = result.nVisual {
                                 ResultInfoRow(label: "视觉计数", value: "\(nV) 个")
-                                ResultInfoRow(label: "遮挡校正系数", value: String(format: "×%.2f", result.correctionK))
                             }
+                            ResultInfoRow(label: "总校正系数", value: String(format: "×%.2f", result.correctionK))
                             ResultInfoRow(label: "可见部分重量", value: String(format: "%.2f kg", result.yieldBVisibleKg))
                             ResultInfoRow(label: "校正后重量", value: String(format: "%.2f kg", result.yieldBCorrectedKg), highlight: true)
-                            ResultInfoRow(label: "平均果实直径", value: String(format: "%.1f cm", result.meanDiameterCm))
+                            if result.meanDiameterCm > 0 {
+                                ResultInfoRow(label: "实测平均直径", value: String(format: "%.1f cm", result.meanDiameterCm))
+                            }
                         }
                     }
 
                     // 路线A
                     ResultSectionCard(
-                        title: "路线A · 冠层体积法",
+                        title: "冠层体积法",
                         icon: "tree.fill",
                         color: Design.Colors.harvest
                     ) {
@@ -115,13 +106,42 @@ struct ResultView: View {
                         } else {
                             HStack {
                                 Image(systemName: "exclamationmark.triangle")
-                                    .foregroundColor(Color(hex: "8E8E93"))
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
                                 Text("路线A模型未训练，需采集称重数据后训练")
                                     .font(.system(size: 13))
-                                    .foregroundColor(Color(hex: "8E8E93"))
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 8)
+                        }
+                    }
+
+                    // 算法参数（论文可复现性）
+                    if result.clusterEps > 0 || result.pointCloudSize > 0 {
+                        ResultSectionCard(
+                            title: "算法参数",
+                            icon: "slider.horizontal.3",
+                            color: Color(hex: "8E8E93")
+                        ) {
+                            if !result.fruitCategory.isEmpty {
+                                ResultInfoRow(label: "水果类别", value: result.fruitCategory)
+                            }
+                            if result.pointCloudSize > 0 {
+                                ResultInfoRow(label: "点云大小", value: "\(result.pointCloudSize) 点")
+                            }
+                            if result.clusterEps > 0 {
+                                ResultInfoRow(label: "DBSCAN Eps", value: String(format: "%.3f m", result.clusterEps))
+                            }
+                            if result.clusterMinPoints > 0 {
+                                ResultInfoRow(label: "DBSCAN MinPts", value: "\(result.clusterMinPoints)")
+                            }
+                            if !result.colorFilterDesc.isEmpty {
+                                ResultInfoRow(label: "颜色过滤", value: result.colorFilterDesc)
+                            }
+                            if result.occlusionK != 1.0 {
+                                ResultInfoRow(label: "遮挡校正 K", value: String(format: "%.2f", result.occlusionK))
+                            }
+                            ResultInfoRow(label: "估算方法", value: result.methodUsed.isEmpty ? "N/A" : result.methodUsed)
                         }
                     }
 
@@ -129,7 +149,7 @@ struct ResultView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("快速标记")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(Color(hex: "1C1C1E"))
+                            .foregroundColor(Design.Colors.Dark.textPrimary)
 
                         // Plot selection
                         Menu {
@@ -147,15 +167,16 @@ struct ResultView: View {
                                     .foregroundColor(Design.Colors.earth)
                                 Text(selectedPlotName)
                                     .font(.system(size: 14))
+                                    .foregroundColor(Design.Colors.Dark.textPrimary)
                                 Spacer()
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "8E8E93"))
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
                             }
                             .padding(12)
                             .background(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color(hex: "F2F2F7"))
+                                    .fill(Design.Colors.Dark.bgElevated)
                             )
                         }
                         .buttonStyle(.plain)
@@ -178,10 +199,10 @@ struct ResultView: View {
                                             .background(
                                                 RoundedRectangle(cornerRadius: 8)
                                                     .fill(selectedTagIds.contains(tag.id)
-                                                          ? Color(hex: tag.colorHex)
-                                                          : Color(hex: "E5E5EA"))
+                                                      ? Color(hex: tag.colorHex)
+                                                          : Design.Colors.Dark.bgElevated)
                                             )
-                                            .foregroundColor(selectedTagIds.contains(tag.id) ? .white : Color(hex: "1C1C1E"))
+                                            .foregroundColor(selectedTagIds.contains(tag.id) ? .white : Design.Colors.Dark.textPrimary)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -202,9 +223,9 @@ struct ResultView: View {
                                             RoundedRectangle(cornerRadius: 10)
                                                 .fill(selectedStatus == status
                                                       ? statusColor(for: status)
-                                                      : Color(hex: "E5E5EA"))
+                                                      : Design.Colors.Dark.bgElevated)
                                         )
-                                        .foregroundColor(selectedStatus == status ? .white : Color(hex: "1C1C1E"))
+                                        .foregroundColor(selectedStatus == status ? .white : Design.Colors.Dark.textPrimary)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -228,18 +249,18 @@ struct ResultView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .background(Design.Colors.earth)
+                            .background(Design.Colors.forest)
                             .cornerRadius(10)
                         }
                         .buttonStyle(.plain)
                     }
                     .padding(16)
                     .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white)
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Design.Colors.Dark.glassFill)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .strokeBorder(Design.Colors.earth.opacity(0.3), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
                             )
                     )
                     .padding(.horizontal, 24)
@@ -253,18 +274,13 @@ struct ResultView: View {
                                 Text("继续扫描下一棵")
                                     .font(.system(size: 16, weight: .semibold))
                             }
-                            .foregroundColor(Color(hex: "1C1C1E"))
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                             .background(
-                                LinearGradient(
-                                    colors: [Design.Colors.forest, Design.Colors.forestLight],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                                Design.Colors.forest
                             )
-                            .cornerRadius(14)
-                            .shadow(color: Design.Colors.forest.opacity(0.3), radius: 8, y: 4)
+                            .cornerRadius(10)
                         }
 
                         Button {
@@ -276,7 +292,7 @@ struct ResultView: View {
                                 Text("返回主界面")
                                     .font(.system(size: 16, weight: .medium))
                             }
-                            .foregroundColor(Color(hex: "8E8E93"))
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -330,24 +346,24 @@ struct ResultSectionCard<Content: View>: View {
 
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Spacer()
             }
 
             Divider()
-                .background(Color(hex: "E5E5EA"))
+                .background(Design.Colors.Dark.glassBorder)
 
             content()
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Design.Colors.forest.opacity(0.3), lineWidth: 1)
-                )
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Design.Colors.Dark.glassFill)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
+                    )
         )
         .padding(.horizontal, 24)
     }
@@ -363,13 +379,75 @@ struct ResultInfoRow: View {
         HStack {
             Text(label)
                 .font(.system(size: 14))
-                .foregroundColor(Color(hex: "8E8E93"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Spacer()
 
             Text(value)
-                .font(.system(size: 14, weight: highlight ? .bold : .medium, design: .monospaced))
-                .foregroundColor(highlight ? Design.Colors.forest : Color(hex: "1C1C1E"))
+                .font(.system(size: 14, weight: highlight ? .semibold : .medium, design: .monospaced))
+                .foregroundColor(highlight ? Design.Colors.forest : Design.Colors.Dark.textPrimary)
         }
+    }
+}
+
+private struct ConfidenceBadge: View {
+    let label: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(color.opacity(0.12))
+        .cornerRadius(8)
+    }
+}
+
+private struct ResultSummaryPill: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Design.Colors.Dark.textMuted)
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Design.Colors.Dark.bgElevated.opacity(0.7))
+        .cornerRadius(8)
+    }
+}
+
+private extension View {
+    func resultSurface(cornerRadius: CGFloat) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(Design.Colors.Dark.glassFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
+            )
+            .shadow(
+                color: Design.Shadow.glassShadow.color,
+                radius: Design.Shadow.glassShadow.radius,
+                y: Design.Shadow.glassShadow.y
+            )
     }
 }

@@ -63,6 +63,46 @@ vertex void unprojectVertex(uint vertexID [[vertex_id]],
         return;
     }
 
+    // Filter flying pixels near depth discontinuities. Consumer LiDAR often produces
+    // unstable edges around leaves, branches, and fruit boundaries.
+    if (uniforms.depthEdgeThreshold > 0.0f) {
+        const float2 texel = 1.0f / float2(depthTexture.get_width(), depthTexture.get_height());
+        int stableNeighbors = 0;
+
+        float neighborDepth = depthTexture.sample(colorSampler, texCoord + float2(texel.x, 0)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        neighborDepth = depthTexture.sample(colorSampler, texCoord - float2(texel.x, 0)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        neighborDepth = depthTexture.sample(colorSampler, texCoord + float2(0, texel.y)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        neighborDepth = depthTexture.sample(colorSampler, texCoord - float2(0, texel.y)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        if (stableNeighbors < 2) {
+            particleUniforms[currentPointIndex].confidence = 0.0f;
+            return;
+        }
+    }
+
     // With a 2D point plus depth, we can now get its 3D position
     const auto position = worldPoint(gridPoint, depth, uniforms.cameraIntrinsicsInversed, uniforms.localToWorld);
 

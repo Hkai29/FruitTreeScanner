@@ -4,7 +4,7 @@
 import SwiftUI
 
 struct TagManagementView: View {
-    @StateObject private var tagStore = TagStore.shared
+    @ObservedObject private var tagStore = TagStore.shared
     @State private var selectedTab: Int = 0
     @State private var showingAddPlot: Bool = false
     @State private var showingAddTag: Bool = false
@@ -12,7 +12,7 @@ struct TagManagementView: View {
     @State private var editingTag: GroupTag?
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ZStack {
                 Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
@@ -54,6 +54,7 @@ struct TagManagementView: View {
                 }
             }
             .navigationTitle("标签管理")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -64,7 +65,7 @@ struct TagManagementView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
-                            .foregroundColor(Design.Colors.forest)
+                            .foregroundColor(Design.Colors.harvest)
                     }
                 }
             }
@@ -132,11 +133,11 @@ struct PlotListView: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Text("暂无地块")
-                .font(Design.Typography.headline)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Text("点击右上角 + 添加地块")
-                .font(Design.Typography.subheadline)
+                .font(.system(size: 15))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -156,13 +157,13 @@ struct PlotRowView: View {
                 .fill(Color(hex: plot.colorHex))
                 .frame(width: 32, height: 32)
 
-            VStack(alignment: .leading, spacing: Design.Space.xxs) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(plot.name)
-                    .font(Design.Typography.headline)
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("\(treeCount) 棵树")
-                    .font(Design.Typography.subheadline)
+                    .font(.system(size: 15))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
@@ -216,11 +217,11 @@ struct TagListView: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Text("暂无标签")
-                .font(Design.Typography.headline)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Text("点击右上角 + 添加标签")
-                .font(Design.Typography.subheadline)
+                .font(.system(size: 15))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -240,21 +241,21 @@ struct TagRowView: View {
                 .fill(Color(hex: tag.colorHex))
                 .frame(width: 32, height: 32)
 
-            VStack(alignment: .leading, spacing: Design.Space.xxs) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(tag.name)
-                    .font(Design.Typography.headline)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("\(treeCount) 棵树")
-                    .font(Design.Typography.subheadline)
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .font(.system(size: 15))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Design.Colors.pebble)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .padding(.vertical, Design.Space.sm)
     }
@@ -295,10 +296,10 @@ struct StatusRowView: View {
 
     private var iconColor: Color {
         switch status {
-        case .notScanned: return Color(hex: "8E8E93")
-        case .scanned: return Color(hex: "007AFF")
-        case .reviewing: return Color(hex: "FF9500")
-        case .completed: return Color(hex: "34C759")
+        case .notScanned: return Design.Colors.Dark.textSecondary
+        case .scanned: return Design.Colors.Dark.info
+        case .reviewing: return Design.Colors.harvest
+        case .completed: return Design.Colors.Dark.success
         }
     }
 
@@ -308,14 +309,14 @@ struct StatusRowView: View {
                 .font(.system(size: 24))
                 .foregroundColor(iconColor)
 
-            VStack(alignment: .leading, spacing: Design.Space.xxs) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(status.rawValue)
-                    .font(Design.Typography.headline)
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("\(count) 棵树")
-                    .font(Design.Typography.subheadline)
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .font(.system(size: 15))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()

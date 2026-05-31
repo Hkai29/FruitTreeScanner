@@ -1,0 +1,19 @@
+\section{Introduction}
+
+\subsection{Background}
+Fruit cultivation constitutes a major component of agricultural production worldwide. Accurate yield estimation enables farmers to optimize harvest scheduling, allocate labor resources efficiently, plan storage and logistics operations, and make informed market pricing decisions~\citep{Maheswari_2021}. In precision agriculture, timely and accurate yield information is fundamental to data-driven orchard management.
+
+Traditional yield estimation methods primarily rely on manual visual assessment and statistical sampling. These approaches are labor-intensive, time-consuming, and subject to significant estimation errors. Studies have documented that manual estimation errors typically range from 30\% to 50\%, primarily due to variations in individual observer experience, sampling bias, and systematic underestimation of occluded fruits that are not visible from a given viewpoint~\citep{Sa_2016}. The reliance on subjective human judgment creates inherent uncertainties that propagate through harvest planning and market forecasting.
+
+\subsection{Consumer-Grade LiDAR Technology}
+The introduction of solid-state LiDAR sensors in consumer electronics represents a significant technological advancement. Apple incorporated a LiDAR sensor in the iPad Pro in 2020, later extending this capability to the iPhone 12 Pro and subsequent generations. This sensor utilizes indirect time-of-flight (iToF) technology, measuring the phase difference between emitted modulated infrared laser pulses and their reflected signals to calculate depth information.
+
+The technical characteristics of consumer-grade LiDAR sensors include an effective range of approximately 0.1 to 5.0 meters, point cloud output of around 30,000 points per frame at 60 FPS, and depth accuracy of approximately $\pm$5mm at 3-meter distance. The integration of LiDAR with RGB cameras and inertial measurement units (IMU) enables synchronized colored point cloud generation, while the devices are available at price points ranging from \$700 to \$1,500 USD, substantially lower than professional terrestrial laser scanning (TLS) systems that cost tens of thousands of dollars.
+
+\subsection{Research Motivation and Objectives}
+While consumer-grade LiDAR has found applications in building scanning, interior design, and augmented reality, its utilization for agricultural yield estimation remains an emerging research direction. Existing LiDAR-based fruit detection research predominantly employs expensive professional-grade equipment, and systematic evaluations of consumer-grade LiDAR feasibility in orchard environments are scarce in the literature.
+
+This study aims to address this gap by designing and implementing a complete fruit detection and yield estimation system using consumer-grade LiDAR devices. The specific objectives are: (1) to evaluate the technical feasibility of consumer-grade LiDAR in orchard environments; (2) to design and implement a multi-modal fusion system combining 2D visual detection with 3D point cloud processing; (3) to identify system limitations and propose improvement directions; and (4) to provide a framework and baseline for subsequent field experiments with real orchard data.
+
+\subsection{Paper Organization}
+The remainder of this paper is organized as follows. Section~\ref{sec:related_work} reviews related work on fruit detection methods, point cloud clustering algorithms, and multi-modal fusion approaches. Section~\ref{sec:methodology} presents the system architecture and detailed algorithm design. Section~\ref{sec:experiments} describes the experimental setup and preliminary results. Section~\ref{sec:conclusion} discusses system limitations and future work.

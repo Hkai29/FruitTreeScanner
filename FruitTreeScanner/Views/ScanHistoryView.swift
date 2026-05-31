@@ -6,11 +6,13 @@ import SwiftUI
 struct ScanHistoryView: View {
     var customTitle: String = "扫描历史"
     @ObservedObject var historyStore = ScanHistoryStore.shared
-    @StateObject private var tagStore = TagStore.shared
+    @ObservedObject private var tagStore = TagStore.shared
     @State private var selectedPlotId: UUID?
     @State private var selectedStatus: ScanStatus?
     @State private var shareItems: [Any] = []
     @State private var showShareSheet = false
+    @State private var selectedPointCloudURL: URL?
+    @State private var showPointCloud = false
 
     var body: some View {
         ZStack {
@@ -42,7 +44,10 @@ struct ScanHistoryView: View {
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             ForEach(filteredScans) { record in
-                                HistoryCard(record: record, onShare: {
+                                HistoryCard(record: record, onPreview: {
+                                    selectedPointCloudURL = record.fileURL
+                                    showPointCloud = true
+                                }, onShare: {
                                     shareItems = [record.fileURL]
                                     showShareSheet = true
                                 }, onDelete: {
@@ -63,8 +68,7 @@ struct ScanHistoryView: View {
                 if !historyStore.scanFiles.isEmpty {
                     Menu {
                         Button(role: .destructive) {
-                            let filesToDelete = historyStore.scanFiles
-                            filesToDelete.forEach { historyStore.deleteRecord($0) }
+                            historyStore.deleteRecords(historyStore.scanFiles)
                         } label: {
                             Label("清空全部", systemImage: "trash")
                         }
@@ -79,6 +83,9 @@ struct ScanHistoryView: View {
         .refreshable { historyStore.loadRecords() }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
+        }
+        .sheet(isPresented: $showPointCloud) {
+            PointCloudSheet(initialFileURL: selectedPointCloudURL)
         }
     }
 
@@ -127,6 +134,7 @@ struct ScanHistoryView: View {
 // MARK: - 历史记录卡片
 struct HistoryCard: View {
     let record: ScanFileRecord
+    let onPreview: () -> Void
     let onShare: () -> Void
     let onDelete: () -> Void
 
@@ -180,17 +188,29 @@ struct HistoryCard: View {
 
             // 操作按钮
             HStack(spacing: 12) {
+                Button(action: onPreview) {
+                    Image(systemName: "eye")
+                        .font(.system(size: 18))
+                        .foregroundColor(Design.Colors.harvest)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("预览点云")
+
                 Button(action: onShare) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 18))
                         .foregroundColor(Design.Colors.Dark.info)
+                        .frame(width: 44, height: 44)
                 }
+                .accessibilityLabel("分享点云")
 
                 Button(action: onDelete) {
                     Image(systemName: "trash")
                         .font(.system(size: 18))
                         .foregroundColor(Design.Colors.error)
+                        .frame(width: 44, height: 44)
                 }
+                .accessibilityLabel("删除扫描记录")
             }
         }
         .padding(16)
@@ -203,16 +223,19 @@ struct HistoryCard: View {
     }
 
     private var fileSize: String {
-        guard let attr = try? FileManager.default.attributesOfItem(atPath: record.fileURL.path),
-              let size = attr[.size] as? Int else { return "未知" }
-        let mb = Double(size) / 1_048_576
+        guard record.fileSizeBytes > 0 else { return "未知" }
+        let mb = Double(record.fileSizeBytes) / 1_048_576
         return String(format: "%.1f MB", mb)
     }
 
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
     private var dateString: String {
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: record.scanDate)
+        Self.dateFormatter.string(from: record.scanDate)
     }
 }
 

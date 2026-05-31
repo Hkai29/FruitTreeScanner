@@ -32,62 +32,63 @@ struct CalibrationRecord: Codable, Identifiable {
     }
 }
 
-// MARK: - 校准参数
-
-struct CalibrationParams {
-    var minClusterPoints: Int = 70      // 最小聚类点数
-    var maxClusterVolume: Float = 0.001  // 最大聚类体积 (m³)
-    var minSphericity: Float = 0.46      // 最小球形度
-
-    // HSV 阈值调整
-    var hsvHMin: Float = 330            // 色调最小值
-    var hsvHMax: Float = 25             // 色调最大值
-    var hsvSMin: Float = 0.3            // 饱和度最小值
-    var hsvVMin: Float = 0.3            // 明度最小值
-}
-
 // MARK: - 校准视图
 
 struct CalibrationView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var calibrationRecords: [CalibrationRecord] = []
     @State private var showAddRecord = false
+    @State private var recordPendingDeletion: CalibrationRecord?
+    @State private var recordsTask: Task<Void, Never>?
     @State private var maxDiameter: Double = SettingsStore.shared.clusterMaxDiameter
     @State private var minClusterPoints: Double = Double(SettingsStore.shared.clusterMinPoints)
     @State private var sphericity: Double = SettingsStore.shared.sphericityThreshold
 
+    private var activeFruitCategory: FruitCategory {
+        FruitCategory(rawValue: SettingsStore.shared.fruitType) ?? .apple
+    }
+
     var body: some View {
-        ZStack {
-            Design.Colors.Dark.bgDeep
-                .ignoresSafeArea()
+        NavigationStack {
+            ZStack {
+                Design.Colors.Dark.bgDeep
+                    .ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: Design.Space.lg) {
-                    // 参数调整卡片
-                    paramsCard
+                ScrollView {
+                    VStack(spacing: Design.Space.lg) {
+                        // 参数调整卡片
+                        paramsCard
 
-                    // 误差统计
-                    statisticsCard
+                        // 误差统计
+                        statisticsCard
 
-                    // 校准记录列表
-                    recordsSection
+                        // 校准记录列表
+                        recordsSection
+                    }
+                    .padding(Design.Space.lg)
                 }
-                .padding(Design.Space.lg)
             }
-        }
-        .preferredColorScheme(.dark)
-        .overlay(FingerGlowOverlay())
-        .navigationTitle("算法校准")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showAddRecord = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(Design.Colors.Dark.glow)
+            .preferredColorScheme(.dark)
+            .navigationTitle("算法校准")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showAddRecord = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(Design.Colors.Dark.glow)
+                    }
+                    .accessibilityLabel("添加校准记录")
                 }
             }
         }
@@ -97,11 +98,26 @@ struct CalibrationView: View {
                 saveRecords()
             }
         }
+        .alert("删除校准记录", isPresented: deleteAlertBinding) {
+            Button("取消", role: .cancel) {
+                recordPendingDeletion = nil
+            }
+            Button("删除", role: .destructive) {
+                deletePendingRecord()
+            }
+        } message: {
+            Text("这条校准记录会从本机移除，扫描原始记录不会被删除。")
+        }
         .onAppear {
             loadRecords()
-            maxDiameter = SettingsStore.shared.clusterMaxDiameter
+            let params = FruitParametersStore.shared.param(for: activeFruitCategory)
+            maxDiameter = Double(params.diamMax)
             minClusterPoints = Double(SettingsStore.shared.clusterMinPoints)
-            sphericity = SettingsStore.shared.sphericityThreshold
+            sphericity = Double(params.sphericityThreshold)
+        }
+        .onDisappear {
+            recordsTask?.cancel()
+            recordsTask = nil
         }
     }
 
@@ -155,6 +171,13 @@ struct CalibrationView: View {
                 Slider(value: $maxDiameter, in: 0.04...0.20, step: 0.005)
                     .tint(Design.Colors.Dark.glow)
                     .onChange(of: maxDiameter) { newValue in
+                        let category = activeFruitCategory
+                        FruitParametersStore.shared.updateParam(for: category) { params in
+                            params.diamMax = Float(newValue)
+                            if params.diamMin > params.diamMax {
+                                params.diamMin = params.diamMax
+                            }
+                        }
                         SettingsStore.shared.clusterMaxDiameter = newValue
                     }
             }
@@ -173,6 +196,10 @@ struct CalibrationView: View {
                 Slider(value: $sphericity, in: 0.2...0.8, step: 0.02)
                     .tint(Design.Colors.Dark.glow)
                     .onChange(of: sphericity) { newValue in
+                        let category = activeFruitCategory
+                        FruitParametersStore.shared.updateParam(for: category) { params in
+                            params.sphericityThreshold = Float(newValue)
+                        }
                         SettingsStore.shared.sphericityThreshold = newValue
                     }
             }
@@ -302,7 +329,10 @@ struct CalibrationView: View {
                 .padding(.vertical, Design.Space.xl)
             } else {
                 ForEach(calibrationRecords) { record in
-                    CalibrationRecordRow(record: record)
+                    CalibrationRecordRow(
+                        record: record,
+                        onDelete: { recordPendingDeletion = record }
+                    )
                 }
             }
         }
@@ -324,18 +354,63 @@ struct CalibrationView: View {
     }
 
     private func loadRecords() {
-        let url = getDocumentsDirectory().appendingPathComponent("calibration_records.json")
-        guard let data = try? Data(contentsOf: url),
-              let records = try? JSONDecoder().decode([CalibrationRecord].self, from: data) else {
-            return
+        recordsTask?.cancel()
+        let url = Self.recordsURL()
+        recordsTask = Task.detached(priority: .utility) {
+            do {
+                let data = try Data(contentsOf: url)
+                let records = try JSONDecoder().decode([CalibrationRecord].self, from: data)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self.calibrationRecords = records
+                }
+            } catch CocoaError.fileReadNoSuchFile {
+                await MainActor.run {
+                    self.calibrationRecords = []
+                }
+            } catch {
+                #if DEBUG
+                print("[Calibration] Failed to load records: \(error)")
+                #endif
+            }
         }
-        calibrationRecords = records
     }
 
     private func saveRecords() {
-        let url = getDocumentsDirectory().appendingPathComponent("calibration_records.json")
-        guard let data = try? JSONEncoder().encode(calibrationRecords) else { return }
-        try? data.write(to: url)
+        let records = calibrationRecords
+        let url = Self.recordsURL()
+        Task.detached(priority: .utility) {
+            do {
+                let data = try JSONEncoder().encode(records)
+                try data.write(to: url, options: .atomic)
+            } catch {
+                #if DEBUG
+                print("[Calibration] Failed to save records: \(error)")
+                #endif
+            }
+        }
+    }
+
+    private static func recordsURL() -> URL {
+        getDocumentsDirectory().appendingPathComponent("calibration_records.json")
+    }
+
+    private var deleteAlertBinding: Binding<Bool> {
+        Binding(
+            get: { recordPendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    recordPendingDeletion = nil
+                }
+            }
+        )
+    }
+
+    private func deletePendingRecord() {
+        guard let record = recordPendingDeletion else { return }
+        calibrationRecords.removeAll { $0.id == record.id }
+        recordPendingDeletion = nil
+        saveRecords()
     }
 }
 
@@ -364,6 +439,7 @@ struct StatBox: View {
 
 struct CalibrationRecordRow: View {
     let record: CalibrationRecord
+    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.sm) {
@@ -423,6 +499,17 @@ struct CalibrationRecordRow: View {
                 if let yieldError = record.yieldError {
                     ErrorBadge(label: "产量", error: yieldError)
                 }
+
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Design.Colors.Dark.error)
+                        .frame(width: 32, height: 32)
+                        .background(Design.Colors.Dark.error.opacity(0.1))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("删除校准记录")
             }
         }
         .padding(Design.Space.md)
@@ -473,6 +560,7 @@ struct ErrorBadge: View {
 
 struct AddCalibrationRecordView: View {
     @Environment(\.dismiss) var dismiss
+    @ObservedObject private var historyStore = ScanHistoryStore.shared
 
     let onSave: (CalibrationRecord) -> Void
 
@@ -481,16 +569,54 @@ struct AddCalibrationRecordView: View {
     @State private var estimatedYieldKg = ""
     @State private var manualFruitCount = ""
     @State private var actualYieldKg = ""
-    @State private var selectedFruitType = FruitType.appleRed
+    @State private var selectedFruitCategory: FruitCategory = .apple
+    @State private var scanDate = Date()
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Design.Colors.Dark.bgDeep
                     .ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: Design.Space.lg) {
+                        if !historyStore.scanFiles.isEmpty {
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: Design.Space.md) {
+                                    Text("从扫描记录带入")
+                                        .font(Design.Typography.subheadlineMedium)
+                                        .foregroundColor(Design.Colors.Dark.textSecondary)
+
+                                    Menu {
+                                        ForEach(historyStore.scanFiles.prefix(12)) { record in
+                                            Button {
+                                                applyScanRecord(record)
+                                            } label: {
+                                                Text("\(record.treeID) · \(record.fruitCount) 个 · \(String(format: "%.1f kg", record.yieldKg))")
+                                            }
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "clock.arrow.circlepath")
+                                            Text("选择最近扫描")
+                                            Spacer()
+                                            Image(systemName: "chevron.down")
+                                                .font(.system(size: 12, weight: .semibold))
+                                        }
+                                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                                        .padding(.horizontal, Design.Space.md)
+                                        .padding(.vertical, Design.Space.sm)
+                                        .background(Design.Colors.Dark.bgElevated)
+                                        .cornerRadius(Design.Radius.small)
+                                    }
+
+                                    Text("会自动填入树编号、估算果数、估算产量和扫描日期。")
+                                        .font(Design.Typography.caption)
+                                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                                }
+                            }
+                        }
+
                         // 基本信息
                         GroupBox {
                             VStack(alignment: .leading, spacing: Design.Space.md) {
@@ -500,10 +626,12 @@ struct AddCalibrationRecordView: View {
 
                                 TextField("树木编号 (如 T001)", text: $treeID)
                                     .textFieldStyle(.roundedBorder)
+                                    .textInputAutocapitalization(.characters)
+                                    .autocorrectionDisabled(true)
 
-                                Picker("水果类型", selection: $selectedFruitType) {
-                                    ForEach(FruitType.allCases, id: \.self) { type in
-                                        Text(type.rawValue).tag(type)
+                                Picker("水果类型", selection: $selectedFruitCategory) {
+                                    ForEach(FruitCategory.allCases, id: \.self) { cat in
+                                        Text(cat.displayName).tag(cat)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -583,22 +711,44 @@ struct AddCalibrationRecordView: View {
                     Button("保存") {
                         saveRecord()
                     }
-                    .disabled(treeID.isEmpty || estimatedFruitCount.isEmpty)
+                    .disabled(!canSave)
                 }
             }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            historyStore.loadRecords()
+        }
+    }
+
+    private var canSave: Bool {
+        !treeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        Int(estimatedFruitCount) != nil
+    }
+
+    private func applyScanRecord(_ record: ScanFileRecord) {
+        treeID = record.treeID
+        estimatedFruitCount = "\(record.fruitCount)"
+        estimatedYieldKg = String(format: "%.2f", record.yieldKg)
+        scanDate = record.scanDate
+        if let category = FruitCategory(rawValue: record.fruitType) {
+            selectedFruitCategory = category
+        } else if let category = FruitCategory.allCases.first(where: { $0.displayName == record.fruitType }) {
+            selectedFruitCategory = category
         }
     }
 
     private func saveRecord() {
+        let normalizedTreeID = treeID.trimmingCharacters(in: .whitespacesAndNewlines)
         let record = CalibrationRecord(
             id: UUID(),
-            treeID: treeID,
-            scanDate: Date(),
+            treeID: normalizedTreeID,
+            scanDate: scanDate,
             estimatedFruitCount: Int(estimatedFruitCount) ?? 0,
             manualFruitCount: Int(manualFruitCount),
             estimatedYieldKg: Double(estimatedYieldKg) ?? 0,
             actualYieldKg: Double(actualYieldKg),
-            fruitType: selectedFruitType.rawValue
+            fruitType: selectedFruitCategory.displayName
         )
         onSave(record)
         dismiss()

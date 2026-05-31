@@ -17,10 +17,14 @@ final class Renderer: NSObject {
     public var isRecording = false {
         didSet {
             if isRecording {
-                // 开始新扫描时清空区域记录
                 scannedRegions.removeAll()
                 currentPointIndex = 0
                 currentPointCount = 0
+                coverageVoxels.removeAll()
+                scanStartTime = Date()
+                voxelDiscoveryHistory.removeAll()
+                lastVoxelCount = 0
+                lastDiscoveryCheckTime = Date()
             }
         }
     }
@@ -29,20 +33,84 @@ final class Renderer: NSObject {
     public var currentFrameIndex = 0
     public weak var delegate: TaskDelegate?
 
+    // MARK: - 扫描时长和完成度追踪
+    public private(set) var scanStartTime: Date = Date()
+    public var scanDuration: TimeInterval { Date().timeIntervalSince(scanStartTime) }
+    private var voxelDiscoveryHistory: [Int] = []
+    private var lastVoxelCount: Int = 0
+    private var lastDiscoveryCheckTime: Date = Date()
+    private let discoveryCheckInterval: TimeInterval = 1.0
+    public var voxelDiscoveryRate: Float {
+        guard !voxelDiscoveryHistory.isEmpty else { return 0 }
+        let sum = voxelDiscoveryHistory.reduce(0, +)
+        return Float(sum) / Float(voxelDiscoveryHistory.count)
+    }
+    public var voxelDiscoveryTrend: VoxelDiscoveryTrend {
+        guard voxelDiscoveryHistory.count >= 3 else { return .collecting }
+        let recent = Array(voxelDiscoveryHistory.suffix(3))
+        let avgRecent = recent.reduce(0, +) / 3
+        let avgAll = voxelDiscoveryHistory.reduce(0, +) / voxelDiscoveryHistory.count
+        if avgRecent < 5 { return .stable }
+        if Float(avgRecent) < Float(avgAll) * 0.5 { return .decreasing }
+        return .increasing
+    }
+
     // MARK: - 关键改动：maxPoints 从 50万 → 200万（果树点云更大）
     // 原始：private let maxPoints = 500_000
     // 注意：实际点数上限由 SettingsStore.shared.maxPointCount 控制
-    private var maxPoints: Int { SettingsStore.shared.maxPointCount }
+    private var maxPoints: Int = 1000000
+
+    @MainActor
+    func updateMaxPointsFromSettings() {
+        maxPoints = min(SettingsStore.shared.maxPointCount, particlesBuffer.count)
+        pointCloudUniforms.maxPoints = Int32(maxPoints)
+    }
+
+    @MainActor
+    func applyScanQualitySettings() {
+        let store = SettingsStore.shared
+        updateMaxPointsFromSettings()
+        rgbRadius = Float(store.rgbRadius)
+        minDepth = Float(store.depthRangeMin)
+        maxDepth = Float(store.depthRangeMax)
+        snapshotVoxelSize = Self.exportVoxelSize(
+            scanPrecision: Float(store.scanPrecision),
+            qualityPreset: store.qualityPreset
+        )
+
+        switch store.qualityPreset {
+        case "高":
+            confidenceThreshold = max(store.confidenceThreshold, 2)
+            depthEdgeThreshold = 0.08
+        case "低":
+            confidenceThreshold = max(store.confidenceThreshold, 1)
+            depthEdgeThreshold = 0.16
+        default:
+            confidenceThreshold = max(store.confidenceThreshold, 1)
+            depthEdgeThreshold = 0.12
+        }
+    }
+
+    private static func exportVoxelSize(scanPrecision: Float, qualityPreset: String) -> Float {
+        let clamped = min(max(scanPrecision, 0.001), 0.05)
+        switch qualityPreset {
+        case "高":
+            return max(clamped * 0.7, 0.001)
+        case "低":
+            return min(clamped * 1.5, 0.06)
+        default:
+            return clamped
+        }
+    }
 
     // MARK: - 私有属性（原始不改动）
-    private let numGridPoints = 500
+    private let numGridPoints = 1_000
     private let particleSize: Float = 10
-    private let orientation = UIInterfaceOrientation.landscapeRight
+    private var orientation = UIInterfaceOrientation.portrait
     private let cameraRotationThreshold = cos(2 * Float.degreesToRadian)
     private let cameraTranslationThreshold: Float = pow(0.02, 2)
     private let maxInFlightBuffers = 3
 
-    private lazy var rotateToARCamera = Self.makeRotateToARCameraMatrix(orientation: orientation)
     private let session: ARSession
     private let device: MTLDevice
     private let library: MTLLibrary
@@ -62,11 +130,15 @@ final class Renderer: NSObject {
     private let inFlightSemaphore: DispatchSemaphore
     private var currentBufferIndex = 0
     private var viewportSize = CGSize()
-    private lazy var gridPointsBuffer = MetalBuffer<Float2>(device: device,
-                                                            array: makeGridPoints(),
-                                                            index: kGridPoints.rawValue, options: [])
-    private lazy var viewToCameraMatrix: matrix_float3x3 = {
-        let t = viewToCamera
+    private lazy var gridPointsBuffer = MetalBuffer<Float2>(
+        device: device,
+        array: makeGridPoints(),
+        index: kGridPoints.rawValue,
+        options: []
+    )
+
+    private func makeViewToCameraMatrix(frame: ARFrame) -> matrix_float3x3 {
+        let t = frame.displayTransform(for: orientation, viewportSize: viewportSize).inverted()
         let a = Float(t.a)
         let b = Float(t.b)
         let c = Float(t.c)
@@ -78,13 +150,13 @@ final class Renderer: NSObject {
         result[1] = simd_float3(c, d, 0)
         result[2] = simd_float3(tx, ty, 1)
         return result
-    }()
+    }
 
     private lazy var rgbUniforms: RGBUniforms = {
         var u = RGBUniforms()
         u.radius = rgbRadius
-        u.viewToCamera = viewToCameraMatrix
-        u.viewRatio = Float(viewportSize.width / viewportSize.height)
+        u.viewToCamera = matrix_identity_float3x3
+        u.viewRatio = 1
         return u
     }()
     private var rgbUniformsBuffers = [MetalBuffer<RGBUniforms>]()
@@ -96,6 +168,7 @@ final class Renderer: NSObject {
         u.cameraResolution = cameraResolution
         u.minDepth = minDepth
         u.maxDepth = maxDepth
+        u.depthEdgeThreshold = depthEdgeThreshold
         return u
     }()
     private var pointCloudUniformsBuffers = [MetalBuffer<PointCloudUniforms>]()
@@ -103,25 +176,60 @@ final class Renderer: NSObject {
     private var currentPointIndex = 0
     private var currentPointCount = 0
 
+    private let snapshotLock = NSLock()
+    private var snapshotPoints: [ColoredPoint] = []
+    private var fullAnalysisSnapshotSignature: SnapshotSignature?
+    private var lastSnapshotUpdateTime = Date.distantPast
+    private let baseSnapshotUpdateInterval: TimeInterval = 0.9
+    private let liveSnapshotInputSampleLimit = 240_000
+
+    private struct SnapshotSignature: Equatable {
+        let pointCount: Int
+        let pointIndex: Int
+        let voxelSize: Float
+        let confidenceThreshold: Int
+    }
+
+    private struct PointSample {
+        let position: SIMD3<Float>
+        let color: SIMD3<Float>
+        let confidence: Float
+    }
+
+    private struct VoxelKey: Hashable {
+        let x: Int
+        let y: Int
+        let z: Int
+    }
+
+    private struct CameraRegionKey: Hashable {
+        let x: Int
+        let y: Int
+        let z: Int
+        let forwardX: Int
+        let forwardY: Int
+        let forwardZ: Int
+    }
+
     // MARK: - 体素网格去重（避免重复扫描）
-    private let voxelSize: Float = 0.1  // 10cm 体素
-    private var occupiedVoxels: Set<String> = []
-    private var scannedRegions: Set<String> = []  // 已扫描的区域（相机位置离散化）
-    private let minDepth: Float = 0.5   // 0.5m
-    private let maxDepth: Float = 5.0   // 5.0m
+    private var scannedRegions: Set<CameraRegionKey> = []  // 已扫描的区域（相机位置离散化）
+    private var coverageVoxels: Set<VoxelKey> = []   // 实际深度点覆盖的世界空间体素
+    private let coverageVoxelSize: Float = 0.1    // 10cm 覆盖体素
+    private var minDepth: Float = 0.5 {
+        didSet { pointCloudUniforms.minDepth = minDepth }
+    }
+    private var maxDepth: Float = 5.0 {
+        didSet { pointCloudUniforms.maxDepth = maxDepth }
+    }
+    private var depthEdgeThreshold: Float = 0.10 {
+        didSet { pointCloudUniforms.depthEdgeThreshold = depthEdgeThreshold }
+    }
+    private var snapshotVoxelSize: Float = 0.015
     private var sampleFrame: ARFrame? {
         guard hasReceivedFirstFrame, let frame = session.currentFrame else { return nil }
         return frame
     }
-    private lazy var cameraResolution: Float2 = {
-        guard let frame = sampleFrame else { return Float2(1920, 1080) }
-        return Float2(Float(frame.camera.imageResolution.width),
-                      Float(frame.camera.imageResolution.height))
-    }()
-    private lazy var viewToCamera: CGAffineTransform = {
-        guard let frame = sampleFrame else { return .identity }
-        return frame.displayTransform(for: orientation, viewportSize: viewportSize).inverted()
-    }()
+    private var cameraResolution = Float2(1920, 1080)
     private lazy var lastCameraTransform: simd_float4x4 = {
         guard let frame = sampleFrame else { return matrix_identity_float4x4 }
         return frame.camera.transform
@@ -140,6 +248,7 @@ final class Renderer: NSObject {
         self.session = session
         self.device = device
         self.renderDestination = renderDestination
+        maxPoints = SettingsStore.shared.maxPointCount
         // super.init() must be LAST: all let properties must be initialized before super.init()
         library = device.makeDefaultLibrary()!
         commandQueue = device.makeCommandQueue()!
@@ -158,23 +267,266 @@ final class Renderer: NSObject {
         super.init()
     }
 
-    func drawRectResized(size: CGSize) { viewportSize = size }
+    func drawRectResized(size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        viewportSize = size
+        updateOrientation()
+        rgbUniforms.viewRatio = Float(size.width / max(size.height, 1))
+    }
 
     // MARK: - 当前点数（供 UI 显示）
     var currentPointCountPublic: Int { currentPointCount }
     var scannedRegionCountPublic: Int { scannedRegions.count }
+    var coverageVoxelCount: Int { coverageVoxels.count }
+    var voxelDiscoveryTrendPublic: VoxelDiscoveryTrend { voxelDiscoveryTrend }
+    var voxelDiscoveryRatePublic: Float { voxelDiscoveryRate }
+
+    // MARK: - 点云射线求交（测量功能）
+    struct HitResult {
+        let worldPosition: SIMD3<Float>
+        let distance: Float
+    }
+
+    func hitTest(
+        viewPoint: CGPoint,
+        viewportSize: CGSize,
+        viewMatrix: simd_float4x4,
+        maxSamples: Int = 80_000
+    ) -> HitResult? {
+        let count = currentPointCount
+        guard count > 0 else { return nil }
+
+        let aspect: Float = Float(viewportSize.width / max(viewportSize.height, 1))
+        let ndcX: Float = Float((viewPoint.x / viewportSize.width) * 2 - 1)
+        let ndcY: Float = Float(1 - (viewPoint.y / viewportSize.height) * 2)
+        let tanHalfFov: Float = Darwin.tan(Swift.Float.pi / 6)
+
+        let localX = ndcX * tanHalfFov * aspect
+        let localY = ndcY * tanHalfFov
+
+        let localDir = simd_normalize(simd_float3(localX, localY, -1))
+        let viewInverse = viewMatrix.inverse
+        let worldDir4 = viewInverse * SIMD4<Float>(localDir.x, localDir.y, localDir.z, 0)
+        let worldDir = simd_normalize(simd_float3(worldDir4.x, worldDir4.y, worldDir4.z))
+        let worldOrigin = simd_float3(
+            viewInverse.columns.3.x,
+            viewInverse.columns.3.y,
+            viewInverse.columns.3.z
+        )
+
+        var closestHit: HitResult?
+        var closestDist2: Float = .infinity
+
+        let maxDist: Float = 10.0
+        let currentIdx = currentPointIndex
+        let maxPts = maxPoints
+        let clampedMaxSamples = max(maxSamples, 1)
+        let sampleStep = max((count + clampedMaxSamples - 1) / clampedMaxSamples, 1)
+        let hitRadius: Float = count > clampedMaxSamples ? 0.04 : 0.03
+
+        var i = 0
+        while i < count {
+            let bufferIndex = (currentIdx - count + i + maxPts) % maxPts
+            let p = particlesBuffer[bufferIndex]
+            defer { i += sampleStep }
+            guard isExportableParticle(p) else { continue }
+
+            let toPoint = p.position - worldOrigin
+            let t = simd_dot(toPoint, worldDir)
+            guard t > 0 && t < maxDist else { continue }
+
+            let closest = worldOrigin + worldDir * t
+            let diff = p.position - closest
+            let dist2 = simd_length_squared(diff)
+            if dist2 < hitRadius * hitRadius && dist2 < closestDist2 {
+                closestDist2 = dist2
+                closestHit = HitResult(worldPosition: p.position, distance: t)
+            }
+        }
+
+        return closestHit
+    }
+
+    func getSnapshotPoints() -> [ColoredPoint] {
+        snapshotLock.lock()
+        defer { snapshotLock.unlock() }
+        return snapshotPoints
+    }
+
+    func makeAnalysisPoints() -> [ColoredPoint] {
+        let signature = currentSnapshotSignature()
+        if let cachedPoints = cachedAnalysisPoints(for: signature) {
+            return cachedPoints
+        }
+
+        let samples = makeFilteredPointSamples(voxelSize: snapshotVoxelSize)
+        let pts = makeColoredPoints(from: samples)
+        storeSnapshot(points: pts, fullSignature: signature)
+
+        return pts
+    }
+
+    var exportablePointCountPublic: Int {
+        snapshotLock.lock()
+        defer { snapshotLock.unlock() }
+        return snapshotPoints.count
+    }
+
+    struct CameraMatrices {
+        let projectionMatrix: simd_float4x4
+        let viewMatrix: simd_float4x4
+        let viewportSize: CGSize
+    }
+
+    func getCameraMatrices() -> CameraMatrices? {
+        guard let frame = session.currentFrame else { return nil }
+        updateOrientation()
+        let projMatrix = frame.camera.projectionMatrix(for: orientation, viewportSize: viewportSize, zNear: 0.001, zFar: 0)
+        let viewMatrix = frame.camera.viewMatrix(for: orientation)
+        return CameraMatrices(projectionMatrix: projMatrix, viewMatrix: viewMatrix, viewportSize: viewportSize)
+    }
+
+    private func updateSnapshot() {
+        let now = Date()
+        guard now.timeIntervalSince(lastSnapshotUpdateTime) >= currentSnapshotUpdateInterval else { return }
+        lastSnapshotUpdateTime = now
+
+        let samples = makeFilteredPointSamples(
+            voxelSize: snapshotVoxelSize,
+            inputSampleLimit: liveSnapshotInputSampleLimit
+        )
+        guard !samples.isEmpty else { return }
+
+        let pts = makeColoredPoints(from: samples)
+        storeSnapshot(points: pts, fullSignature: nil)
+    }
+
+    private func cachedAnalysisPoints(for signature: SnapshotSignature) -> [ColoredPoint]? {
+        snapshotLock.lock()
+        defer { snapshotLock.unlock() }
+        guard fullAnalysisSnapshotSignature == signature else { return nil }
+        return snapshotPoints
+    }
+
+    private func currentSnapshotSignature() -> SnapshotSignature {
+        SnapshotSignature(
+            pointCount: currentPointCount,
+            pointIndex: currentPointIndex,
+            voxelSize: snapshotVoxelSize,
+            confidenceThreshold: confidenceThreshold
+        )
+    }
+
+    private func makeColoredPoints(from samples: [PointSample]) -> [ColoredPoint] {
+        samples.map {
+            ColoredPoint(pos: $0.position, r: $0.color.x, g: $0.color.y, b: $0.color.z)
+        }
+    }
+
+    private func storeSnapshot(points: [ColoredPoint], fullSignature: SnapshotSignature?) {
+        snapshotLock.lock()
+        snapshotPoints = points
+        fullAnalysisSnapshotSignature = fullSignature
+        snapshotLock.unlock()
+    }
+
+    private var currentSnapshotUpdateInterval: TimeInterval {
+        switch currentPointCount {
+        case 0..<150_000:
+            return baseSnapshotUpdateInterval
+        case 150_000..<500_000:
+            return 1.5
+        default:
+            return 2.5
+        }
+    }
+
+    private func makeFilteredPointSamples(
+        voxelSize: Float,
+        inputSampleLimit: Int? = nil
+    ) -> [PointSample] {
+        let count = currentPointCount
+        guard count > 0 else { return [] }
+
+        let currentIdx = currentPointIndex
+        let maxPts = maxPoints
+        let sampleStep = inputSampleLimit.map { limit in
+            let clampedLimit = max(limit, 1)
+            return max((count + clampedLimit - 1) / clampedLimit, 1)
+        } ?? 1
+        var bestSamplesByVoxel: [VoxelKey: PointSample] = [:]
+        bestSamplesByVoxel.reserveCapacity(min(count / sampleStep, 200_000))
+
+        var i = 0
+        while i < count {
+            let bufferIndex = (currentIdx - count + i + maxPts) % maxPts
+            let particle = particlesBuffer[bufferIndex]
+            defer { i += sampleStep }
+            guard isExportableParticle(particle) else { continue }
+
+            let key = voxelKey(for: particle.position, size: voxelSize)
+            let sample = PointSample(
+                position: particle.position,
+                color: clampColor(particle.color),
+                confidence: particle.confidence
+            )
+            if let existing = bestSamplesByVoxel[key], existing.confidence >= sample.confidence {
+                continue
+            }
+            bestSamplesByVoxel[key] = sample
+        }
+
+        return Array(bestSamplesByVoxel.values)
+    }
+
+    private func isExportableParticle(_ particle: ParticleUniforms) -> Bool {
+        guard particle.confidence >= Float(confidenceThreshold) else { return false }
+        let position = particle.position
+        guard position.x.isFinite, position.y.isFinite, position.z.isFinite else { return false }
+        guard simd_length_squared(position) > 0.000001 else { return false }
+        let color = particle.color
+        return color.x.isFinite && color.y.isFinite && color.z.isFinite
+    }
+
+    private func voxelKey(for position: SIMD3<Float>, size: Float) -> VoxelKey {
+        let vx = Int(floor(position.x / size))
+        let vy = Int(floor(position.y / size))
+        let vz = Int(floor(position.z / size))
+        return VoxelKey(x: vx, y: vy, z: vz)
+    }
+
+    private func clampColor(_ color: SIMD3<Float>) -> SIMD3<Float> {
+        SIMD3<Float>(
+            min(max(color.x, 0), 1),
+            min(max(color.y, 0), 1),
+            min(max(color.z, 0), 1)
+        )
+    }
 
     // MARK: - Draw（原始不改动）
     func renderFrame() {
         guard let currentFrame = session.currentFrame,
               let renderDescriptor = renderDestination.currentRenderPassDescriptor,
-              let commandBuffer = commandQueue.makeCommandBuffer(),
-              let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderDescriptor)
+              let drawable = renderDestination.currentDrawable
         else { return }
 
-        _ = inFlightSemaphore.wait(timeout: .distantFuture)
+        guard inFlightSemaphore.wait(timeout: .now() + .milliseconds(16)) == .success else {
+            return
+        }
+
+        guard let commandBuffer = commandQueue.makeCommandBuffer(),
+              let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderDescriptor)
+        else {
+            inFlightSemaphore.signal()
+            return
+        }
+
         commandBuffer.addCompletedHandler { [weak self] _ in
-            self?.inFlightSemaphore.signal()
+            guard let self else { return }
+            self.inFlightSemaphore.signal()
+            if self.isRecording {
+                self.updateSnapshot()
+            }
         }
         update(frame: currentFrame)
         updateCapturedImageTextures(frame: currentFrame)
@@ -186,7 +538,7 @@ final class Renderer: NSObject {
                              renderEncoder: renderEncoder)
         }
 
-        if rgbUniforms.radius > 0 {
+        if rgbUniforms.radius > 0, let texY = capturedImageTextureY, let texCbCr = capturedImageTextureCbCr {
             var retaining = [capturedImageTextureY, capturedImageTextureCbCr]
             commandBuffer.addCompletedHandler { _ in retaining.removeAll() }
             rgbUniformsBuffers[currentBufferIndex][0] = rgbUniforms
@@ -194,9 +546,9 @@ final class Renderer: NSObject {
             renderEncoder.setRenderPipelineState(rgbPipelineState)
             renderEncoder.setVertexBuffer(rgbUniformsBuffers[currentBufferIndex])
             renderEncoder.setFragmentBuffer(rgbUniformsBuffers[currentBufferIndex])
-            renderEncoder.setFragmentTexture(CVMetalTextureGetTexture(capturedImageTextureY!),
+            renderEncoder.setFragmentTexture(CVMetalTextureGetTexture(texY),
                                              index: Int(kTextureY.rawValue))
-            renderEncoder.setFragmentTexture(CVMetalTextureGetTexture(capturedImageTextureCbCr!),
+            renderEncoder.setFragmentTexture(CVMetalTextureGetTexture(texCbCr),
                                              index: Int(kTextureCbCr.rawValue))
             renderEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         }
@@ -207,7 +559,7 @@ final class Renderer: NSObject {
         renderEncoder.setVertexBuffer(particlesBuffer)
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: currentPointCount)
         renderEncoder.endEncoding()
-        commandBuffer.present(renderDestination.currentDrawable!)
+        commandBuffer.present(drawable)
         commandBuffer.commit()
     }
 
@@ -220,23 +572,23 @@ final class Renderer: NSObject {
     func savePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
                         completion: @escaping (String?) -> Void = { _ in }) {
         delegate?.didStartTask()
-        // 原子性捕获 pointCount 和 currentIdx，避免二者不同步
-        let pointCount = currentPointCount
-        let currentIdx = currentPointIndex
-        // 同步深拷贝点云数据（环形缓冲区顺序），避免异步访问竞争和 GPU 覆写
-        var pointsCopy = [(position: SIMD3<Float>, color: SIMD3<Float>)]()
-        pointsCopy.reserveCapacity(pointCount)
-        for i in 0 ..< pointCount {
-            let bufferIndex = (currentIdx - pointCount + i + maxPoints) % maxPoints
-            let p = particlesBuffer[bufferIndex]
-            pointsCopy.append((p.position, p.color))
-        }
 
         Task(priority: .utility) {
+            let pointsCopy = makeFilteredPointSamples(voxelSize: snapshotVoxelSize)
+            guard !pointsCopy.isEmpty else {
+                await MainActor.run {
+                    self.delegate?.didFinishTask()
+                    completion(nil)
+                }
+                return
+            }
+            let analysisPoints = makeColoredPoints(from: pointsCopy)
+            let analysisSignature = currentSnapshotSignature()
+            storeSnapshot(points: analysisPoints, fullSignature: analysisSignature)
+
             do {
-                // ---- PLY Header（改动：加入果树元数据）----
                 let scanDate = getTimeStr()
-                var fileContent = ""
+                let pointCount = pointsCopy.count
                 let headers = [
                     "ply",
                     "format ascii 1.0",
@@ -255,19 +607,25 @@ final class Renderer: NSObject {
                     "property list uchar int vertex_indices",
                     "end_header"
                 ]
-                fileContent = headers.joined(separator: "\r\n") + "\r\n"
 
-                // ---- 点云数据（原始逻辑不变）----
-                for (position, color) in pointsCopy {
+                var data = Data()
+                data.reserveCapacity(pointCount * 35)
+                data.append(contentsOf: headers.joined(separator: "\r\n").utf8)
+                data.append(contentsOf: "\r\n".utf8)
+
+                for sample in pointsCopy {
+                    let position = sample.position
+                    let color = sample.color
                     let r = Int(color.x * 255.0)
                     let g = Int(color.y * 255.0)
                     let b = Int(color.z * 255.0)
-                    fileContent += "\(position.x) \(position.y) \(position.z) \(r) \(g) \(b)\r\n"
+                    let line = String(format: "%.4f %.4f %.4f %d %d %d\r\n",
+                                      position.x, position.y, position.z, r, g, b)
+                    data.append(contentsOf: line.utf8)
                 }
 
-                // ---- 文件命名（改动：规范格式）----
                 let filename = makeTreeFileName(treeID: treeID, lat: gpsLat, lon: gpsLon)
-                try await saveFile(content: fileContent, filename: filename,
+                try await saveFile(data: data, filename: filename,
                                    folder: self.currentFolder)
                 #if DEBUG
                 print("✅ PLY 保存成功: \(filename)，共 \(pointCount) 点")
@@ -287,13 +645,54 @@ final class Renderer: NSObject {
 
     private func update(frame: ARFrame) {
         hasReceivedFirstFrame = true
+        updateOrientation()
+        updateCameraResolutionIfNeeded(frame: frame)
+
         let camera = frame.camera
         let viewMatrix = camera.viewMatrix(for: orientation)
         let projMatrix = camera.projectionMatrix(for: orientation, viewportSize: viewportSize,
                                                  zNear: 0.001, zFar: 0)
         pointCloudUniforms.viewProjectionMatrix = projMatrix * viewMatrix
-        pointCloudUniforms.localToWorld = viewMatrix.inverse * rotateToARCamera
+        pointCloudUniforms.localToWorld = viewMatrix.inverse * Self.makeRotateToARCameraMatrix(orientation: orientation)
         pointCloudUniforms.cameraIntrinsicsInversed = camera.intrinsics.inverse
+        rgbUniforms.viewToCamera = makeViewToCameraMatrix(frame: frame)
+        rgbUniforms.viewRatio = Float(viewportSize.width / max(viewportSize.height, 1))
+    }
+
+    private func updateOrientation() {
+        let sceneOrientation = renderDestination.window?.windowScene?.interfaceOrientation
+        let nextOrientation: UIInterfaceOrientation
+
+        if let sceneOrientation, sceneOrientation != .unknown {
+            nextOrientation = sceneOrientation
+        } else if viewportSize.width > viewportSize.height {
+            nextOrientation = .landscapeRight
+        } else {
+            nextOrientation = .portrait
+        }
+
+        orientation = nextOrientation
+    }
+
+    private func updateCameraResolutionIfNeeded(frame: ARFrame) {
+        let nextResolution = Float2(
+            Float(frame.camera.imageResolution.width),
+            Float(frame.camera.imageResolution.height)
+        )
+
+        guard abs(nextResolution.x - cameraResolution.x) > 0.5 ||
+              abs(nextResolution.y - cameraResolution.y) > 0.5 else {
+            return
+        }
+
+        cameraResolution = nextResolution
+        pointCloudUniforms.cameraResolution = cameraResolution
+        gridPointsBuffer = MetalBuffer<Float2>(
+            device: device,
+            array: makeGridPoints(),
+            index: kGridPoints.rawValue,
+            options: []
+        )
     }
 
     private func updateCapturedImageTextures(frame: ARFrame) {
@@ -304,8 +703,9 @@ final class Renderer: NSObject {
     }
 
     private func updateDepthTextures(frame: ARFrame) -> Bool {
-        guard let depthMap = frame.sceneDepth?.depthMap,
-              let confidenceMap = frame.sceneDepth?.confidenceMap else { return false }
+        let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
+        guard let depthMap = depthData?.depthMap,
+              let confidenceMap = depthData?.confidenceMap else { return false }
         depthTexture = makeTexture(fromPixelBuffer: depthMap, pixelFormat: .r32Float, planeIndex: 0)
         confidenceTexture = makeTexture(fromPixelBuffer: confidenceMap, pixelFormat: .r8Uint, planeIndex: 0)
         return true
@@ -322,17 +722,14 @@ final class Renderer: NSObject {
 
         guard cameraMoved else { return false }
 
-        // 检查是否在有效深度范围内
-        guard let depthMap = frame.sceneDepth?.depthMap else { return false }
+        // 检查是否在有效深度范围内，并过滤低置信深度，避免消费级 LiDAR 的边缘噪声污染点云。
+        let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
+        guard let depthMap = depthData?.depthMap,
+              let confidenceMap = depthData?.confidenceMap else { return false }
 
-        // 采样中心点深度（果树目标：0.5m - 5.0m）
-        let depthWidth = CVPixelBufferGetWidth(depthMap)
-        let depthHeight = CVPixelBufferGetHeight(depthMap)
-        let centerX = depthWidth / 2
-        let centerY = depthHeight / 2
-
-        let centerDepth = sampleDepth(from: depthMap, x: centerX, y: centerY)
-        guard centerDepth >= minDepth && centerDepth <= maxDepth else { return false }
+        let depthQuality = sampleDepthQuality(from: depthMap, confidenceMap: confidenceMap)
+        guard depthQuality.validRatio >= minimumDepthQualityRatio else { return false }
+        guard depthQuality.medianDepth >= minDepth && depthQuality.medianDepth <= maxDepth else { return false }
 
         // 检查相机位置区域是否已扫描（避免回看已扫描区域）
         // 使用更细的 10cm 网格（原 20cm 太粗糙，导致扫描一棵树很快就填满）
@@ -349,41 +746,88 @@ final class Renderer: NSObject {
 
     /// 获取相机位置+朝向的区域键（离散化到 10cm 网格 + ~17° 朝向区间）
     /// 加入朝向维度后，站在同一位置旋转扫不同方向不会被误判为重复区域
-    private func getCameraRegionKey(frame: ARFrame) -> String {
+    private func getCameraRegionKey(frame: ARFrame) -> CameraRegionKey {
         let pos = frame.camera.transform.columns.3
         let forward = -frame.camera.transform.columns.2  // 相机前方向量
         let regionSize: Float = 0.1  // 10cm 网格
         let angleBin: Float = 0.3    // ~17° 朝向区间
-        let x = Int(floor(pos.x / regionSize))
-        let y = Int(floor(pos.y / regionSize))
-        let z = Int(floor(pos.z / regionSize))
-        let fx = Int(floor(forward.x / angleBin))
-        let fy = Int(floor(forward.y / angleBin))
-        let fz = Int(floor(forward.z / angleBin))
-        return "\(x),\(y),\(z),\(fx),\(fy),\(fz)"
+        return CameraRegionKey(
+            x: Int(floor(pos.x / regionSize)),
+            y: Int(floor(pos.y / regionSize)),
+            z: Int(floor(pos.z / regionSize)),
+            forwardX: Int(floor(forward.x / angleBin)),
+            forwardY: Int(floor(forward.y / angleBin)),
+            forwardZ: Int(floor(forward.z / angleBin))
+        )
     }
 
-    /// 从深度图采样单个点深度
-    private func sampleDepth(from depthMap: CVPixelBuffer, x: Int, y: Int) -> Float {
+    private var minimumDepthQualityRatio: Float {
+        confidenceThreshold >= 2 ? 0.22 : 0.30
+    }
+
+    private func sampleDepthQuality(
+        from depthMap: CVPixelBuffer,
+        confidenceMap: CVPixelBuffer
+    ) -> (validRatio: Float, medianDepth: Float) {
         let width = CVPixelBufferGetWidth(depthMap)
         let height = CVPixelBufferGetHeight(depthMap)
-        guard x >= 0 && x < width && y >= 0 && y < height else { return 0 }
+        guard width > 0, height > 0 else { return (0, 0) }
+        let confidenceWidth = CVPixelBufferGetWidth(confidenceMap)
+        let confidenceHeight = CVPixelBufferGetHeight(confidenceMap)
+        guard confidenceWidth > 0, confidenceHeight > 0 else { return (0, 0) }
 
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+        CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
+        defer {
+            CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly)
+            CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
+        }
 
-        guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else { return 0 }
+        guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap),
+              let confidenceBaseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else { return (0, 0) }
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
-
-        // ARKit sceneDepth 使用 Float32 格式
+        let stride = bytesPerRow / MemoryLayout<Float>.size
         let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
-        let depth = floatBuffer[y * (bytesPerRow / MemoryLayout<Float>.size) + x]
+        let confidenceBytesPerRow = CVPixelBufferGetBytesPerRow(confidenceMap)
+        let confidenceBuffer = confidenceBaseAddress.assumingMemoryBound(to: UInt8.self)
 
-        return depth
+        var validDepths: [Float] = []
+        let sampleCount = 49
+        validDepths.reserveCapacity(sampleCount)
+
+        for row in 0..<7 {
+            let ratioY = 0.18 + Float(row) * 0.106
+            let y = Int(Float(height - 1) * ratioY)
+            let confidenceY = min(Int(Float(confidenceHeight - 1) * ratioY), confidenceHeight - 1)
+            for col in 0..<7 {
+                let ratioX = 0.18 + Float(col) * 0.106
+                let x = Int(Float(width - 1) * ratioX)
+                let confidenceX = min(Int(Float(confidenceWidth - 1) * ratioX), confidenceWidth - 1)
+                let depth = floatBuffer[y * stride + x]
+                let confidence = confidenceBuffer[confidenceY * confidenceBytesPerRow + confidenceX]
+                if depth >= minDepth,
+                   depth <= maxDepth,
+                   depth.isFinite,
+                   confidence >= UInt8(confidenceThreshold) {
+                    validDepths.append(depth)
+                }
+            }
+        }
+
+        guard !validDepths.isEmpty else { return (0, 0) }
+        validDepths.sort()
+        let ratio = Float(validDepths.count) / Float(sampleCount)
+        let median = validDepths[validDepths.count / 2]
+        return (ratio, median)
     }
 
     private func accumulatePoints(frame: ARFrame, commandBuffer: MTLCommandBuffer,
                                   renderEncoder: MTLRenderCommandEncoder) {
+        guard let texY = capturedImageTextureY,
+              let texCbCr = capturedImageTextureCbCr,
+              let texDepth = depthTexture,
+              let texConf = confidenceTexture else { return }
+
         pointCloudUniforms.pointCloudCurrentIndex = Int32(currentPointIndex)
         var retaining = [capturedImageTextureY, capturedImageTextureCbCr, depthTexture, confidenceTexture]
         commandBuffer.addCompletedHandler { _ in retaining.removeAll() }
@@ -392,18 +836,99 @@ final class Renderer: NSObject {
         renderEncoder.setVertexBuffer(pointCloudUniformsBuffers[currentBufferIndex])
         renderEncoder.setVertexBuffer(particlesBuffer)
         renderEncoder.setVertexBuffer(gridPointsBuffer)
-        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(capturedImageTextureY!),
+        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(texY),
                                        index: Int(kTextureY.rawValue))
-        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(capturedImageTextureCbCr!),
+        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(texCbCr),
                                        index: Int(kTextureCbCr.rawValue))
-        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(depthTexture!),
+        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(texDepth),
                                        index: Int(kTextureDepth.rawValue))
-        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(confidenceTexture!),
+        renderEncoder.setVertexTexture(CVMetalTextureGetTexture(texConf),
                                        index: Int(kTextureConfidence.rawValue))
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: gridPointsBuffer.count)
         currentPointIndex = (currentPointIndex + gridPointsBuffer.count) % maxPoints
         currentPointCount = min(currentPointCount + gridPointsBuffer.count, maxPoints)
         lastCameraTransform = frame.camera.transform
+        updateCoverageVoxels(frame: frame)
+    }
+
+    private func updateCoverageVoxels(frame: ARFrame) {
+        let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
+        guard let depthMap = depthData?.depthMap,
+              let confidenceMap = depthData?.confidenceMap else { return }
+        let depthWidth = CVPixelBufferGetWidth(depthMap)
+        let depthHeight = CVPixelBufferGetHeight(depthMap)
+        let confidenceWidth = CVPixelBufferGetWidth(confidenceMap)
+        let confidenceHeight = CVPixelBufferGetHeight(confidenceMap)
+
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
+        defer {
+            CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly)
+            CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
+        }
+        guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap),
+              let confidenceBaseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else { return }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+        let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
+        let confidenceBytesPerRow = CVPixelBufferGetBytesPerRow(confidenceMap)
+        let confidenceBuffer = confidenceBaseAddress.assumingMemoryBound(to: UInt8.self)
+
+        let sampleStep = 4
+        var newVoxels: Set<VoxelKey> = []
+        let vs = coverageVoxelSize
+
+        let projMatrix = frame.camera.projectionMatrix(for: orientation, viewportSize: viewportSize, zNear: 0.001, zFar: 0)
+        let viewMatrix = frame.camera.viewMatrix(for: orientation)
+        let vpInverse = (projMatrix * viewMatrix).inverse
+
+        for gy in stride(from: 0, to: depthHeight, by: sampleStep) {
+            for gx in stride(from: 0, to: depthWidth, by: sampleStep) {
+                let depth = floatBuffer[gy * (bytesPerRow / 4) + gx]
+                guard depth >= minDepth && depth <= maxDepth else { continue }
+                let confidenceX = min(gx * confidenceWidth / max(depthWidth, 1), confidenceWidth - 1)
+                let confidenceY = min(gy * confidenceHeight / max(depthHeight, 1), confidenceHeight - 1)
+                let confidence = confidenceBuffer[confidenceY * confidenceBytesPerRow + confidenceX]
+                guard confidence >= UInt8(confidenceThreshold) else { continue }
+
+                let fx = Float(gx) / Float(depthWidth) * 2 - 1
+                let fy = Float(gy) / Float(depthHeight) * 2 - 1
+
+                let clipPos = simd_float4(fx * depth, fy * depth, -depth, 1)
+                var worldPos = vpInverse * clipPos
+                worldPos /= worldPos.w
+
+                let key = VoxelKey(
+                    x: Int(floor(worldPos.x / vs)),
+                    y: Int(floor(worldPos.y / vs)),
+                    z: Int(floor(worldPos.z / vs))
+                )
+                newVoxels.insert(key)
+            }
+        }
+
+        if coverageVoxels.isEmpty {
+            coverageVoxels = newVoxels
+        } else {
+            coverageVoxels.formUnion(newVoxels)
+        }
+
+        updateVoxelDiscoveryTracking()
+    }
+
+    private func updateVoxelDiscoveryTracking() {
+        let now = Date()
+        guard now.timeIntervalSince(lastDiscoveryCheckTime) >= discoveryCheckInterval else { return }
+
+        let currentCount = coverageVoxels.count
+        let discovered = currentCount - lastVoxelCount
+        voxelDiscoveryHistory.append(discovered)
+
+        if voxelDiscoveryHistory.count > 10 {
+            voxelDiscoveryHistory.removeFirst()
+        }
+
+        lastVoxelCount = currentCount
+        lastDiscoveryCheckTime = now
     }
 }
 
@@ -490,5 +1015,3 @@ private extension Renderer {
         return flipYZ * matrix_float4x4(simd_quaternion(angle, Float3(0, 0, 1)))
     }
 }
-
-

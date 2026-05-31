@@ -9,6 +9,14 @@
 /* Begin PBXBuildFile section */
 		1E134CEA8C8FB8B9B701C29A /* LaunchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B98D430D628A279343A437A /* LaunchScreen.swift */; };
 		SCANHIST279228 /* ScanHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANHIST987654321 /* ScanHistoryStore.swift */; };
+		SCANEXPMODEL001 /* ScanExportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANEXPMODEL002 /* ScanExportModels.swift */; };
+		VOXELTREND001 /* VoxelDiscoveryTrend.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOXELTREND002 /* VoxelDiscoveryTrend.swift */; };
+		SCANCOMP001122 /* ScanCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOMP334455 /* ScanCompletion.swift */; };
+		SCANCOMPEVAL001 /* ScanCompletionEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOMPEVAL002 /* ScanCompletionEvaluator.swift */; };
+		SCANMESHEXP001 /* ScanMeshExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANMESHEXP002 /* ScanMeshExportService.swift */; };
+		PCM001122 /* PointCloudModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = PCM334455 /* PointCloudModels.swift */; };
+		SCANREC001122 /* ScanRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANREC334455 /* ScanRecord.swift */; };
+		SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANRESULTEXP002 /* ScanResultExportService.swift */; };
 		23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115AA07F0ADF20776A78BADD /* ResultView.swift */; };
 		373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158ABA23ED3CD7468A81CFFE /* ScanView.swift */; };
 		3ED2D13CBE172639B6DE54B9 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = D20D286AA15B66451D7E4867 /* Shaders.metal */; };
@@ -19,7 +27,6 @@
 		582D39EDACD586789724BD9D /* MetalBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */; };
 		60D4C5AFE0DFAE56637E76E4 /* GPSRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */; };
 		67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */; };
-		85CF96DC4B950A88DE261E1A /* TransitionPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9BA99AE3DEE3B688A50BCD /* TransitionPage.swift */; };
 		B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */; };
 		FUSION279228 /* PointCloudFusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSION987654321 /* PointCloudFusion.swift */; };
 		BBDDFD016D098E22AE2FB02C /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77242F7C9551310A23D45DBD /* Renderer.swift */; };
@@ -38,36 +45,68 @@
 		SETTINGS279228 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGS987654321 /* SettingsStore.swift */; };
 		MODEL98765432101 /* FruitsDetector.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = MODEL9876543210 /* FruitsDetector.mlpackage */; };
 		HISTCOMP001122 /* HistoricalCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HISTCOMP334455 /* HistoricalCompareView.swift */; };
-		CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLOUDSYNC334455 /* CloudScanSyncView.swift */; };
 		ORCHARD001122 /* OrchardMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARD334455 /* OrchardMapView.swift */; };
 		POINTCLD001122 /* PointCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCLD334455 /* PointCloudView.swift */; };
 		SETVIEW001122 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETVIEW334455 /* SettingsView.swift */; };
 		D3FED03E2595575AB25CD050 /* PLYParserHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA290049668D55498B3D9885 /* PLYParserHelper.swift */; };
-
 		TAGSTORE001122 /* TagStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGSTORE77889900 /* TagStore.swift */; };
-	
 		PLOTEDIT001122 /* PlotEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLOTEDIT778899 /* PlotEditView.swift */; };
-	
 		TAGEDIT001122 /* TagEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGEDIT778899 /* TagEditView.swift */; };
-	
 		TAGMGMG001122 /* TagManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGMGMG778899 /* TagManagementView.swift */; };
-	
 		TREEFILT001122 /* TreeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILT778899 /* TreeFilterView.swift */; };
 		FILTERCHIP001122 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FILTERCHIP778899 /* FilterChip.swift */; };
 		GLASSCARD001122G /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = GLASSCARD001122 /* GlassCard.swift */; };
-		FINGRGLOW001122G /* FingerGlowOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FINGRGLOW001122 /* FingerGlowOverlay.swift */; };
+		COVERAGEMAP001G /* CoverageMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = COVERAGEMAP01122 /* CoverageMapView.swift */; };
 		HUDPILL001122G /* HUDPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = HUDPILL001122 /* HUDPill.swift */; };
 		THEMEDARK001122G /* Theme+Dark.swift in Sources */ = {isa = PBXBuildFile; fileRef = THEMEDARK001122 /* Theme+Dark.swift */; };
-	/* End PBXBuildFile section */
+		OCCLCORR778899B /* OcclusionCorrector.swift in Sources */ = {isa = PBXBuildFile; fileRef = OCCLCORR778899 /* OcclusionCorrector.swift */; };
+		DEDUP001122G /* DetectionDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDUP22334455 /* DetectionDeduplicator.swift */; };
+		IMPORT001122 /* ImportFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORT778899 /* ImportFileView.swift */; };
+		SCANQUAL001122 /* ScanQualityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANQUAL778899 /* ScanQualityMonitor.swift */; };
+		DEBUG001122 /* FruitDetectionDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUG778899 /* FruitDetectionDebugView.swift */; };
+		FVARIETYPB001122 /* FruitParametersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FVARIETYP001122 /* FruitParametersStore.swift */; };
+		VARIDBB001122 /* VarietyDatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = VARIDB001122 /* VarietyDatabaseView.swift */; };
+		USDZEXP001122 /* USDZExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = USDZEXP778899 /* USDZExporter.swift */; };
+		ARQL001122 /* ARQuickLookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ARQL778899 /* ARQuickLookView.swift */; };
+		MEASTOOL001122 /* MeasurementTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEASTOOL7799 /* MeasurementTool.swift */; };
+		MEASOVR001122 /* MeasurementToolOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEASOVR7799 /* MeasurementToolOverlay.swift */; };
+		METALMEAS001122 /* MetalMeasurementOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = METALMEAS7799 /* MetalMeasurementOverlay.swift */; };
+		MESHEXP001122 /* MeshExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = MESHEXP7799 /* MeshExporter.swift */; };
+		BATCH001122 /* BatchExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCH778899 /* BatchExportService.swift */; };
+		BATCHVIEW001122 /* BatchExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHVIEW7799 /* BatchExportView.swift */; };
+		TESTPCCL001122 /* PointCloudClusterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTPCCL778899 /* PointCloudClusterTests.swift */; };
+		TESTOCCL001122 /* OcclusionCorrectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTOCCL778899 /* OcclusionCorrectorTests.swift */; };
+		TESTYIELD001122 /* YieldEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTYIELD778899 /* YieldEstimatorTests.swift */; };
+		TESTDEDUP001122 /* DetectionDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */; };
+		TESTMODEL001122 /* FruitModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTMODEL778899 /* FruitModelsTests.swift */; };
+		TESTFUSION001122 /* PointCloudFusionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTFUSION778899 /* PointCloudFusionTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		TESTPROXY001122 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BC5F14B9C19941556DF33AA0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 38BA72362BEB63A680EDB2B7;
+			remoteInfo = FruitTreeScanner;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSRecorder.swift; sourceTree = "<group>"; };
 		SCANHIST987654321 /* ScanHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryStore.swift; sourceTree = "<group>"; };
+		SCANEXPMODEL002 /* ScanExportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExportModels.swift; sourceTree = "<group>"; };
+		VOXELTREND002 /* VoxelDiscoveryTrend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxelDiscoveryTrend.swift; sourceTree = "<group>"; };
+		SCANCOMP334455 /* ScanCompletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCompletion.swift; sourceTree = "<group>"; };
+		SCANCOMPEVAL002 /* ScanCompletionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCompletionEvaluator.swift; sourceTree = "<group>"; };
+		SCANMESHEXP002 /* ScanMeshExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanMeshExportService.swift; sourceTree = "<group>"; };
+		PCM334455 /* PointCloudModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudModels.swift; sourceTree = "<group>"; };
+		SCANREC334455 /* ScanRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRecord.swift; sourceTree = "<group>"; };
+		SCANRESULTEXP002 /* ScanResultExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultExportService.swift; sourceTree = "<group>"; };
 		115AA07F0ADF20776A78BADD /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		158ABA23ED3CD7468A81CFFE /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalBuffer.swift; sourceTree = "<group>"; };
 		2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryView.swift; sourceTree = "<group>"; };
-		2F9BA99AE3DEE3B688A50BCD /* TransitionPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionPage.swift; sourceTree = "<group>"; };
 		3211BC7EF92CF0073528A047 /* ShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShaderTypes.h; sourceTree = "<group>"; };
 		3B98D430D628A279343A437A /* LaunchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreen.swift; sourceTree = "<group>"; };
 		65EF14476A599F346D1770E5 /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
@@ -77,6 +116,7 @@
 		8A975936189FC1CB68D4EF5B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		916EE162272411D94609DBA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FruitTreeScanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		TESTAPP001122 /* FruitTreeScannerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FruitTreeScannerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB1927876412930FC1078524 /* Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Bridging-Header.h"; sourceTree = "<group>"; };
 		B3BAC8B3BDC2C17A17F80301 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		CD9EBAD864179E14E3FA66D1 /* FruitTreeScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitTreeScannerApp.swift; sourceTree = "<group>"; };
@@ -96,27 +136,42 @@
 		SETTINGS987654321 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		MODEL9876543210 /* FruitsDetector.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlmodel; path = FruitsDetector.mlpackage; sourceTree = "<group>"; };
 		HISTCOMP334455 /* HistoricalCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalCompareView.swift; sourceTree = "<group>"; };
-		CLOUDSYNC334455 /* CloudScanSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudScanSyncView.swift; sourceTree = "<group>"; };
 		ORCHARD334455 /* OrchardMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapView.swift; sourceTree = "<group>"; };
 		POINTCLD334455 /* PointCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudView.swift; sourceTree = "<group>"; };
 		SETVIEW334455 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FA290049668D55498B3D9885 /* PLYParserHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYParserHelper.swift; sourceTree = "<group>"; };
-
 		TAGSTORE77889900 /* TagStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagStore.swift; sourceTree = "<group>"; };
-	
 		PLOTEDIT778899 /* PlotEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlotEditView.swift; sourceTree = "<group>"; };
-	
 		TAGEDIT778899 /* TagEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagEditView.swift; sourceTree = "<group>"; };
-	
 		TAGMGMG778899 /* TagManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementView.swift; sourceTree = "<group>"; };
-	
 		TREEFILT778899 /* TreeFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterView.swift; sourceTree = "<group>"; };
 		FILTERCHIP778899 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
 		GLASSCARD001122 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
-		FINGRGLOW001122 /* FingerGlowOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FingerGlowOverlay.swift; sourceTree = "<group>"; };
+		COVERAGEMAP01122 /* CoverageMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverageMapView.swift; sourceTree = "<group>"; };
 		HUDPILL001122 /* HUDPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDPill.swift; sourceTree = "<group>"; };
 		THEMEDARK001122 /* Theme+Dark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme+Dark.swift"; sourceTree = "<group>"; };
-	/* End PBXFileReference section */
+		DEDUP22334455 /* DetectionDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDeduplicator.swift; sourceTree = "<group>"; };
+		OCCLCORR778899 /* OcclusionCorrector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OcclusionCorrector.swift; sourceTree = "<group>"; };
+		IMPORT778899 /* ImportFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFileView.swift; sourceTree = "<group>"; };
+		SCANQUAL778899 /* ScanQualityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQualityMonitor.swift; sourceTree = "<group>"; };
+		DEBUG778899 /* FruitDetectionDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitDetectionDebugView.swift; sourceTree = "<group>"; };
+		FVARIETYP001122 /* FruitParametersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitParametersStore.swift; sourceTree = "<group>"; };
+		VARIDB001122 /* VarietyDatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VarietyDatabaseView.swift; sourceTree = "<group>"; };
+		USDZEXP778899 /* USDZExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USDZExporter.swift; sourceTree = "<group>"; };
+		ARQL778899 /* ARQuickLookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARQuickLookView.swift; sourceTree = "<group>"; };
+		MESHEXP7799 /* MeshExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshExporter.swift; sourceTree = "<group>"; };
+		MEASTOOL7799 /* MeasurementTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementTool.swift; sourceTree = "<group>"; };
+		MEASOVR7799 /* MeasurementToolOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementToolOverlay.swift; sourceTree = "<group>"; };
+		METALMEAS7799 /* MetalMeasurementOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalMeasurementOverlay.swift; sourceTree = "<group>"; };
+		BATCH778899 /* BatchExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportService.swift; sourceTree = "<group>"; };
+		BATCHVIEW7799 /* BatchExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportView.swift; sourceTree = "<group>"; };
+		TESTPCCL778899 /* PointCloudClusterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudClusterTests.swift; sourceTree = "<group>"; };
+		TESTOCCL778899 /* OcclusionCorrectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OcclusionCorrectorTests.swift; sourceTree = "<group>"; };
+		TESTYIELD778899 /* YieldEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimatorTests.swift; sourceTree = "<group>"; };
+		TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDeduplicatorTests.swift; sourceTree = "<group>"; };
+		TESTMODEL778899 /* FruitModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitModelsTests.swift; sourceTree = "<group>"; };
+		TESTFUSION778899 /* PointCloudFusionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudFusionTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		080EE612D73BEFA8302D230F /* FruitTreeScanner */ = {
@@ -139,8 +194,22 @@
 			isa = PBXGroup;
 			children = (
 				080EE612D73BEFA8302D230F /* FruitTreeScanner */,
+				TESTGRP001122 /* FruitTreeScannerTests */,
 				98B57B354ACEAED286563A16 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		TESTGRP001122 /* FruitTreeScannerTests */ = {
+			isa = PBXGroup;
+			children = (
+				TESTPCCL778899 /* PointCloudClusterTests.swift */,
+				TESTOCCL778899 /* OcclusionCorrectorTests.swift */,
+				TESTYIELD778899 /* YieldEstimatorTests.swift */,
+				TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */,
+				TESTMODEL778899 /* FruitModelsTests.swift */,
+				TESTFUSION778899 /* PointCloudFusionTests.swift */,
+			);
+			path = FruitTreeScannerTests;
 			sourceTree = "<group>";
 		};
 		77FCC2F2178481AB923AC132 /* Views */ = {
@@ -151,13 +220,11 @@
 				2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */,
 				158ABA23ED3CD7468A81CFFE /* ScanView.swift */,
 				688A076C865BB72C1E79F3EA /* StartView.swift */,
-				2F9BA99AE3DEE3B688A50BCD /* TransitionPage.swift */,
 				CALIB794033 /* CalibrationView.swift */,
 				HELP1122334455 /* HelpView.swift */,
 				EXPORT5566778899 /* DataExportView.swift */,
 				DASH794033 /* DashboardView.swift */,
 				HISTCOMP334455 /* HistoricalCompareView.swift */,
-				CLOUDSYNC334455 /* CloudScanSyncView.swift */,
 				ORCHARD334455 /* OrchardMapView.swift */,
 				POINTCLD334455 /* PointCloudView.swift */,
 				SETVIEW334455 /* SettingsView.swift */,
@@ -166,6 +233,11 @@
 				TAGMGMG778899 /* TagManagementView.swift */,
 				TREEFILT778899 /* TreeFilterView.swift */,
 				FILTERCHIP778899 /* FilterChip.swift */,
+				IMPORT778899 /* ImportFileView.swift */,
+				DEBUG778899 /* FruitDetectionDebugView.swift */,
+				VARIDB001122 /* VarietyDatabaseView.swift */,
+				ARQL778899 /* ARQuickLookView.swift */,
+				BATCHVIEW7799 /* BatchExportView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -182,6 +254,7 @@
 			isa = PBXGroup;
 			children = (
 				91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */,
+				TESTAPP001122 /* FruitTreeScannerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -206,8 +279,16 @@
 				65EF14476A599F346D1770E5 /* Utils.swift */,
 				CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */,
 				FUSION987654321 /* PointCloudFusion.swift */,
+				PCM334455 /* PointCloudModels.swift */,
 				MODEL987654321 /* FruitModels.swift */,
 				SCANHIST987654321 /* ScanHistoryStore.swift */,
+				SCANEXPMODEL002 /* ScanExportModels.swift */,
+				VOXELTREND002 /* VoxelDiscoveryTrend.swift */,
+				SCANCOMP334455 /* ScanCompletion.swift */,
+				SCANCOMPEVAL002 /* ScanCompletionEvaluator.swift */,
+				SCANMESHEXP002 /* ScanMeshExportService.swift */,
+				SCANREC334455 /* ScanRecord.swift */,
+				SCANRESULTEXP002 /* ScanResultExportService.swift */,
 				CLUSTER987654321 /* PointCloudCluster.swift */,
 				IMGDET987654321 /* ImageDetector.swift */,
 				FUSIONVAL987654321 /* FusionValidator.swift */,
@@ -216,6 +297,13 @@
 				MODEL9876543210 /* FruitsDetector.mlpackage */,
 				FA290049668D55498B3D9885 /* PLYParserHelper.swift */,
 				TAGSTORE77889900 /* TagStore.swift */,
+				DEDUP22334455 /* DetectionDeduplicator.swift */,
+				OCCLCORR778899 /* OcclusionCorrector.swift */,
+				SCANQUAL778899 /* ScanQualityMonitor.swift */,
+				FVARIETYP001122 /* FruitParametersStore.swift */,
+				USDZEXP778899 /* USDZExporter.swift */,
+				MESHEXP7799 /* MeshExporter.swift */,
+				BATCH778899 /* BatchExportService.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -233,13 +321,16 @@
 			isa = PBXGroup;
 			children = (
 				GLASSCARD001122 /* GlassCard.swift */,
-				FINGRGLOW001122 /* FingerGlowOverlay.swift */,
+				COVERAGEMAP01122 /* CoverageMapView.swift */,
 				HUDPILL001122 /* HUDPill.swift */,
+				MEASTOOL7799 /* MeasurementTool.swift */,
+				MEASOVR7799 /* MeasurementToolOverlay.swift */,
+				METALMEAS7799 /* MetalMeasurementOverlay.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
 		};
-	/* End PBXGroup section */
+/* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */ = {
@@ -260,6 +351,24 @@
 			productReference = 91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */;
 			productType = "com.apple.product-type.application";
 		};
+		TESTTGT001122 /* FruitTreeScannerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = TESTCFGLIST001122 /* Build configuration list for PBXNativeTarget "FruitTreeScannerTests" */;
+			buildPhases = (
+				TESTSRCS001122 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				TESTDEP001122 /* PBXTargetDependency */,
+			);
+			name = FruitTreeScannerTests;
+			packageProductDependencies = (
+			);
+			productName = FruitTreeScannerTests;
+			productReference = TESTAPP001122 /* FruitTreeScannerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -271,6 +380,10 @@
 				TargetAttributes = {
 					38BA72362BEB63A680EDB2B7 = {
 						ProvisioningStyle = Automatic;
+					};
+					TESTTGT001122 = {
+						CreatedOnToolsVersion = 15.4;
+						TestTargetID = 38BA72362BEB63A680EDB2B7;
 					};
 				};
 			};
@@ -289,6 +402,7 @@
 			projectRoot = "";
 			targets = (
 				38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */,
+				TESTTGT001122 /* FruitTreeScannerTests */,
 			);
 		};
 /* End PBXProject section */
@@ -323,7 +437,6 @@
 				3ED2D13CBE172639B6DE54B9 /* Shaders.metal in Sources */,
 				4290FCA9BB47CE697C86A7ED /* StartView.swift in Sources */,
 				BFE751D382AA5DCD78668766 /* Theme.swift in Sources */,
-				85CF96DC4B950A88DE261E1A /* TransitionPage.swift in Sources */,
 				51B82507BCDE6D1F33F0D359 /* Utils.swift in Sources */,
 				B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */,
 				FUSION279228 /* PointCloudFusion.swift in Sources */,
@@ -333,13 +446,20 @@
 				DASH279228 /* DashboardView.swift in Sources */,
 				MODEL279228 /* FruitModels.swift in Sources */,
 				SCANHIST279228 /* ScanHistoryStore.swift in Sources */,
+				SCANEXPMODEL001 /* ScanExportModels.swift in Sources */,
+				VOXELTREND001 /* VoxelDiscoveryTrend.swift in Sources */,
+				SCANCOMP001122 /* ScanCompletion.swift in Sources */,
+				SCANCOMPEVAL001 /* ScanCompletionEvaluator.swift in Sources */,
+				SCANMESHEXP001 /* ScanMeshExportService.swift in Sources */,
+				PCM001122 /* PointCloudModels.swift in Sources */,
+				SCANREC001122 /* ScanRecord.swift in Sources */,
+				SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */,
 				CLUSTER279228 /* PointCloudCluster.swift in Sources */,
 				IMGDET279228 /* ImageDetector.swift in Sources */,
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
 				FRUITCNT279228 /* FruitCounter.swift in Sources */,
 				SETTINGS279228 /* SettingsStore.swift in Sources */,
 				HISTCOMP001122 /* HistoricalCompareView.swift in Sources */,
-				CLOUDSYNC001122 /* CloudScanSyncView.swift in Sources */,
 				ORCHARD001122 /* OrchardMapView.swift in Sources */,
 				POINTCLD001122 /* PointCloudView.swift in Sources */,
 				D3FED03E2595575AB25CD050 /* PLYParserHelper.swift in Sources */,
@@ -351,13 +471,49 @@
 				TREEFILT001122 /* TreeFilterView.swift in Sources */,
 				FILTERCHIP001122 /* FilterChip.swift in Sources */,
 				GLASSCARD001122G /* GlassCard.swift in Sources */,
-				FINGRGLOW001122G /* FingerGlowOverlay.swift in Sources */,
+				COVERAGEMAP001G /* CoverageMapView.swift in Sources */,
 				HUDPILL001122G /* HUDPill.swift in Sources */,
 				THEMEDARK001122G /* Theme+Dark.swift in Sources */,
+				DEDUP001122G /* DetectionDeduplicator.swift in Sources */,
+				OCCLCORR778899B /* OcclusionCorrector.swift in Sources */,
+				IMPORT001122 /* ImportFileView.swift in Sources */,
+				SCANQUAL001122 /* ScanQualityMonitor.swift in Sources */,
+				DEBUG001122 /* FruitDetectionDebugView.swift in Sources */,
+				FVARIETYPB001122 /* FruitParametersStore.swift in Sources */,
+				VARIDBB001122 /* VarietyDatabaseView.swift in Sources */,
+				USDZEXP001122 /* USDZExporter.swift in Sources */,
+				ARQL001122 /* ARQuickLookView.swift in Sources */,
+				MEASTOOL001122 /* MeasurementTool.swift in Sources */,
+				MEASOVR001122 /* MeasurementToolOverlay.swift in Sources */,
+				METALMEAS001122 /* MetalMeasurementOverlay.swift in Sources */,
+				MESHEXP001122 /* MeshExporter.swift in Sources */,
+				BATCH001122 /* BatchExportService.swift in Sources */,
+				BATCHVIEW001122 /* BatchExportView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-	/* End PBXSourcesBuildPhase section */
+		TESTSRCS001122 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TESTPCCL001122 /* PointCloudClusterTests.swift in Sources */,
+				TESTOCCL001122 /* OcclusionCorrectorTests.swift in Sources */,
+				TESTYIELD001122 /* YieldEstimatorTests.swift in Sources */,
+				TESTDEDUP001122 /* DetectionDeduplicatorTests.swift in Sources */,
+				TESTMODEL001122 /* FruitModelsTests.swift in Sources */,
+				TESTFUSION001122 /* PointCloudFusionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		TESTDEP001122 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */;
+			targetProxy = TESTPROXY001122 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		294AC179CF7107920C0CF944 /* Release */ = {
@@ -387,10 +543,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner;
-				PRODUCT_NAME = FruitTreeScanner;
-				SWIFT_OBJC_BRIDGING_HEADER = "FruitTreeScanner/Core/Bridging-Header.h";
-			};
+					PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner;
+					PRODUCT_NAME = FruitTreeScanner;
+					SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+					SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+					SWIFT_OBJC_BRIDGING_HEADER = "FruitTreeScanner/Core/Bridging-Header.h";
+				};
 			name = Release;
 		};
 		B8CF875EB11F19204078B8EA /* Debug */ = {
@@ -414,17 +572,62 @@
 				CODE_SIGNING_REQUIRED = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UT5Z26973G;
+				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = FruitTreeScanner/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner;
-				PRODUCT_NAME = FruitTreeScanner;
-				SWIFT_OBJC_BRIDGING_HEADER = "FruitTreeScanner/Core/Bridging-Header.h";
+					PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner;
+					PRODUCT_NAME = FruitTreeScanner;
+					SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+					SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+					SWIFT_OBJC_BRIDGING_HEADER = "FruitTreeScanner/Core/Bridging-Header.h";
+				};
+			name = Debug;
+		};
+		TESTCFGD001122 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				DEVELOPMENT_TEAM = UT5Z26973G;
+				INFOPLIST_FILE = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FruitTreeScanner.app/FruitTreeScanner";
 			};
 			name = Debug;
+		};
+		TESTCFGR001122 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				DEVELOPMENT_TEAM = UT5Z26973G;
+				INFOPLIST_FILE = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FruitTreeScanner.app/FruitTreeScanner";
+			};
+			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
@@ -443,6 +646,15 @@
 			buildConfigurations = (
 				B8CF875EB11F19204078B8EA /* Debug */,
 				294AC179CF7107920C0CF944 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		TESTCFGLIST001122 /* Build configuration list for PBXNativeTarget "FruitTreeScannerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				TESTCFGD001122 /* Debug */,
+				TESTCFGR001122 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

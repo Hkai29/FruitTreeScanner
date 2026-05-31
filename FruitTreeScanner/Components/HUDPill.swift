@@ -14,7 +14,7 @@ struct HUDPill: View {
         HStack(spacing: 6) {
             Text(label)
                 .font(Design.Typography.hudLabel)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .foregroundColor(Design.Colors.Dark.textMuted)
 
             Text(value)
                 .font(Design.Typography.hudValue)
@@ -25,14 +25,14 @@ struct HUDPill: View {
                     }
                 }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .background(
-            Capsule()
+            RoundedRectangle(cornerRadius: 7)
                 .fill(Design.Colors.Dark.hudBackground)
         )
         .overlay(
-            Capsule()
+            RoundedRectangle(cornerRadius: 7)
                 .stroke(Design.Colors.Dark.hudBorder, lineWidth: 0.5)
         )
     }
@@ -87,7 +87,7 @@ struct HUDBar: View {
         .padding(.vertical, Design.Space.sm)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                .fill(.ultraThinMaterial)
+                .fill(Design.Colors.Dark.hudBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
@@ -151,6 +151,10 @@ struct HUDVertical: View {
             RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
                 .fill(Design.Colors.Dark.hudBackground)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
+                .stroke(Design.Colors.Dark.hudBorder, lineWidth: 0.5)
+        )
     }
 }
 
@@ -202,8 +206,12 @@ struct StatusIndicator: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
-            Capsule()
+            RoundedRectangle(cornerRadius: 7)
                 .fill(Design.Colors.Dark.hudBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Design.Colors.Dark.hudBorder, lineWidth: 0.5)
         )
     }
 }

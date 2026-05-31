@@ -4,7 +4,7 @@
 import SwiftUI
 
 struct TreeFilterView: View {
-    @StateObject private var tagStore = TagStore.shared
+    @ObservedObject private var tagStore = TagStore.shared
     @ObservedObject var historyStore: ScanHistoryStore
 
     @State private var selectedPlotId: UUID?

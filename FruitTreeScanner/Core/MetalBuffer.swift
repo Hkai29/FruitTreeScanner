@@ -37,9 +37,14 @@ struct MetalBuffer<Element> {
     
     /// Initializes the buffer with the contents of the provided array.
     init(device: MTLDevice, array: [Element], index: UInt32, options: MTLResourceOptions = []) {
-        
-        guard let buffer = device.makeBuffer(bytes: array, length: MemoryLayout<Element>.stride * array.count, options: .storageModeShared) else {
-            fatalError("Failed to create MTLBuffer")
+
+        let byteCount = MemoryLayout<Element>.stride * array.count
+        let newBuffer: MTLBuffer? = array.withUnsafeBytes { rawBuffer -> MTLBuffer? in
+            guard let baseAddress = rawBuffer.baseAddress else { return nil }
+            return device.makeBuffer(bytes: baseAddress, length: byteCount, options: options)
+        }
+        guard let buffer = newBuffer else {
+            fatalError("Failed to create MTLBuffer.")
         }
         self.buffer = buffer
         self.count = array.count
@@ -56,10 +61,13 @@ struct MetalBuffer<Element> {
     }
     
     /// Replaces the buffer's memory with the values in the array.
-    func assign<E>(with array: [E]) {
+    func assign(with array: [Element]) {
         let byteCount = array.count * stride
         precondition(byteCount == buffer.length, "Mismatch between the byte count of the array's contents and the MTLBuffer length.")
-        buffer.contents().copyMemory(from:  array, byteCount: byteCount)
+        array.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return }
+            buffer.contents().copyMemory(from: baseAddress, byteCount: byteCount)
+        }
     }
     
     /// Returns a copy of the value at the specified element index in the buffer.

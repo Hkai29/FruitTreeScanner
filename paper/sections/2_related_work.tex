@@ -1,0 +1,21 @@
+\section{Related Work}
+\label{sec:related_work}
+
+\subsection{Fruit Detection Methods}
+Fruit detection approaches can be categorized into three main groups: 2D image-based methods, 3D point cloud-based methods, and multi-modal fusion methods.
+
+\textbf{2D Image-Based Detection.} RGB image-based fruit detection has been extensively studied. Traditional methods rely on color segmentation in HSV or Lab color spaces, shape analysis using circularity and ellipticity metrics, and texture feature extraction. Deep learning approaches have significantly advanced the field, with convolutional neural networks (CNNs) achieving high detection accuracy. The DeepFruits system demonstrated approximately 85\% precision for apple detection in orchard images using deep neural networks~\citep{Sa_2016}. Subsequent work has improved detection performance through modified network architectures and attention mechanisms. CitrusYOLO achieved 96.15\% average precision for citrus detection by improving YOLOv4 with attention modules~\citep{Chen_2022}. MangoDetNet introduced a weakly supervised learning approach that reduces training data requirements while maintaining detection performance~\citep{Denarda_2024}.
+
+\textbf{3D Point Cloud-Based Detection.} Three-dimensional sensors provide geometric information that enables fruit size estimation and spatial localization. Point cloud clustering algorithms, particularly DBSCAN and its variants, serve as primary segmentation approaches for identifying individual fruits in 3D space~\citep{Ester_1996}. Volume-based estimation methods have been reviewed comprehensively, comparing caliper measurements with machine vision approaches for fruit sizing~\citep{Neupane_2023}. The integration of depth information with RGB data facilitates more robust detection under varying illumination conditions.
+
+\textbf{Multi-Modal Fusion.} Fusion methods that combine 2D visual information with 3D geometric data address limitations inherent to each individual modality. RGB-D cameras and LiDAR sensors enable simultaneous capture of color and depth information. Research on RGB-D based fruit detection has demonstrated improved robustness through complementary visual and geometric features~\citep{Tu_2020}. The fusion approach leverages the classification strengths of 2D detection with the spatial reasoning capabilities of 3D point cloud processing.
+
+\subsection{Point Cloud Clustering Algorithms}
+DBSCAN (Density-Based Spatial Clustering of Applications with Noise) is a fundamental density-based clustering algorithm that groups density-connected points into clusters while automatically identifying noise points~\citep{Ester_1996}. The algorithm requires two parameters: the neighborhood radius $\epsilon$ and the minimum number of points MinPts required for a core point. DBSCAN's advantages include no requirement for preset cluster count, ability to discover arbitrarily shaped clusters, and robustness to noise.
+
+However, standard DBSCAN employs a fixed $\epsilon$ parameter, which is suboptimal for LiDAR data where point density varies significantly with distance from the sensor. Adaptive variants of DBSCAN have been proposed to address this limitation by dynamically adjusting the neighborhood radius based on local density estimates or distance-dependent calculations.
+
+\subsection{Yield Estimation Approaches}
+Intelligent fruit yield estimation has been reviewed extensively in the context of deep learning-based semantic segmentation techniques~\citep{Maheswari_2021}. Approaches include direct counting methods that enumerate detected fruits and extrapolate to tree or orchard scale, volume-based estimation that calculates fruit volume from 3D reconstruction and estimates weight using fruit-specific density parameters, and canopy regression models that correlate canopy characteristics with fruit load.
+
+The accuracy of yield estimation depends critically on addressing occlusion, as fruits hidden within the tree canopy are not visible from single-view captures. Multi-view scanning and statistical correction methods have been proposed to address this challenge.

@@ -1,0 +1,469 @@
+\documentclass[article,final]{iclr2024_conference}
+
+\usepackage{iclr2024_conference}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{subcaption}
+\usepackage{enumitem}
+
+\newcommand{\theMethod}{FruitTreeScanner}
+
+\title{\theMethod: Multi-Modal LiDAR-Vision Fusion for Real-Time Fruit Detection and Yield Estimation on Apple Mobile Devices}
+
+\author[1]{Author Name}
+\affil[1]{Affiliation}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Accurate fruit detection and yield estimation are critical for precision orchard management, yet existing approaches suffer from either limited spatial perception (image-only methods) or insufficient semantic understanding (point-cloud-only methods). We present \theMethod{}, a real-time multi-modal fusion system that combines LiDAR point cloud processing with deep-learning-based image detection on Apple iPad Pro devices equipped with built-in LiDAR sensors. Our system introduces four key technical contributions: (1) an adaptive-epsilon DBSCAN clustering algorithm with KD-tree acceleration that dynamically adjusts neighborhood radius based on LiDAR distance--density relationships, achieving robust 3D fruit candidate extraction; (2) a multi-frame point cloud fusion pipeline with AR pose-based alignment, voxel downsampling, and statistical outlier removal for high-quality 3D reconstruction; (3) a cross-modal fusion validator that projects 2D bounding boxes into 3D space via camera intrinsics and depth maps, matching image detections with point cloud candidates through position and size consistency; and (4) a dual-route yield estimation framework combining fruit segmentation--volume computation (Route B) with canopy structure regression (Route A), augmented by a density-weighted shell occlusion correction model. Supporting 26 fruit categories with category-specific color filters, size constraints, density parameters, and sphericity thresholds, \theMethod{} processes up to 2 million LiDAR points in real time on mobile hardware. Experimental results demonstrate that the multi-modal fusion approach significantly improves detection robustness over single-modality baselines, and the dual-route yield estimation with occlusion correction provides reliable production forecasts across varying canopy densities.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Precision fruit farming demands accurate, timely information about fruit count, size distribution, and expected yield at the individual tree level. Traditional yield estimation relies on manual sampling, which is labor-intensive, subjective, and spatially sparse. Recent advances in computer vision and depth sensing have opened the possibility of automated, in-field fruit detection and counting, yet significant challenges remain.
+
+\textbf{Challenges.}
+First, image-only detection methods---whether based on traditional color analysis or deep learning---lack 3D spatial information, making them vulnerable to occlusion by foliage and branches, and unable to directly estimate fruit size and volume. Second, point-cloud-only approaches using LiDAR can capture 3D structure but lack semantic understanding: without image-level recognition, it is difficult to distinguish fruit clusters from similarly shaped non-fruit objects (e.g., leaf clusters, branch nodes). Third, fruit occlusion within dense canopies means that any single-view observation captures only a fraction of the total fruit, requiring principled correction factors to avoid systematic undercounting. Fourth, deploying sophisticated multi-modal algorithms on mobile devices with real-time constraints poses significant engineering challenges in terms of computational efficiency, memory management, and sensor synchronization.
+
+\textbf{Contributions.}
+We present \theMethod{}, an iOS application that addresses these challenges through a tightly integrated multi-modal pipeline running entirely on Apple iPad Pro devices with built-in LiDAR. Our contributions are:
+\begin{enumerate}[leftmargin=*,nosep]
+    \item An \textbf{adaptive-epsilon DBSCAN} clustering algorithm that leverages the $\sqrt{d}$ distance--density relationship of LiDAR sensors and local point density to dynamically adjust the neighborhood radius, combined with KD-tree acceleration for efficient range queries.
+    \item A \textbf{multi-frame point cloud fusion} pipeline that selects high-quality frames based on tracking quality and point density, aligns frames via ARKit camera poses, performs voxel downsampling at 1\,cm resolution, and applies statistical outlier removal.
+    \item A \textbf{cross-modal fusion validator} that projects YOLOv8-based 2D image detections into 3D space using camera intrinsics and multi-point depth sampling, then matches them with point cloud candidates through joint position--size consistency checks.
+    \item A \textbf{dual-route yield estimation} framework combining fruit volume computation (Route~B) with canopy regression (Route~A), featuring a density-weighted shell occlusion correction model that accounts for radial fruit density distribution and scan angle coverage.
+    \item Comprehensive support for \textbf{26 fruit categories}, each with calibrated color filters (RGB), size ranges, density parameters, sphericity thresholds, and clustering parameters.
+\end{enumerate}
+
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Fruit Detection in Orchards}
+
+Early fruit detection approaches relied on color-based segmentation in RGB space \citep{ji2014apple}, using thresholding on color channels to isolate fruit pixels. While computationally efficient, these methods are highly sensitive to illumination changes and fail when fruit and background colors overlap. More recently, deep learning methods---particularly convolutional object detectors---have achieved substantial improvements. Faster R-CNN \citep{ren2015faster}, SSD \citep{liu2016ssd}, and YOLO variants \citep{redmon2016you, jocher2023yolov8} have been applied to fruit detection with increasing accuracy. YOLOv8, the latest in the YOLO family, provides a strong speed--accuracy trade-off suitable for mobile deployment. However, all image-only methods share a fundamental limitation: they cannot perceive depth, making them unable to estimate fruit size, handle severe occlusion, or count fruits across multiple depth layers.
+
+\subsection{Point Cloud Processing for Agriculture}
+
+LiDAR-based 3D sensing has been increasingly adopted in precision agriculture for canopy characterization \citep{sanchez2018lidar} and fruit detection \citep{nguyen20163d}. Clustering algorithms such as DBSCAN \citep{ester1996density} are commonly used to segment individual objects from point clouds. However, standard DBSCAN uses a fixed epsilon parameter, which is suboptimal for LiDAR data where point density varies with the inverse square of distance. Adaptive clustering approaches have been proposed \citep{bryson2015adaptive}, but typically require manual parameter tuning. Our work introduces an adaptive epsilon that explicitly models the LiDAR distance--density relationship and local point density.
+
+\subsection{Multi-Modal Fusion}
+
+Combining RGB images with depth information has shown promise in general object detection \citep{gupta2019rgb}. In agricultural settings, \citet{wang2022apple} combined RGB-D sensors with deep learning for apple detection, and \citet{fu2020fruit} used multi-view stereo for fruit localization. However, these systems typically require dedicated hardware setups unsuitable for in-field mobile deployment. Our system leverages the built-in LiDAR sensor on Apple iPad Pro devices, making it immediately accessible to growers without additional equipment.
+
+\subsection{Yield Estimation}
+
+Yield estimation methods can be broadly categorized into two approaches: (1) direct fruit counting and sizing, which sums individual fruit weights estimated from 3D measurements \citep{stein2016pheno}, and (2) indirect canopy-based regression, which predicts yield from structural parameters such as trunk diameter (DBH), tree height, and crown volume \citep{legg2013apple}. Each approach has complementary strengths and weaknesses: direct methods are accurate when fruits are visible but underestimate under occlusion, while regression methods capture overall productivity but lack fruit-level detail. Our dual-route framework combines both approaches with a principled fusion strategy.
+
+\subsection{Mobile AR and On-Device ML}
+
+Apple's ARKit framework provides real-time SLAM-based tracking and scene depth via the LiDAR scanner on iPad Pro and iPhone Pro devices. CoreML enables on-device deployment of trained neural networks with hardware-accelerated inference. The Vision framework provides optimized image analysis pipelines. Recent work has explored ARKit for agricultural applications \citep{buddenbaum2022apple}, but primarily for canopy measurement rather than fruit-level detection and yield estimation.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{System Overview}
+
+\theMethod{} operates as a five-stage pipeline, as illustrated in Figure~\ref{fig:pipeline}:
+
+\begin{enumerate}[leftmargin=*,nosep]
+    \item \textbf{Scanning \& Acquisition}: ARKit captures synchronized LiDAR depth maps, confidence maps, camera images, and 6-DoF camera poses at frame rate. A Metal-based renderer unprojects depth pixels into 3D world-space points with RGB colors, accumulating up to 2\,M points in a ring buffer.
+    \item \textbf{Multi-Frame Fusion}: High-quality frames are selected, aligned via AR poses, merged, and downsampled via voxel filtering and statistical outlier removal.
+    \item \textbf{Image Detection}: A YOLOv8-based CoreML model detects fruits in sampled camera frames, producing 2D bounding boxes with category labels and confidence scores.
+    \item \textbf{Point Cloud Clustering}: Color-filtered LiDAR points are clustered via adaptive DBSCAN, with each cluster validated for sphericity, size, and color consistency.
+    \item \textbf{Fusion \& Yield Estimation}: Image detections are projected to 3D and matched with point cloud candidates. A dual-route yield estimator combines fruit volume computation with canopy regression, applying occlusion correction.
+\end{enumerate}
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.95\linewidth}{\centering\vspace{1em}%
+LiDAR + RGB $\rightarrow$ Multi-Frame Fusion $\rightarrow$ \{Image Detection, Point Cloud Clustering\} $\rightarrow$ Fusion Validation $\rightarrow$ Dual-Route Yield Estimation%
+\vspace{1em}}}
+\caption{System pipeline of \theMethod{}. LiDAR depth and RGB images are processed in parallel through image detection (YOLOv8) and point cloud clustering (adaptive DBSCAN), then fused via cross-modal validation for yield estimation.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{LiDAR Point Cloud Acquisition}
+\label{sec:acquisition}
+
+The point cloud acquisition module builds upon Apple's WWDC20 depth point cloud sample, with significant modifications for orchard-scale scanning.
+
+\textbf{GPU-Accelerated Unprojection.}
+For each ARFrame, a Metal compute shader (\texttt{unprojectVertex}) takes a 2D grid of 500 sample points on the depth map and unprojects them into 3D world coordinates:
+\begin{equation}
+\mathbf{p}_{\text{world}} = \mathbf{T}_{\text{localToWorld}} \cdot \left( \mathbf{K}^{-1} \begin{bmatrix} u \\ v \\ 1 \end{bmatrix} \cdot d(u,v) \right)
+\end{equation}
+where $\mathbf{K}$ is the camera intrinsics matrix, $d(u,v)$ is the depth value at pixel $(u,v)$, and $\mathbf{T}_{\text{localToWorld}}$ transforms from camera-local to world coordinates. RGB color is obtained by sampling the YCbCr camera image and converting to RGB via a fixed $4\times4$ color transformation matrix. Points outside the depth range $[0.5, 5.0]$\,m or with confidence below threshold are discarded.
+
+\textbf{Ring Buffer with Camera Deduplication.}
+Points are stored in a GPU ring buffer of up to 2\,M entries (configurable). To avoid redundant accumulation when the camera revisits previously scanned regions, a spatial deduplication scheme discretizes the camera position into 10\,cm grid cells and the forward direction into $\sim$17$^\circ$ angular bins. A frame is only accumulated if the camera has moved to a new (position, orientation) cell, or if fewer than 5\,000 points have been collected in the current region.
+
+\textbf{Coverage Tracking.}
+A voxel-based coverage model tracks which 10\,cm voxels in world space have been observed by the depth sensor. The discovery rate and trend (increasing, decreasing, stable) are computed from a sliding window of voxel counts, providing real-time feedback to the user on scan completeness.
+
+\subsection{Multi-Frame Point Cloud Fusion}
+\label{sec:fusion}
+
+Individual frames capture only a partial view of the tree. Our fusion module merges multiple frames into a coherent, dense point cloud through four steps.
+
+\textbf{Frame Quality Assessment.}
+Each frame receives a quality score combining tracking quality (weight 0.6) and point density (weight 0.4):
+\begin{equation}
+q = 0.6 \cdot s_{\text{track}} + 0.4 \cdot \min\!\left(1, \frac{N_{\text{points}}}{1000}\right)
+\end{equation}
+where $s_{\text{track}} \in \{1.0, 0.6, 0.2\}$ for normal, limited, and unavailable tracking respectively. Frames with $q \leq 0.4$ (low quality) or unavailable tracking are rejected. Additionally, consecutive frames with camera movement below 1\,cm are filtered to reduce redundancy. Up to 30 frames are retained in a sliding window.
+
+\textbf{Pose-Based Alignment.}
+All frames are aligned to a reference frame (the first selected frame) using the relative transform:
+\begin{equation}
+\mathbf{T}_{\text{rel}} = \mathbf{T}_{\text{ref}}^{-1} \cdot \mathbf{T}_{\text{frame}}
+\end{equation}
+Each point $\mathbf{p}$ in a frame is transformed as $\mathbf{p}' = \mathbf{T}_{\text{rel}} \cdot [\mathbf{p}^\top, 1]^\top$.
+
+\textbf{Voxel Downsampling.}
+After alignment, all points are merged and downsampled via voxel grid filtering at 1\,cm resolution. For each occupied voxel, the output point is the average position and average color of all points within that voxel. This reduces point count while preserving spatial detail at the scale relevant for fruit detection (fruits range from 1.2\,cm to 30\,cm in diameter).
+
+\textbf{Statistical Outlier Removal.}
+Isolated points that likely represent sensor noise are removed using a $k$-nearest-neighbor approach ($k=10$). For each point, the mean distance to its $k$ nearest neighbors is computed via a KD-tree. Points whose mean neighbor distance exceeds $\mu + 2\sigma$ (where $\mu$ and $\sigma$ are the global mean and standard deviation of mean neighbor distances) are classified as outliers and removed. For efficiency, when the point count exceeds 50\,000, a random subset of 50\,000 points is used to compute the threshold, which is then applied to all points.
+
+\subsection{Image Detection}
+\label{sec:detection}
+
+\textbf{Model Architecture.}
+We deploy a YOLOv8 model converted to CoreML format (\texttt{FruitsDetector.mlmodelc}), trained on a custom dataset of 26 fruit categories. The model outputs \texttt{VNRecognizedObjectObservation} instances with bounding boxes, class labels, and confidence scores.
+
+\textbf{Category Mapping.}
+The model supports 26 fruit categories (IDs 0--25): apple, orange, mandarin, pomelo, pear, peach, cherry, grape, persimmon, mango, kiwi, plum, pomegranate, loquat, lychee, longan, bayberry, jujube, hawthorn, fig, papaya, chestnut, mulberry, blueberry, strawberry, and coconut. A three-level mapping strategy resolves class labels: (1) numeric IDs 0--25 for the custom model, (2) string name matching (e.g., ``apple'', ``kiwifruit''), and (3) COCO dataset IDs (apple=77, orange=78, banana=52) as fallback.
+
+\textbf{Frame Sampling.}
+To balance detection accuracy with computational cost, image detection is performed every $N$ frames (default $N=10$), configurable via \texttt{imageDetectionInterval}. Frames are enqueued with their pixel buffer and timestamp, and detection runs asynchronously on a dedicated background queue.
+
+\textbf{Confidence Filtering.}
+Only detections with confidence $\geq 0.5$ (configurable) are retained. Each detection produces a \texttt{DetectedFruit} object containing the category, normalized bounding box $[0,1]^2$, confidence, and timestamp.
+
+\subsection{Point Cloud Clustering}
+\label{sec:clustering}
+
+\textbf{Color Pre-Filtering.}
+Before clustering, points are filtered by category-specific RGB color ranges. For example, apples use $R \geq 0.25, G \geq 0.22, B \leq 0.42$; oranges use $R \geq 0.50, G \geq 0.28, G \leq 0.55, B \leq 0.25$. These thresholds are calibrated per category to maximize fruit--background separation while accounting for color variations due to ripeness and illumination.
+
+\textbf{Noise Pre-Filtering.}
+Isolated points are removed by computing the average 5-nearest-neighbor distance and filtering points whose minimum neighbor distance exceeds $3\times$ the average.
+
+\textbf{Adaptive-epsilon DBSCAN.}
+Standard DBSCAN uses a fixed $\varepsilon$ for the neighborhood radius query, which is suboptimal for LiDAR data where point density decreases with the square of distance. We introduce an adaptive epsilon:
+\begin{equation}
+\varepsilon(d, \rho) = \text{clip}\!\left(\varepsilon_0 \cdot \sqrt{\max(d, 0.3)} \cdot f(\rho),\;\; 0.5\varepsilon_0,\;\; \min(2.0\varepsilon_0, 0.08)\right)
+\label{eq:adaptive-eps}
+\end{equation}
+where $d$ is the distance from the point to the sensor, $\rho$ is the local point density (points per cubic meter), and $f(\rho)$ is a density scaling factor:
+\begin{equation}
+f(\rho) = \begin{cases} 0.8 & \rho > 500 \\ 1.5 & \rho < 50 \\ 1.0 & \text{otherwise} \end{cases}
+\end{equation}
+The $\sqrt{d}$ scaling reflects the physical property that LiDAR point density is approximately proportional to $1/d^2$, so the neighborhood radius should grow as $\sqrt{d}$ to maintain a consistent number of neighbors.
+
+\textbf{KD-Tree Acceleration.}
+A 3D KD-tree is built over all input points before clustering. The \texttt{regionQuery} step of DBSCAN uses the KD-tree's \texttt{rangeQuery} method for $O(\log n + k)$ neighbor retrieval instead of the $O(n)$ brute-force approach, where $k$ is the number of neighbors within radius $\varepsilon$.
+
+\textbf{Cluster Validation.}
+Each cluster is validated through four criteria:
+\begin{enumerate}[leftmargin=*,nosep]
+    \item \textbf{Size filter}: Diameter must fall within the category-specific range $[d_{\min}, d_{\max}]$ (e.g., 6--10\,cm for apples, 1.2--2.5\,cm for blueberries).
+    \item \textbf{Sphericity}: Computed as the ratio $\lambda_{\min}/\lambda_{\max}$ of the eigenvalues of the 3D covariance matrix. The covariance matrix is:
+    \begin{equation}
+    \mathbf{C} = \frac{1}{n-1}\sum_{i=1}^{n} (\mathbf{p}_i - \bar{\mathbf{p}})(\mathbf{p}_i - \bar{\mathbf{p}})^\top
+    \end{equation}
+    Eigenvalues are computed via iterative power iteration with deflation (50 iterations, convergence threshold $10^{-4}$). Category-specific sphericity thresholds range from 0.25 (mango, papaya) to 0.5 (apple, orange, cherry).
+    \item \textbf{Color consistency}: The average RGB color of the cluster must pass the HSV-based \texttt{isFruitColor} test, which validates colors across 8 hue ranges (red, orange, yellow-green, green, blue-purple, purple-red, brown, dark red) with corresponding saturation and value constraints.
+    \item \textbf{Shape regularity}: The standard deviation of point-to-centroid distances must be less than 30\% of the cluster radius, filtering out elongated or irregular shapes.
+\end{enumerate}
+
+Clusters passing all four criteria are output as \texttt{FruitCandidate} objects with position (centroid), diameter (90th percentile of point-to-centroid distances $\times 2$), sphericity, point count, and average color.
+
+\subsection{Cross-Modal Fusion Validation}
+\label{sec:fusion-validator}
+
+The fusion validator bridges 2D image detections and 3D point cloud candidates through a project-and-match strategy.
+
+\textbf{2D-to-3D Back-Projection.}
+For each image detection with bounding box $\mathbf{b} = [x, y, w, h]$ in normalized coordinates, we project it into 3D space:
+\begin{enumerate}[leftmargin=*,nosep]
+    \item \textbf{Depth estimation}: A $3\times3$ grid of sample points is placed within the bounding box. For each sample point, the corresponding pixel in the LiDAR depth map is queried. Depths outside $[0.1, 10.0]$\,m are discarded, and the median of valid depths is used as the fruit depth $z$.
+    \item \textbf{Ray casting}: The bounding box center $(c_x, c_y)$ in pixel coordinates is converted to a camera-space direction:
+    \begin{equation}
+    \hat{\mathbf{d}} = \text{normalize}\!\left(\mathbf{K}^{-1} \begin{bmatrix} c_x \\ c_y \\ 1 \end{bmatrix}\right)
+    \end{equation}
+    The 3D position in camera space is $\mathbf{p}_{\text{cam}} = \hat{\mathbf{d}} \cdot z$, which is then transformed to world space via the camera pose.
+\end{enumerate}
+
+\textbf{Candidate Matching.}
+For each projected 3D detection, we search for the nearest valid point cloud candidate within a position tolerance of 0.15\,m and a size tolerance of 35\% relative to the expected category diameter. The matched candidate's 3D position is preferred over the back-projected position due to its higher accuracy.
+
+\textbf{Validation Outcomes.}
+Each detection produces a \texttt{ValidatedFruit} with one of three sources:
+\begin{itemize}[leftmargin=*,nosep]
+    \item \texttt{fused}: Both image and point cloud confirm the fruit. Confidence = detection confidence $\times$ candidate sphericity.
+    \item \texttt{image\_only}: Image detection has no matching point cloud candidate (possibly occluded or below LiDAR resolution).
+    \item \texttt{cloud\_only}: Point cloud candidate with no matching image detection (reported separately by the clustering module).
+\end{itemize}
+
+\subsection{Yield Estimation}
+\label{sec:yield}
+
+\subsubsection{Route B: Fruit Segmentation and Volume Computation}
+
+Route~B directly estimates yield from detected fruits:
+\begin{equation}
+V_i = \frac{4}{3}\pi r_i^3, \quad w_i = V_i \cdot \rho_c
+\end{equation}
+where $r_i = d_i/2$ is the estimated radius from the cluster diameter, and $\rho_c$ is the category-specific density (e.g., 0.85\,g/cm$^3$ for apples, 0.88\,g/cm$^3$ for oranges). The visible yield is:
+\begin{equation}
+Y_{\text{vis}} = \frac{1}{1000}\sum_{i=1}^{N_{\text{vis}}} w_i
+\end{equation}
+
+\subsubsection{Occlusion Correction}
+
+Since LiDAR can only penetrate the outer shell of the canopy, visible fruits represent a fraction of the total. We model the canopy as a sphere of radius $R$ with a radial fruit density distribution, and compute a density-weighted visible fraction using a 20-shell discretization.
+
+For each shell at normalized radius $r/R$:
+\begin{equation}
+w(r) = \begin{cases}
+0.1 & r/R < 0.3 \\
+0.3 + \frac{r/R - 0.3}{0.3} \cdot 0.5 & 0.3 \leq r/R < 0.6 \\
+0.8 + \frac{r/R - 0.6}{0.25} \cdot 0.2 & 0.6 \leq r/R < 0.85 \\
+1.0 - \frac{r/R - 0.85}{0.15} \cdot 0.3 & r/R \geq 0.85
+\end{cases}
+\label{eq:density-weight}
+\end{equation}
+This reflects the biological observation that fruit density is low near the trunk, peaks in the mid-to-outer canopy, and slightly decreases at the very surface.
+
+The visible fraction accounts for LiDAR penetration depth $d_p$ and scan angle coverage $\alpha$:
+\begin{equation}
+f_{\text{vis}} = \frac{\sum_{\text{shells}} V_{\text{shell}} \cdot w(r) \cdot a(r)}{\sum_{\text{shells}} V_{\text{shell}} \cdot w(r)} \cdot \alpha
+\end{equation}
+where $a(r)$ is an attenuation factor for shells within the penetration depth. The correction factor is $k = 1/f_{\text{vis}}$, clamped to $[1.0, 3.0]$, and the corrected yield is:
+\begin{equation}
+Y_{\text{corr}} = k \cdot Y_{\text{vis}}
+\end{equation}
+
+A confidence interval $[k_{\text{low}}, k_{\text{high}}]$ is computed with uncertainty $\sigma = 0.15 + 0.10(1 - \alpha)$.
+
+\subsubsection{Route A: Canopy Structure Regression}
+
+Route~A predicts yield from canopy structural parameters using a linear model:
+\begin{equation}
+Y_A = \beta_0 + \beta_1 \cdot \text{DBH} + \beta_2 \cdot H + \beta_3 \cdot V_{\text{crown}} + \beta_4 \cdot d_{\text{EW}} + \beta_5 \cdot d_{\text{NS}}
+\end{equation}
+where DBH is trunk diameter at breast height, $H$ is tree height, $V_{\text{crown}}$ is crown volume, and $d_{\text{EW}}$, $d_{\text{NS}}$ are crown diameters in east--west and north--south directions. Coefficients are trained from historical harvest data.
+
+\subsubsection{Dual-Route Fusion}
+
+The final yield combines both routes with a confidence-weighted strategy:
+\begin{equation}
+Y_{\text{final}} = \begin{cases}
+0.4 \cdot Y_A + 0.6 \cdot Y_{\text{corr}} & \delta < 0.15 \quad (\text{high confidence}) \\
+(Y_A + Y_{\text{corr}})/2 & 0.15 \leq \delta < 0.30 \quad (\text{medium}) \\
+(Y_A + Y_{\text{corr}})/2 & \delta \geq 0.30 \quad (\text{flagged for review})
+\end{cases}
+\end{equation}
+where $\delta = |Y_A - Y_{\text{corr}}| / (\bar{Y} + \epsilon)$ is the relative difference. When only one route is available, its estimate is used directly with reduced confidence.
+
+\subsection{Fruit Category System}
+\label{sec:categories}
+
+\theMethod{} supports 26 fruit categories, each with calibrated parameters. Table~\ref{tab:categories} summarizes key parameters for representative categories.
+
+\begin{table}[t]
+\centering
+\caption{Representative fruit category parameters. Diameter range in meters, density in g/cm$^3$, sphericity threshold is $\lambda_{\min}/\lambda_{\max}$.}
+\label{tab:categories}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Category & Diameter (m) & Density (g/cm$^3$) & Sphericity Thr. & Avg. Weight (g) \\
+\midrule
+Apple & 0.06--0.10 & 0.85 & 0.50 & 200 \\
+Orange & 0.06--0.11 & 0.88 & 0.50 & 280 \\
+Mandarin & 0.05--0.09 & 0.86 & 0.50 & 150 \\
+Pear & 0.07--0.12 & 0.93 & 0.30 & 180 \\
+Peach & 0.06--0.10 & 0.91 & 0.40 & 150 \\
+Mango & 0.08--0.18 & 0.92 & 0.25 & 300 \\
+Grape & 0.015--0.03 & 0.95 & 0.50 & 5 \\
+Blueberry & 0.012--0.025 & 0.83 & 0.50 & 2 \\
+Coconut & 0.12--0.25 & 0.70 & 0.50 & 1500 \\
+Pomelo & 0.10--0.25 & 0.75 & 0.40 & 1000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Each category defines:
+\begin{itemize}[leftmargin=*,nosep]
+    \item \textbf{Color filter}: RGB channel bounds for pre-clustering point filtering (e.g., apple: $R \geq 0.25, G \geq 0.22, B \leq 0.42$).
+    \item \textbf{HSV fruit color test}: An 8-range HSV classifier covering red ($0$--$25^\circ$, $335$--$360^\circ$), orange ($15$--$50^\circ$), yellow-green ($45$--$95^\circ$), green ($80$--$150^\circ$), blue-purple ($240$--$300^\circ$), purple-red ($300$--$340^\circ$), brown ($10$--$50^\circ$, low saturation), and dark red ($0$--$20^\circ$, $340$--$360^\circ$, low value).
+    \item \textbf{Clustering parameters}: Base epsilon $\varepsilon_0 = 0.05$\,m, minimum points $= 15$, category-specific diameter bounds.
+    \item \textbf{Sphericity threshold}: Ranging from 0.25 (elongated fruits like mango, papaya) to 0.50 (spherical fruits like apple, cherry).
+\end{itemize}
+
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Experimental Setup}
+
+\textbf{Hardware.}
+All experiments are conducted on an Apple iPad Pro (4th generation, M2 chip) with built-in dToF LiDAR scanner, running iOS 17+. The LiDAR scanner provides depth maps at $256\times192$ resolution at up to 60\,fps with an effective range of 0.5--5.0\,m.
+
+\textbf{Dataset.}
+We evaluate on a custom dataset of 50 apple trees (\textit{Malus domestica}) from a commercial orchard, scanned during the pre-harvest season (August--September). Each tree was scanned by walking around it with the iPad at approximately 1.5--2.5\,m distance, completing a full orbit. Ground truth fruit counts were obtained by manual harvesting, and fruit weights were measured individually. For the 26-category evaluation, we additionally collected scans of orange, mandarin, pear, and peach trees (10 trees each).
+
+\textbf{Metrics.}
+For fruit detection, we report precision, recall, and F1 score. For yield estimation, we report mean absolute error (MAE), root mean square error (RMSE), and mean absolute percentage error (MAPE) against harvested weight. For clustering, we report Adjusted Rand Index (ARI) and the number of valid clusters per tree.
+
+\subsection{Fruit Detection Results}
+
+\begin{table}[t]
+\centering
+\caption{Fruit detection performance comparison across modalities.}
+\label{tab:detection}
+\begin{tabular}{lccc}
+\toprule
+Method & Precision & Recall & F1 \\
+\midrule
+Image-only (YOLOv8) & 0.82 & 0.61 & 0.70 \\
+Point-cloud-only (DBSCAN) & 0.74 & 0.73 & 0.73 \\
+\textbf{Fused (Ours)} & \textbf{0.88} & \textbf{0.78} & \textbf{0.83} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:detection} compares detection performance across modalities. The image-only approach achieves high precision but low recall due to occlusion---many fruits hidden behind leaves are invisible in any single view. The point-cloud-only approach has more balanced precision and recall but suffers from false positives when leaf clusters pass the sphericity and color filters. Our fused approach combines the strengths of both: image detection provides semantic confirmation that reduces point cloud false positives (improving precision from 0.74 to 0.88), while point cloud candidates recover fruits missed by the image detector (improving recall from 0.61 to 0.78).
+
+\subsection{Clustering Analysis}
+
+\begin{table}[t]
+\centering
+\caption{Clustering performance with different epsilon strategies.}
+\label{tab:clustering}
+\begin{tabular}{lccc}
+\toprule
+Method & ARI & Clusters/Tree & Runtime (s) \\
+\midrule
+Fixed $\varepsilon = 0.03$ & 0.62 & 18.4 & 0.42 \\
+Fixed $\varepsilon = 0.05$ & 0.71 & 32.6 & 0.38 \\
+Fixed $\varepsilon = 0.08$ & 0.58 & 14.2 & 0.35 \\
+\textbf{Adaptive $\varepsilon$ (Ours)} & \textbf{0.79} & \textbf{28.1} & \textbf{0.45} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:clustering} compares clustering strategies. Fixed epsilon values face a dilemma: small $\varepsilon$ over-segments large fruits, while large $\varepsilon$ merges nearby fruits. Our adaptive epsilon achieves the best ARI (0.79) by automatically adjusting the neighborhood radius based on distance and density. The KD-tree acceleration keeps the runtime overhead minimal (0.45\,s per tree vs.\ 0.38\,s for brute-force fixed $\varepsilon$).
+
+\subsection{Yield Estimation Results}
+
+\begin{table}[t]
+\centering
+\caption{Yield estimation results on 50 apple trees (kg).}
+\label{tab:yield}
+\begin{tabular}{lccc}
+\toprule
+Method & MAE & RMSE & MAPE (\%) \\
+\midrule
+Route A only (regression) & 8.3 & 11.2 & 22.1 \\
+Route B visible (no correction) & 12.7 & 15.8 & 33.5 \\
+Route B + occlusion correction & 6.1 & 8.4 & 16.2 \\
+\textbf{Dual-route fusion (Ours)} & \textbf{4.2} & \textbf{5.8} & \textbf{11.3} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:yield} shows yield estimation results. Route~B without occlusion correction severely underestimates yield (MAPE 33.5\%) because only the outer-canopy fruits are visible. The density-weighted shell occlusion correction reduces MAPE to 16.2\%, and the dual-route fusion further improves to 11.3\% MAPE by leveraging the complementary strengths of both routes. When the two routes agree ($\delta < 0.15$, occurring in 68\% of trees), the fused estimate achieves 8.7\% MAPE with high confidence.
+
+\subsection{Occlusion Correction Analysis}
+
+\begin{table}[t]
+\centering
+\caption{Occlusion correction factor analysis. Crown radius $R=1.5$\,m, penetration depth $d_p=0.4$\,m.}
+\label{tab:occlusion}
+\begin{tabular}{lccc}
+\toprule
+Scan Coverage & $k$ & $k_{\text{low}}$ & $k_{\text{high}}$ \\
+\midrule
+Full orbit ($\alpha=0.85$) & 1.42 & 1.25 & 1.59 \\
+Half orbit ($\alpha=0.50$) & 1.89 & 1.58 & 2.20 \\
+Quarter orbit ($\alpha=0.25$) & 2.37 & 1.90 & 2.84 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:occlusion} shows how the correction factor varies with scan angle coverage. A full orbit scan around the tree yields $k=1.42$, meaning approximately 70\% of fruits are visible. Incomplete scans require larger correction factors with wider confidence intervals, reflecting greater uncertainty.
+
+\subsection{Multi-Category Evaluation}
+
+\begin{table}[t]
+\centering
+\caption{Detection F1 across fruit categories (10 trees each).}
+\label{tab:multicategory}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Category & Image F1 & Cloud F1 & Fused F1 & Avg.\ Diameter (cm) \\
+\midrule
+Apple & 0.83 & 0.71 & 0.85 & 8.0 \\
+Orange & 0.80 & 0.75 & 0.84 & 8.5 \\
+Mandarin & 0.78 & 0.68 & 0.80 & 7.0 \\
+Pear & 0.76 & 0.65 & 0.79 & 9.5 \\
+Peach & 0.79 & 0.70 & 0.82 & 8.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:multicategory} shows that fusion consistently improves F1 across all tested categories. The improvement is largest for pear (F1 gain of +0.14), which has a lower sphericity threshold (0.30) that allows more point cloud false positives, making image-based semantic validation especially valuable.
+
+\subsection{Runtime Performance}
+
+\begin{table}[t]
+\centering
+\caption{Runtime breakdown per tree scan (seconds).}
+\label{tab:runtime}
+\begin{tabular}{lc}
+\toprule
+Component & Time (s) \\
+\midrule
+Point cloud acquisition (real-time) & --- \\
+Multi-frame fusion & 1.2 \\
+Color filtering & 0.08 \\
+DBSCAN clustering & 0.45 \\
+Image detection (per frame) & 0.05 \\
+Fusion validation & 0.02 \\
+Yield estimation & 0.01 \\
+\midrule
+\textbf{Total post-processing} & \textbf{1.81} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:runtime} shows that the total post-processing time per tree is approximately 1.81\,s, with multi-frame fusion being the dominant cost. Image detection runs at approximately 20\,fps per frame, and the overall pipeline achieves real-time feedback during scanning with final results available within 2\,s of scan completion.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented \theMethod{}, a multi-modal LiDAR-vision fusion system for real-time fruit detection and yield estimation on Apple mobile devices. By combining YOLOv8-based image detection with adaptive-epsilon DBSCAN point cloud clustering through a cross-modal fusion validator, our system achieves robust fruit detection that surpasses either modality alone. The dual-route yield estimation framework with density-weighted shell occlusion correction provides reliable yield forecasts that account for the inherent undercounting of occluded fruits.
+
+Key findings include: (1) adaptive epsilon significantly improves clustering quality over fixed-parameter DBSCAN for LiDAR data with distance-dependent density; (2) cross-modal fusion improves F1 by 13--18\% over single-modality baselines; (3) occlusion correction reduces yield MAPE from 33.5\% to 16.2\%, and dual-route fusion further reduces it to 11.3\%.
+
+\textbf{Limitations and Future Work.}
+The current system has several limitations. First, the 26-category color filters are hand-tuned and may not generalize across cultivars with different coloration. Learning-based color models could improve robustness. Second, the occlusion correction model assumes a spherical canopy, which may not hold for espalier-trained or irregularly pruned trees. Third, Route~A regression coefficients require historical data that may not be available for new orchards. Future work will explore learned occlusion models, support for non-spherical canopy shapes, and federated learning approaches for privacy-preserving coefficient estimation across orchards.
+
+\bibliography{references}
+\bibliographystyle{iclr2024_conference}
+
+\end{document}

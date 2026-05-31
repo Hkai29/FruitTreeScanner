@@ -1,9 +1,9 @@
 // GlassCard.swift
-// 玻璃拟态卡片组件
+// 深色表面组件
 
 import SwiftUI
 
-// MARK: - Glass Card
+// MARK: - Surface Card
 struct GlassCard<Content: View>: View {
     let cornerRadius: CGFloat
     let padding: CGFloat
@@ -24,29 +24,17 @@ struct GlassCard<Content: View>: View {
             .padding(padding)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(.ultraThinMaterial)
+                    .fill(Design.Colors.Dark.glassFill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(borderGradient, lineWidth: 1)
+                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
             )
             .shadow(
                 color: Design.Shadow.glassShadow.color,
                 radius: Design.Shadow.glassShadow.radius,
                 y: Design.Shadow.glassShadow.y
             )
-    }
-
-    private var borderGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.white.opacity(0.2),
-                Color.white.opacity(0.05),
-                Color.white.opacity(0.02)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
     }
 }
 
@@ -69,9 +57,9 @@ struct GlassSectionHeader: View {
             }
 
             Text(title.uppercased())
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
-                .tracking(2)
+                .tracking(0.8)
 
             Spacer()
         }
@@ -123,14 +111,12 @@ struct GlassExpandableSection<Content: View>: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                .fill(.ultraThinMaterial)
-        )
+        .background(Design.Colors.Dark.glassFill)
         .overlay(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
                 .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
         )
+        .clipShape(RoundedRectangle(cornerRadius: Design.Radius.Glass.medium))
     }
 }
 
@@ -161,10 +147,10 @@ struct GlassRow<Right: View>: View {
         .padding(.vertical, Design.Space.sm + 2)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(Color.white.opacity(isPressed ? 0.1 : 0.03))
+                .fill(isPressed ? Color.white.opacity(0.07) : Design.Colors.Dark.bgElevated.opacity(0.55))
         )
         .scaleEffect(isPressed ? 0.98 : 1)
-        .animation(.easeOut(duration: 0.12), value: isPressed)
+        .animation(.easeOut(duration: Design.Animation.micro), value: isPressed)
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in isPressed = true }
@@ -235,11 +221,19 @@ struct GlassSliderRow: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
-    let displayValue: String
+    var onEditingChanged: (Bool) -> Void = { _ in }
+    var displayValue: String { customDisplayValue ?? defaultDisplayValue }
+    var customDisplayValue: String?
+
+    private var defaultDisplayValue: String {
+        if step >= 1 {
+            return "\(Int(value))"
+        }
+        return String(format: "%.3f", value)
+    }
 
     var body: some View {
         VStack(spacing: Design.Space.sm) {
-            // 标题行
             HStack(spacing: Design.Space.md) {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .medium))
@@ -259,15 +253,14 @@ struct GlassSliderRow: View {
             .padding(.horizontal, Design.Space.md)
             .padding(.vertical, Design.Space.sm + 2)
 
-            // Slider 独立，不被手势干扰
-            Slider(value: $value, in: range, step: step)
+            Slider(value: $value, in: range, step: step, onEditingChanged: onEditingChanged)
                 .tint(Design.Colors.harvest)
                 .padding(.horizontal, Design.Space.md)
                 .padding(.bottom, Design.Space.sm)
         }
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(Color.white.opacity(0.03))
+                .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
         )
     }
 }

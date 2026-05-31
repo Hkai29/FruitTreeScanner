@@ -75,18 +75,18 @@ struct TagEditView: View {
         VStack(alignment: .leading, spacing: Design.Space.sm) {
             Text("名称")
                 .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Color(hex: "3D3A36"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             TextField("输入标签名称", text: $name)
                 .font(Design.Typography.body)
-                .foregroundColor(Color(hex: "1C1C1E"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(Design.Space.md)
-                .background(Color.white)
+                .background(Design.Colors.Dark.bgSurface)
                 .cornerRadius(Design.Radius.medium)
                 .overlay(
                     RoundedRectangle(cornerRadius: Design.Radius.medium)
                         .stroke(
-                            name.isEmpty ? Color(hex: "E5E5EA") : Design.Colors.forest.opacity(0.5),
+                            name.isEmpty ? Design.Colors.Dark.glassBorder : Design.Colors.forest.opacity(0.5),
                             lineWidth: 1
                         )
                 )

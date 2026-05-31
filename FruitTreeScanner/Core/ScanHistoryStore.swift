@@ -8,58 +8,122 @@ final class ScanHistoryStore: ObservableObject {
     @Published private(set) var scanFiles: [ScanFileRecord] = []
 
     static let didUpdateNotification = Notification.Name("ScanHistoryStoreDidUpdate")
+    private var loadTask: Task<Void, Never>?
+    private var loadGeneration = 0
 
     private init() {
         loadRecords()
     }
 
-    func loadRecords() {
+    func loadRecords(postNotification: Bool = false) {
+        loadGeneration += 1
+        let generation = loadGeneration
+        loadTask?.cancel()
+        loadTask = Task.detached(priority: .utility) { [weak self, generation, postNotification] in
+            let records = Self.readRecordsFromDisk()
+            guard !Task.isCancelled else { return }
+            await self?.applyLoadedRecords(records, generation: generation, postNotification: postNotification)
+        }
+    }
+
+    private func applyLoadedRecords(_ records: [ScanFileRecord], generation: Int, postNotification: Bool) {
+        guard loadGeneration == generation else { return }
+        if scanFiles != records {
+            scanFiles = records
+        }
+        if postNotification {
+            NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
+        }
+    }
+
+    nonisolated private static func readRecordsFromDisk() -> [ScanFileRecord] {
         let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("scans")
 
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: scansDir,
-            includingPropertiesForKeys: [.creationDateKey],
-            options: .skipsHiddenFiles
-        ) else {
-            scanFiles = []
-            return
+        guard FileManager.default.fileExists(atPath: scansDir.path) else {
+            return []
         }
 
-        scanFiles = files
-            .filter { $0.pathExtension == "ply" }
-            .compactMap { url -> ScanFileRecord? in
-                guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
-                return ScanFileRecord(
-                    id: url.lastPathComponent,
-                    treeID: result.treeID,
-                    fileURL: url,
-                    scanDate: result.scanDate,
-                    fruitCount: result.fruitCount,
-                    yieldKg: result.yieldKg,
-                    gpsLat: result.gpsLat,
-                    gpsLon: result.gpsLon,
-                    fruitType: result.fruitType
-                )
-            }
-            .sorted { $0.scanDate > $1.scanDate }
+        do {
+            let files = try FileManager.default.contentsOfDirectory(
+                at: scansDir,
+                includingPropertiesForKeys: [.creationDateKey],
+                options: .skipsHiddenFiles
+            )
+
+            return files
+                .filter { $0.pathExtension == "ply" }
+                .compactMap { url -> ScanFileRecord? in
+                    guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
+                    let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+                    let fileSizeBytes = attributes?[.size] as? Int ?? 0
+                    return ScanFileRecord(
+                        id: url.lastPathComponent,
+                        treeID: result.treeID,
+                        fileURL: url,
+                        scanDate: result.scanDate,
+                        fruitCount: result.fruitCount,
+                        yieldKg: result.yieldKg,
+                        gpsLat: result.gpsLat,
+                        gpsLon: result.gpsLon,
+                        fruitType: result.fruitType,
+                        fileSizeBytes: fileSizeBytes
+                    )
+                }
+                .sorted { $0.scanDate > $1.scanDate }
+        } catch {
+            #if DEBUG
+            print("[ScanHistory] Failed to load records: \(error)")
+            #endif
+            return []
+        }
     }
 
     func deleteRecord(_ record: ScanFileRecord) {
-        try? FileManager.default.removeItem(at: record.fileURL)
+        deleteRecords([record])
+    }
+
+    func deleteRecords(_ records: [ScanFileRecord]) {
+        let recordsToDelete = records
+        Task.detached(priority: .utility) { [weak self] in
+            recordsToDelete.forEach(Self.deleteFiles)
+            guard !Task.isCancelled else { return }
+            await self?.loadRecords(postNotification: true)
+        }
+    }
+
+    nonisolated private static func deleteFiles(for record: ScanFileRecord) {
+        do {
+            try FileManager.default.removeItem(at: record.fileURL)
+        } catch {
+            #if DEBUG
+            print("[ScanHistory] Failed to delete scan file: \(error)")
+            #endif
+        }
         let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
-        try? FileManager.default.removeItem(at: csvURL)
-        loadRecords()
-        NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
+        if FileManager.default.fileExists(atPath: csvURL.path) {
+            do {
+                try FileManager.default.removeItem(at: csvURL)
+            } catch {
+                #if DEBUG
+                print("[ScanHistory] Failed to delete CSV file: \(error)")
+                #endif
+            }
+        }
+        let baseName = record.fileURL.deletingPathExtension().lastPathComponent
+        let jsonURL = record.fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+        if FileManager.default.fileExists(atPath: jsonURL.path) {
+            try? FileManager.default.removeItem(at: jsonURL)
+        }
     }
 
     func notifyRecordsUpdated() {
-        loadRecords()
-        NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
+        loadRecords(postNotification: true)
     }
 }
 
-struct ScanFileRecord: Identifiable, Equatable {
+struct ScanFileRecord: Identifiable, Equatable, Sendable {
     let id: String
     let treeID: String
     let fileURL: URL
@@ -69,8 +133,9 @@ struct ScanFileRecord: Identifiable, Equatable {
     let gpsLat: Double
     let gpsLon: Double
     let fruitType: String
+    let fileSizeBytes: Int
 
-    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple") {
+    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple", fileSizeBytes: Int = 0) {
         self.id = id
         self.treeID = treeID
         self.fileURL = fileURL
@@ -80,5 +145,6 @@ struct ScanFileRecord: Identifiable, Equatable {
         self.gpsLat = gpsLat
         self.gpsLon = gpsLon
         self.fruitType = fruitType
+        self.fileSizeBytes = fileSizeBytes
     }
 }

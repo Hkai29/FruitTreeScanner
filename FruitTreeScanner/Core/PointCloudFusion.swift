@@ -123,30 +123,26 @@ class PointCloudFusion {
 
     /// 评估并筛选高质量帧
     func selectHighQualityFrames() -> [PointCloudFrame] {
-        return frames.filter { frame in
-            // 丢弃追踪丢失的帧
-            if frame.trackingQuality == .notAvailable {
-                return false
-            }
-
-            // 丢弃质量过低的帧
-            if frame.quality == .low {
-                return false
-            }
-
-            // 丢弃与上一帧太相似的帧（重复扫描）
-            if let lastTransform = lastTransform {
-                let movement = simd_distance(
-                    frame.transform.columns.3,
-                    lastTransform.columns.3
-                )
-                if movement < 0.01 {  // 移动小于 1cm
-                    return false
-                }
-            }
-
+        let qualityFiltered = frames.filter { frame in
+            if frame.trackingQuality == .notAvailable { return false }
+            if frame.quality == .low { return false }
             return true
         }
+
+        guard !qualityFiltered.isEmpty else { return [] }
+
+        var selected: [PointCloudFrame] = [qualityFiltered[0]]
+        for frame in qualityFiltered.dropFirst() {
+            guard let prev = selected.last else { break }
+            let movement = simd_distance(
+                frame.transform.columns.3,
+                prev.transform.columns.3
+            )
+            if movement >= 0.01 {
+                selected.append(frame)
+            }
+        }
+        return selected
     }
 
     // MARK: - 体素滤波（降采样）
@@ -182,7 +178,8 @@ class PointCloudFusion {
 
     /// 生成体素键值
     private func voxelKey(_ pos: SIMD3<Float>, voxelSize: Float) -> String {
-        let inv = 1.0 / voxelSize
+        let safeVoxelSize = max(voxelSize, 0.001)
+        let inv = 1.0 / safeVoxelSize
         let x = Int(floor(pos.x * inv))
         let y = Int(floor(pos.y * inv))
         let z = Int(floor(pos.z * inv))
@@ -251,8 +248,9 @@ class PointCloudFusion {
             return FusedPointCloud(points: [], frameCount: 0, rejectedFrames: frames.count)
         }
 
-        // 2. 选择参考帧（第一帧 or 质量最高的帧）
-        let referenceFrame = selectedFrames.first!
+        guard let referenceFrame = selectedFrames.first else {
+            return FusedPointCloud(points: [], frameCount: 0, rejectedFrames: frames.count)
+        }
 
         // 3. 对齐所有帧到参考帧
         var allPoints: [FusedPoint] = []
@@ -290,26 +288,35 @@ class PointCloudFusion {
     private func statisticalOutlierRemoval(points: [FusedPoint], k: Int, stdDev: Float) -> [FusedPoint] {
         guard points.count > k else { return points }
 
-        var meanDists: [(point: FusedPoint, meanDist: Float)] = []
+        // 限制处理规模：超过 50000 点时随机采样计算阈值，再应用到全部点
+        let maxSampleCount = 50000
+        let sampleIndices: [Int]
+        if points.count > maxSampleCount {
+            sampleIndices = Array(Array(0..<points.count).shuffled().prefix(maxSampleCount))
+        } else {
+            sampleIndices = Array(0..<points.count)
+        }
 
-        for i in 0..<points.count {
-            var dists: [Float] = []
-            for j in 0..<points.count where i != j {
-                dists.append(simd_distance(points[i].pos, points[j].pos))
-            }
-            dists.sort()
-            let kDists = Array(dists.prefix(k))
-            let meanDist = kDists.reduce(0, +) / Float(k)
-            meanDists.append((points[i], meanDist))
+        // 用采样点构建简易 KD-Tree 加速 kNN
+        let samplePositions = sampleIndices.map { points[$0].pos }
+        let kdtree = SimpleKDTree(points: samplePositions)
+
+        var meanDists: [(index: Int, meanDist: Float)] = []
+        for i in sampleIndices {
+            let neighbors = kdtree.kNearest(center: points[i].pos, k: k)
+            let meanDist = neighbors.reduce(0.0) { $0 + $1.distance } / Float(max(neighbors.count, 1))
+            meanDists.append((i, meanDist))
         }
 
         let allDists = meanDists.map { $0.meanDist }
+        guard !allDists.isEmpty else { return points }
         let mean = allDists.reduce(0, +) / Float(allDists.count)
         let variance = allDists.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Float(allDists.count)
         let std = sqrt(variance)
 
         let threshold = mean + stdDev * std
-        return meanDists.filter { $0.meanDist <= threshold }.map { $0.point }
+        let outlierIndices = Set(meanDists.filter { $0.meanDist > threshold }.map { $0.index })
+        return points.enumerated().filter { !outlierIndices.contains($0.offset) }.map { $0.element }
     }
 
     // MARK: - 重置
@@ -322,6 +329,69 @@ class PointCloudFusion {
 
     /// 获取当前帧数
     var frameCount: Int { frames.count }
+}
+
+// MARK: - Simple KD-Tree for kNN
+
+private struct SimpleKDTree {
+    struct Node {
+        let point: SIMD3<Float>
+        let index: Int
+        let axis: Int
+        let left: Int?
+        let right: Int?
+    }
+
+    struct Neighbor {
+        let index: Int
+        let distance: Float
+    }
+
+    private var nodes: [Node] = []
+
+    init(points: [SIMD3<Float>]) {
+        guard !points.isEmpty else { return }
+        var indices = Array(points.indices)
+        _ = build(points: points, indices: &indices, depth: 0, range: 0..<points.count)
+    }
+
+    private mutating func build(points: [SIMD3<Float>], indices: inout [Int], depth: Int, range: Range<Int>) -> Int? {
+        guard range.lowerBound < range.upperBound else { return nil }
+        let axis = depth % 3
+        indices[range].sort { points[$0][axis] < points[$1][axis] }
+        let mid = (range.lowerBound + range.upperBound) / 2
+        let left = build(points: points, indices: &indices, depth: depth + 1, range: range.lowerBound..<mid)
+        let right = build(points: points, indices: &indices, depth: depth + 1, range: mid + 1..<range.upperBound)
+        nodes.append(Node(point: points[indices[mid]], index: indices[mid], axis: axis, left: left, right: right))
+        return nodes.count - 1
+    }
+
+    func kNearest(center: SIMD3<Float>, k: Int) -> [Neighbor] {
+        var heap: [Neighbor] = []
+        search(nodeIdx: nodes.count - 1, center: center, k: k, heap: &heap)
+        return heap
+    }
+
+    private func search(nodeIdx: Int?, center: SIMD3<Float>, k: Int, heap: inout [Neighbor]) {
+        guard let idx = nodeIdx, idx < nodes.count else { return }
+        let node = nodes[idx]
+        let dist = simd_distance(node.point, center)
+
+        if heap.count < k {
+            heap.append(Neighbor(index: node.index, distance: dist))
+            heap.sort { $0.distance > $1.distance }
+        } else if dist < heap[0].distance {
+            heap[0] = Neighbor(index: node.index, distance: dist)
+            heap.sort { $0.distance > $1.distance }
+        }
+
+        let diff = center[node.axis] - node.point[node.axis]
+        let (first, second) = diff <= 0 ? (node.left, node.right) : (node.right, node.left)
+        search(nodeIdx: first, center: center, k: k, heap: &heap)
+        if heap.count < k || abs(diff) < heap[0].distance {
+            search(nodeIdx: second, center: center, k: k, heap: &heap)
+        }
+    }
 }
 
 // MARK: - 便捷扩展

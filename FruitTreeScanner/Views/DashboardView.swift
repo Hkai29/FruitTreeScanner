@@ -9,7 +9,6 @@ struct DashboardView: View {
     @State private var showStartView = false
     @State private var showQuickScan = false
     @State private var showCalibration = false
-    @State private var showExport = false
     @State private var showScanHistory = false
     @State private var showPointCloud = false
     @State private var showTagManagement = false
@@ -17,17 +16,23 @@ struct DashboardView: View {
     @State private var showCompare = false
     @State private var showTrends = false
     @State private var showMapView = false
-    @State private var recentScans: [URL] = []
-    @StateObject private var historyStore = ScanHistoryStore.shared
+    @State private var showImportFile = false
+    @State private var showBatchExport = false
+    @State private var selectedPointCloudURL: URL?
+    @State private var pendingScanRequest: ScanLaunchRequest?
+    @State private var activeScanRequest: ScanLaunchRequest?
+    @ObservedObject private var historyStore = ScanHistoryStore.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var recentScans: [ScanFileRecord] {
+        Array(historyStore.scanFiles.prefix(3))
+    }
 
     var body: some View {
         ZStack {
             // 暗色渐变背景
             Design.Colors.darkGradient
                 .ignoresSafeArea()
-
-            // 手指光效层
-            FingerGlowOverlay()
 
             VStack(spacing: 0) {
                 TopNavigationBar(
@@ -42,30 +47,45 @@ struct DashboardView: View {
                         HeroSection()
                         ModeSelector(selectedMode: $selectedMode)
                         QuickActionsGrid(mode: selectedMode, onAction: handleQuickAction)
-                        RecentScansSection(scans: recentScans, onViewAll: { showScanHistory = true })
-                        StatsOverviewSection(scansCount: recentScans.count)
+                        RecentScansSection(
+                            scans: recentScans,
+                            onViewAll: { showScanHistory = true },
+                            onScanTap: openPointCloud
+                        )
+                        StatsOverviewSection(records: historyStore.scanFiles)
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 24)
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: ScanHistoryStore.didUpdateNotification)) { _ in
-            DispatchQueue.main.async {
-                historyStore.loadRecords()
-                loadRecentScans()
+        .sheet(isPresented: $showSettings) { SettingsView() }
+        .fullScreenCover(isPresented: $showStartView, onDismiss: presentPendingScanIfNeeded) {
+            StartView { request in
+                pendingScanRequest = request
+                showStartView = false
             }
         }
-        .sheet(isPresented: $showSettings) { SettingsView() }
-        .fullScreenCover(isPresented: $showStartView) { StartView() }
-        .fullScreenCover(isPresented: $showQuickScan) { QuickScanView() }
+        .fullScreenCover(isPresented: $showQuickScan, onDismiss: presentPendingScanIfNeeded) {
+            QuickScanView { request in
+                pendingScanRequest = request
+                showQuickScan = false
+            }
+        }
+        .fullScreenCover(item: $activeScanRequest, onDismiss: refreshScanHistory) { request in
+            ScanView(
+                treeID: request.treeID,
+                nVisual: nil,
+                season: request.season,
+                gps: request.gps
+            )
+        }
         .sheet(isPresented: $showCalibration) { CalibrationView() }
-        .sheet(isPresented: $showExport) { DataExportView() }
         .sheet(isPresented: $showScanHistory) { HistorySheetView() }
-        .sheet(isPresented: $showPointCloud) { PointCloudSheet() }
+        .sheet(isPresented: $showPointCloud) { PointCloudSheet(initialFileURL: selectedPointCloudURL) }
         .sheet(isPresented: $showTagManagement) {
-    TagManagementView()
-}
+            TagManagementView()
+        }
         .sheet(isPresented: $showYieldReport) { YieldReportSheet() }
         .sheet(isPresented: $showCompare) { HistoricalCompareView() }
         .sheet(isPresented: $showTrends) { TrendsSheet() }
@@ -76,7 +96,11 @@ struct DashboardView: View {
                 Text("地图功能需要 iOS 17")
             }
         }
-        .onAppear { historyStore.loadRecords(); loadRecentScans() }
+        .sheet(isPresented: $showImportFile) { ImportFileView() }
+        .sheet(isPresented: $showBatchExport) { BatchExportView() }
+        .onAppear {
+            historyStore.loadRecords()
+        }
     }
 
     private func handleQuickAction(_ action: QuickAction) {
@@ -84,30 +108,42 @@ struct DashboardView: View {
         case "新建扫描": showStartView = true
         case "快速扫描": showQuickScan = true
         case "校准设备": showCalibration = true
-        case "数据导出": showExport = true
         case "全部扫描": showScanHistory = true
-        case "点云预览": showPointCloud = true
+        case "点云预览":
+            selectedPointCloudURL = nil
+            showPointCloud = true
         case "标签管理": showTagManagement = true
-        case "导出": showExport = true
         case "产量报告": showYieldReport = true
         case "对比分析": showCompare = true
         case "趋势图表": showTrends = true
         case "地图视图": showMapView = true
+        case "导入文件": showImportFile = true
+        case "批次导出": showBatchExport = true
         default: break
         }
     }
 
-    private func loadRecentScans() {
-        let scansDir = getDocumentsDirectory().appendingPathComponent("scans")
-        recentScans = (try? FileManager.default.contentsOfDirectory(
-            at: scansDir, includingPropertiesForKeys: [.creationDateKey],
-            options: .skipsHiddenFiles)) ?? []
-            .filter { $0.pathExtension == "ply" }
-            .sorted { url1, url2 in
-                let date1 = (try? url1.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
-                let date2 = (try? url2.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
-                return date1 > date2
-            }
+    private func presentPendingScanIfNeeded() {
+        guard let request = pendingScanRequest else { return }
+        pendingScanRequest = nil
+        TagStore.shared.createOrUpdateAssignment(
+            treeId: request.treeID,
+            plotId: request.plotId,
+            tagIds: request.tagIds,
+            status: .reviewing
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            activeScanRequest = request
+        }
+    }
+
+    private func refreshScanHistory() {
+        historyStore.loadRecords()
+    }
+
+    private func openPointCloud(_ record: ScanFileRecord) {
+        selectedPointCloudURL = record.fileURL
+        showPointCloud = true
     }
 }
 
@@ -131,11 +167,19 @@ struct PointCloudSheet: View {
     @State private var selectedFile: URL?
     @ObservedObject var historyStore = ScanHistoryStore.shared
 
+    init(initialFileURL: URL? = nil) {
+        _selectedFile = State(initialValue: initialFileURL)
+    }
+
     private var filteredFiles: [ScanFileRecord] {
         if searchText.isEmpty {
             return historyStore.scanFiles
         }
         return historyStore.scanFiles.filter { $0.treeID.lowercased().contains(searchText.lowercased()) }
+    }
+
+    private var effectiveSelectedFile: URL? {
+        selectedFile ?? historyStore.scanFiles.first?.fileURL
     }
 
     var body: some View {
@@ -151,7 +195,7 @@ struct PointCloudSheet: View {
                         searchBar
 
                         // 点云预览
-                        PointCloudView(plyFileURL: selectedFile)
+                        PointCloudView(plyFileURL: effectiveSelectedFile)
                     }
                 }
             }
@@ -172,6 +216,13 @@ struct PointCloudSheet: View {
             // 默认选中第一个
             if selectedFile == nil, let first = historyStore.scanFiles.first {
                 selectedFile = first.fileURL
+            }
+        }
+        .onChange(of: historyStore.scanFiles) { records in
+            if selectedFile == nil, let first = records.first {
+                selectedFile = first.fileURL
+            } else if let selectedFile, !records.contains(where: { $0.fileURL == selectedFile }) {
+                self.selectedFile = records.first?.fileURL
             }
         }
     }
@@ -212,17 +263,17 @@ struct PointCloudSheet: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(record.treeID)
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(selectedFile == record.fileURL ? Design.Colors.Dark.textPrimary : Design.Colors.Dark.textPrimary)
+                                        .foregroundColor(effectiveSelectedFile == record.fileURL ? Design.Colors.Dark.textPrimary : Design.Colors.Dark.textPrimary)
                                     Text("\(record.fruitCount) 个果实")
                                         .font(.system(size: 11))
-                                        .foregroundColor(selectedFile == record.fileURL ? Design.Colors.Dark.textSecondary : Design.Colors.Dark.textSecondary)
+                                        .foregroundColor(effectiveSelectedFile == record.fileURL ? Design.Colors.Dark.textSecondary : Design.Colors.Dark.textSecondary)
                                     Text(String(format: "%.1f kg", record.yieldKg))
                                         .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(selectedFile == record.fileURL ? Design.Colors.Dark.textPrimary : Design.Colors.harvest)
+                                        .foregroundColor(effectiveSelectedFile == record.fileURL ? Design.Colors.Dark.textPrimary : Design.Colors.harvest)
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(selectedFile == record.fileURL ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
+                                .background(effectiveSelectedFile == record.fileURL ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
                                 .cornerRadius(8)
                             }
                         }
@@ -326,20 +377,6 @@ struct YieldStatCard: View {
     }
 }
 
-struct CompareSheet: View {
-    @Environment(\.dismiss) var dismiss
-    var body: some View {
-        NavigationView {
-            HistoricalCompareView()
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("完成") { dismiss() }.foregroundColor(Design.Colors.harvest)
-                    }
-                }
-        }
-    }
-}
-
 struct TrendsSheet: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var historyStore = ScanHistoryStore.shared
@@ -372,6 +409,9 @@ struct TrendsSheet: View {
                                 HStack(alignment: .bottom, spacing: 8) {
                                     ForEach(sortedRecords) { record in
                                         VStack(spacing: 4) {
+                                            Text(String(format: "%.1f", record.yieldKg))
+                                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                                .foregroundColor(Design.Colors.Dark.textSecondary)
                                             RoundedRectangle(cornerRadius: 4)
                                                 .fill(barColor(for: record.yieldKg))
                                                 .frame(width: 32, height: max(4, CGFloat(record.yieldKg / maxYield) * 150))
@@ -419,8 +459,8 @@ struct TrendsSheet: View {
     private func barColor(for yield: Float) -> Color {
         let ratio = yield / maxYield
         if ratio > 0.7 { return Design.Colors.harvest }
-        if ratio > 0.4 { return Design.Colors.harvest }
-        return Design.Colors.Dark.info
+        if ratio > 0.4 { return Design.Colors.Dark.info }
+        return Design.Colors.Dark.textMuted
     }
 
     private func shortDate(_ date: Date) -> String {
@@ -455,10 +495,14 @@ struct MapSheet: View {
 
 // MARK: - Quick Scan View
 struct QuickScanView: View {
+    var onLaunchScan: ((ScanLaunchRequest) -> Void)?
+
     @Environment(\.dismiss) var dismiss
-    @StateObject private var gps = GPSRecorder()
+    @State private var gps = GPSRecorder()
     @State private var treeID: String = "Q\((Int.random(in: 1000...9999)))"
+    @State private var draftTreeID: String = ""
     @State private var showScan = false
+    @State private var isLaunchingScan = false
 
     var body: some View {
         ZStack {
@@ -491,9 +535,13 @@ struct QuickScanView: View {
                         .padding(.top, 20)
 
                         InputCard(title: "树编号") {
-                            TextField("自动生成", text: $treeID)
+                            TextField("自动生成", text: $draftTreeID)
                                 .font(.system(size: 17)).foregroundColor(Design.Colors.Dark.textPrimary)
                                 .padding(16).background(Design.Colors.Dark.bgElevated).cornerRadius(12)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled(true)
+                                .textContentType(.none)
+                                .submitLabel(.done)
                         }
 
                         Spacer(minLength: 40)
@@ -501,12 +549,16 @@ struct QuickScanView: View {
                     .padding(.horizontal, 24)
                 }
 
-                Button {
-                    showScan = true
-                } label: {
+                Button(action: launchQuickScan) {
                     HStack(spacing: 12) {
-                        Image(systemName: "bolt.fill").font(.system(size: 18))
-                        Text("开始快速扫描").font(.system(size: 18, weight: .bold))
+                        if isLaunchingScan {
+                            ProgressView()
+                                .tint(Design.Colors.Dark.textPrimary)
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "bolt.fill").font(.system(size: 18))
+                        }
+                        Text(isLaunchingScan ? "启动中..." : "开始快速扫描").font(.system(size: 18, weight: .bold))
                     }
                     .foregroundColor(Design.Colors.Dark.textPrimary)
                     .frame(maxWidth: .infinity)
@@ -516,45 +568,63 @@ struct QuickScanView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 40)
+                .disabled(!canLaunch)
+                .opacity(canLaunch ? 1 : 0.55)
+            }
+        }
+        .onAppear {
+            if draftTreeID.isEmpty {
+                draftTreeID = treeID
+            }
+        }
+        .onChange(of: showScan) { isPresented in
+            if !isPresented {
+                isLaunchingScan = false
             }
         }
         .fullScreenCover(isPresented: $showScan) {
             ScanView(treeID: treeID, nVisual: nil, season: .mature, gps: gps)
+                .onAppear {
+                    isLaunchingScan = false
+                }
         }
     }
-}
 
-// MARK: - Background Components
-
-struct AnimatedGradientBackground: View {
-    @State private var animateGradient = false
-    var body: some View {
-        LinearGradient(
-            colors: [
-                Color.white,
-                Color.white.opacity(0.95),
-                Design.Colors.forestDark.opacity(0.3),
-                Color.white
-            ],
-            startPoint: animateGradient ? .topLeading : .topTrailing,
-            endPoint: animateGradient ? .bottomTrailing : .bottomLeading
-        )
-        .ignoresSafeArea()
-        .onAppear { withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) { animateGradient.toggle() } }
+    private var canLaunch: Bool {
+        !isLaunchingScan && !draftTreeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-}
 
-struct GridPatternOverlay: View {
-    var body: some View {
-        GeometryReader { geometry in
-            Path { path in
-                let spacing: CGFloat = 40
-                let cols = Int(geometry.size.width / spacing) + 1
-                let rows = Int(geometry.size.height / spacing) + 1
-                for col in 0..<cols { path.move(to: CGPoint(x: CGFloat(col) * spacing, y: 0)); path.addLine(to: CGPoint(x: CGFloat(col) * spacing, y: geometry.size.height)) }
-                for row in 0..<rows { path.move(to: CGPoint(x: 0, y: CGFloat(row) * spacing)); path.addLine(to: CGPoint(x: geometry.size.width, y: CGFloat(row) * spacing)) }
+    private func launchQuickScan() {
+        guard canLaunch else { return }
+        isLaunchingScan = true
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            let normalizedTreeID = draftTreeID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedTreeID.isEmpty else {
+                isLaunchingScan = false
+                return
             }
-            .stroke(Color(hex: "E5E5EA"), lineWidth: 1)
+
+            treeID = normalizedTreeID
+            let request = ScanLaunchRequest(
+                treeID: normalizedTreeID,
+                season: .mature,
+                gps: gps,
+                plotId: nil,
+                tagIds: []
+            )
+            if let onLaunchScan {
+                onLaunchScan(request)
+            } else {
+                showScan = true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if !showScan {
+                isLaunchingScan = false
+            }
         }
     }
 }
@@ -570,12 +640,13 @@ struct TopNavigationBar: View {
         HStack(spacing: 16) {
             HStack(spacing: 12) {
                 ZStack {
-                    Circle().fill(Design.Colors.Dark.bgElevated).frame(width: 40, height: 40)
+                    Circle().fill(Design.Colors.Dark.bgElevated).frame(width: 44, height: 44)
                     Image(systemName: "cube.fill").font(.system(size: 18)).foregroundStyle(LinearGradient(colors: [Design.Colors.harvest, Design.Colors.harvestLight], startPoint: .topLeading, endPoint: .bottomTrailing))
                 }
+                .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("FruitScanner").font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(Design.Colors.Dark.textPrimary)
-                    Text("智能果树扫描").font(.system(size: 10, weight: .medium)).foregroundColor(Design.Colors.Dark.textSecondary)
+                    Text("FruitScanner").font(.system(size: 15, weight: .semibold)).foregroundColor(Design.Colors.Dark.textPrimary)
+                    Text("果树 LiDAR 扫描").font(.system(size: 10, weight: .medium)).foregroundColor(Design.Colors.Dark.textSecondary)
                 }
             }
             Spacer()
@@ -588,10 +659,13 @@ struct TopNavigationBar: View {
                         }
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8).background(Design.Colors.Dark.bgElevated).clipShape(Capsule())
+                    .frame(minWidth: Design.Touch.minimumWidth, minHeight: Design.Touch.minimumHeight)
                 }
+                .accessibilityLabel("扫描历史\(historyCount > 0 ? "，\(historyCount)条记录" : "")")
                 Button(action: { showSettings = true }) {
-                    Image(systemName: "gearshape.fill").font(.system(size: 18)).foregroundColor(Design.Colors.Dark.textPrimary).frame(width: 40, height: 40).background(Design.Colors.Dark.bgElevated).clipShape(Circle())
+                    Image(systemName: "gearshape.fill").font(.system(size: 18)).foregroundColor(Design.Colors.Dark.textPrimary).frame(width: 44, height: 44).background(Design.Colors.Dark.bgElevated).clipShape(Circle())
                 }
+                .accessibilityLabel("设置")
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
@@ -601,20 +675,63 @@ struct TopNavigationBar: View {
 // MARK: - Hero Section
 
 struct HeroSection: View {
-    @State private var pulseAnimation = false
     var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle().fill(Design.Colors.harvest.opacity(0.2)).frame(width: 140, height: 140).blur(radius: 20).scaleEffect(pulseAnimation ? 1.1 : 0.9).animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: pulseAnimation)
-                Circle().fill(LinearGradient(colors: [Design.Colors.harvestDark, Design.Colors.harvest.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 120, height: 120)
-                Circle().strokeBorder(LinearGradient(colors: [Design.Colors.harvest, Design.Colors.harvestLight.opacity(0.5)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 3).frame(width: 110, height: 110)
-                Image(systemName: "cube.fill").font(.system(size: 48)).foregroundStyle(LinearGradient(colors: [Design.Colors.harvest, Design.Colors.harvestLight], startPoint: .topLeading, endPoint: .bottomTrailing))
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Design.Colors.forest.opacity(0.14))
+                        .frame(width: 54, height: 54)
+                    Image(systemName: "viewfinder")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(Design.Colors.forest)
+                }
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("果树三维扫描")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                    Text("用 iPhone LiDAR 采集点云、识别果实并估算产量")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
             }
-            Text("果树三维扫描系统").font(.system(size: 28, weight: .bold, design: .rounded)).foregroundColor(Design.Colors.Dark.textPrimary)
-            Text("基于 LiDAR 的智能产量估算方案").font(.system(size: 14, weight: .medium)).foregroundColor(Design.Colors.Dark.textSecondary)
+
+            HStack(spacing: 8) {
+                ProductBadge(title: "LiDAR", value: "点云采集")
+                ProductBadge(title: "RGB", value: "果实识别")
+                ProductBadge(title: "CSV", value: "数据导出")
+            }
         }
-        .padding(.vertical, 40)
-        .onAppear { pulseAnimation = true }
+        .padding(18)
+        .dashboardSurface(cornerRadius: 12)
+    }
+}
+
+private struct ProductBadge: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundColor(Design.Colors.forest)
+            Text(value)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Design.Colors.Dark.bgElevated.opacity(0.7))
+        .cornerRadius(8)
     }
 }
 
@@ -626,12 +743,20 @@ struct ModeSelector: View {
         HStack(spacing: 12) {
             ForEach(AppMode.allCases, id: \.self) { mode in
                 ModeButton(mode: mode, isSelected: selectedMode == mode) {
-                    withAnimation(.spring(response: 0.3)) { selectedMode = mode }
+                    withAnimation(.easeOut(duration: Design.Animation.standard)) { selectedMode = mode }
                 }
             }
         }
-        .padding(6)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Design.Colors.Dark.bgSurface).overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Design.Colors.harvest.opacity(0.3), lineWidth: 1)))
+        .frame(maxWidth: .infinity)
+        .padding(5)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Design.Colors.Dark.bgSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -645,11 +770,15 @@ struct ModeButton: View {
                 Image(systemName: mode.icon).font(.system(size: 14, weight: .semibold))
                 Text(mode.title).font(.system(size: 14, weight: .semibold))
             }
-            .foregroundColor(isSelected ? Design.Colors.Dark.textPrimary : Design.Colors.Dark.textSecondary)
-            .padding(.horizontal, 20).padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(isSelected ? Design.Colors.harvest.opacity(0.2) : Color.clear))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isSelected ? Design.Colors.harvest : Color.clear, lineWidth: 1))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .foregroundColor(isSelected ? .white : Design.Colors.Dark.textSecondary)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Design.Colors.forest : Color.clear)
+            )
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -666,7 +795,7 @@ struct QuickActionsGrid: View {
     var onAction: ((QuickAction) -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("快捷操作").font(.system(size: 18, weight: .bold)).foregroundColor(Design.Colors.Dark.textPrimary)
+            Text("快捷操作").font(.system(size: 18, weight: .semibold)).foregroundColor(Design.Colors.Dark.textPrimary)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
                 ForEach(quickActions(for: mode)) { action in QuickActionCard(action: action) { onAction?(action) } }
             }
@@ -677,13 +806,13 @@ struct QuickActionsGrid: View {
         case .scan:
             return [QuickAction(title: "新建扫描", icon: "plus.circle.fill", color: Design.Colors.harvest, description: "开始果树扫描"),
                     QuickAction(title: "快速扫描", icon: "bolt.fill", color: Design.Colors.harvest, description: "快速采集模式"),
-                    QuickAction(title: "校准设备", icon: "gyroscope", color: Design.Colors.Dark.info, description: "LiDAR 校准"),
-                    QuickAction(title: "数据导出", icon: "square.and.arrow.up", color: Design.Colors.Dark.info, description: "导出 PLY/CSV")]
+                    QuickAction(title: "校准设备", icon: "gyroscope", color: Design.Colors.Dark.info, description: "检查相机与 LiDAR"),
+                    QuickAction(title: "导入文件", icon: "square.and.arrow.down.fill", color: Design.Colors.Dark.info, description: "导入点云文件")]
         case .history:
             return [QuickAction(title: "全部扫描", icon: "folder.fill", color: Design.Colors.harvest, description: "查看所有记录"),
                     QuickAction(title: "点云预览", icon: "cube", color: Design.Colors.Dark.info, description: "3D 点云可视化"),
-                    QuickAction(title: "标签管理", icon: "tag.fill", color: Design.Colors.harvest, description: "管理树木分组"),
-                    QuickAction(title: "导出", icon: "square.and.arrow.up", color: Design.Colors.Dark.info, description: "批量导出")]
+                    QuickAction(title: "标签管理", icon: "tag.fill", color: Design.Colors.harvest, description: "管理树标签"),
+                    QuickAction(title: "批次导出", icon: "doc.richtext", color: Design.Colors.harvest, description: "批量导出Excel")]
         case .analytics:
             return [QuickAction(title: "产量报告", icon: "chart.pie.fill", color: Design.Colors.harvest, description: "生成分析报告"),
                     QuickAction(title: "对比分析", icon: "arrow.left.arrow.right", color: Design.Colors.harvest, description: "多棵树对比"),
@@ -694,8 +823,8 @@ struct QuickActionsGrid: View {
 }
 
 struct QuickAction: Identifiable {
-    let id = UUID()
     let title: String, icon: String, color: Color, description: String
+    var id: String { title }
 }
 
 struct QuickActionCard: View {
@@ -704,117 +833,139 @@ struct QuickActionCard: View {
     var body: some View {
         Button { onTap?() } label: {
             VStack(alignment: .leading, spacing: 12) {
-                ZStack { RoundedRectangle(cornerRadius: 12).fill(action.color.opacity(0.15)).frame(width: 48, height: 48)
-                    Image(systemName: action.icon).font(.system(size: 22)).foregroundColor(action.color)
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(action.color.opacity(0.12))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: action.icon)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(action.color)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Design.Colors.Dark.textMuted)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(action.title).font(.system(size: 15, weight: .bold)).foregroundColor(Design.Colors.Dark.textPrimary)
-                    Text(action.description).font(.system(size: 12)).foregroundColor(Design.Colors.Dark.textSecondary)
+                    Text(action.title).font(.system(size: 15, weight: .semibold)).foregroundColor(Design.Colors.Dark.textPrimary)
+                    Text(action.description).font(.system(size: 12)).foregroundColor(Design.Colors.Dark.textSecondary).lineLimit(2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(
-                GlassCard(cornerRadius: 16, padding: 0) {
-                    EmptyView()
-                }
-                .opacity(0.9)
-            )
+            .frame(minHeight: 112, alignment: .top)
+            .padding(14)
+            .dashboardSurface(cornerRadius: 10)
         }
         .buttonStyle(ScaleButtonStyle())
+        .accessibilityLabel("\(action.title)，\(action.description)")
     }
 }
 
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.scaleEffect(configuration.isPressed ? 0.96 : 1).animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+        configuration.label.scaleEffect(configuration.isPressed ? 0.96 : 1).animation(.easeOut(duration: Design.Animation.micro), value: configuration.isPressed)
     }
 }
 
 // MARK: - Recent Scans
 
 struct RecentScansSection: View {
-    var scans: [URL]
+    var scans: [ScanFileRecord]
     var onViewAll: (() -> Void)? = nil
+    var onScanTap: ((ScanFileRecord) -> Void)? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("最近扫描").font(.system(size: 18, weight: .bold)).foregroundColor(Design.Colors.Dark.textPrimary)
+                Text("最近扫描").font(.system(size: 18, weight: .semibold)).foregroundColor(Design.Colors.Dark.textPrimary)
                 Spacer()
-                Button("查看全部") { onViewAll?() }.font(.system(size: 13, weight: .medium)).foregroundColor(Design.Colors.harvest)
+                Button("查看全部") { onViewAll?() }.font(.system(size: 13, weight: .medium)).foregroundColor(Design.Colors.forest)
             }
             if scans.isEmpty {
-                VStack(spacing: 12) { Image(systemName: "doc.text.magnifyingglass").font(.system(size: 32)).foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.3))
-                    Text("暂无扫描记录").font(.system(size: 14)).foregroundColor(Design.Colors.Dark.textSecondary)
+                VStack(spacing: 10) { Image(systemName: "doc.text.magnifyingglass").font(.system(size: 30)).foregroundColor(Design.Colors.Dark.textMuted)
+                    Text("还没有扫描记录").font(.system(size: 14, weight: .medium)).foregroundColor(Design.Colors.Dark.textSecondary)
                 }.frame(maxWidth: .infinity).padding(.vertical, 32)
             } else {
-                VStack(spacing: 12) { ForEach(scans.prefix(3), id: \.self) { url in RecentScanCard(url: url) } }
+                VStack(spacing: 12) {
+                    ForEach(scans) { record in
+                        Button {
+                            onScanTap?(record)
+                        } label: {
+                            RecentScanCard(record: record)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("查看 \(record.treeID) 点云")
+                    }
+                }
             }
         }
         .padding(16)
-        .background(
-            GlassCard(cornerRadius: 12, padding: 0) {
-                EmptyView()
-            }
-            .opacity(0.8)
-        )
+        .dashboardSurface(cornerRadius: 12)
     }
 }
 
 struct RecentScanCard: View {
-    let url: URL
-    private var fileName: String { url.deletingPathExtension().lastPathComponent }
+    let record: ScanFileRecord
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
     private var dateString: String {
-        let date = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: date)
+        Self.dateFormatter.string(from: record.scanDate)
     }
-    private var fileSizeString: String {
-        guard let attr = try? FileManager.default.attributesOfItem(atPath: url.path), let size = attr[.size] as? Int else { return "--" }
-        return String(format: "%.1f MB", Double(size) / 1_048_576)
-    }
+
     var body: some View {
         HStack(spacing: 16) {
-            ZStack { Circle().fill(Design.Colors.harvest.opacity(0.15)).frame(width: 48, height: 48)
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundColor(Design.Colors.harvest)
+            ZStack { RoundedRectangle(cornerRadius: 9).fill(Design.Colors.forest.opacity(0.12)).frame(width: 44, height: 44)
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 19)).foregroundColor(Design.Colors.forest)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(fileName).font(.system(size: 14, weight: .bold, design: .monospaced)).foregroundColor(Design.Colors.Dark.textPrimary).lineLimit(1)
+                Text(record.treeID).font(.system(size: 14, weight: .semibold, design: .monospaced)).foregroundColor(Design.Colors.Dark.textPrimary).lineLimit(1)
                 Text(dateString).font(.system(size: 12)).foregroundColor(Design.Colors.Dark.textSecondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text(fileSizeString).font(.system(size: 13, weight: .medium, design: .monospaced)).foregroundColor(Design.Colors.harvest)
-                Text("已完成").font(.system(size: 11)).foregroundColor(Design.Colors.Dark.textSecondary)
+                Text(String(format: "%.1f kg", record.yieldKg)).font(.system(size: 13, weight: .medium, design: .monospaced)).foregroundColor(Design.Colors.Dark.textPrimary)
+                Text("\(record.fruitCount) 个果实").font(.system(size: 11)).foregroundColor(Design.Colors.Dark.textSecondary)
             }
         }
-        .padding(16)
-        .background(Design.Colors.Dark.bgElevated.opacity(0.5))
-        .cornerRadius(12)
+        .padding(12)
+        .background(Design.Colors.Dark.bgElevated.opacity(0.55))
+        .cornerRadius(8)
     }
 }
 
 // MARK: - Stats Overview
 
 struct StatsOverviewSection: View {
-    var scansCount: Int = 0
+    var records: [ScanFileRecord] = []
+
+    private var todaysRecords: [ScanFileRecord] {
+        records.filter { Calendar.current.isDateInToday($0.scanDate) }
+    }
+
+    private var todaysYield: Float {
+        todaysRecords.reduce(0) { $0 + $1.yieldKg }
+    }
+
+    private var todaysTrees: Int {
+        Set(todaysRecords.map(\.treeID)).count
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("今日概览").font(.system(size: 18, weight: .bold)).foregroundColor(Design.Colors.Dark.textPrimary)
+            Text("今日概览").font(.system(size: 18, weight: .semibold)).foregroundColor(Design.Colors.Dark.textPrimary)
             HStack(spacing: 16) {
-                StatCard(value: "\(scansCount)", label: "扫描数量", icon: "viewfinder", color: Design.Colors.harvest)
-                StatCard(value: "--", label: "总产量/kg", icon: "scalemass.fill", color: Design.Colors.harvest)
-                StatCard(value: "--", label: "果园数", icon: "tree.fill", color: Design.Colors.Dark.info)
+                StatCard(value: "\(todaysRecords.count)", label: "扫描数量", icon: "viewfinder", color: Design.Colors.harvest)
+                StatCard(value: String(format: "%.1f", todaysYield), label: "总产量/kg", icon: "scalemass.fill", color: Design.Colors.harvest)
+                StatCard(value: "\(todaysTrees)", label: "树编号", icon: "tree.fill", color: Design.Colors.Dark.info)
             }
         }
         .padding(16)
-        .background(
-            GlassCard(cornerRadius: 12, padding: 0) {
-                EmptyView()
-            }
-            .opacity(0.8)
-        )
+        .dashboardSurface(cornerRadius: 12)
     }
 }
 
@@ -823,13 +974,13 @@ struct StatCard: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: icon).font(.system(size: 20)).foregroundColor(color)
-            Text(value).font(.system(size: 24, weight: .bold, design: .rounded)).foregroundColor(Design.Colors.Dark.textPrimary)
+            Text(value).font(.system(size: 24, weight: .semibold, design: .monospaced)).foregroundColor(Design.Colors.Dark.textPrimary)
             Text(label).font(.system(size: 11)).foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-        .background(Design.Colors.Dark.bgElevated.opacity(0.5))
-        .cornerRadius(12)
+        .background(Design.Colors.Dark.bgElevated.opacity(0.55))
+        .cornerRadius(8)
     }
 }
 
@@ -849,11 +1000,25 @@ struct InputCard<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            GlassCard(cornerRadius: 16, padding: 0) {
-                EmptyView()
-            }
-            .opacity(0.8)
-        )
+        .dashboardSurface(cornerRadius: 10)
+    }
+}
+
+private extension View {
+    func dashboardSurface(cornerRadius: CGFloat) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(Design.Colors.Dark.glassFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
+            )
+            .shadow(
+                color: Design.Shadow.glassShadow.color,
+                radius: Design.Shadow.glassShadow.radius,
+                y: Design.Shadow.glassShadow.y
+            )
     }
 }

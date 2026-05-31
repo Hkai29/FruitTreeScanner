@@ -2,26 +2,54 @@
 // 新建扫描 - 5步引导式设计
 
 import SwiftUI
+import UIKit
+
+struct ScanLaunchRequest: Identifiable {
+    let id = UUID()
+    let treeID: String
+    let season: Season
+    let gps: GPSRecorder
+    let plotId: UUID?
+    let tagIds: [UUID]
+
+    init(
+        treeID: String,
+        season: Season,
+        gps: GPSRecorder,
+        plotId: UUID? = nil,
+        tagIds: [UUID] = []
+    ) {
+        self.treeID = treeID
+        self.season = season
+        self.gps = gps
+        self.plotId = plotId
+        self.tagIds = tagIds
+    }
+}
 
 struct StartView: View {
+    var onLaunchScan: ((ScanLaunchRequest) -> Void)?
+
     @State private var currentStep = 1
     @State private var treeID = ""
+    @State private var isTreeIDValid = false
     @State private var selectedPlotId: UUID?
     @State private var season: Season = .mature
     @State private var selectedTagIds: Set<UUID> = []
     @State private var showScan = false
+    @State private var isLaunchingScan = false
     @State private var showPlotEdit = false
     @State private var showTagEdit = false
 
-    @StateObject private var tagStore = TagStore.shared
-    @StateObject private var gps = GPSRecorder()
+    @ObservedObject private var tagStore = TagStore.shared
+    @State private var gps = GPSRecorder()
     @Environment(\.dismiss) var dismiss
 
     private let totalSteps = 5
 
     private var canGoNext: Bool {
         switch currentStep {
-        case 1: return !treeID.trimmingCharacters(in: .whitespaces).isEmpty
+        case 1: return isTreeIDValid
         default: return true
         }
     }
@@ -40,9 +68,6 @@ struct StartView: View {
             Design.Colors.darkGradient
                 .ignoresSafeArea()
 
-            // 手指光效
-            FingerGlowOverlay()
-
             VStack(spacing: 0) {
                 // 顶部导航
                 topNavigation
@@ -51,14 +76,8 @@ struct StartView: View {
                 StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
                     .padding(.vertical, Design.Space.lg)
 
-                // 内容区域 - 带翻页动画
-                GeometryReader { geometry in
-                    ZStack {
-                        stepContent
-                            .frame(width: geometry.size.width)
-                            .animation(.easeInOut(duration: 0.3), value: currentStep)
-                    }
-                }
+                stepContent
+                    .frame(maxWidth: .infinity)
                 .padding(.horizontal, Design.Space.lg)
 
                 Spacer()
@@ -68,13 +87,14 @@ struct StartView: View {
                     currentStep: currentStep,
                     totalSteps: totalSteps,
                     canGoBack: currentStep > 1,
-                    canGoNext: canGoNext,
+                    canGoNext: canGoNext && !isLaunchingScan,
+                    isLaunching: isLaunchingScan,
                     onBack: { withAnimation(.easeInOut(duration: 0.3)) { if currentStep > 1 { currentStep -= 1 } } },
                     onNext: {
                         if currentStep < totalSteps {
                             withAnimation(.easeInOut(duration: 0.3)) { currentStep += 1 }
                         } else {
-                            showScan = true
+                            launchScan()
                         }
                     }
                 )
@@ -89,6 +109,14 @@ struct StartView: View {
                 season: season,
                 gps: gps
             )
+            .onAppear {
+                isLaunchingScan = false
+            }
+        }
+        .onChange(of: showScan) { isPresented in
+            if !isPresented {
+                isLaunchingScan = false
+            }
         }
         .sheet(isPresented: $showPlotEdit) {
             PlotEditView(onSave: { newPlot in
@@ -133,7 +161,7 @@ struct StartView: View {
     private var stepContent: some View {
         switch currentStep {
         case 1:
-            Step1_IDEntry(treeID: $treeID)
+            Step1_IDEntry(treeID: $treeID, isValid: $isTreeIDValid)
         case 2:
             Step2_PlotSelection(
                 plots: tagStore.plots,
@@ -160,6 +188,40 @@ struct StartView: View {
             EmptyView()
         }
     }
+
+    private func launchScan() {
+        guard !isLaunchingScan else { return }
+        isLaunchingScan = true
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            let normalizedTreeID = treeID.trimmingCharacters(in: .whitespaces)
+            tagStore.createOrUpdateAssignment(
+                treeId: normalizedTreeID,
+                plotId: selectedPlotId,
+                tagIds: Array(selectedTagIds),
+                status: .reviewing
+            )
+            let request = ScanLaunchRequest(
+                treeID: normalizedTreeID,
+                season: season,
+                gps: gps,
+                plotId: selectedPlotId,
+                tagIds: Array(selectedTagIds)
+            )
+
+            if let onLaunchScan {
+                onLaunchScan(request)
+            } else {
+                showScan = true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if !showScan {
+                isLaunchingScan = false
+            }
+        }
+    }
 }
 
 // MARK: - Step Progress View
@@ -173,7 +235,7 @@ struct StepProgressView: View {
             ForEach(1...totalSteps, id: \.self) { step in
                 // 圆点
                 Circle()
-                    .fill(step <= currentStep ? Design.Colors.forest : Color(hex: "E5E5EA"))
+                    .fill(step <= currentStep ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
                     .frame(width: step == currentStep ? 12 : 10, height: step == currentStep ? 12 : 10)
                     .overlay {
                         if step == currentStep {
@@ -186,7 +248,7 @@ struct StepProgressView: View {
                 // 连接线
                 if step < totalSteps {
                     Rectangle()
-                        .fill(step < currentStep ? Design.Colors.forest : Color(hex: "E5E5EA"))
+                        .fill(step < currentStep ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
                         .frame(height: 2)
                 }
             }
@@ -198,7 +260,7 @@ struct StepProgressView: View {
             ForEach(0..<totalSteps, id: \.self) { index in
                 Text(labels[index])
                     .font(.system(size: 11, weight: index + 1 == currentStep ? .semibold : .regular))
-                    .foregroundColor(index + 1 <= currentStep ? Design.Colors.forest : Color(hex: "8E8E93"))
+                    .foregroundColor(index + 1 <= currentStep ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
                     .frame(width: 60)
 
                 if index < totalSteps - 1 {
@@ -217,6 +279,7 @@ struct StepNavigationBar: View {
     let totalSteps: Int
     let canGoBack: Bool
     let canGoNext: Bool
+    var isLaunching: Bool = false
     let onBack: () -> Void
     let onNext: () -> Void
 
@@ -233,9 +296,11 @@ struct StepNavigationBar: View {
                         Text("上一步")
                             .font(.system(size: 15, weight: .medium))
                     }
-                    .foregroundColor(Design.Colors.harvest)
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
                     .padding(.vertical, 14)
                     .padding(.horizontal, 20)
+                    .background(Design.Colors.Dark.bgElevated)
+                    .cornerRadius(10)
                 }
             }
 
@@ -251,9 +316,13 @@ struct StepNavigationBar: View {
             // 下一步/开始按钮
             Button(action: onNext) {
                 HStack(spacing: 4) {
-                    Text(isLastStep ? "开始扫描" : "下一步")
+                    Text(isLaunching ? "启动中..." : (isLastStep ? "开始扫描" : "下一步"))
                         .font(.system(size: 15, weight: .semibold))
-                    if !isLastStep {
+                    if isLaunching {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.75)
+                    } else if !isLastStep {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 14, weight: .medium))
                     } else {
@@ -265,7 +334,7 @@ struct StepNavigationBar: View {
                 .padding(.vertical, 14)
                 .padding(.horizontal, 24)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(canGoNext ? Design.Colors.forest : Design.Colors.slate.opacity(0.5))
                 )
             }
@@ -278,6 +347,9 @@ struct StepNavigationBar: View {
 // MARK: - Step 1: ID Entry
 struct Step1_IDEntry: View {
     @Binding var treeID: String
+    @Binding var isValid: Bool
+    @State private var draftTreeID = ""
+    @State private var syncTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.lg) {
@@ -288,7 +360,7 @@ struct Step1_IDEntry: View {
                     .foregroundColor(Design.Colors.harvest)
 
                 Text("输入果树编号")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("为扫描的果树设置唯一编号")
@@ -304,21 +376,20 @@ struct Step1_IDEntry: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
 
-                TextField("例：T001", text: $treeID)
+                TextField("例：T001", text: $draftTreeID)
                     .font(.system(size: 20, weight: .medium, design: .monospaced))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
                     .padding(Design.Space.md)
                     .background(Design.Colors.Dark.bgElevated)
-                    .cornerRadius(12)
-                    .autocapitalization(.allCharacters)
-                    .disableAutocorrection(true)
+                    .cornerRadius(10)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled(true)
+                    .textContentType(.none)
+                    .submitLabel(.next)
+                    .onSubmit(syncImmediately)
             }
             .padding(Design.Space.lg)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.05), radius: 8, y: 2)
-            )
+            .startSurface(cornerRadius: 12)
 
             // 提示
             HStack(spacing: Design.Space.xs) {
@@ -333,6 +404,33 @@ struct Step1_IDEntry: View {
             Spacer()
         }
         .padding(.vertical, Design.Space.md)
+        .onAppear {
+            if draftTreeID.isEmpty {
+                draftTreeID = treeID
+            }
+            isValid = !draftTreeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        .onDisappear {
+            syncImmediately()
+            syncTask?.cancel()
+        }
+        .onChange(of: draftTreeID) { newValue in
+            isValid = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            syncTask?.cancel()
+            syncTask = Task {
+                try? await Task.sleep(nanoseconds: 180_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    treeID = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+        }
+    }
+
+    private func syncImmediately() {
+        let normalized = draftTreeID.trimmingCharacters(in: .whitespacesAndNewlines)
+        treeID = normalized
+        isValid = !normalized.isEmpty
     }
 }
 
@@ -351,7 +449,7 @@ struct Step2_PlotSelection: View {
                     .foregroundColor(Design.Colors.harvest)
 
                 Text("选择地块")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("将果树分配到对应的种植区域")
@@ -392,7 +490,7 @@ struct Step2_PlotSelection: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Design.Space.lg)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 10)
                                 .strokeBorder(Design.Colors.forest.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [5]))
                         )
                     }
@@ -457,16 +555,16 @@ struct PlotSelectionCard: View {
 
                 Text(plot.name)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? Design.Colors.forest : Color(hex: "1C1C1E"))
+                    .foregroundColor(isSelected ? Design.Colors.forest : Design.Colors.Dark.textPrimary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Design.Space.lg)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Design.Colors.forest.opacity(0.1) : Color.white)
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Design.Colors.forest.opacity(0.12) : Design.Colors.Dark.bgElevated.opacity(0.55))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(isSelected ? Design.Colors.forest : Color(hex: "E5E5EA"), lineWidth: isSelected ? 2 : 1)
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(isSelected ? Design.Colors.forest : Design.Colors.Dark.glassBorder, lineWidth: isSelected ? 1.5 : 1)
                     )
             )
         }
@@ -486,7 +584,7 @@ struct Step3_SeasonSelection: View {
                     .foregroundColor(Design.Colors.harvest)
 
                 Text("选择扫描季节")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("季节影响产量估算的计算方法")
@@ -551,36 +649,36 @@ struct SeasonCard: View {
             VStack(spacing: Design.Space.md) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? color.opacity(0.15) : Color(hex: "F2F2F7"))
+                        .fill(isSelected ? color.opacity(0.15) : Design.Colors.Dark.bgElevated)
                         .frame(width: 64, height: 64)
 
                     Image(systemName: icon)
                         .font(.system(size: 28))
-                        .foregroundColor(isSelected ? color : Color(hex: "8E8E93"))
+                        .foregroundColor(isSelected ? color : Design.Colors.Dark.textSecondary)
                 }
 
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "1C1C1E"))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text(subtitle)
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "636366"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
 
                 Text(description)
                     .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "8E8E93"))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Design.Space.sm)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Design.Space.lg)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white)
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? color.opacity(0.08) : Design.Colors.Dark.bgElevated.opacity(0.55))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(isSelected ? color : Color(hex: "E5E5EA"), lineWidth: isSelected ? 2 : 1)
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(isSelected ? color : Design.Colors.Dark.glassBorder, lineWidth: isSelected ? 1.5 : 1)
                     )
             )
         }
@@ -602,7 +700,7 @@ struct Step4_TagSelection: View {
                     .foregroundColor(Design.Colors.harvest)
 
                 Text("添加标签")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("为果树添加分类标签（可选）")
@@ -728,12 +826,12 @@ struct TagChip: View {
                         .font(.system(size: 12, weight: .bold))
                 }
             }
-            .foregroundColor(isSelected ? .white : Color(hex: "1C1C1E"))
+                            .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
             .padding(.horizontal, Design.Space.md)
             .padding(.vertical, Design.Space.sm)
             .background(
                 Capsule()
-                    .fill(isSelected ? Design.Colors.forest : Color(hex: "F2F2F7"))
+                    .fill(isSelected ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
             )
         }
     }
@@ -789,7 +887,7 @@ struct Step5_Confirmation: View {
     let plot: Plot?
     let season: Season
     let tags: [GroupTag]
-    let gps: GPSRecorder
+    @ObservedObject var gps: GPSRecorder
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.lg) {
@@ -800,7 +898,7 @@ struct Step5_Confirmation: View {
                     .foregroundColor(Design.Colors.harvest)
 
                 Text("确认配置")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text("请确认以下配置信息")
@@ -815,7 +913,7 @@ struct Step5_Confirmation: View {
                 // 编号
                 ConfirmationRow(icon: "number", label: "编号", value: treeID)
 
-                Divider()
+                Divider().background(Design.Colors.Dark.glassBorder)
 
                 // 地块
                 ConfirmationRow(
@@ -825,7 +923,7 @@ struct Step5_Confirmation: View {
                     valueColor: plot != nil ? Design.Colors.forest : Color(hex: "8E8E93")
                 )
 
-                Divider()
+                Divider().background(Design.Colors.Dark.glassBorder)
 
                 // 季节
                 ConfirmationRow(
@@ -835,7 +933,7 @@ struct Step5_Confirmation: View {
                     valueColor: Design.Colors.harvest
                 )
 
-                Divider()
+                Divider().background(Design.Colors.Dark.glassBorder)
 
                 // 标签
                 HStack(spacing: Design.Space.md) {
@@ -846,14 +944,14 @@ struct Step5_Confirmation: View {
 
                     Text("标签")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "636366"))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
 
                     Spacer()
 
                     if tags.isEmpty {
                         Text("无")
                             .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "8E8E93"))
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                     } else {
                         HStack(spacing: Design.Space.xs) {
                             ForEach(tags.prefix(3)) { tag in
@@ -862,18 +960,18 @@ struct Step5_Confirmation: View {
                                     .frame(width: 8, height: 8)
                                 Text(tag.name)
                                     .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "1C1C1E"))
+                                    .foregroundColor(Design.Colors.Dark.textPrimary)
                             }
                             if tags.count > 3 {
                                 Text("+\(tags.count - 3)")
                                     .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "8E8E93"))
+                                    .foregroundColor(Design.Colors.Dark.textSecondary)
                             }
                         }
                     }
                 }
 
-                Divider()
+                Divider().background(Design.Colors.Dark.glassBorder)
 
                 // GPS
                 HStack(spacing: Design.Space.md) {
@@ -884,21 +982,17 @@ struct Step5_Confirmation: View {
 
                     Text("GPS")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "636366"))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
 
                     Spacer()
 
                     Text(gps.isAvailable ? "已获取" : "获取中...")
                         .font(.system(size: 13, design: .monospaced))
-                        .foregroundColor(gps.isAvailable ? Design.Colors.forest : Color(hex: "8E8E93"))
+                        .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
                 }
             }
             .padding(Design.Space.lg)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.05), radius: 8, y: 2)
-            )
+            .startSurface(cornerRadius: 12)
 
             Spacer()
         }
@@ -910,7 +1004,7 @@ struct ConfirmationRow: View {
     let icon: String
     let label: String
     let value: String
-    var valueColor: Color = Color(hex: "1C1C1E")
+    var valueColor: Color = Design.Colors.Dark.textPrimary
 
     var body: some View {
         HStack(spacing: Design.Space.md) {
@@ -921,7 +1015,7 @@ struct ConfirmationRow: View {
 
             Text(label)
                 .font(.system(size: 14))
-                .foregroundColor(Color(hex: "636366"))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Spacer()
 
@@ -929,6 +1023,25 @@ struct ConfirmationRow: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(valueColor)
         }
+    }
+}
+
+private extension View {
+    func startSurface(cornerRadius: CGFloat) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(Design.Colors.Dark.glassFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
+            )
+            .shadow(
+                color: Design.Shadow.glassShadow.color,
+                radius: Design.Shadow.glassShadow.radius,
+                y: Design.Shadow.glassShadow.y
+            )
     }
 }
 

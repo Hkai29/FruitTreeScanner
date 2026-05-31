@@ -39,6 +39,17 @@ func saveFile(content: String, filename: String, folder: String) async throws {
     try content.write(to: url, atomically: true, encoding: .utf8)
 }
 
+/// 保存二进制数据到 Documents 目录
+func saveFile(data: Data, filename: String, folder: String) async throws {
+    #if DEBUG
+    print("Saving: \(folder)/\(filename) (\(data.count) bytes)")
+    #endif
+    let url = getDocumentsDirectory()
+        .appendingPathComponent(folder, isDirectory: true)
+        .appendingPathComponent(filename)
+    try data.write(to: url, options: .atomic)
+}
+
 /// Documents 目录
 func getDocumentsDirectory() -> URL {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -55,17 +66,57 @@ func duplicatePixelBuffer(input: CVPixelBuffer) -> CVPixelBuffer {
     var copyOut: CVPixelBuffer?
     let w = CVPixelBufferGetWidth(input)
     let h = CVPixelBufferGetHeight(input)
-    let bpr = CVPixelBufferGetBytesPerRow(input)
     let fmt = CVPixelBufferGetPixelFormatType(input)
+    let attachments = CVBufferCopyAttachments(input, .shouldPropagate)
     _ = CVPixelBufferCreate(kCFAllocatorDefault, w, h, fmt,
-                            CVBufferCopyAttachments(input, .shouldPropagate)!, &copyOut)
-    let output = copyOut!
+                            attachments, &copyOut)
+    guard let output = copyOut else {
+        return input
+    }
+
     CVPixelBufferLockBaseAddress(input, .readOnly)
     CVPixelBufferLockBaseAddress(output, [])
-    memcpy(CVPixelBufferGetBaseAddress(output),
-           CVPixelBufferGetBaseAddress(input), h * bpr)
-    CVPixelBufferUnlockBaseAddress(input, .readOnly)
-    CVPixelBufferUnlockBaseAddress(output, [])
+    defer {
+        CVPixelBufferUnlockBaseAddress(input, .readOnly)
+        CVPixelBufferUnlockBaseAddress(output, [])
+    }
+
+    let planeCount = CVPixelBufferGetPlaneCount(input)
+    if planeCount > 0 {
+        for plane in 0..<planeCount {
+            guard let src = CVPixelBufferGetBaseAddressOfPlane(input, plane),
+                  let dst = CVPixelBufferGetBaseAddressOfPlane(output, plane)
+            else { continue }
+
+            let rows = CVPixelBufferGetHeightOfPlane(input, plane)
+            let srcBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(input, plane)
+            let dstBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(output, plane)
+            let bytesPerRow = min(srcBytesPerRow, dstBytesPerRow)
+
+            for row in 0..<rows {
+                memcpy(
+                    dst.advanced(by: row * dstBytesPerRow),
+                    src.advanced(by: row * srcBytesPerRow),
+                    bytesPerRow
+                )
+            }
+        }
+    } else if let src = CVPixelBufferGetBaseAddress(input),
+              let dst = CVPixelBufferGetBaseAddress(output) {
+        let rows = CVPixelBufferGetHeight(input)
+        let srcBytesPerRow = CVPixelBufferGetBytesPerRow(input)
+        let dstBytesPerRow = CVPixelBufferGetBytesPerRow(output)
+        let bytesPerRow = min(srcBytesPerRow, dstBytesPerRow)
+
+        for row in 0..<rows {
+            memcpy(
+                dst.advanced(by: row * dstBytesPerRow),
+                src.advanced(by: row * srcBytesPerRow),
+                bytesPerRow
+            )
+        }
+    }
+
     return output
 }
 
@@ -76,7 +127,7 @@ protocol TaskDelegate: AnyObject {
 }
 
 // MARK: - Codable 扩展（用于 JSON 序列化，原始不变）
-extension simd_float4x4: Codable {
+extension simd_float4x4: @retroactive Codable {
     public init(from decoder: Decoder) throws {
         var c = try decoder.unkeyedContainer()
         try self.init(c.decode([SIMD4<Float>].self))
@@ -87,7 +138,7 @@ extension simd_float4x4: Codable {
     }
 }
 
-extension simd_float3x3: Codable {
+extension simd_float3x3: @retroactive Codable {
     public init(from decoder: Decoder) throws {
         var c = try decoder.unkeyedContainer()
         try self.init(c.decode([SIMD3<Float>].self))
