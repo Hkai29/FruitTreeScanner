@@ -14,7 +14,7 @@ struct TreeFilterView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Design.Colors.bgBase.ignoresSafeArea()
+                Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Filter bar
@@ -27,7 +27,9 @@ struct TreeFilterView: View {
                 }
             }
             .navigationTitle("果树列表")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
     }
 
@@ -97,19 +99,7 @@ struct TreeFilterView: View {
 
         return Group {
             if filtered.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(Color(hex: "8E8E93"))
-                    Text("暂无果树")
-                        .font(.headline)
-                        .foregroundColor(Color(hex: "3D3A36"))
-                    Text("当前筛选条件下没有果树记录")
-                        .font(.subheadline)
-                        .foregroundColor(Color(hex: "8E8E93"))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 100)
+                TreeFilterEmptyState()
             } else {
                 ScrollView {
                     LazyVStack(spacing: Design.Space.sm) {
@@ -132,6 +122,38 @@ struct TreeFilterView: View {
     // MARK: - Helpers
     private func latestScan(for treeId: String) -> ScanFileRecord? {
         historyStore.scanFiles.first { $0.treeID == treeId }
+    }
+}
+
+private struct TreeFilterEmptyState: View {
+    var body: some View {
+        VStack {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Design.Colors.forest)
+                        .frame(width: 28, height: 28)
+                        .background(Design.Colors.forest.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+
+                    Text("没有符合筛选的果树")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                }
+
+                Text("调整地块、标签或状态筛选后再查看。")
+                    .font(.system(size: 13))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+            .padding(.horizontal, Design.Space.md)
+            .padding(.top, Design.Space.md)
+
+            Spacer()
+        }
     }
 }
 
@@ -170,11 +192,11 @@ struct TagBadge: View {
 
             Text(tag.name)
                 .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.charcoal)
+                .foregroundColor(Design.Colors.Dark.textPrimary)
         }
         .padding(.horizontal, Design.Space.sm + 2)
         .padding(.vertical, Design.Space.xs + 1)
-        .background(Capsule().fill(Design.Colors.stone))
+        .background(Capsule().fill(Design.Colors.Dark.bgElevated))
     }
 }
 
@@ -197,12 +219,12 @@ struct TreeRowView: View {
 
                         Text(plot.name)
                             .font(Design.Typography.subheadlineMedium)
-                            .foregroundColor(Design.Colors.charcoal)
+                            .foregroundColor(Design.Colors.Dark.textPrimary)
                     }
                 } else {
                     Text("未分配")
                         .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
 
                 Spacer()
@@ -213,7 +235,7 @@ struct TreeRowView: View {
             // Tree ID (headline)
             Text(assignment.treeId)
                 .font(Design.Typography.headline)
-                .foregroundColor(Color(hex: "1C1C1E"))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             // Tag badges
             if !tags.isEmpty {
@@ -225,10 +247,10 @@ struct TreeRowView: View {
                     if tags.count > 3 {
                         Text("+\(tags.count - 3)")
                             .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                             .padding(.horizontal, Design.Space.sm)
                             .padding(.vertical, Design.Space.xs + 1)
-                            .background(Capsule().fill(Design.Colors.stone))
+                            .background(Capsule().fill(Design.Colors.Dark.bgElevated))
                     }
                 }
             }
@@ -243,25 +265,24 @@ struct TreeRowView: View {
                     if scan.fruitCount > 0 {
                         Label("\(scan.fruitCount) 个", systemImage: "number")
                             .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.slate)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                     }
 
                     Spacer()
 
                     Text(scanDateString(scan.scanDate))
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.slate)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
             }
         }
         .padding(Design.Space.md)
         .background(
-            RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Color.white)
-                .shadow(
-                    color: Design.Shadow.subtle.color,
-                    radius: Design.Shadow.subtle.radius,
-                    y: Design.Shadow.subtle.y
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Design.Colors.Dark.bgSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
                 )
         )
     }
@@ -271,8 +292,4 @@ struct TreeRowView: View {
         df.dateFormat = "yyyy-MM-dd"
         return df.string(from: date)
     }
-}
-
-#Preview {
-    TreeFilterView(historyStore: ScanHistoryStore.shared)
 }

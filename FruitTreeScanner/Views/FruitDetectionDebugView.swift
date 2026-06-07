@@ -2,11 +2,9 @@
 // 果实检测调试视图
 
 import SwiftUI
-import SceneKit
 
 struct FruitDetectionDebugView: View {
     @Environment(\.dismiss) var dismiss
-    let candidates: [FruitCandidate]
     let detectedFruits: [DetectedFruit]
     
     var body: some View {
@@ -16,13 +14,10 @@ struct FruitDetectionDebugView: View {
                     .ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: 14) {
                         // 检测统计
                         statsCard
-                        
-                        // 点云候选列表
-                        candidatesSection
-                        
+
                         // 图像检测列表
                         detectedFruitsSection
                     }
@@ -30,7 +25,7 @@ struct FruitDetectionDebugView: View {
                 }
             }
             .navigationTitle("检测调试")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -41,40 +36,16 @@ struct FruitDetectionDebugView: View {
     }
     
     private var statsCard: some View {
-        GlassCard {
-            HStack(spacing: Design.Space.lg) {
-                StatItem(label: "点云候选", value: "\(candidates.count)", color: Design.Colors.harvest)
-                StatItem(label: "图像检测", value: "\(detectedFruits.count)", color: Design.Colors.forest)
-                StatItem(label: "有效果实", value: "\(candidates.filter { $0.isValidFruit() }.count)", color: Design.Colors.Dark.info)
-            }
+        HStack(spacing: Design.Space.lg) {
+            StatItem(label: "图像检测", value: "\(detectedFruits.count)", color: Design.Colors.forest)
+            StatItem(
+                label: "高置信度",
+                value: "\(detectedFruits.filter { $0.confidence > 0.7 }.count)",
+                color: Design.Colors.Dark.info
+            )
         }
-    }
-    
-    private var candidatesSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            HStack {
-                Text("点云候选")
-                    .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                Spacer()
-                Text("\(candidates.count) 个")
-                    .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-            
-            if candidates.isEmpty {
-                Text("暂无候选")
-                    .font(Design.Typography.body)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .padding(Design.Space.md)
-            } else {
-                LazyVStack(spacing: Design.Space.sm) {
-                    ForEach(candidates) { candidate in
-                        CandidateCard(candidate: candidate)
-                    }
-                }
-            }
-        }
+        .padding(Design.Space.md)
+        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
     
     private var detectedFruitsSection: some View {
@@ -91,9 +62,11 @@ struct FruitDetectionDebugView: View {
             
             if detectedFruits.isEmpty {
                 Text("暂无检测结果")
-                    .font(Design.Typography.body)
+                    .font(.system(size: 13))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .padding(Design.Space.md)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
             } else {
                 LazyVStack(spacing: Design.Space.sm) {
                     ForEach(detectedFruits) { fruit in
@@ -123,97 +96,35 @@ struct StatItem: View {
     }
 }
 
-struct CandidateCard: View {
-    let candidate: FruitCandidate
-    
-    var body: some View {
-        GlassCard {
-            HStack(spacing: Design.Space.md) {
-                // 颜色指示器
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(
-                            red: Double(candidate.averageColor.x),
-                            green: Double(candidate.averageColor.y),
-                            blue: Double(candidate.averageColor.z)
-                        ))
-                        .frame(width: 40, height: 40)
-                    if candidate.hasFruitColor() {
-                        Image(systemName: "checkmark")
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                // 详细信息
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(String(format: "直径: %.2fcm", candidate.diameter * 100))
-                            .font(Design.Typography.body)
-                            .foregroundColor(Design.Colors.Dark.textPrimary)
-                        Spacer()
-                        Text(candidate.isValidFruit() ? "有效" : "无效")
-                            .font(Design.Typography.caption)
-                            .foregroundColor(candidate.isValidFruit() ? Design.Colors.forest : Design.Colors.warning)
-                    }
-                    HStack {
-                        Text("球形度: \(String(format: "%.2f", candidate.sphericity))")
-                            .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
-                        Text("点数: \(candidate.pointCount)")
-                            .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
-                    }
-                }
-            }
-        }
-    }
-}
-
 struct DetectedFruitCard: View {
     let fruit: DetectedFruit
     
     var body: some View {
-        GlassCard {
-            HStack(spacing: Design.Space.md) {
-                // 类别图标
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Design.Colors.harvest.opacity(0.2))
-                        .frame(width: 40, height: 40)
-                    Text(fruit.category.displayName.prefix(1))
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(Design.Colors.harvest)
-                }
-                
-                // 详细信息
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(fruit.category.displayName)
-                            .font(Design.Typography.body)
-                            .foregroundColor(Design.Colors.Dark.textPrimary)
-                        Spacer()
-                        Text(String(format: "%.0f%%", fruit.confidence * 100))
-                            .font(Design.Typography.caption)
-                            .foregroundColor(fruit.confidence > 0.7 ? Design.Colors.forest : Design.Colors.warning)
-                    }
-                    Text("边界框: \(Int(fruit.boundingBox.minX)), \(Int(fruit.boundingBox.minY)) - \(Int(fruit.boundingBox.maxX)), \(Int(fruit.boundingBox.maxY))")
+        HStack(spacing: Design.Space.sm) {
+            Text(fruit.category.displayName.prefix(1))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Design.Colors.harvest)
+                .frame(width: 28, height: 28)
+                .background(Design.Colors.harvest.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(fruit.category.displayName)
+                        .font(Design.Typography.body)
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                    Spacer()
+                    Text(String(format: "%.0f%%", fruit.confidence * 100))
                         .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .foregroundColor(fruit.confidence > 0.7 ? Design.Colors.forest : Design.Colors.warning)
                 }
+
+                Text("边界框: \(Int(fruit.boundingBox.minX)), \(Int(fruit.boundingBox.minY)) - \(Int(fruit.boundingBox.maxX)), \(Int(fruit.boundingBox.maxY))")
+                    .font(Design.Typography.caption)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
             }
         }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        FruitDetectionDebugView(
-            candidates: [
-                FruitCandidate(position: SIMD3(0, 0, 0), diameter: 0.08, sphericity: 0.8, pointCount: 25, averageColor: SIMD3(0.8, 0.2, 0.2))
-            ],
-            detectedFruits: [
-                DetectedFruit(category: .apple, boundingBox: CGRect(x: 100, y: 100, width: 50, height: 50), confidence: 0.85)
-            ]
-        )
+        .padding(Design.Space.md)
+        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 }

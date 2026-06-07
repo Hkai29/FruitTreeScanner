@@ -28,22 +28,21 @@ struct ScanLaunchRequest: Identifiable {
 }
 
 struct StartView: View {
-    var onLaunchScan: ((ScanLaunchRequest) -> Void)?
+    var onLaunchScan: (ScanLaunchRequest) -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var currentStep = 1
     @State private var treeID = ""
     @State private var isTreeIDValid = false
     @State private var selectedPlotId: UUID?
     @State private var season: Season = .mature
     @State private var selectedTagIds: Set<UUID> = []
-    @State private var showScan = false
     @State private var isLaunchingScan = false
     @State private var showPlotEdit = false
     @State private var showTagEdit = false
+    @State private var gps = GPSRecorder()
 
     @ObservedObject private var tagStore = TagStore.shared
-    @State private var gps = GPSRecorder()
-    @Environment(\.dismiss) var dismiss
 
     private let totalSteps = 5
 
@@ -62,60 +61,92 @@ struct StartView: View {
         tagStore.tags.filter { selectedTagIds.contains($0.id) }
     }
 
+    private var stepHeader: (imageName: String, title: String, subtitle: String, icon: String, accent: Color) {
+        switch currentStep {
+        case 1:
+            return (
+                "FeatureStartScan",
+                "果树编号",
+                "先建立可追踪的树体档案，后续记录会自动归到这个编号。",
+                "number",
+                Design.Colors.harvest
+            )
+        case 2:
+            return (
+                "FeatureMap",
+                "地块归档",
+                "把扫描挂到对应地块，便于之后按区域筛选和汇总。",
+                "map.fill",
+                Design.Colors.forest
+            )
+        case 3:
+            return (
+                "FeatureYieldReport",
+                "估算阶段",
+                "选择成熟期或非成熟期，系统会采用对应的产量估算路径。",
+                "chart.bar.fill",
+                Design.Colors.harvest
+            )
+        case 4:
+            return (
+                "FeatureTagManagement",
+                "标签分组",
+                "用标签标记品种、试验组或管理状态，方便后续复盘。",
+                "tag.fill",
+                Design.Colors.forest
+            )
+        default:
+            return (
+                "FeatureQuickScan",
+                "启动扫描",
+                "确认信息后进入 LiDAR 采集，请围绕树体缓慢移动。",
+                "viewfinder",
+                Design.Colors.harvest
+            )
+        }
+    }
+
     var body: some View {
         ZStack {
-            // 暗色渐变背景
-            Design.Colors.darkGradient
+            Design.Colors.Dark.bgDeep
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // 顶部导航
                 topNavigation
 
-                // 进度指示器
                 StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
-                    .padding(.vertical, Design.Space.lg)
+                    .padding(.top, Design.Space.xs)
 
-                stepContent
-                    .frame(maxWidth: .infinity)
-                .padding(.horizontal, Design.Space.lg)
+                ScrollView {
+                    VStack(spacing: Design.Space.lg) {
+                        DashboardToolHeader(
+                            imageName: stepHeader.imageName,
+                            title: stepHeader.title,
+                            subtitle: stepHeader.subtitle,
+                            icon: stepHeader.icon,
+                            accent: stepHeader.accent
+                        )
 
-                Spacer()
+                        stepContent
+                            .frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal, Design.Space.lg)
+                    .padding(.top, Design.Space.lg)
+                    .padding(.bottom, Design.Space.xl)
+                }
+                .scrollDismissesKeyboard(.interactively)
 
-                // 底部导航
                 StepNavigationBar(
                     currentStep: currentStep,
                     totalSteps: totalSteps,
                     canGoBack: currentStep > 1,
                     canGoNext: canGoNext && !isLaunchingScan,
                     isLaunching: isLaunchingScan,
-                    onBack: { withAnimation(.easeInOut(duration: 0.3)) { if currentStep > 1 { currentStep -= 1 } } },
-                    onNext: {
-                        if currentStep < totalSteps {
-                            withAnimation(.easeInOut(duration: 0.3)) { currentStep += 1 }
-                        } else {
-                            launchScan()
-                        }
-                    }
+                    onBack: goBack,
+                    onNext: goNext
                 )
                 .padding(.horizontal, Design.Space.lg)
                 .padding(.bottom, Design.Space.lg)
-            }
-        }
-        .fullScreenCover(isPresented: $showScan) {
-            ScanView(
-                treeID: treeID.trimmingCharacters(in: .whitespaces),
-                nVisual: nil,
-                season: season,
-                gps: gps
-            )
-            .onAppear {
-                isLaunchingScan = false
-            }
-        }
-        .onChange(of: showScan) { isPresented in
-            if !isPresented {
-                isLaunchingScan = false
             }
         }
         .sheet(isPresented: $showPlotEdit) {
@@ -130,12 +161,9 @@ struct StartView: View {
         }
     }
 
-    // MARK: - Top Navigation
     private var topNavigation: some View {
         HStack {
-            Button("取消") {
-                dismiss()
-            }
+            Button("取消", action: dismiss.callAsFunction)
             .font(.system(size: 16, weight: .medium))
             .foregroundColor(Design.Colors.harvest)
 
@@ -147,16 +175,15 @@ struct StartView: View {
 
             Spacer()
 
-            // 占位，保持标题居中
-            Button("取消") { }
+            Text("取消")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.clear)
+                .hidden()
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, Design.Space.lg)
         .padding(.vertical, Design.Space.md)
     }
 
-    // MARK: - Step Content
     @ViewBuilder
     private var stepContent: some View {
         switch currentStep {
@@ -189,18 +216,35 @@ struct StartView: View {
         }
     }
 
+    private func goBack() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            if currentStep > 1 {
+                currentStep -= 1
+            }
+        }
+    }
+
+    private func goNext() {
+        if currentStep < totalSteps {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                currentStep += 1
+            }
+        } else {
+            launchScan()
+        }
+    }
+
     private func launchScan() {
         guard !isLaunchingScan else { return }
         isLaunchingScan = true
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             let normalizedTreeID = treeID.trimmingCharacters(in: .whitespaces)
-            tagStore.createOrUpdateAssignment(
-                treeId: normalizedTreeID,
-                plotId: selectedPlotId,
-                tagIds: Array(selectedTagIds),
-                status: .reviewing
-            )
+            guard !normalizedTreeID.isEmpty else {
+                isLaunchingScan = false
+                return
+            }
             let request = ScanLaunchRequest(
                 treeID: normalizedTreeID,
                 season: season,
@@ -209,842 +253,11 @@ struct StartView: View {
                 tagIds: Array(selectedTagIds)
             )
 
-            if let onLaunchScan {
-                onLaunchScan(request)
-            } else {
-                showScan = true
-            }
+            onLaunchScan(request)
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            if !showScan {
-                isLaunchingScan = false
-            }
+            isLaunchingScan = false
         }
     }
-}
-
-// MARK: - Step Progress View
-struct StepProgressView: View {
-    let currentStep: Int
-    let totalSteps: Int
-    private let labels = ["编号", "地块", "季节", "标签", "确认"]
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(1...totalSteps, id: \.self) { step in
-                // 圆点
-                Circle()
-                    .fill(step <= currentStep ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
-                    .frame(width: step == currentStep ? 12 : 10, height: step == currentStep ? 12 : 10)
-                    .overlay {
-                        if step == currentStep {
-                            Circle()
-                                .stroke(Design.Colors.forest.opacity(0.3), lineWidth: 3)
-                                .frame(width: 20, height: 20)
-                        }
-                    }
-
-                // 连接线
-                if step < totalSteps {
-                    Rectangle()
-                        .fill(step < currentStep ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
-                        .frame(height: 2)
-                }
-            }
-        }
-        .padding(.horizontal, Design.Space.xl)
-
-        // 标签
-        HStack(spacing: 0) {
-            ForEach(0..<totalSteps, id: \.self) { index in
-                Text(labels[index])
-                    .font(.system(size: 11, weight: index + 1 == currentStep ? .semibold : .regular))
-                    .foregroundColor(index + 1 <= currentStep ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
-                    .frame(width: 60)
-
-                if index < totalSteps - 1 {
-                    Spacer()
-                }
-            }
-        }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.top, Design.Space.sm)
-    }
-}
-
-// MARK: - Step Navigation Bar
-struct StepNavigationBar: View {
-    let currentStep: Int
-    let totalSteps: Int
-    let canGoBack: Bool
-    let canGoNext: Bool
-    var isLaunching: Bool = false
-    let onBack: () -> Void
-    let onNext: () -> Void
-
-    var isLastStep: Bool { currentStep == totalSteps }
-
-    var body: some View {
-        HStack {
-            // 上一步按钮
-            if canGoBack {
-                Button(action: onBack) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 14, weight: .medium))
-                        Text("上一步")
-                            .font(.system(size: 15, weight: .medium))
-                    }
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 20)
-                    .background(Design.Colors.Dark.bgElevated)
-                    .cornerRadius(10)
-                }
-            }
-
-            Spacer()
-
-            // 步骤指示
-            Text("\(currentStep) / \(totalSteps)")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Spacer()
-
-            // 下一步/开始按钮
-            Button(action: onNext) {
-                HStack(spacing: 4) {
-                    Text(isLaunching ? "启动中..." : (isLastStep ? "开始扫描" : "下一步"))
-                        .font(.system(size: 15, weight: .semibold))
-                    if isLaunching {
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.75)
-                    } else if !isLastStep {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .medium))
-                    } else {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                }
-                .foregroundColor(.white)
-                .padding(.vertical, 14)
-                .padding(.horizontal, 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(canGoNext ? Design.Colors.forest : Design.Colors.slate.opacity(0.5))
-                )
-            }
-            .disabled(!canGoNext)
-        }
-        .padding(.vertical, Design.Space.sm)
-    }
-}
-
-// MARK: - Step 1: ID Entry
-struct Step1_IDEntry: View {
-    @Binding var treeID: String
-    @Binding var isValid: Bool
-    @State private var draftTreeID = ""
-    @State private var syncTask: Task<Void, Never>?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.lg) {
-            // 标题
-            VStack(alignment: .leading, spacing: Design.Space.sm) {
-                Image(systemName: "number")
-                    .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.harvest)
-
-                Text("输入果树编号")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("为扫描的果树设置唯一编号")
-                    .font(.system(size: 14))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            // 输入卡片
-            VStack(alignment: .leading, spacing: Design.Space.sm) {
-                Text("果树编号")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                TextField("例：T001", text: $draftTreeID)
-                    .font(.system(size: 20, weight: .medium, design: .monospaced))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .padding(Design.Space.md)
-                    .background(Design.Colors.Dark.bgElevated)
-                    .cornerRadius(10)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled(true)
-                    .textContentType(.none)
-                    .submitLabel(.next)
-                    .onSubmit(syncImmediately)
-            }
-            .padding(Design.Space.lg)
-            .startSurface(cornerRadius: 12)
-
-            // 提示
-            HStack(spacing: Design.Space.xs) {
-                Image(systemName: "lightbulb.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(Design.Colors.harvest)
-                Text("提示：编号将用于后续数据关联，建议使用易于识别的格式")
-                    .font(.system(size: 12))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, Design.Space.md)
-        .onAppear {
-            if draftTreeID.isEmpty {
-                draftTreeID = treeID
-            }
-            isValid = !draftTreeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        .onDisappear {
-            syncImmediately()
-            syncTask?.cancel()
-        }
-        .onChange(of: draftTreeID) { newValue in
-            isValid = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            syncTask?.cancel()
-            syncTask = Task {
-                try? await Task.sleep(nanoseconds: 180_000_000)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    treeID = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-            }
-        }
-    }
-
-    private func syncImmediately() {
-        let normalized = draftTreeID.trimmingCharacters(in: .whitespacesAndNewlines)
-        treeID = normalized
-        isValid = !normalized.isEmpty
-    }
-}
-
-// MARK: - Step 2: Plot Selection
-struct Step2_PlotSelection: View {
-    let plots: [Plot]
-    @Binding var selectedPlotId: UUID?
-    let onAddPlot: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.lg) {
-            // 标题
-            VStack(alignment: .leading, spacing: Design.Space.sm) {
-                Image(systemName: "map.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.harvest)
-
-                Text("选择地块")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("将果树分配到对应的种植区域")
-                    .font(.system(size: 14))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            // 地块网格
-            if plots.isEmpty {
-                emptyState
-            } else {
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: Design.Space.md),
-                    GridItem(.flexible(), spacing: Design.Space.md)
-                ], spacing: Design.Space.md) {
-                    ForEach(plots) { plot in
-                        PlotSelectionCard(
-                            plot: plot,
-                            isSelected: selectedPlotId == plot.id
-                        ) {
-                            selectedPlotId = plot.id
-                        }
-                    }
-
-                    // 添加新地块按钮
-                    Button(action: onAddPlot) {
-                        VStack(spacing: Design.Space.sm) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(Design.Colors.forest.opacity(0.6))
-
-                            Text("添加新地块")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(Design.Colors.Dark.textSecondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, Design.Space.lg)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .strokeBorder(Design.Colors.forest.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [5]))
-                        )
-                    }
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, Design.Space.md)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: Design.Space.md) {
-            Image(systemName: "map")
-                .font(.system(size: 48))
-                .foregroundColor(Design.Colors.slate.opacity(0.3))
-
-            Text("暂无地块")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Button(action: onAddPlot) {
-                HStack(spacing: Design.Space.xs) {
-                    Image(systemName: "plus")
-                    Text("创建第一个地块")
-                }
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.harvest)
-                .padding(.vertical, 12)
-                .padding(.horizontal, 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Design.Colors.forest, lineWidth: 1)
-                )
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Design.Space.xl)
-    }
-}
-
-struct PlotSelectionCard: View {
-    let plot: Plot
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: Design.Space.sm) {
-                Circle()
-                    .fill(Color(hex: plot.colorHex))
-                    .frame(width: 48, height: 48)
-                    .overlay {
-                        if isSelected {
-                            Circle()
-                                .strokeBorder(Color.white, lineWidth: 3)
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    }
-
-                Text(plot.name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? Design.Colors.forest : Design.Colors.Dark.textPrimary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Design.Space.lg)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Design.Colors.forest.opacity(0.12) : Design.Colors.Dark.bgElevated.opacity(0.55))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(isSelected ? Design.Colors.forest : Design.Colors.Dark.glassBorder, lineWidth: isSelected ? 1.5 : 1)
-                    )
-            )
-        }
-    }
-}
-
-// MARK: - Step 3: Season Selection
-struct Step3_SeasonSelection: View {
-    @Binding var season: Season
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.lg) {
-            // 标题
-            VStack(alignment: .leading, spacing: Design.Space.sm) {
-                Image(systemName: season == .mature ? "apple.logo" : "leaf.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.harvest)
-
-                Text("选择扫描季节")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("季节影响产量估算的计算方法")
-                    .font(.system(size: 14))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            // 季节选项
-            HStack(spacing: Design.Space.md) {
-                SeasonCard(
-                    icon: "apple.logo",
-                    title: "成熟期",
-                    subtitle: "双路线估算",
-                    description: "同时使用果实体积法和冠层体积法",
-                    isSelected: season == .mature,
-                    color: Design.Colors.forest
-                ) {
-                    season = .mature
-                }
-
-                SeasonCard(
-                    icon: "leaf.fill",
-                    title: "非成熟期",
-                    subtitle: "冠层体积法",
-                    description: "仅使用冠层体积法估算",
-                    isSelected: season == .off,
-                    color: Design.Colors.harvest
-                ) {
-                    season = .off
-                }
-            }
-
-            // 提示
-            HStack(spacing: Design.Space.xs) {
-                Image(systemName: "info.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(Design.Colors.info)
-                Text("成熟期估算结果更精确，但需要更多采集时间")
-                    .font(.system(size: 12))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, Design.Space.md)
-    }
-}
-
-struct SeasonCard: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let description: String
-    let isSelected: Bool
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: Design.Space.md) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? color.opacity(0.15) : Design.Colors.Dark.bgElevated)
-                        .frame(width: 64, height: 64)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 28))
-                        .foregroundColor(isSelected ? color : Design.Colors.Dark.textSecondary)
-                }
-
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                Text(description)
-                    .font(.system(size: 11))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, Design.Space.sm)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Design.Space.lg)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? color.opacity(0.08) : Design.Colors.Dark.bgElevated.opacity(0.55))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(isSelected ? color : Design.Colors.Dark.glassBorder, lineWidth: isSelected ? 1.5 : 1)
-                    )
-            )
-        }
-    }
-}
-
-// MARK: - Step 4: Tag Selection
-struct Step4_TagSelection: View {
-    let tags: [GroupTag]
-    @Binding var selectedTagIds: Set<UUID>
-    let onAddTag: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.lg) {
-            // 标题
-            VStack(alignment: .leading, spacing: Design.Space.sm) {
-                Image(systemName: "tag.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.harvest)
-
-                Text("添加标签")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("为果树添加分类标签（可选）")
-                    .font(.system(size: 14))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            // 标签网格
-            if tags.isEmpty {
-                emptyState
-            } else {
-                FlowLayout(spacing: Design.Space.sm) {
-                    ForEach(tags) { tag in
-                        TagChip(
-                            tag: tag,
-                            isSelected: selectedTagIds.contains(tag.id)
-                        ) {
-                            if selectedTagIds.contains(tag.id) {
-                                selectedTagIds.remove(tag.id)
-                            } else {
-                                selectedTagIds.insert(tag.id)
-                            }
-                        }
-                    }
-
-                    // 添加标签按钮
-                    Button(action: onAddTag) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus")
-                            Text("添加标签")
-                        }
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Design.Colors.harvest)
-                        .padding(.horizontal, Design.Space.md)
-                        .padding(.vertical, Design.Space.sm)
-                        .background(
-                            Capsule()
-                                .strokeBorder(Design.Colors.forest, lineWidth: 1)
-                        )
-                    }
-                }
-            }
-
-            // 已选标签
-            if !selectedTagIds.isEmpty {
-                VStack(alignment: .leading, spacing: Design.Space.xs) {
-                    Text("已选标签")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                    HStack(spacing: Design.Space.xs) {
-                        ForEach(selectedTags, id: \.id) { tag in
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(Color(hex: tag.colorHex))
-                                    .frame(width: 8, height: 8)
-                                Text(tag.name)
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                            .padding(.horizontal, Design.Space.sm)
-                            .padding(.vertical, Design.Space.xs)
-                            .background(
-                                Capsule()
-                                    .fill(Design.Colors.forest.opacity(0.1))
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, Design.Space.md)
-    }
-
-    private var selectedTags: [GroupTag] {
-        tags.filter { selectedTagIds.contains($0.id) }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: Design.Space.md) {
-            Image(systemName: "tag")
-                .font(.system(size: 48))
-                .foregroundColor(Design.Colors.slate.opacity(0.3))
-
-            Text("暂无标签")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Button(action: onAddTag) {
-                HStack(spacing: Design.Space.xs) {
-                    Image(systemName: "plus")
-                    Text("创建第一个标签")
-                }
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.harvest)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Design.Space.xl)
-    }
-}
-
-struct TagChip: View {
-    let tag: GroupTag
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: Design.Space.xs) {
-                Circle()
-                    .fill(Color(hex: tag.colorHex))
-                    .frame(width: 10, height: 10)
-
-                Text(tag.name)
-                    .font(.system(size: 13, weight: .medium))
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                }
-            }
-                            .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, Design.Space.sm)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
-            )
-        }
-    }
-}
-
-// MARK: - Flow Layout
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
-                                      y: bounds.minY + result.positions[index].y),
-                         proposal: .unspecified)
-        }
-    }
-
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
-
-        init(in width: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-            var rowHeight: CGFloat = 0
-
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-                if x + size.width > width, x > 0 {
-                    x = 0
-                    y += rowHeight + spacing
-                    rowHeight = 0
-                }
-                positions.append(CGPoint(x: x, y: y))
-                rowHeight = max(rowHeight, size.height)
-                x += size.width + spacing
-            }
-
-            self.size = CGSize(width: width, height: y + rowHeight)
-        }
-    }
-}
-
-// MARK: - Step 5: Confirmation
-struct Step5_Confirmation: View {
-    let treeID: String
-    let plot: Plot?
-    let season: Season
-    let tags: [GroupTag]
-    @ObservedObject var gps: GPSRecorder
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.lg) {
-            // 标题
-            VStack(alignment: .leading, spacing: Design.Space.sm) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.harvest)
-
-                Text("确认配置")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("请确认以下配置信息")
-                    .font(.system(size: 14))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            // 配置卡片
-            VStack(spacing: Design.Space.md) {
-                // 编号
-                ConfirmationRow(icon: "number", label: "编号", value: treeID)
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                // 地块
-                ConfirmationRow(
-                    icon: "map.fill",
-                    label: "地块",
-                    value: plot?.name ?? "未分配",
-                    valueColor: plot != nil ? Design.Colors.forest : Color(hex: "8E8E93")
-                )
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                // 季节
-                ConfirmationRow(
-                    icon: season == .mature ? "apple.logo" : "leaf.fill",
-                    label: "季节",
-                    value: season == .mature ? "成熟期（双路线）" : "非成熟期（冠层体积）",
-                    valueColor: Design.Colors.harvest
-                )
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                // 标签
-                HStack(spacing: Design.Space.md) {
-                    Image(systemName: "tag.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(Design.Colors.harvest)
-                        .frame(width: 24)
-
-                    Text("标签")
-                        .font(.system(size: 14))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                    Spacer()
-
-                    if tags.isEmpty {
-                        Text("无")
-                            .font(.system(size: 14))
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
-                    } else {
-                        HStack(spacing: Design.Space.xs) {
-                            ForEach(tags.prefix(3)) { tag in
-                                Circle()
-                                    .fill(Color(hex: tag.colorHex))
-                                    .frame(width: 8, height: 8)
-                                Text(tag.name)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                            }
-                            if tags.count > 3 {
-                                Text("+\(tags.count - 3)")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                            }
-                        }
-                    }
-                }
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                // GPS
-                HStack(spacing: Design.Space.md) {
-                    Image(systemName: gps.isAvailable ? "location.fill" : "location.slash")
-                        .font(.system(size: 16))
-                        .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.slate)
-                        .frame(width: 24)
-
-                    Text("GPS")
-                        .font(.system(size: 14))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                    Spacer()
-
-                    Text(gps.isAvailable ? "已获取" : "获取中...")
-                        .font(.system(size: 13, design: .monospaced))
-                        .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
-                }
-            }
-            .padding(Design.Space.lg)
-            .startSurface(cornerRadius: 12)
-
-            Spacer()
-        }
-        .padding(.vertical, Design.Space.md)
-    }
-}
-
-struct ConfirmationRow: View {
-    let icon: String
-    let label: String
-    let value: String
-    var valueColor: Color = Design.Colors.Dark.textPrimary
-
-    var body: some View {
-        HStack(spacing: Design.Space.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundColor(Design.Colors.harvest)
-                .frame(width: 24)
-
-            Text(label)
-                .font(.system(size: 14))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Spacer()
-
-            Text(value)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(valueColor)
-        }
-    }
-}
-
-private extension View {
-    func startSurface(cornerRadius: CGFloat) -> some View {
-        self
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Design.Colors.Dark.glassFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
-            )
-            .shadow(
-                color: Design.Shadow.glassShadow.color,
-                radius: Design.Shadow.glassShadow.radius,
-                y: Design.Shadow.glassShadow.y
-            )
-    }
-}
-
-#Preview {
-    StartView()
 }

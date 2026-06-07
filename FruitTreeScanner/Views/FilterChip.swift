@@ -15,16 +15,19 @@ struct FilterChip<Content: View>: View {
             HStack(spacing: 4) {
                 Text(title)
                     .font(.subheadline)
-                    .foregroundColor(isSelected ? .white : Color(hex: "3D3A36"))
+                    .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
 
                 Image(systemName: "chevron.down")
                     .font(.caption2)
-                    .foregroundColor(isSelected ? .white : Color(hex: "8E8E93"))
+                    .foregroundColor(isSelected ? .white : Design.Colors.Dark.textSecondary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(isSelected ? Color(hex: "007AFF").opacity(0.1) : Color(hex: "F2F2F7"))
-            .foregroundColor(isSelected ? Color(hex: "007AFF") : Color(hex: "1C1C1E"))
+            .background(isSelected ? Design.Colors.earth.opacity(0.22) : Design.Colors.Dark.bgElevated)
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Design.Colors.earth.opacity(0.55) : Design.Colors.Dark.glassBorder, lineWidth: 1)
+            )
             .clipShape(Capsule())
         }
     }

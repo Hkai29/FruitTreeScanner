@@ -4,7 +4,9 @@
 import SwiftUI
 
 struct TagManagementView: View {
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var tagStore = TagStore.shared
+    var onStartScan: (() -> Void)? = nil
     @State private var selectedTab: Int = 0
     @State private var showingAddPlot: Bool = false
     @State private var showingAddTag: Bool = false
@@ -16,7 +18,17 @@ struct TagManagementView: View {
             ZStack {
                 Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
-                VStack(spacing: 0) {
+                VStack(spacing: 12) {
+                    DashboardToolHeader(
+                        imageName: "FeatureTagManagement",
+                        title: "地块标签",
+                        subtitle: "维护地块、标签和扫描状态，让每棵树都有清晰归属。",
+                        icon: "tag",
+                        accent: Design.Colors.harvest
+                    )
+                    .padding(.horizontal, Design.Space.md)
+                    .padding(.top, Design.Space.md)
+
                     // Tab Picker
                     Picker("标签管理", selection: $selectedTab) {
                         Text("地块").tag(0)
@@ -33,7 +45,8 @@ struct TagManagementView: View {
                             plots: tagStore.plots,
                             treeCount: { tagStore.treeCount(forPlotId: $0) },
                             onEdit: { editingPlot = $0 },
-                            onDelete: { tagStore.deletePlot(id: $0) }
+                            onDelete: { tagStore.deletePlot(id: $0) },
+                            onAdd: { showingAddPlot = true }
                         )
                         .tag(0)
 
@@ -41,12 +54,14 @@ struct TagManagementView: View {
                             tags: tagStore.tags,
                             treeCount: { tagStore.treeCount(forTagId: $0) },
                             onEdit: { editingTag = $0 },
-                            onDelete: { tagStore.deleteTag(id: $0) }
+                            onDelete: { tagStore.deleteTag(id: $0) },
+                            onAdd: { showingAddTag = true }
                         )
                         .tag(1)
 
                         StatusOverviewView(
-                            assignments: tagStore.assignments
+                            assignments: tagStore.assignments,
+                            onStartScan: onStartScan
                         )
                         .tag(2)
                     }
@@ -55,17 +70,24 @@ struct TagManagementView: View {
             }
             .navigationTitle("标签管理")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .foregroundColor(Design.Colors.harvest)
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        if selectedTab == 0 {
-                            showingAddPlot = true
-                        } else if selectedTab == 1 {
-                            showingAddTag = true
+                    if selectedTab != 2 {
+                        Button(action: showAddSheet) {
+                            Image(systemName: "plus")
+                                .foregroundColor(Design.Colors.harvest)
                         }
-                    } label: {
-                        Image(systemName: "plus")
-                            .foregroundColor(Design.Colors.harvest)
+                        .accessibilityLabel(selectedTab == 0 ? "添加地块" : "添加标签")
                     }
                 }
             }
@@ -91,240 +113,12 @@ struct TagManagementView: View {
             }
         }
     }
-}
 
-// MARK: - PlotListView
-
-struct PlotListView: View {
-    let plots: [Plot]
-    let treeCount: (UUID) -> Int
-    let onEdit: (Plot) -> Void
-    let onDelete: (UUID) -> Void
-
-    var body: some View {
-        if plots.isEmpty {
-            emptyStateView
-        } else {
-            List {
-                ForEach(plots) { plot in
-                    PlotRowView(
-                        plot: plot,
-                        treeCount: treeCount(plot.id)
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onEdit(plot)
-                    }
-                }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        onDelete(plots[index].id)
-                    }
-                }
-            }
-            .listStyle(.plain)
+    private func showAddSheet() {
+        if selectedTab == 0 {
+            showingAddPlot = true
+        } else if selectedTab == 1 {
+            showingAddTag = true
         }
     }
-
-    private var emptyStateView: some View {
-        VStack(spacing: Design.Space.md) {
-            Image(systemName: "map")
-                .font(.system(size: 48))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Text("暂无地块")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-
-            Text("点击右上角 + 添加地块")
-                .font(.system(size: 15))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Design.Colors.Dark.bgDeep)
-    }
-}
-
-// MARK: - PlotRowView
-
-struct PlotRowView: View {
-    let plot: Plot
-    let treeCount: Int
-
-    var body: some View {
-        HStack(spacing: Design.Space.md) {
-            Circle()
-                .fill(Color(hex: plot.colorHex))
-                .frame(width: 32, height: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plot.name)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("\(treeCount) 棵树")
-                    .font(.system(size: 15))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-        .padding(.vertical, Design.Space.sm)
-    }
-}
-
-// MARK: - TagListView
-
-struct TagListView: View {
-    let tags: [GroupTag]
-    let treeCount: (UUID) -> Int
-    let onEdit: (GroupTag) -> Void
-    let onDelete: (UUID) -> Void
-
-    var body: some View {
-        if tags.isEmpty {
-            emptyStateView
-        } else {
-            List {
-                ForEach(tags) { tag in
-                    TagRowView(
-                        tag: tag,
-                        treeCount: treeCount(tag.id)
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onEdit(tag)
-                    }
-                }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        onDelete(tags[index].id)
-                    }
-                }
-            }
-            .listStyle(.plain)
-        }
-    }
-
-    private var emptyStateView: some View {
-        VStack(spacing: Design.Space.md) {
-            Image(systemName: "tag")
-                .font(.system(size: 48))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Text("暂无标签")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-
-            Text("点击右上角 + 添加标签")
-                .font(.system(size: 15))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Design.Colors.Dark.bgDeep)
-    }
-}
-
-// MARK: - TagRowView
-
-struct TagRowView: View {
-    let tag: GroupTag
-    let treeCount: Int
-
-    var body: some View {
-        HStack(spacing: Design.Space.md) {
-            Circle()
-                .fill(Color(hex: tag.colorHex))
-                .frame(width: 32, height: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tag.name)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("\(treeCount) 棵树")
-                    .font(.system(size: 15))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-        .padding(.vertical, Design.Space.sm)
-    }
-}
-
-// MARK: - StatusOverviewView
-
-struct StatusOverviewView: View {
-    let assignments: [TreeAssignment]
-
-    var body: some View {
-        List {
-            ForEach(ScanStatus.allCases, id: \.self) { status in
-                StatusRowView(
-                    status: status,
-                    count: assignments.filter { $0.status == status }.count
-                )
-            }
-        }
-        .listStyle(.plain)
-    }
-}
-
-// MARK: - StatusRowView
-
-struct StatusRowView: View {
-    let status: ScanStatus
-    let count: Int
-
-    private var icon: String {
-        switch status {
-        case .notScanned: return "circle"
-        case .scanned: return "checkmark.circle"
-        case .reviewing: return "arrow.clockwise.circle"
-        case .completed: return "checkmark.seal.fill"
-        }
-    }
-
-    private var iconColor: Color {
-        switch status {
-        case .notScanned: return Design.Colors.Dark.textSecondary
-        case .scanned: return Design.Colors.Dark.info
-        case .reviewing: return Design.Colors.harvest
-        case .completed: return Design.Colors.Dark.success
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: Design.Space.md) {
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(iconColor)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(status.rawValue)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text("\(count) 棵树")
-                    .font(.system(size: 15))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, Design.Space.sm)
-    }
-}
-
-#Preview {
-    TagManagementView()
 }

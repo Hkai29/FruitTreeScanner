@@ -66,6 +66,86 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(counter.weightedTotal(fruits), 1.0, accuracy: 0.001)
     }
 
+    func testPLYParserHeaderMetadataFallback() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("no_pattern.ply")
+        let headerContent = """
+        ply
+        format ascii 1.0
+        comment tree_id Tree_Header_42
+        comment scan_date 2025-01-15T10:30:00Z
+        comment gps_lat 39.9042
+        comment gps_lon 116.4074
+        end_header
+        0 0 0 128 128 128
+        """
+        try headerContent.write(to: plyURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+        XCTAssertEqual(parsed.treeID, "Tree_Header_42")
+        XCTAssertEqual(parsed.gpsLat, 39.9042, accuracy: 0.0001)
+        XCTAssertEqual(parsed.gpsLon, 116.4074, accuracy: 0.0001)
+        XCTAssertEqual(parsed.fruitCount, 0)
+        XCTAssertEqual(parsed.yieldKg, 0)
+        XCTAssertEqual(parsed.fruitType, "apple")
+    }
+
+    func testPLYParserMissingCSVReturnsDefaults() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("T002_20250301_080000_lat30.0_lon120.0.ply")
+        try Data().write(to: plyURL)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+        XCTAssertEqual(parsed.fruitCount, 0, "缺失CSV时fruitCount应为0")
+        XCTAssertEqual(parsed.yieldKg, 0, "缺失CSV时yieldKg应为0")
+        XCTAssertEqual(parsed.fruitType, "apple", "缺失CSV时fruitType默认apple")
+    }
+
+    func testPLYParserResultJSONCompanion() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("T003_20250601_120000_lat25.0_lon121.0.ply")
+        let jsonURL = tempDir.appendingPathComponent("T003_20250601_120000_lat25.0_lon121.0_result.json")
+        let jsonContent = """
+        {"fruitCount": 25, "yieldKg": 8.75, "fruitType": "orange"}
+        """
+        try Data().write(to: plyURL)
+        try jsonContent.write(to: jsonURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+        XCTAssertEqual(parsed.fruitCount, 25)
+        XCTAssertEqual(parsed.yieldKg, 8.75, accuracy: 0.01)
+        XCTAssertEqual(parsed.fruitType, "orange")
+    }
+
+    func testPLYParserFallbackMetadataFromURL() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("mystery_tree.ply")
+        try Data().write(to: plyURL)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+        XCTAssertEqual(parsed.treeID, "mystery_tree")
+        XCTAssertEqual(parsed.gpsLat, 0)
+        XCTAssertEqual(parsed.gpsLon, 0)
+        XCTAssertEqual(parsed.fruitCount, 0)
+    }
+
+    func testPLYParserPointCloudDataNonExistentFile() {
+        let url = URL(fileURLWithPath: "/nonexistent/path/pointcloud.ply")
+        XCTAssertNil(PLYParserHelper.parsePointCloudData(at: url))
+    }
+
     func testPLYParserPrefersTimestampFromFilename() throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)

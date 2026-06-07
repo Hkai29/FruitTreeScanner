@@ -92,20 +92,20 @@ struct MetalMeasurementOverlay: View {
 
                 if let p1 = controller.point1Screen {
                     Circle()
-                        .fill(Color.red)
+                        .fill(Design.Colors.apple)
                         .frame(width: 16, height: 16)
                         .position(p1)
-                        .shadow(color: .red.opacity(0.5), radius: 4)
+                        .shadow(color: Design.Colors.apple.opacity(0.5), radius: 4)
                 }
 
                 if let p1 = controller.point1Screen, let p2 = controller.point2Screen {
                     MeasurementLine(from: p1, to: p2)
 
                     Circle()
-                        .fill(Color.blue)
+                        .fill(Design.Colors.earth)
                         .frame(width: 16, height: 16)
                         .position(p2)
-                        .shadow(color: .blue.opacity(0.5), radius: 4)
+                        .shadow(color: Design.Colors.earth.opacity(0.5), radius: 4)
 
                     distanceLabel(at: midPoint(p1, p2), distance: controller.measuredDistance)
                 }
@@ -135,14 +135,14 @@ struct MetalMeasurementOverlay: View {
                         VStack(alignment: .trailing, spacing: 6) {
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(Color.red)
+                                    .fill(Design.Colors.apple)
                                     .frame(width: 10, height: 10)
                                 Text("起点")
                                     .font(.system(size: 11))
                             }
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(Color.blue)
+                                    .fill(Design.Colors.earth)
                                     .frame(width: 10, height: 10)
                                 Text("终点")
                                     .font(.system(size: 11))

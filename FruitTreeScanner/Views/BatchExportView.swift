@@ -4,6 +4,8 @@ struct BatchExportView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = ScanHistoryStore.shared
     @ObservedObject private var tagStore = TagStore.shared
+    var onStartScan: (() -> Void)? = nil
+    var onImportFile: (() -> Void)? = nil
     @State private var selectedRecords: Set<String> = []
     @State private var exportFormat: BatchExportService.ExportFormat = .csv
     @State private var exportOptions = BatchExportService.ExportOptions()
@@ -20,19 +22,50 @@ struct BatchExportView: View {
                 Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    headerBar
-
                     if store.scanFiles.isEmpty {
-                        emptyStateView
+                        BatchExportEmptyState(
+                            onStartScan: onStartScan,
+                            onImportFile: onImportFile
+                        )
                     } else {
+                        let summary = calculateSelectedSummary()
+                        BatchExportHeaderBar(
+                            selectedCount: selectedRecords.count,
+                            totalCount: store.scanFiles.count,
+                            totalYield: summary.totalYield,
+                            totalFruitCount: summary.totalCount
+                        )
                         recordListView
                         exportOptionsView
-                        exportButton
+                        if let exportedURL {
+                            BatchExportCompletionPanel(
+                                url: exportedURL,
+                                onShare: { showShareSheet = true },
+                                onClear: { self.exportedURL = nil }
+                            )
+                            .padding(.horizontal, Design.Space.md)
+                            .padding(.top, Design.Space.md)
+                        }
+                        BatchExportPrimaryButton(
+                            selectedCount: selectedRecords.count,
+                            isExporting: isExporting,
+                            hasCompletedExport: exportedURL != nil,
+                            action: {
+                                if isExporting {
+                                    cancelExport()
+                                } else {
+                                    performExport()
+                                }
+                            }
+                        )
+                        .disabled(selectedRecords.isEmpty && !isExporting)
+                        .padding(Design.Space.md)
                     }
                 }
             }
             .navigationTitle("批次导出")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -75,59 +108,11 @@ struct BatchExportView: View {
         }
     }
     
-    private var headerBar: some View {
-        VStack(spacing: Design.Space.sm) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-            Text("已选择 \(selectedRecords.count) / \(store.scanFiles.count) 条记录")
-                .font(Design.Typography.subheadline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                    
-                    if !selectedRecords.isEmpty {
-                        let summary = calculateSelectedSummary()
-                        Text("预计产量: \(String(format: "%.1f", summary.totalYield)) kg | \(summary.totalCount) 个果实")
-                            .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
-                    }
-                }
-                
-                Spacer()
-            }
-            
-            if !store.scanFiles.isEmpty {
-                ProgressView(value: Double(selectedRecords.count), total: Double(store.scanFiles.count))
-                    .tint(Design.Colors.harvest)
-            }
-        }
-        .padding(Design.Space.md)
-        .background(Design.Colors.Dark.bgSurface)
-    }
-    
-    private var emptyStateView: some View {
-        VStack(spacing: Design.Space.lg) {
-            Spacer()
-            
-            Image(systemName: "tray")
-                .font(.system(size: 64))
-                .foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.5))
-            
-            Text("暂无扫描记录")
-                .font(Design.Typography.headline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-            
-            Text("完成扫描或导入 PLY 文件后将自动显示在这里")
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-            
-            Spacer()
-        }
-    }
-    
     private var recordListView: some View {
         ScrollView {
             LazyVStack(spacing: Design.Space.sm) {
                 ForEach(store.scanFiles) { record in
-                    RecordRow(
+                    BatchExportRecordRow(
                         record: record,
                         isSelected: selectedRecords.contains(record.id),
                         onToggle: { toggleSelection(record.id) }
@@ -156,10 +141,13 @@ struct BatchExportView: View {
             
             HStack(spacing: Design.Space.md) {
                 ForEach(BatchExportService.ExportFormat.allCases, id: \.self) { format in
-                    FormatButton(
+                    BatchExportFormatButton(
                         format: format,
                         isSelected: exportFormat == format,
-                        action: { exportFormat = format }
+                        action: {
+                            exportFormat = format
+                            exportedURL = nil
+                        }
                     )
                 }
             }
@@ -173,11 +161,11 @@ struct BatchExportView: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
             
             FlowLayout(spacing: Design.Space.sm) {
-                OptionToggle(label: "果树编号", isOn: $exportOptions.includeTreeID)
-                OptionToggle(label: "果实数量", isOn: $exportOptions.includeFruitCount)
-                OptionToggle(label: "产量", isOn: $exportOptions.includeYield)
-                OptionToggle(label: "GPS位置", isOn: $exportOptions.includeGPS)
-                OptionToggle(label: "扫描日期", isOn: $exportOptions.includeDate)
+                BatchExportOptionToggle(label: "果树编号", isOn: optionBinding(\.includeTreeID))
+                BatchExportOptionToggle(label: "果实数量", isOn: optionBinding(\.includeFruitCount))
+                BatchExportOptionToggle(label: "产量", isOn: optionBinding(\.includeYield))
+                BatchExportOptionToggle(label: "GPS位置", isOn: optionBinding(\.includeGPS))
+                BatchExportOptionToggle(label: "扫描日期", isOn: optionBinding(\.includeDate))
             }
 
             Divider()
@@ -194,39 +182,25 @@ struct BatchExportView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .onChange(of: exportOptions.groupBy) { _ in
+                    exportedURL = nil
+                }
             }
         }
     }
-    
-    private var exportButton: some View {
-        Button {
-            if isExporting {
-                cancelExport()
-            } else {
-                performExport()
+
+    private func optionBinding(_ keyPath: WritableKeyPath<BatchExportService.ExportOptions, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { exportOptions[keyPath: keyPath] },
+            set: { newValue in
+                exportOptions[keyPath: keyPath] = newValue
+                exportedURL = nil
             }
-        } label: {
-            HStack {
-                if isExporting {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                Text(isExporting ? "取消导出" : "导出 \(selectedRecords.count) 条记录")
-            }
-            .font(.headline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(selectedRecords.isEmpty && !isExporting ? Color.gray : Design.Colors.harvest)
-            .cornerRadius(Design.Radius.medium)
-        }
-        .disabled(selectedRecords.isEmpty && !isExporting)
-        .padding(Design.Space.md)
+        )
     }
     
     private func toggleSelection(_ id: String) {
+        exportedURL = nil
         if selectedRecords.contains(id) {
             selectedRecords.remove(id)
         } else {
@@ -235,6 +209,7 @@ struct BatchExportView: View {
     }
     
     private func toggleSelectAll() {
+        exportedURL = nil
         if selectedRecords.count == store.scanFiles.count {
             selectedRecords.removeAll()
         } else {
@@ -256,6 +231,7 @@ struct BatchExportView: View {
         
         exportTask?.cancel()
         isExporting = true
+        exportedURL = nil
         let format = exportFormat
         var options = exportOptions
         options.plotNameByTreeID = plotNameByTreeID()
@@ -292,6 +268,7 @@ struct BatchExportView: View {
     private func pruneSelection(to files: [ScanFileRecord]) {
         let availableIDs = Set(files.map(\.id))
         if !selectedRecords.isSubset(of: availableIDs) {
+            exportedURL = nil
             selectedRecords.formIntersection(availableIDs)
         }
     }
@@ -309,116 +286,5 @@ struct BatchExportView: View {
             else { return nil }
             return (assignment.treeId, plotName)
         })
-    }
-}
-
-private struct RecordRow: View {
-    let record: ScanFileRecord
-    let isSelected: Bool
-    let onToggle: () -> Void
-    
-    var body: some View {
-        Button(action: onToggle) {
-            HStack(spacing: Design.Space.md) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundColor(isSelected ? Design.Colors.harvest : Design.Colors.Dark.textSecondary)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(record.treeID)
-                        .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    
-                    HStack(spacing: Design.Space.sm) {
-                        Label("\(record.fruitCount)", systemImage: "leaf.fill")
-                        Label(String(format: "%.1f kg", record.yieldKg), systemImage: "scalemass")
-                        Text(record.fruitType)
-                    }
-                    .font(.system(size: 10))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(formatDate(record.scanDate))
-                        .font(.system(size: 10))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                    
-                    if record.gpsLat != 0 {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(Design.Colors.forest)
-                    }
-                }
-            }
-            .padding(Design.Space.md)
-            .background(
-                RoundedRectangle(cornerRadius: Design.Radius.medium)
-                    .fill(Design.Colors.Dark.bgDeep)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Design.Radius.medium)
-                            .stroke(isSelected ? Design.Colors.harvest : Color.clear, lineWidth: 2)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd HH:mm"
-        return formatter.string(from: date)
-    }
-}
-
-private struct FormatButton: View {
-    let format: BatchExportService.ExportFormat
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: Design.Space.xs) {
-                Image(systemName: format.icon)
-                Text(format.rawValue)
-            }
-            .font(Design.Typography.subheadline)
-            .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, Design.Space.sm)
-            .background(
-                RoundedRectangle(cornerRadius: Design.Radius.small)
-                    .fill(isSelected ? Design.Colors.harvest : Design.Colors.Dark.bgDeep)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct OptionToggle: View {
-    let label: String
-    @Binding var isOn: Bool
-    
-    var body: some View {
-        Button {
-            isOn.toggle()
-        } label: {
-            HStack(spacing: Design.Space.xs) {
-                Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 14))
-                    .foregroundColor(isOn ? Design.Colors.harvest : Design.Colors.Dark.textSecondary)
-                Text(label)
-                    .font(.system(size: 12))
-            }
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-#Preview {
-    NavigationStack {
-        BatchExportView()
     }
 }

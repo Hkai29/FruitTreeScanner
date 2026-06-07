@@ -70,6 +70,9 @@ struct MetalBuffer<Element> {
         }
     }
     
+    /// Access the underlying MTLBuffer for compute shader operations.
+    var metalBuffer: MTLBuffer? { buffer }
+
     /// Returns a copy of the value at the specified element index in the buffer.
     subscript(index: Int) -> Element {
         get {

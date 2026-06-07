@@ -43,19 +43,19 @@ class ScanQualityMonitor: ObservableObject {
         
         var description: String {
             switch self {
-            case .tooDark: return "过暗"
-            case .dark: return "偏暗"
-            case .normal: return "正常"
-            case .bright: return "偏亮"
-            case .tooBright: return "过曝"
+            case .tooDark: return L10n.Quality.tooDark
+            case .dark: return L10n.Quality.dark
+            case .normal: return L10n.Quality.normal
+            case .bright: return L10n.Quality.bright
+            case .tooBright: return L10n.Quality.tooBright
             }
         }
         
         var color: Color {
             switch self {
-            case .tooDark, .tooBright: return .red
-            case .dark, .bright: return .orange
-            case .normal: return .green
+            case .tooDark, .tooBright: return Design.Colors.error
+            case .dark, .bright: return Design.Colors.warning
+            case .normal: return Design.Colors.success
             }
         }
     }

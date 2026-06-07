@@ -7,13 +7,13 @@ enum VoxelDiscoveryTrend: Equatable {
     var description: String {
         switch self {
         case .collecting:
-            return "收集中..."
+            return L10n.VoxelTrend.collecting
         case .increasing:
-            return "持续发现新区域"
+            return L10n.VoxelTrend.discovering
         case .decreasing:
-            return "趋于稳定"
+            return L10n.VoxelTrend.stabilizing
         case .stable:
-            return "覆盖完成"
+            return L10n.VoxelTrend.complete
         }
     }
 }

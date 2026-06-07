@@ -1,0 +1,16 @@
+.DS_Store
+
+# Xcode user state and local build output
+*.xcuserstate
+*.xcuserdata/
+DerivedData/
+.derivedData/
+build/
+
+# Local simulator/UI verification screenshots
+.tmp-*.png
+.tmp-*.jpg
+
+# Swift Package Manager local state
+.build/
+.swiftpm/

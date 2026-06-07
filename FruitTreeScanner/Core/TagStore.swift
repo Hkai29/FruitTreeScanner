@@ -9,7 +9,7 @@ struct Plot: Identifiable, Codable, Equatable, Sendable {
     var displayOrder: Int
     var createdAt: Date
 
-    init(name: String, colorHex: String = "#007AFF", displayOrder: Int = 0) {
+    init(name: String, colorHex: String = TagPalette.defaultPlotColor, displayOrder: Int = 0) {
         self.id = UUID()
         self.name = name
         self.colorHex = colorHex
@@ -24,12 +24,17 @@ struct GroupTag: Identifiable, Codable, Equatable, Sendable {
     var colorHex: String
     var createdAt: Date
 
-    init(name: String, colorHex: String = "#34C759") {
+    init(name: String, colorHex: String = TagPalette.defaultTagColor) {
         self.id = UUID()
         self.name = name
         self.colorHex = colorHex
         self.createdAt = Date()
     }
+}
+
+enum TagPalette {
+    static let defaultPlotColor = "#4D7588"
+    static let defaultTagColor = "#6F8F63"
 }
 
 enum ScanStatus: String, Codable, CaseIterable, Sendable {
@@ -91,25 +96,16 @@ final class TagStore: ObservableObject {
         do {
             plots = try UserDefaults.standard.getObject(forKey: StorageKeys.plots) ?? []
         } catch {
-            #if DEBUG
-            print("[TagStore] Failed to load plots: \(error)")
-            #endif
             plots = []
         }
         do {
             tags = try UserDefaults.standard.getObject(forKey: StorageKeys.tags) ?? []
         } catch {
-            #if DEBUG
-            print("[TagStore] Failed to load tags: \(error)")
-            #endif
             tags = []
         }
         do {
             assignments = try UserDefaults.standard.getObject(forKey: StorageKeys.assignments) ?? []
         } catch {
-            #if DEBUG
-            print("[TagStore] Failed to load assignments: \(error)")
-            #endif
             assignments = []
         }
     }
@@ -127,9 +123,6 @@ final class TagStore: ObservableObject {
                 await self?.finishPersisting(generation: generation)
             } catch is CancellationError {
             } catch {
-                #if DEBUG
-                print("[TagStore] Failed to save data: \(error)")
-                #endif
             }
         }
         notifyUpdate()
@@ -155,7 +148,7 @@ final class TagStore: ObservableObject {
 
     // MARK: - Plot Operations
 
-    func addPlot(name: String, colorHex: String = "#007AFF") {
+    func addPlot(name: String, colorHex: String = TagPalette.defaultPlotColor) {
         let maxOrder = plots.map { $0.displayOrder }.max() ?? -1
         let displayOrder = maxOrder + 1
         let plot = Plot(name: name, colorHex: colorHex, displayOrder: displayOrder)
@@ -190,7 +183,7 @@ final class TagStore: ObservableObject {
 
     // MARK: - Tag Operations
 
-    func addTag(name: String, colorHex: String = "#34C759") {
+    func addTag(name: String, colorHex: String = TagPalette.defaultTagColor) {
         let tag = GroupTag(name: name, colorHex: colorHex)
         tags.append(tag)
         persistChanges()

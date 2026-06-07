@@ -22,48 +22,7 @@ struct GlassCard<Content: View>: View {
     var body: some View {
         content()
             .padding(padding)
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Design.Colors.Dark.glassFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
-            )
-            .shadow(
-                color: Design.Shadow.glassShadow.color,
-                radius: Design.Shadow.glassShadow.radius,
-                y: Design.Shadow.glassShadow.y
-            )
-    }
-}
-
-// MARK: - Glass Section Header
-struct GlassSectionHeader: View {
-    let title: String
-    let icon: String?
-
-    init(_ title: String, icon: String? = nil) {
-        self.title = title
-        self.icon = icon
-    }
-
-    var body: some View {
-        HStack {
-            if let icon = icon {
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Design.Colors.harvest)
-            }
-
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .tracking(0.8)
-
-            Spacer()
-        }
-        .padding(.horizontal, Design.Space.xs)
+            .darkSurface(cornerRadius: cornerRadius)
     }
 }
 
@@ -184,21 +143,6 @@ struct GlassToggleRow: View {
     }
 }
 
-// MARK: - Glass Picker Row
-struct GlassPickerRow: View {
-    let icon: String
-    let title: String
-    let value: String
-
-    var body: some View {
-        GlassRow(icon: icon, title: title) {
-            Text(value)
-                .font(Design.Typography.darkCaption)
-                .foregroundColor(Design.Colors.harvest)
-        }
-    }
-}
-
 // MARK: - Glass Readonly Row
 struct GlassReadonlyRow: View {
     let icon: String
@@ -262,27 +206,5 @@ struct GlassSliderRow: View {
             RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
                 .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
         )
-    }
-}
-
-#Preview {
-    ZStack {
-        Design.Colors.Dark.bgDeep.ignoresSafeArea()
-
-        VStack(spacing: 20) {
-            GlassCard {
-                VStack(alignment: .leading) {
-                    GlassSectionHeader("设备", icon: "cpu")
-                    GlassReadonlyRow(icon: "rectangle", title: "分辨率", value: "1920×1080")
-                    GlassDivider()
-                    GlassPickerRow(icon: "speedometer", title: "检测频率", value: "60fps")
-                }
-            }
-
-            GlassExpandableSection(title: "数据", icon: "externaldrive", isExpanded: .constant(true)) {
-                GlassToggleRow(icon: "doc.text", title: "自动导出", isOn: .constant(true))
-            }
-        }
-        .padding()
     }
 }

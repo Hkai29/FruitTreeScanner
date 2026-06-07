@@ -271,54 +271,6 @@ final class BatchExportService {
         records.reduce(0) { $0 + $1.fruitCount }
     }
     
-    func generateSummary(records: [ScanFileRecord]) -> ExportSummary {
-        let groupedByType = Dictionary(grouping: records) { $0.fruitType }
-        
-        var typeBreakdown: [ExportSummary.TypeSummary] = []
-        for (type, typeRecords) in groupedByType {
-            let yield = typeRecords.reduce(Float(0)) { $0 + $1.yieldKg }
-            let count = typeRecords.reduce(0) { $0 + $1.fruitCount }
-            typeBreakdown.append(ExportSummary.TypeSummary(
-                fruitType: type,
-                count: typeRecords.count,
-                totalYield: yield,
-                totalFruitCount: count
-            ))
-        }
-        
-        typeBreakdown.sort { $0.totalYield > $1.totalYield }
-        
-        return ExportSummary(
-            totalRecords: records.count,
-            totalYield: Self.totalYield(records),
-            totalFruitCount: Self.totalFruitCount(records),
-            averageYieldPerTree: records.isEmpty ? 0 : Self.totalYield(records) / Float(records.count),
-            fruitTypeBreakdown: typeBreakdown,
-            dateRange: dateRange(from: records)
-        )
-    }
-    
-    private func dateRange(from records: [ScanFileRecord]) -> (start: Date, end: Date)? {
-        guard let first = records.min(by: { $0.scanDate < $1.scanDate }),
-              let last = records.max(by: { $0.scanDate < $1.scanDate }) else { return nil }
-        return (first.scanDate, last.scanDate)
-    }
-}
-
-struct ExportSummary {
-    let totalRecords: Int
-    let totalYield: Float
-    let totalFruitCount: Int
-    let averageYieldPerTree: Float
-    let fruitTypeBreakdown: [TypeSummary]
-    let dateRange: (start: Date, end: Date)?
-    
-    struct TypeSummary {
-        let fruitType: String
-        let count: Int
-        let totalYield: Float
-        let totalFruitCount: Int
-    }
 }
 
 enum BatchExportError: LocalizedError {

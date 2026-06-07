@@ -1,0 +1,130 @@
+/* Scan */
+"scan.estimating" = "正在估算产量…";
+"scan.skip_guide" = "跳过引导";
+"scan.recording" = "录制中";
+"scan.no_point_cloud" = "请先录制一段点云后再测量";
+"scan.export_failed" = "点云导出失败（文件写入错误），请检查存储空间后重试";
+"scan.coverage_complete" = "覆盖完成";
+"scan.scanning" = "扫描中";
+"scan.detecting" = "检测中...";
+
+/* Result */
+"result.yield_title" = "估算产量";
+"result.fruit_count" = "果实数量";
+"result.avg_diameter" = "平均直径";
+"result.avg_volume" = "平均体积";
+"result.confidence" = "置信度";
+"result.method" = "估算方法";
+"result.scan_result" = "扫描结果";
+"result.confidence_high" = "高置信度";
+"result.confidence_medium" = "中等置信度";
+"result.confidence_manual_review" = "需人工复核";
+"result.confidence_low" = "低置信度";
+"result.fruit" = "果实";
+"result.point_cloud" = "点云";
+"result.method_label" = "方法";
+"result.method_estimate" = "估算";
+"result.continue_next" = "继续扫描下一棵";
+"result.back_to_home" = "返回主界面";
+"result.fruit_volume_method" = "果实体积法";
+"result.corrected_fruit_count" = "校正后果实数";
+"result.visual_count" = "视觉计数";
+"result.correction_factor" = "总校正系数";
+"result.visible_weight" = "可见部分重量";
+"result.corrected_weight" = "校正后重量";
+"result.measured_diameter" = "实测平均直径";
+"result.crown_volume_method" = "冠层体积法";
+"result.crown_yield" = "冠层回归产量";
+"result.crown_volume" = "冠层体积";
+"result.tree_height" = "树高";
+"result.crown_not_trained" = "路线A模型未训练，需采集称重数据后训练";
+"result.algorithm_params" = "算法参数";
+"result.fruit_category" = "水果类别";
+"result.point_cloud_size" = "点云大小";
+"result.color_filter" = "颜色过滤";
+"result.occlusion_k" = "遮挡校正 K";
+"result.unit_count" = "个";
+"result.unit_points" = "点";
+
+/* Dashboard */
+"dashboard.title" = "果园概览";
+"dashboard.today_scans" = "今日扫描";
+"dashboard.total_yield" = "总产量";
+"dashboard.recent_scans" = "最近扫描";
+"dashboard.no_scans" = "暂无扫描记录";
+
+/* Settings */
+"settings.title" = "设置";
+"settings.fruit_type" = "水果类型";
+"settings.scan_quality" = "扫描质量";
+"settings.auto_export_csv" = "自动导出 CSV";
+
+/* Diagnostics */
+"diag.model_not_loaded" = "模型未加载";
+"diag.depth_unavailable" = "深度不可用";
+"diag.insufficient_points" = "点云数量不足";
+"diag.no_image_frames" = "未处理图像检测帧";
+"diag.no_detections" = "图像检测无结果";
+"diag.confidence_filtered" = "候选被置信度过滤";
+"diag.unmapped_labels" = "模型标签未映射到水果类别";
+"diag.no_candidates" = "点云聚类无候选";
+"diag.fusion_failed" = "融合验证失败";
+"diag.cloud_only_rejected" = "cloudOnly 保守模式未接受候选";
+
+/* Quality */
+"quality.too_dark" = "过暗";
+"quality.dark" = "偏暗";
+"quality.normal" = "正常";
+"quality.bright" = "偏亮";
+"quality.too_bright" = "过曝";
+
+/* Voxel Trend */
+"voxel.collecting" = "收集中...";
+"voxel.discovering" = "持续发现新区域";
+"voxel.stabilizing" = "趋于稳定";
+"voxel.complete" = "覆盖完成";
+
+/* Export */
+"export.csv_desc" = "通用数据格式，兼容所有表格软件";
+"export.excel_desc" = "Microsoft Excel 兼容格式";
+"export.no_grouping" = "不分组";
+"export.by_fruit_type" = "按水果类型";
+"export.by_date" = "按日期";
+"export.by_plot" = "按地块";
+"export.no_records" = "没有可导出的记录";
+
+/* Fruit Names */
+"fruit.apple" = "苹果";
+"fruit.orange" = "橙子";
+"fruit.mandarin" = "柑橘";
+"fruit.pomelo" = "柚子";
+"fruit.pear" = "梨";
+"fruit.peach" = "桃子";
+"fruit.cherry" = "樱桃";
+"fruit.grape" = "葡萄";
+"fruit.persimmon" = "柿子";
+"fruit.mango" = "芒果";
+"fruit.kiwi" = "猕猴桃";
+"fruit.plum" = "李子";
+"fruit.pomegranate" = "石榴";
+"fruit.loquat" = "枇杷";
+"fruit.lychee" = "荔枝";
+"fruit.longan" = "龙眼";
+"fruit.bayberry" = "杨梅";
+"fruit.jujube" = "枣";
+"fruit.hawthorn" = "山楂";
+"fruit.fig" = "无花果";
+"fruit.papaya" = "木瓜";
+"fruit.chestnut" = "板栗";
+"fruit.mulberry" = "桑葚";
+"fruit.blueberry" = "蓝莓";
+"fruit.strawberry" = "草莓";
+"fruit.coconut" = "椰子";
+
+/* Common */
+"common.cancel" = "取消";
+"common.confirm" = "确认";
+"common.done" = "完成";
+"common.delete" = "删除";
+"common.save" = "保存";
+"common.share" = "分享";

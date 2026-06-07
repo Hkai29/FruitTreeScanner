@@ -32,12 +32,13 @@ struct FruitVarietyParams: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
+@MainActor
 final class FruitParametersStore: ObservableObject {
     static let shared = FruitParametersStore()
     
     @Published var params: [FruitVarietyParams] = []
     
-    private static let userDefaultsKey = "fruitVarietyParams"
+    nonisolated private static let userDefaultsKey = "fruitVarietyParams"
     private var saveTask: Task<Void, Never>?
     private var saveGeneration = 0
     
@@ -56,9 +57,6 @@ final class FruitParametersStore: ObservableObject {
         do {
             params = try JSONDecoder().decode([FruitVarietyParams].self, from: data)
         } catch {
-            #if DEBUG
-            print("[FruitParams] Failed to decode params: \(error)")
-            #endif
         }
     }
 
@@ -73,12 +71,9 @@ final class FruitParametersStore: ObservableObject {
                 let encoded = try JSONEncoder().encode(snapshot)
                 try Task.checkCancellation()
                 UserDefaults.standard.set(encoded, forKey: Self.userDefaultsKey)
-                self?.finishSaving(generation: generation)
+                await self?.finishSaving(generation: generation)
             } catch is CancellationError {
             } catch {
-                #if DEBUG
-                print("[FruitParams] Failed to encode params: \(error)")
-                #endif
             }
         }
     }
@@ -159,6 +154,7 @@ final class FruitParametersStore: ObservableObject {
     }
 }
 
+@MainActor
 extension FruitCategory {
     func getParams() -> FruitVarietyParams {
         FruitParametersStore.shared.param(for: self)

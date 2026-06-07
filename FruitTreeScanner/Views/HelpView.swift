@@ -73,7 +73,7 @@ struct HelpView: View {
         }
         .background(Design.Colors.Dark.bgDeep.ignoresSafeArea())
         .navigationTitle("使用帮助")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func helpSection(icon: String, title: String, items: [String]) -> some View {
@@ -103,12 +103,6 @@ struct HelpView: View {
         .padding(Design.Space.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Design.Colors.Dark.bgSurface)
-        .cornerRadius(Design.Radius.large)
-    }
-}
-
-#Preview {
-    NavigationView {
-        HelpView()
+        .cornerRadius(10)
     }
 }

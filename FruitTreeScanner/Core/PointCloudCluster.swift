@@ -4,24 +4,13 @@
 import Foundation
 import simd
 
-// MARK: - Delegate Protocol
-
-protocol PointCloudClusterDelegate: AnyObject {
-    func pointCloudCluster(_ cluster: PointCloudCluster, didFind candidates: [FruitCandidate])
-}
-
 // MARK: - PointCloudCluster
 
-final class PointCloudCluster: @unchecked Sendable {
-    weak var delegate: PointCloudClusterDelegate?
-    var config: ClusterConfig
+final class PointCloudCluster: Sendable {
+    let config: ClusterConfig
 
     init(config: ClusterConfig = .default) {
         self.config = config
-    }
-
-    func updateConfig(_ newConfig: ClusterConfig) {
-        self.config = newConfig
     }
 
     // MARK: - Public API
@@ -58,7 +47,7 @@ final class PointCloudCluster: @unchecked Sendable {
 
     // MARK: - DBSCAN Implementation
 
-    private struct ClusterPoint {
+    struct ClusterPoint {
         var pos: SIMD3<Float>
         var color: SIMD3<Float>
         var visited: Bool = false
@@ -99,14 +88,13 @@ final class PointCloudCluster: @unchecked Sendable {
             clusterId += 1
         }
 
-        // 第三步：分析每个聚类，添加额外过滤
-        for id in 0..<clusterId {
-            var clusterPoints: [ClusterPoint] = []
-            for point in points where point.clusterId == id {
-                clusterPoints.append(point)
-            }
-
-            if let candidate = analyzeCluster(clusterPoints) {
+        // 第三步：按 clusterId 分组，分析每个聚类
+        var clusterBuckets = [[ClusterPoint]](repeating: [], count: clusterId)
+        for point in points where point.clusterId >= 0 && point.clusterId < clusterId {
+            clusterBuckets[point.clusterId].append(point)
+        }
+        for bucket in clusterBuckets {
+            if let candidate = analyzeCluster(bucket) {
                 candidates.append(candidate)
             }
         }
@@ -114,46 +102,49 @@ final class PointCloudCluster: @unchecked Sendable {
         return candidates
     }
 
-    // MARK: - 噪声过滤
+    // MARK: - 噪声过滤（KD-Tree 加速，O(n log n)）
 
     private func applyNoiseFilter(_ points: [ClusterPoint]) -> [ClusterPoint] {
         guard points.count >= 10 else { return points }
 
-        // 计算所有点的平均距离
-        let avgDist = computeAverageNeighborDistance(points, k: 5)
-
-        // 过滤掉距离其他点太远的孤立点
-        let threshold = avgDist * 3.0
-        let filtered = points.filter { point in
-            var minDist: Float = .greatestFiniteMagnitude
-            for other in points where other.pos != point.pos {
-                let dist = simd_distance(point.pos, other.pos)
-                minDist = min(minDist, dist)
-            }
-            return minDist < threshold
-        }
-
-        return filtered
-    }
-
-    private func computeAverageNeighborDistance(_ points: [ClusterPoint], k: Int) -> Float {
-        guard points.count >= k + 1 else { return 0.1 }
-
         let positions = points.map { $0.pos }
         let kdtree = KDTree(points: positions)
-        var totalDist: Float = 0
-        var count: Int = 0
+        let k = 6
 
-        for (i, point) in points.enumerated() {
-            let neighbors = kdtree.rangeQuery(center: point.pos, radius: 0.5)
-            let otherNeighbors = neighbors.filter { $0 != i }.prefix(k)
-            for n in otherNeighbors {
-                totalDist += simd_distance(point.pos, positions[n])
+        var meanDistances = [Float](repeating: 0, count: points.count)
+        var globalSum: Double = 0
+        var validCount = 0
+
+        for i in 0..<points.count {
+            let nearest = kdtree.kNearest(center: positions[i], k: k)
+            var distSum: Float = 0
+            var count = 0
+            for n in nearest where n != i {
+                distSum += simd_distance(positions[i], positions[n])
                 count += 1
+            }
+            let mean = count > 0 ? distSum / Float(count) : Float.greatestFiniteMagnitude
+            meanDistances[i] = mean
+            if mean < Float.greatestFiniteMagnitude {
+                globalSum += Double(mean)
+                validCount += 1
             }
         }
 
-        return count > 0 ? totalDist / Float(count) : 0.1
+        guard validCount > 0 else { return points }
+
+        let globalMean = Float(globalSum / Double(validCount))
+        var varianceSum: Double = 0
+        for d in meanDistances where d < Float.greatestFiniteMagnitude {
+            let diff = Double(d - globalMean)
+            varianceSum += diff * diff
+        }
+        let globalStd = Float(sqrt(varianceSum / Double(validCount)))
+        let threshold = globalMean + 2.0 * globalStd
+
+        return points.enumerated().compactMap { i, point in
+            meanDistances[i] <= threshold ? point : nil
+        }
     }
 
     // MARK: - 点云密度计算
@@ -187,6 +178,8 @@ final class PointCloudCluster: @unchecked Sendable {
     private func expandCluster(index: Int, neighbors: [Int], clusterId: Int, eps: Float, points: inout [ClusterPoint], kdtree: KDTree, density: Float) {
         points[index].clusterId = clusterId
         var neighborList = neighbors
+        var inCluster = Set(neighbors)
+        inCluster.insert(index)
 
         var i = 0
         while i < neighborList.count {
@@ -198,8 +191,10 @@ final class PointCloudCluster: @unchecked Sendable {
                 let newNeighbors = regionQuery(index: neighborIndex, points: points, kdtree: kdtree, eps: neighborEps)
 
                 if newNeighbors.count >= config.minPoints {
-                    let existingNeighbors = Set(neighborList)
-                    neighborList.append(contentsOf: newNeighbors.filter { !existingNeighbors.contains($0) })
+                    for n in newNeighbors where !inCluster.contains(n) {
+                        inCluster.insert(n)
+                        neighborList.append(n)
+                    }
                 }
             }
 
@@ -239,264 +234,4 @@ final class PointCloudCluster: @unchecked Sendable {
         return min(max(scaledEps, minEps), maxEps)
     }
 
-    // MARK: - Cluster Analysis
-
-    private func analyzeCluster(_ clusterPoints: [ClusterPoint]) -> FruitCandidate? {
-        guard clusterPoints.count >= config.minPoints else { return nil }
-
-        let center = computeCentroid(clusterPoints.map { $0.pos })
-        let diameter = computeDiameter(positions: clusterPoints.map { $0.pos }, center: center)
-
-        // 尺寸过滤
-        if diameter < config.minDiameter || diameter > config.maxDiameter {
-            return nil
-        }
-
-        // 计算球形度
-        let sphericity = computeSphericity(positions: clusterPoints.map { $0.pos }, center: center)
-
-        if sphericity <= config.sphericityThreshold {
-            return nil
-        }
-
-        // 颜色过滤：检查是否具有果实颜色
-        let avgColor = computeAverageColor(clusterPoints.map { $0.color })
-        if !FruitCategory.isFruitColor(avgColor) {
-            return nil
-        }
-
-        // 形状规则性检查
-        if !isShapeRegular(clusterPoints, center: center, diameter: diameter) {
-            return nil
-        }
-
-        return FruitCandidate(
-            position: center,
-            diameter: diameter,
-            sphericity: sphericity,
-            pointCount: clusterPoints.count,
-            averageColor: avgColor
-        )
-    }
-
-    // MARK: - 形状规则性检查
-
-    private func isShapeRegular(_ points: [ClusterPoint], center: SIMD3<Float>, diameter: Float) -> Bool {
-        let radius = diameter / 2.0
-        guard radius > 0 else { return false }
-        let positions = points.map { $0.pos }
-        guard !positions.isEmpty else { return false }
-
-        let distances = positions.map { simd_distance($0, center) }
-        let avgDist = distances.reduce(0, +) / Float(distances.count)
-
-        // 计算距离方差，判断形状是否规则
-        var variance: Float = 0
-        for d in distances {
-            variance += (d - avgDist) * (d - avgDist)
-        }
-        variance /= Float(distances.count)
-        let stdDev = sqrt(variance)
-
-        // 标准差不应超过半径的30%
-        return stdDev < radius * 0.3
-    }
-
-    /// 计算平均颜色
-    private func computeAverageColor(_ colors: [SIMD3<Float>]) -> SIMD3<Float> {
-        guard !colors.isEmpty else { return SIMD3<Float>(0.5, 0.5, 0.5) }
-        var sumR: Float = 0, sumG: Float = 0, sumB: Float = 0
-        for color in colors {
-            sumR += color.x
-            sumG += color.y
-            sumB += color.z
-        }
-        let count = Float(colors.count)
-        return SIMD3<Float>(sumR / count, sumG / count, sumB / count)
-    }
-
-    private func computeCentroid(_ positions: [SIMD3<Float>]) -> SIMD3<Float> {
-        guard !positions.isEmpty else { return SIMD3<Float>(0, 0, 0) }
-        var sum = SIMD3<Float>(0, 0, 0)
-        for pos in positions {
-            sum += pos
-        }
-        return sum / Float(positions.count)
-    }
-
-    private func computeDiameter(positions: [SIMD3<Float>], center: SIMD3<Float>) -> Float {
-        let dists = positions.map { simd_distance($0, center) }.sorted()
-        guard !dists.isEmpty else { return 0 }
-        let idx90 = max(0, Int(Float(dists.count) * 0.90) - 1)
-        return dists[idx90] * 2.0
-    }
-
-    private func computeSphericity(positions: [SIMD3<Float>], center: SIMD3<Float>) -> Float {
-        let n = Float(positions.count)
-        guard n > 1 else { return 1.0 }
-
-        var cov = simd_float3x3()
-        var m01: Float = 0, m02: Float = 0, m12: Float = 0
-
-        for pos in positions {
-            let d = pos - center
-            cov.columns.0.x += d.x * d.x
-            cov.columns.1.y += d.y * d.y
-            cov.columns.2.z += d.z * d.z
-            m01 += d.x * d.y
-            m02 += d.x * d.z
-            m12 += d.y * d.z
-        }
-
-        let denom = n - 1
-        cov.columns.0.x /= denom
-        cov.columns.1.y /= denom
-        cov.columns.2.z /= denom
-        cov.columns.1.x = m01 / denom
-        cov.columns.2.x = m02 / denom
-        cov.columns.2.y = m12 / denom
-        cov.columns.0.y = cov.columns.1.x
-        cov.columns.0.z = cov.columns.2.x
-        cov.columns.1.z = cov.columns.2.y
-
-        let eigenvalues = computeEigenvalues(cov)
-
-        guard eigenvalues.count == 3 else { return 0.0 }
-
-        let lambdaMin = eigenvalues.min() ?? 0
-        let lambdaMax = eigenvalues.max() ?? 1
-
-        if lambdaMax < 1e-6 { return 0.0 }
-
-        return lambdaMin / lambdaMax
-    }
-
-    private func computeEigenvalues(_ matrix: simd_float3x3) -> [Float] {
-        var eigenvalues: [Float] = []
-        var eigenvectors: [SIMD3<Float>] = []
-
-        for _ in 0..<3 {
-            var current = SIMD3<Float>(1, 0, 0)
-
-            for v in eigenvectors {
-                current -= simd_dot(current, v) * v
-            }
-            let initNorm = simd_length(current)
-            if initNorm < 1e-6 { break }
-            current /= initNorm
-
-            var prevLambda: Float = 0
-            for iter in 0..<50 {
-                var next: SIMD3<Float> = matrix * current
-                for v in eigenvectors {
-                    next -= simd_dot(next, v) * v
-                }
-                let norm = simd_length(next)
-                if norm < 1e-6 { break }
-                current = next / norm
-
-                let lambda = simd_dot(current, matrix * current)
-                if iter > 0 && abs(lambda - prevLambda) < 1e-4 { break }
-                prevLambda = lambda
-            }
-
-            let lambda = simd_dot(current, matrix * current)
-            eigenvalues.append(lambda)
-            eigenvectors.append(current)
-        }
-
-        return eigenvalues.sorted()
-    }
-}
-
-// MARK: - KD-Tree
-
-private struct KDTree {
-    private var nodes: [KDNode]
-    private var rootNodeIndex: Int?
-
-    struct KDNode {
-        var point: SIMD3<Float>
-        var index: Int
-        var left: Int?
-        var right: Int?
-        var axis: Int
-    }
-
-    init(points: [SIMD3<Float>]) {
-        nodes = []
-        rootNodeIndex = nil
-        guard !points.isEmpty else {
-            return
-        }
-
-        var indices = Array(points.indices)
-        rootNodeIndex = buildTree(points: points, indices: &indices, depth: 0, range: 0..<points.count)
-    }
-
-    private mutating func buildTree(points: [SIMD3<Float>], indices: inout [Int], depth: Int, range: Range<Int>) -> Int? {
-        guard range.lowerBound < range.upperBound else { return nil }
-
-        let axis = depth % 3
-        let mid = (range.lowerBound + range.upperBound) / 2
-
-        indices[range].sort { a, b in
-            let posA = points[a]
-            let posB = points[b]
-            if axis == 0 {
-                return posA.x < posB.x
-            } else if axis == 1 {
-                return posA.y < posB.y
-            } else {
-                return posA.z < posB.z
-            }
-        }
-        let pivotIndex = indices[mid]
-
-        let leftRange: Range<Int>? = range.lowerBound < mid ? range.lowerBound..<mid : nil
-        let rightRange: Range<Int>? = mid + 1 < range.upperBound ? mid + 1..<range.upperBound : nil
-
-        let leftChildId: Int? = leftRange != nil ? buildTree(points: points, indices: &indices, depth: depth + 1, range: leftRange!) : nil
-        let rightChildId: Int? = rightRange != nil ? buildTree(points: points, indices: &indices, depth: depth + 1, range: rightRange!) : nil
-
-        let node = KDNode(
-            point: points[pivotIndex],
-            index: pivotIndex,
-            left: leftChildId,
-            right: rightChildId,
-            axis: axis
-        )
-        nodes.append(node)
-
-        return nodes.count - 1
-    }
-
-    func rangeQuery(center: SIMD3<Float>, radius: Float) -> [Int] {
-        guard let rootNodeIndex else { return [] }
-        var result: [Int] = []
-        rangeSearch(nodeIndex: rootNodeIndex, center: center, radius: radius, result: &result)
-        return result
-    }
-
-    private func rangeSearch(nodeIndex: Int, center: SIMD3<Float>, radius: Float, result: inout [Int]) {
-        guard nodeIndex < nodes.count else { return }
-
-        let node = nodes[nodeIndex]
-        let dist = simd_distance(node.point, center)
-
-        if dist <= radius {
-            result.append(node.index)
-        }
-
-        let axis = node.axis
-        let coord = axis == 0 ? center.x : (axis == 1 ? center.y : center.z)
-        let nodeCoord = axis == 0 ? node.point.x : (axis == 1 ? node.point.y : node.point.z)
-
-        if nodeCoord - radius <= coord, let left = node.left {
-            rangeSearch(nodeIndex: left, center: center, radius: radius, result: &result)
-        }
-        if nodeCoord + radius >= coord, let right = node.right {
-            rangeSearch(nodeIndex: right, center: center, radius: radius, result: &result)
-        }
-    }
 }

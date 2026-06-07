@@ -93,9 +93,9 @@ struct CoverageMapView: View {
 
     private var statusColor: Color {
         if completion.overall >= 0.85 { return Design.Colors.harvest }
-        if completion.overall >= 0.6 { return .green }
-        if completion.overall >= 0.3 { return .yellow }
-        return .red
+        if completion.overall >= 0.6 { return Design.Colors.success }
+        if completion.overall >= 0.3 { return Design.Colors.warning }
+        return Design.Colors.error
     }
 }
 
@@ -121,28 +121,6 @@ private struct ScoreIndicator: View {
             Text(label)
                 .font(.system(size: 9))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-    }
-}
-
-#Preview {
-    ZStack {
-        Color.black.ignoresSafeArea()
-        VStack {
-            Spacer()
-            CoverageMapView(
-                completion: ScanCompletion(
-                    overall: 0.65,
-                    timeScore: 0.7,
-                    voxelScore: 0.55,
-                    stabilityScore: 0.7,
-                    voxelCount: 320,
-                    scanDuration: 45,
-                    discoveryTrend: .decreasing
-                )
-            )
-            .padding(.horizontal, 20)
-            .padding(.bottom, 120)
         }
     }
 }

@@ -33,7 +33,7 @@ struct MeasurementToolOverlay: View {
                         VStack(alignment: .trailing, spacing: 6) {
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(Color.red)
+                                    .fill(Design.Colors.apple)
                                     .frame(width: 10, height: 10)
                                 Text("起点")
                                     .font(.system(size: 11))
@@ -41,7 +41,7 @@ struct MeasurementToolOverlay: View {
 
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(Color.blue)
+                                    .fill(Design.Colors.earth)
                                     .frame(width: 10, height: 10)
                                 Text("终点")
                                     .font(.system(size: 11))
@@ -99,45 +99,5 @@ struct MeasurementToolOverlay: View {
                 .padding(16)
             }
         }
-    }
-}
-
-struct MeasurementResultBadge: View {
-    let distance: Float
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "ruler.fill")
-                .font(.system(size: 16))
-                .foregroundColor(Design.Colors.harvest)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(String(format: "%.2f m", distance))
-                    .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.white)
-
-                Text("测量距离")
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            
-            Spacer()
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white.opacity(0.5))
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Design.Colors.Dark.hudBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
-                )
-        )
     }
 }

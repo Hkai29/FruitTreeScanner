@@ -119,10 +119,6 @@ struct OcclusionCorrector {
 
         let visibleDepth = min(lidarPenetrationM, crownDepthM)
 
-        let totalVolume = (4.0 / 3.0) * Float.pi * pow(crownRadiusM, 3)
-        let innerRadius = max(0, crownRadiusM - visibleDepth)
-        let _ = totalVolume - (4.0 / 3.0) * Float.pi * pow(innerRadius, 3)
-
         let densityWeightedVisibleFraction = computeDensityWeightedVisibleFraction(
             crownRadius: crownRadiusM,
             visibleDepth: visibleDepth
@@ -132,8 +128,10 @@ struct OcclusionCorrector {
 
         let visibleRatio = densityWeightedVisibleFraction * angleFactor
 
-        let k = 1.0 / max(visibleRatio, 0.1)
-        let kClamped = min(max(k, 1.0), 3.0)
+        let geometricK = 1.0 / max(visibleRatio, 0.1)
+        let geometricKClamped = min(max(geometricK, 1.0), 3.0)
+        let evidenceReliability = min(Float(visibleCount) / 1000.0, 1.0) * min(max(scanAngleCoverage, 0), 1)
+        let kClamped = 1.0 + (geometricKClamped - 1.0) * (1.0 - evidenceReliability)
 
         let uncertainty: Float = 0.15 + 0.10 * (1.0 - scanAngleCoverage)
         let kLow = min(max(kClamped * (1.0 - uncertainty), 1.0), 3.0)

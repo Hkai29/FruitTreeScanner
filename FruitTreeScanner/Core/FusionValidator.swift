@@ -6,29 +6,18 @@ import CoreVideo
 import VideoToolbox
 import simd
 
-// MARK: - Delegate Protocol
-
-protocol FusionValidatorDelegate: AnyObject {
-    func fusionValidator(_ validator: FusionValidator, didValidate fruits: [ValidatedFruit])
-}
-
 // MARK: - Fusion Validator
 
-class FusionValidator {
+final class FusionValidator: Sendable {
 
     // MARK: - Properties
 
-    weak var delegate: FusionValidatorDelegate?
-    var config: FruitScanConfig
+    let config: FruitScanConfig
 
     // MARK: - Initialization
 
     init(config: FruitScanConfig = .default) {
         self.config = config
-    }
-
-    func updateConfig(_ newConfig: FruitScanConfig) {
-        self.config = newConfig
     }
 
     // MARK: - Validation
@@ -42,10 +31,7 @@ class FusionValidator {
         imageSize: CGSize
     ) -> [ValidatedFruit] {
         var validatedFruits: [ValidatedFruit] = []
-
-        #if DEBUG
-        print("🔍 [FusionValidator] 开始融合: \(detections.count) 个检测, \(candidates.count) 个候选")
-        #endif
+        var usedCandidateIDs = Set<UUID>()
 
         for detection in detections {
             let useTransform = detection.cameraTransform ?? cameraTransform
@@ -60,22 +46,17 @@ class FusionValidator {
                 imageSize: useImageSize
             )
 
-            #if DEBUG
-            print("       检测: \(detection.category.displayName), 投影位置: \(projectedPosition)")
-            #endif
-
             // Find nearest candidate within tolerance
             let matchedCandidate = findNearestCandidate(
                 position: projectedPosition,
-                candidates: candidates,
+                candidates: candidates.filter { !usedCandidateIDs.contains($0.id) },
                 detection: detection
             )
 
             if let candidate = matchedCandidate {
+                usedCandidateIDs.insert(candidate.id)
+
                 // Fused: both image and point cloud validated
-                #if DEBUG
-                print("       → 匹配到候选: 位置\(candidate.position), 球形度\(candidate.sphericity)")
-                #endif
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: candidate.position,
@@ -85,9 +66,6 @@ class FusionValidator {
                 validatedFruits.append(validatedFruit)
             } else {
                 // Image only: no matching candidate found
-                #if DEBUG
-                print("       → 无匹配候选 (imageOnly)")
-                #endif
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: projectedPosition,
@@ -97,13 +75,6 @@ class FusionValidator {
                 validatedFruits.append(validatedFruit)
             }
         }
-
-        #if DEBUG
-        print("🔍 [FusionValidator] 融合结果: \(validatedFruits.count) 个 (fused + imageOnly)")
-        #endif
-
-        // Notify delegate
-        delegate?.fusionValidator(self, didValidate: validatedFruits)
 
         return validatedFruits
     }

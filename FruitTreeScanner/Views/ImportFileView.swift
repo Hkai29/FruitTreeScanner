@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ImportFileView: View {
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.dismiss) private var dismiss
     @State private var isImporting = false
     @State private var importStatus: ImportStatus = .idle
     @State private var importTask: Task<Void, Never>?
@@ -17,6 +17,13 @@ struct ImportFileView: View {
         case processing(String)
         case success(String)
         case error(String)
+
+        var isSuccess: Bool {
+            if case .success = self {
+                return true
+            }
+            return false
+        }
     }
 
     var body: some View {
@@ -25,62 +32,23 @@ struct ImportFileView: View {
                 Design.Colors.Dark.bgDeep
                     .ignoresSafeArea()
 
-                VStack(spacing: 32) {
-                    // 标题区域
-                    VStack(spacing: 16) {
-                        Image(systemName: "folder.open")
-                            .font(.system(size: 60, weight: .light))
-                            .foregroundColor(Design.Colors.harvest)
-
-                        Text("导入外部文件")
-                            .font(Design.Typography.headline)
-                            .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                        Text("支持 PLY（ASCII/Binary）点云文件")
-                            .font(Design.Typography.subheadline)
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
-                    }
-
-                    // 状态显示
+                VStack(alignment: .leading, spacing: 16) {
+                    ImportHeader()
                     statusView
-
-                    // 导入按钮
-                    Button {
-                        isImporting = true
-                        importStatus = .selecting
-                    } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Design.Colors.harvest)
-                                .frame(height: 50)
-                            HStack(spacing: 8) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 18, weight: .semibold))
-                                Text("选择文件")
-                                    .font(.system(size: 16, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                        }
-                    }
-                    .disabled(isProcessing)
-                    .opacity(isProcessing ? 0.6 : 1)
-
-                    VStack(spacing: 10) {
-                        Label("导入后会出现在扫描记录", systemImage: "clock.arrow.circlepath")
-                        Label("保留可读取的扫描元数据", systemImage: "doc.badge.gearshape")
-                        Label("同名文件会自动生成新副本", systemImage: "square.on.square")
-                    }
-                    .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .multilineTextAlignment(.center)
+                    importButton
+                    ImportRulesList()
+                    Spacer(minLength: 0)
                 }
                 .padding(Design.Space.lg)
             }
             .navigationTitle("导入文件")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(importStatus.isSuccess ? "完成" : "取消") { dismiss() }
                 }
             }
             .fileImporter(
@@ -113,48 +81,69 @@ struct ImportFileView: View {
         Group {
             switch importStatus {
             case .idle:
-                EmptyView()
+                ImportStatusPanel(
+                    icon: "doc.badge.plus",
+                    title: "等待选择 PLY 文件",
+                    message: "支持 ASCII 和 Binary PLY，导入后会写入本机扫描记录。"
+                )
 
             case .selecting:
-                Text("请选择文件...")
-                    .font(Design.Typography.body)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                ImportStatusPanel(
+                    icon: "folder",
+                    title: "请选择文件",
+                    message: "从文件应用中选择一个 .ply 点云文件。"
+                )
 
             case .processing(let filename):
-                VStack(spacing: 8) {
-                    ProgressView()
-                    Text("正在处理: \(filename)")
-                        .font(Design.Typography.body)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
+                ImportStatusPanel(
+                    icon: "arrow.triangle.2.circlepath",
+                    title: "正在处理",
+                    message: filename,
+                    showsProgress: true
+                )
 
             case .success(let filename):
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 40))
-                        .foregroundColor(Design.Colors.forest)
-                    Text("导入成功: \(filename)")
-                        .font(Design.Typography.body)
-                        .foregroundColor(Design.Colors.Dark.glow)
-                    Text("已添加到扫描记录")
-                        .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
+                ImportStatusPanel(
+                    icon: "checkmark.circle.fill",
+                    title: "导入成功",
+                    message: "\(filename) 已添加到扫描记录，可继续导入或关闭此页。",
+                    tint: Design.Colors.forest
+                )
 
             case .error(let message):
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.circle")
-                        .font(.system(size: 40))
-                        .foregroundColor(Design.Colors.error)
-                    Text("导入失败")
-                        .font(Design.Typography.body)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    Text(message)
-                        .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
+                ImportStatusPanel(
+                    icon: "exclamationmark.triangle.fill",
+                    title: "导入失败",
+                    message: message,
+                    tint: Design.Colors.error
+                )
             }
         }
+    }
+
+    private var importButton: some View {
+        Button {
+            isImporting = true
+            importStatus = .selecting
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "square.and.arrow.down")
+                    .font(.system(size: 16, weight: .semibold))
+                Text(importStatus.isSuccess ? "继续导入 PLY 文件" : "选择 PLY 文件")
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(Design.Colors.Dark.bgDeep)
+            .padding(.horizontal, 16)
+            .frame(height: 48)
+            .background(Design.Colors.harvest)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .disabled(isProcessing)
+        .opacity(isProcessing ? 0.6 : 1)
     }
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
@@ -176,12 +165,6 @@ struct ImportFileView: View {
                         guard isViewActive else { return }
                         importStatus = .success(importedName)
                         ScanHistoryStore.shared.notifyRecordsUpdated()
-                    }
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
-                    guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        guard isViewActive else { return }
-                        dismiss()
                     }
                 } catch {
                     guard !Task.isCancelled else { return }
@@ -287,10 +270,4 @@ struct ImportFileView: View {
 
 extension UTType {
     static let plyFile = UTType(filenameExtension: "ply") ?? .data
-}
-
-#Preview {
-    NavigationStack {
-        ImportFileView()
-    }
 }

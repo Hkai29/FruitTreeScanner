@@ -1,0 +1,130 @@
+/* Scan */
+"scan.estimating" = "Estimating yield…";
+"scan.skip_guide" = "Skip Guide";
+"scan.recording" = "Recording";
+"scan.no_point_cloud" = "Please record a point cloud before measuring";
+"scan.export_failed" = "Point cloud export failed (file write error). Check storage and try again.";
+"scan.coverage_complete" = "Coverage Complete";
+"scan.scanning" = "Scanning";
+"scan.detecting" = "Detecting...";
+
+/* Result */
+"result.yield_title" = "Estimated Yield";
+"result.fruit_count" = "Fruit Count";
+"result.avg_diameter" = "Avg. Diameter";
+"result.avg_volume" = "Avg. Volume";
+"result.confidence" = "Confidence";
+"result.method" = "Method";
+"result.scan_result" = "Scan Result";
+"result.confidence_high" = "High Confidence";
+"result.confidence_medium" = "Medium Confidence";
+"result.confidence_manual_review" = "Manual Review";
+"result.confidence_low" = "Low Confidence";
+"result.fruit" = "Fruits";
+"result.point_cloud" = "Points";
+"result.method_label" = "Method";
+"result.method_estimate" = "Estimate";
+"result.continue_next" = "Scan Next Tree";
+"result.back_to_home" = "Back to Home";
+"result.fruit_volume_method" = "Fruit Volume Method";
+"result.corrected_fruit_count" = "Corrected Count";
+"result.visual_count" = "Visual Count";
+"result.correction_factor" = "Correction Factor";
+"result.visible_weight" = "Visible Weight";
+"result.corrected_weight" = "Corrected Weight";
+"result.measured_diameter" = "Measured Avg. Diameter";
+"result.crown_volume_method" = "Crown Volume Method";
+"result.crown_yield" = "Crown Regression Yield";
+"result.crown_volume" = "Crown Volume";
+"result.tree_height" = "Tree Height";
+"result.crown_not_trained" = "Route A model not trained — requires weigh data collection";
+"result.algorithm_params" = "Algorithm Parameters";
+"result.fruit_category" = "Fruit Category";
+"result.point_cloud_size" = "Point Cloud Size";
+"result.color_filter" = "Color Filter";
+"result.occlusion_k" = "Occlusion K";
+"result.unit_count" = "";
+"result.unit_points" = "pts";
+
+/* Dashboard */
+"dashboard.title" = "Orchard Overview";
+"dashboard.today_scans" = "Today's Scans";
+"dashboard.total_yield" = "Total Yield";
+"dashboard.recent_scans" = "Recent Scans";
+"dashboard.no_scans" = "No scan records yet";
+
+/* Settings */
+"settings.title" = "Settings";
+"settings.fruit_type" = "Fruit Type";
+"settings.scan_quality" = "Scan Quality";
+"settings.auto_export_csv" = "Auto Export CSV";
+
+/* Diagnostics */
+"diag.model_not_loaded" = "Model not loaded";
+"diag.depth_unavailable" = "Depth unavailable";
+"diag.insufficient_points" = "Insufficient point cloud";
+"diag.no_image_frames" = "No image frames processed";
+"diag.no_detections" = "No detections from image";
+"diag.confidence_filtered" = "Candidates filtered by confidence";
+"diag.unmapped_labels" = "Model labels not mapped to fruit category";
+"diag.no_candidates" = "No clustering candidates";
+"diag.fusion_failed" = "Fusion validation failed";
+"diag.cloud_only_rejected" = "Cloud-only conservative mode rejected candidates";
+
+/* Quality */
+"quality.too_dark" = "Too Dark";
+"quality.dark" = "Dark";
+"quality.normal" = "Normal";
+"quality.bright" = "Bright";
+"quality.too_bright" = "Overexposed";
+
+/* Voxel Trend */
+"voxel.collecting" = "Collecting...";
+"voxel.discovering" = "Discovering new areas";
+"voxel.stabilizing" = "Stabilizing";
+"voxel.complete" = "Coverage Complete";
+
+/* Export */
+"export.csv_desc" = "Universal format, compatible with all spreadsheet software";
+"export.excel_desc" = "Microsoft Excel compatible format";
+"export.no_grouping" = "No Grouping";
+"export.by_fruit_type" = "By Fruit Type";
+"export.by_date" = "By Date";
+"export.by_plot" = "By Plot";
+"export.no_records" = "No records to export";
+
+/* Fruit Names */
+"fruit.apple" = "Apple";
+"fruit.orange" = "Orange";
+"fruit.mandarin" = "Mandarin";
+"fruit.pomelo" = "Pomelo";
+"fruit.pear" = "Pear";
+"fruit.peach" = "Peach";
+"fruit.cherry" = "Cherry";
+"fruit.grape" = "Grape";
+"fruit.persimmon" = "Persimmon";
+"fruit.mango" = "Mango";
+"fruit.kiwi" = "Kiwi";
+"fruit.plum" = "Plum";
+"fruit.pomegranate" = "Pomegranate";
+"fruit.loquat" = "Loquat";
+"fruit.lychee" = "Lychee";
+"fruit.longan" = "Longan";
+"fruit.bayberry" = "Bayberry";
+"fruit.jujube" = "Jujube";
+"fruit.hawthorn" = "Hawthorn";
+"fruit.fig" = "Fig";
+"fruit.papaya" = "Papaya";
+"fruit.chestnut" = "Chestnut";
+"fruit.mulberry" = "Mulberry";
+"fruit.blueberry" = "Blueberry";
+"fruit.strawberry" = "Strawberry";
+"fruit.coconut" = "Coconut";
+
+/* Common */
+"common.cancel" = "Cancel";
+"common.confirm" = "Confirm";
+"common.done" = "Done";
+"common.delete" = "Delete";
+"common.save" = "Save";
+"common.share" = "Share";

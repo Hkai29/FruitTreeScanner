@@ -1,12 +1,12 @@
 // Utils.swift
 // 原始来源：ios-depth-point-cloud (MIT License)
-// 改动：新增 makeTreeFileName()，其余保持原样
 
+import CoreGraphics
 import Foundation
 import UIKit
 import VideoToolbox
 
-// MARK: - 文件命名（新增）
+// MARK: - 文件命名
 
 /// 生成带树木编号 + GPS 的规范文件名
 /// 格式：T001_20260714_103020_lat22.5678_lon114.1234.ply
@@ -19,7 +19,22 @@ func makeTreeFileName(treeID: String, lat: Double, lon: Double) -> String {
     return "\(treeID)_\(timeStr)_\(latStr)_\(lonStr).ply"
 }
 
-// MARK: - 原始工具函数（不改动）
+typealias Float2 = SIMD2<Float>
+typealias Float3 = SIMD3<Float>
+
+extension Float {
+    static let degreesToRadian = Float.pi / 180
+}
+
+extension matrix_float3x3 {
+    mutating func copy(from affine: CGAffineTransform) {
+        columns.0 = Float3(Float(affine.a), Float(affine.c), Float(affine.tx))
+        columns.1 = Float3(Float(affine.b), Float(affine.d), Float(affine.ty))
+        columns.2 = Float3(0, 0, 1)
+    }
+}
+
+// MARK: - 工具函数
 
 /// 当前时间字符串（用于 PLY header 注释）
 func getTimeStr() -> String {
@@ -28,22 +43,8 @@ func getTimeStr() -> String {
     return df.string(from: Date())
 }
 
-/// 保存文本文件到 Documents 目录
-func saveFile(content: String, filename: String, folder: String) async throws {
-    #if DEBUG
-    print("Saving: \(folder)/\(filename)")
-    #endif
-    let url = getDocumentsDirectory()
-        .appendingPathComponent(folder, isDirectory: true)
-        .appendingPathComponent(filename)
-    try content.write(to: url, atomically: true, encoding: .utf8)
-}
-
 /// 保存二进制数据到 Documents 目录
 func saveFile(data: Data, filename: String, folder: String) async throws {
-    #if DEBUG
-    print("Saving: \(folder)/\(filename) (\(data.count) bytes)")
-    #endif
     let url = getDocumentsDirectory()
         .appendingPathComponent(folder, isDirectory: true)
         .appendingPathComponent(filename)
@@ -118,12 +119,6 @@ func duplicatePixelBuffer(input: CVPixelBuffer) -> CVPixelBuffer {
     }
 
     return output
-}
-
-/// 任务委托协议（通知 UI 任务开始/完成）
-protocol TaskDelegate: AnyObject {
-    func didStartTask()
-    func didFinishTask()
 }
 
 // MARK: - Codable 扩展（用于 JSON 序列化，原始不变）

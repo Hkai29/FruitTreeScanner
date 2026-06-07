@@ -58,9 +58,7 @@ class GPSRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        #if DEBUG
-        print("GPS error: \(error.localizedDescription)")
-        #endif
+        Log.gps.error("GPS error: \(error.localizedDescription)")
         DispatchQueue.main.async { self.isAvailable = false }
     }
 }

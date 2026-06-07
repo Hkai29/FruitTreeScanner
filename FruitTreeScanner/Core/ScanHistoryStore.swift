@@ -72,9 +72,6 @@ final class ScanHistoryStore: ObservableObject {
                 }
                 .sorted { $0.scanDate > $1.scanDate }
         } catch {
-            #if DEBUG
-            print("[ScanHistory] Failed to load records: \(error)")
-            #endif
             return []
         }
     }
@@ -96,18 +93,12 @@ final class ScanHistoryStore: ObservableObject {
         do {
             try FileManager.default.removeItem(at: record.fileURL)
         } catch {
-            #if DEBUG
-            print("[ScanHistory] Failed to delete scan file: \(error)")
-            #endif
         }
         let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
         if FileManager.default.fileExists(atPath: csvURL.path) {
             do {
                 try FileManager.default.removeItem(at: csvURL)
             } catch {
-                #if DEBUG
-                print("[ScanHistory] Failed to delete CSV file: \(error)")
-                #endif
             }
         }
         let baseName = record.fileURL.deletingPathExtension().lastPathComponent

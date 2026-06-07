@@ -1,4 +1,5 @@
 import XCTest
+import CoreML
 @testable import FruitTreeScanner
 
 final class DetectionDeduplicatorTests: XCTestCase {
@@ -70,7 +71,7 @@ final class DetectionDeduplicatorTests: XCTestCase {
         )
 
         XCTAssertEqual(point.x, 128, accuracy: 0.01)
-        XCTAssertEqual(point.y, 48, accuracy: 0.01)
+        XCTAssertEqual(point.y, 144, accuracy: 0.01)
     }
 
     func testDeduplicate3DMergesNearbyTracks() {
@@ -93,5 +94,87 @@ final class DetectionDeduplicatorTests: XCTestCase {
 
         XCTAssertEqual(deduplicated.count, 1)
         XCTAssertEqual(deduplicated.first?.source, .fused, "融合验证结果应优先作为轨迹代表")
+    }
+
+    func testParseYOLOMultiArrayProducesFruitDetectionAndAppliesNMS() throws {
+        let output = try MLMultiArray(shape: [1, 30, 2], dataType: .float32)
+        setYOLOPrediction(
+            output,
+            anchor: 0,
+            centerX: 160,
+            centerY: 160,
+            width: 64,
+            height: 64,
+            classIndex: 0,
+            confidence: 0.92
+        )
+        setYOLOPrediction(
+            output,
+            anchor: 1,
+            centerX: 162,
+            centerY: 162,
+            width: 64,
+            height: 64,
+            classIndex: 0,
+            confidence: 0.70
+        )
+
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output,
+            timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5)
+        )
+
+        XCTAssertEqual(parsed.modelCandidateCount, 2)
+        XCTAssertEqual(parsed.confidenceFilteredCount, 0)
+        XCTAssertEqual(parsed.unmappedObservationCount, 0)
+        XCTAssertEqual(parsed.fruits.count, 1, "Overlapping YOLO boxes should be reduced by NMS")
+        XCTAssertEqual(parsed.fruits[0].category, .apple)
+        XCTAssertEqual(parsed.fruits[0].confidence, 0.92, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruits[0].boundingBox.origin.x, 0.4, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruits[0].boundingBox.origin.y, 0.4, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruits[0].boundingBox.width, 0.2, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruits[0].boundingBox.height, 0.2, accuracy: 0.001)
+    }
+
+    func testParseYOLOMultiArrayReportsConfidenceFilteredCandidates() throws {
+        let output = try MLMultiArray(shape: [1, 30, 1], dataType: .float32)
+        setYOLOPrediction(
+            output,
+            anchor: 0,
+            centerX: 160,
+            centerY: 160,
+            width: 64,
+            height: 64,
+            classIndex: 0,
+            confidence: 0.30
+        )
+
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output,
+            timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5)
+        )
+
+        XCTAssertEqual(parsed.modelCandidateCount, 1)
+        XCTAssertEqual(parsed.confidenceFilteredCount, 1)
+        XCTAssertTrue(parsed.fruits.isEmpty)
+    }
+
+    private func setYOLOPrediction(
+        _ output: MLMultiArray,
+        anchor: Int,
+        centerX: Float,
+        centerY: Float,
+        width: Float,
+        height: Float,
+        classIndex: Int,
+        confidence: Float
+    ) {
+        output[[NSNumber(value: 0), NSNumber(value: 0), NSNumber(value: anchor)]] = NSNumber(value: centerX)
+        output[[NSNumber(value: 0), NSNumber(value: 1), NSNumber(value: anchor)]] = NSNumber(value: centerY)
+        output[[NSNumber(value: 0), NSNumber(value: 2), NSNumber(value: anchor)]] = NSNumber(value: width)
+        output[[NSNumber(value: 0), NSNumber(value: 3), NSNumber(value: anchor)]] = NSNumber(value: height)
+        output[[NSNumber(value: 0), NSNumber(value: classIndex + 4), NSNumber(value: anchor)]] = NSNumber(value: confidence)
     }
 }

@@ -1,0 +1,94 @@
+import ARKit
+import UIKit
+
+// MARK: - ARSessionDelegate
+extension ScanCoordinator: ARSessionDelegate {
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        publishDepthStatusIfNeeded(frame)
+        enqueueDetectionFrameIfRecording(frame)
+        publishCameraResolutionIfNeeded(frame)
+        publishQualitySampleIfNeeded(frame)
+        updateCameraSpeedAndGuidance(frame)
+    }
+
+    private func publishDepthStatusIfNeeded(_ frame: ARFrame) {
+        guard requestedSceneDepth else { return }
+        let hasDepthFrame = frame.smoothedSceneDepth != nil || frame.sceneDepth != nil
+        publishDepthRuntimeStatus(hasDepthFrame ? .activeDepth : .waitingForDepth)
+    }
+
+    private func enqueueDetectionFrameIfRecording(_ frame: ARFrame) {
+        guard renderer?.isRecording == true else { return }
+        let imageSize = CGSize(
+            width: CGFloat(frame.camera.imageResolution.width),
+            height: CGFloat(frame.camera.imageResolution.height)
+        )
+        imageDetector.enqueueFrame(
+            frame.capturedImage,
+            timestamp: frame.timestamp,
+            cameraTransform: frame.camera.transform,
+            cameraIntrinsics: frame.camera.intrinsics,
+            imageSize: imageSize
+        )
+    }
+
+    private func publishCameraResolutionIfNeeded(_ frame: ARFrame) {
+        guard !hasPublishedCameraResolution else { return }
+        hasPublishedCameraResolution = true
+        let res = frame.camera.imageResolution
+        let display = "\(Int(res.width))x\(Int(res.height))"
+        DispatchQueue.main.async {
+            self.settings.currentCameraResolutionDisplay = display
+        }
+    }
+
+    private func publishQualitySampleIfNeeded(_ frame: ARFrame) {
+        let now = CACurrentMediaTime()
+        guard now - lastQualitySampleTime >= qualitySampleInterval else { return }
+        lastQualitySampleTime = now
+        onQualitySampleUpdate?(ScanQualitySampler.makeSample(from: frame))
+    }
+
+    private func updateCameraSpeedAndGuidance(_ frame: ARFrame) {
+        guard renderer?.isRecording == true else {
+            lastCameraPosition = nil
+            return
+        }
+        let now = CACurrentMediaTime()
+        let pos = SIMD3<Float>(
+            frame.camera.transform.columns.3.x,
+            frame.camera.transform.columns.3.y,
+            frame.camera.transform.columns.3.z
+        )
+
+        if let lastPos = lastCameraPosition, now - lastCameraSpeedTime > 0.05 {
+            let dt = Float(now - lastCameraSpeedTime)
+            let instantSpeed = simd_distance(pos, lastPos) / dt
+            smoothedCameraSpeed = smoothedCameraSpeed * 0.7 + instantSpeed * 0.3
+            lastCameraPosition = pos
+            lastCameraSpeedTime = now
+        } else if lastCameraPosition == nil {
+            lastCameraPosition = pos
+            lastCameraSpeedTime = now
+        }
+
+        let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
+        let medianDepth: Float = depthData.flatMap { ScanGuidanceHelper.sampleMedianDepth($0.depthMap) } ?? 0
+
+        let hint = ScanGuidanceHelper.evaluate(
+            speed: smoothedCameraSpeed,
+            medianDepth: medianDepth,
+            trackingState: frame.camera.trackingState,
+            lightIntensity: frame.lightEstimate?.ambientIntensity
+        )
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isTornDown else { return }
+            self.hudState?.update(
+                cameraSpeed: self.smoothedCameraSpeed,
+                medianDepth: medianDepth,
+                guidanceHint: hint
+            )
+        }
+    }
+}

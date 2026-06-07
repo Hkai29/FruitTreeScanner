@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 final class ScanResultExportService {
     static let shared = ScanResultExportService()
@@ -34,9 +35,11 @@ final class ScanResultExportService {
         if request.includeCSV && !fileManager.fileExists(atPath: csvURL.path) {
             let csvContent = makeCSVContent(for: request)
             try csvContent.write(to: csvURL, atomically: true, encoding: .utf8)
+            Log.export.info("CSV exported: \(baseName).csv")
         }
 
         let metadataURL = try writeMetadata(for: request, baseName: baseName, scansDir: scansDir)
+        Log.export.info("Export complete for \(request.treeID)")
 
         return ExportedFiles(csvURL: csvURL, metadataURL: metadataURL)
     }

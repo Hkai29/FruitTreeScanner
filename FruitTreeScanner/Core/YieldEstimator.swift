@@ -43,6 +43,32 @@ struct YieldResult: Sendable {
     var colorFilterDesc: String = ""
     var occlusionK: Float = 1.0
     var pointCloudSize: Int = 0
+    var diagnostics: ScanYieldDiagnostics = ScanYieldDiagnostics()
+}
+
+struct ScanYieldDiagnostics: Sendable, Equatable {
+    var pointCloudPointCount: Int = 0
+    var imageDetectionCount: Int = 0
+    var deduplicatedImageDetectionCount: Int = 0
+    var pointCloudCandidateCount: Int = 0
+    var fusedFruitCount: Int = 0
+    var cloudOnlyConservativeMode: Bool = false
+    var depthAvailable: Bool = false
+    var imageFramesProcessed: Int = 0
+    var imageObservationCount: Int = 0
+    var imageConfidenceFilteredCount: Int = 0
+    var imageMappedFruitCount: Int = 0
+    var imageModelStatus: String = "--"
+    var imageModelName: String = "--"
+    var imageFailureReason: String = ""
+    var zeroYieldReasons: [String] = []
+
+    var shortStatus: String {
+        if zeroYieldReasons.isEmpty {
+            return fusedFruitCount > 0 ? "融合有效" : "等待估算"
+        }
+        return zeroYieldReasons.joined(separator: "；")
+    }
 }
 
 // MARK: - 主估算器
@@ -62,24 +88,19 @@ class YieldEstimator {
     func estimateRouteB(points: [ColoredPoint],
                         fruitCategory: FruitCategory,
                         varietyParams: FruitVarietyParams? = nil,
-                        nVisual: Int?) -> (fruits: [FruitInfo], result: YieldResult) {
+                        nVisual: Int?,
+                        colorFilter: ColorFilter? = nil) -> (fruits: [FruitInfo], result: YieldResult) {
         var result = YieldResult()
         result.nVisual = nVisual
         result.fruitCategory = fruitCategory.displayName
         result.pointCloudSize = points.count
-        let params = varietyParams ?? fruitCategory.getParams()
+        let params = varietyParams ?? FruitVarietyParams(category: fruitCategory)
         result.clusterEps = params.clusterEps
         result.clusterMinPoints = 15
-        result.colorFilterDesc = fruitCategory.colorFilter.description
 
-        let filter = fruitCategory.colorFilter
-        #if DEBUG
-        print("🔴 [YieldEstimator] 颜色过滤: \(fruitCategory.displayName), 过滤条件 r>=\(filter.rMin), g<=\(filter.gMax), b<=\(filter.bMax)")
-        #endif
+        let filter = colorFilter ?? fruitCategory.colorFilter
+        result.colorFilterDesc = filter.description
         let filtered = points.filter { filter.matches(r: $0.r, g: $0.g, b: $0.b) }
-        #if DEBUG
-        print("🔴 [YieldEstimator] 颜色过滤后: \(filtered.count) / \(points.count) 点通过")
-        #endif
         guard filtered.count >= 10 else {
             result.note = "颜色过滤后点数不足（\(filtered.count)），无法检测果实"
             return ([], result)
@@ -96,9 +117,6 @@ class YieldEstimator {
 
         var fruits: [FruitInfo] = []
         let candidates = clusterer.processSync(points: filtered)
-        #if DEBUG
-        print("🔴 [YieldEstimator] DBSCAN聚类后: \(candidates.count) 个候选")
-        #endif
         for candidate in candidates {
             let radiusCm = candidate.diameter * 100 / 2
             let volCm3 = (4.0 / 3.0) * Float.pi * pow(radiusCm, 3)
@@ -115,9 +133,6 @@ class YieldEstimator {
         }
 
         result.nLidar = fruits.count
-        #if DEBUG
-        print("🔴 [YieldEstimator] 尺寸过滤后: \(fruits.count) 个果实")
-        #endif
 
         guard !fruits.isEmpty else {
             result.note = "未检测到符合尺寸的果实"
@@ -172,7 +187,8 @@ class YieldEstimator {
         }
 
         let meanAB = (a + b) / 2
-        let relDiff = abs(a - b) / (meanAB + 1e-6)
+        let scale = max(abs(a), abs(b), 1e-6)
+        let relDiff = abs(a - b) / scale
 
         if relDiff < diffThresholdHigh {
             let final_ = weightA * a + weightB * b
@@ -196,7 +212,8 @@ class YieldEstimator {
              nVisual: Int?,
              dbhCm: Float = 0, heightM: Float = 0,
              crownVolM3: Float = 0, dEW: Float = 0, dNS: Float = 0,
-             season: Season = .mature) -> (fruits: [FruitInfo], result: YieldResult) {
+             season: Season = .mature,
+             colorFilter: ColorFilter? = nil) -> (fruits: [FruitInfo], result: YieldResult) {
 
         var result = YieldResult()
         result.treeHeightM = heightM
@@ -211,7 +228,8 @@ class YieldEstimator {
                 points: points,
                 fruitCategory: fc,
                 varietyParams: varietyParams,
-                nVisual: nVisual
+                nVisual: nVisual,
+                colorFilter: colorFilter
             )
             fruits = f
             result.nLidar            = bResult.nLidar

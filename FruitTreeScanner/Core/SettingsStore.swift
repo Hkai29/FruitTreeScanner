@@ -10,32 +10,23 @@ final class SettingsStore: ObservableObject {
 
     static let cameraFrameRateOptions = ["30fps", "60fps", "120fps"]
     static let cameraResolutionOptions = ["720p", "1080p", "4K"]
-    static let exportFormatOptions = ["PLY", "OBJ", "CSV", "JSON"]
     static let qualityPresetOptions = ["高", "中", "低"]
 
     // MARK: - Keys
     private enum Keys {
         static let fruitType = "fruitType"
-        static let season = "season"
         static let clusterMinPoints = "clusterMinPoints"
         static let clusterMinDiameter = "clusterMinDiameter"
         static let clusterMaxDiameter = "clusterMaxDiameter"
-        static let clusterBaseEps = "clusterBaseEps"
-        static let detectionInterval = "detectionInterval"
         static let minConfidence = "minConfidence"
         static let sphericityThreshold = "sphericityThreshold"
         static let depthRangeMin = "depthRangeMin"
         static let depthRangeMax = "depthRangeMax"
         static let rgbRadius = "rgbRadius"
         static let confidenceThreshold = "confidenceThreshold"
-        static let enableLidar = "enableLidar"
-        static let gpsUpdateRate = "gpsUpdateRate"
-        static let autoSavePLY = "autoSavePLY"
-        static let maxStorageMB = "maxStorageMB"
         static let autoExportCSV = "autoExportCSV"
         static let cameraResolution = "cameraResolution"
         static let cameraFrameRate = "cameraFrameRate"
-        static let exportFormat = "exportFormat"
         static let qualityPreset = "qualityPreset"
         static let maxPointCount = "maxPointCount"
         static let scanPrecision = "scanPrecision"
@@ -57,11 +48,6 @@ final class SettingsStore: ObservableObject {
             defaults.string(forKey: Keys.cameraFrameRate),
             in: Self.cameraFrameRateOptions,
             fallback: "60fps"
-        )
-        exportFormat = Self.validOption(
-            defaults.string(forKey: Keys.exportFormat),
-            in: Self.exportFormatOptions,
-            fallback: "PLY"
         )
         qualityPreset = Self.validOption(
             defaults.string(forKey: Keys.qualityPreset),
@@ -93,14 +79,6 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    var season: String {
-        get { defaults.string(forKey: Keys.season) ?? "mature" }
-        set {
-            let normalized = newValue == "off" ? "off" : "mature"
-            setIfChanged(normalized, forKey: Keys.season)
-        }
-    }
-
     // MARK: - 聚类参数
     var clusterMinPoints: Int {
         get { Self.clamp((defaults.object(forKey: Keys.clusterMinPoints) as? Int) ?? 5, min: 3, max: 150) }
@@ -128,17 +106,7 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    var clusterBaseEps: Double {
-        get { Self.clampFinite((defaults.object(forKey: Keys.clusterBaseEps) as? Double) ?? 0.1, min: 0.001, max: 0.50, fallback: 0.1) }
-        set { setIfChanged(Self.clampFinite(newValue, min: 0.001, max: 0.50, fallback: 0.1), forKey: Keys.clusterBaseEps) }
-    }
-
     // MARK: - 检测参数
-    var detectionInterval: Int {
-        get { Self.clamp((defaults.object(forKey: Keys.detectionInterval) as? Int) ?? 10, min: 1, max: 120) }
-        set { setIfChanged(Self.clamp(newValue, min: 1, max: 120), forKey: Keys.detectionInterval) }
-    }
-
     var minConfidence: Double {
         get { Self.clampFinite((defaults.object(forKey: Keys.minConfidence) as? Double) ?? 0.5, min: 0, max: 1, fallback: 0.5) }
         set { setIfChanged(Self.clampFinite(newValue, min: 0, max: 1, fallback: 0.5), forKey: Keys.minConfidence) }
@@ -180,27 +148,6 @@ final class SettingsStore: ObservableObject {
         set { setIfChanged(Self.clamp(newValue, min: 0, max: 2), forKey: Keys.confidenceThreshold) }
     }
 
-    var enableLidar: Bool {
-        get { defaults.object(forKey: Keys.enableLidar) as? Bool ?? true }
-        set { setIfChanged(newValue, forKey: Keys.enableLidar) }
-    }
-
-    var gpsUpdateRate: Double {
-        get { Self.clampFinite((defaults.object(forKey: Keys.gpsUpdateRate) as? Double) ?? 1.0, min: 0.2, max: 10.0, fallback: 1.0) }
-        set { setIfChanged(Self.clampFinite(newValue, min: 0.2, max: 10.0, fallback: 1.0), forKey: Keys.gpsUpdateRate) }
-    }
-
-    // MARK: - 数据参数
-    var autoSavePLY: Bool {
-        get { defaults.object(forKey: Keys.autoSavePLY) as? Bool ?? true }
-        set { setIfChanged(newValue, forKey: Keys.autoSavePLY) }
-    }
-
-    var maxStorageMB: Int {
-        get { Self.clamp((defaults.object(forKey: Keys.maxStorageMB) as? Int) ?? 500, min: 100, max: 20_000) }
-        set { setIfChanged(Self.clamp(newValue, min: 100, max: 20_000), forKey: Keys.maxStorageMB) }
-    }
-
     // MARK: - 设置页面 @Published 属性（支持 $ 绑定）
     @Published var autoExportCSV: Bool { didSet { defaults.set(autoExportCSV, forKey: Keys.autoExportCSV) } }
     @Published var cameraResolution: String {
@@ -221,16 +168,6 @@ final class SettingsStore: ObservableObject {
                 return
             }
             defaults.set(cameraFrameRate, forKey: Keys.cameraFrameRate)
-        }
-    }
-    @Published var exportFormat: String {
-        didSet {
-            let normalized = Self.validOption(exportFormat, in: Self.exportFormatOptions, fallback: "PLY")
-            if exportFormat != normalized {
-                exportFormat = normalized
-                return
-            }
-            defaults.set(exportFormat, forKey: Keys.exportFormat)
         }
     }
     @Published var qualityPreset: String {
@@ -267,6 +204,16 @@ final class SettingsStore: ObservableObject {
     @Published var hsvHMax: Float { didSet { defaults.set(hsvHMax, forKey: Keys.hsvHMax) } }
     @Published var hsvSMin: Float { didSet { defaults.set(hsvSMin, forKey: Keys.hsvSMin) } }
     @Published var hsvVMin: Float { didSet { defaults.set(hsvVMin, forKey: Keys.hsvVMin) } }
+
+    var hsvFilter: HSVFilter {
+        HSVFilter(hMin: hsvHMin, hMax: hsvHMax, sMin: hsvSMin, vMin: hsvVMin)
+    }
+
+    func colorFilter(for category: FruitCategory) -> ColorFilter {
+        var filter = category.colorFilter
+        filter.hsvFilter = hsvFilter
+        return filter
+    }
 
     // ARKit 实际分辨率（由 ScanCoordinator 在扫描时更新）
     @Published var currentCameraResolutionDisplay: String = "检测中..."
