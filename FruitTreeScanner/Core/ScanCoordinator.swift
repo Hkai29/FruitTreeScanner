@@ -36,11 +36,22 @@ class ScanCoordinator: NSObject {
     var onMeasurementReady: ((Renderer) -> Void)?
     var onQualitySampleUpdate: ((ScanQualitySample) -> Void)?
     var onCoveragePercentChange: ((Int) -> Void)?
+    #if DEBUG
+    var onDetectionDebugStateChange: ((DetectionDebugState) -> Void)?
+    #endif
     var hudState: ScanHUDState?
 
     #if DEBUG
         func debugSnapshot() -> [DetectedFruit] {
             detectedFruits
+        }
+
+        func detectionDebugSnapshot() -> DetectionDebugState {
+            imageDetector.detectionDebugSnapshot()
+        }
+
+        func detectionFailureSamplesSnapshot() -> [DetectionFailureSample] {
+            imageDetector.detectionFailureSamplesSnapshot()
         }
     #endif
 
@@ -68,12 +79,16 @@ class ScanCoordinator: NSObject {
 
     // MARK: - 多模态融合组件
     lazy var imageDetector: ImageDetector = {
-        let detector = ImageDetector(config: FruitScanConfig(
+        var config = FruitScanConfig(
             imageDetectionInterval: 10,
             minConfidence: 0.5,
             sizeTolerance: 0.2,
             sphericityThreshold: 0.5
-        ))
+        )
+        #if DEBUG
+        config.minConfidence = DetectionDebugConfiguration.effectiveThreshold(for: config.minConfidence)
+        #endif
+        let detector = ImageDetector(config: config)
         return detector
     }()
     var detectionTask: Task<Void, Never>?
@@ -188,6 +203,9 @@ class ScanCoordinator: NSObject {
         onMeasurementReady = nil
         onQualitySampleUpdate = nil
         onCoveragePercentChange = nil
+        #if DEBUG
+        onDetectionDebugStateChange = nil
+        #endif
         detectedFruits.removeAll()
     }
 
@@ -266,6 +284,9 @@ class ScanCoordinator: NSObject {
         }
 
         let imageDiagnostics = imageDetector.diagnosticsSnapshot()
+        #if DEBUG
+        onDetectionDebugStateChange?(imageDetector.detectionDebugSnapshot())
+        #endif
         hudState?.update(
             pointCount: hudPointCount,
             coveragePercent: hudCoveragePercent,

@@ -13,7 +13,10 @@ extension ImageDetector {
         let fruits: [DetectedFruit]
         let modelCandidateCount: Int
         let confidenceFilteredCount: Int
+        let thresholdPassedCount: Int
         let unmappedObservationCount: Int
+        let rawPredictions: [DetectionPredictionDebug]
+        let filteredPredictions: [DetectionPredictionDebug]
     }
 
     private struct YOLOPrediction {
@@ -22,7 +25,7 @@ extension ImageDetector {
         let confidence: Float
     }
 
-    func performDetection(pixelBuffer: CVPixelBuffer, timestamp: TimeInterval) async -> [DetectedFruit] {
+    func performDetection(pixelBuffer: CVPixelBuffer, timestamp: TimeInterval, imageSize: CGSize) async -> [DetectedFruit] {
         let sendablePixelBuffer = SendablePixelBuffer(value: pixelBuffer)
         let config = configSnapshot()
 
@@ -34,10 +37,20 @@ extension ImageDetector {
                 }
 
                 let pixelBuffer = sendablePixelBuffer.value
+                let pixelBufferSize = Self.pixelBufferSize(pixelBuffer)
+                let inferenceStart = Date()
+                self.recordDebugInferenceStarted(
+                    frameSize: imageSize,
+                    pixelBufferSize: pixelBufferSize,
+                    threshold: config.minConfidence
+                )
+
                 if let model = self.coreMLModel {
                     self.performCoreMLDetection(
                         pixelBuffer: pixelBuffer,
                         timestamp: timestamp,
+                        imageSize: imageSize,
+                        inferenceStart: inferenceStart,
                         model: model,
                         config: config,
                         completion: { fruits in
@@ -45,7 +58,13 @@ extension ImageDetector {
                         }
                     )
                 } else {
-                    self.performVisionClassification(pixelBuffer: pixelBuffer, timestamp: timestamp, completion: { fruits in
+                    self.performVisionClassification(
+                        pixelBuffer: pixelBuffer,
+                        timestamp: timestamp,
+                        imageSize: imageSize,
+                        inferenceStart: inferenceStart,
+                        config: config,
+                        completion: { fruits in
                         continuation.resume(returning: fruits)
                     })
                 }
@@ -56,15 +75,32 @@ extension ImageDetector {
     func performCoreMLDetection(
         pixelBuffer: CVPixelBuffer,
         timestamp: TimeInterval,
+        imageSize: CGSize,
+        inferenceStart: Date,
         model: VNCoreMLModel,
         config: FruitScanConfig,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
         let request = VNCoreMLRequest(model: model) { [weak self] request, error in
-            guard let self, error == nil else {
-                let reason = error?.localizedDescription ?? "CoreML 没有返回 observation"
+            guard let self else {
+                completion([])
+                return
+            }
+
+            if let error {
+                let reason = error.localizedDescription
                 Log.detection.error("CoreML detection failed: \(reason)")
-                self?.recordDetectionFailure(reason)
+                self.recordDetectionFailure(reason)
+                self.recordDebugDetectionResult(
+                    startedAt: inferenceStart,
+                    rawObservationCount: 0,
+                    filteredObservationCount: 0,
+                    rawPredictions: [],
+                    filteredPredictions: [],
+                    threshold: config.minConfidence,
+                    errorMessage: reason
+                )
+                self.captureDetectionFailureSample(note: reason)
                 completion([])
                 return
             }
@@ -72,17 +108,30 @@ extension ImageDetector {
             let observations = request.results ?? []
             let objectObservations = observations.compactMap { $0 as? VNRecognizedObjectObservation }
             if !objectObservations.isEmpty {
+                let confidenceFilteredCount = objectObservations.filter { $0.confidence < config.minConfidence }.count
+                let filteredObservationCount = objectObservations.count - confidenceFilteredCount
+                let rawPredictions = objectObservations.compactMap(Self.debugPrediction)
+                let filteredPredictions = objectObservations
+                    .filter { $0.confidence >= config.minConfidence }
+                    .compactMap(Self.debugPrediction)
                 let detectedFruits = self.mapObjectObservationsToFruits(
                     observations: objectObservations,
                     timestamp: timestamp,
                     config: config
                 )
-                let confidenceFilteredCount = objectObservations.filter { $0.confidence < config.minConfidence }.count
                 self.recordCoreMLDetection(
                     observationCount: objectObservations.count,
                     confidenceFilteredCount: confidenceFilteredCount,
                     unmappedObservationCount: max(objectObservations.count - detectedFruits.count - confidenceFilteredCount, 0),
                     mappedFruitCount: detectedFruits.count
+                )
+                self.recordDebugDetectionResult(
+                    startedAt: inferenceStart,
+                    rawObservationCount: objectObservations.count,
+                    filteredObservationCount: filteredObservationCount,
+                    rawPredictions: rawPredictions,
+                    filteredPredictions: filteredPredictions,
+                    threshold: config.minConfidence
                 )
                 completion(detectedFruits)
                 return
@@ -93,6 +142,16 @@ extension ImageDetector {
                 let reason = "CoreML 输出格式不支持：未返回目标框或 YOLO MultiArray"
                 Log.detection.error("\(reason)")
                 self.recordDetectionFailure(reason)
+                self.recordDebugDetectionResult(
+                    startedAt: inferenceStart,
+                    rawObservationCount: 0,
+                    filteredObservationCount: 0,
+                    rawPredictions: [],
+                    filteredPredictions: [],
+                    threshold: config.minConfidence,
+                    errorMessage: reason
+                )
+                self.captureDetectionFailureSample(note: reason)
                 completion([])
                 return
             }
@@ -108,6 +167,14 @@ extension ImageDetector {
                 unmappedObservationCount: parsed.unmappedObservationCount,
                 mappedFruitCount: parsed.fruits.count
             )
+            self.recordDebugDetectionResult(
+                startedAt: inferenceStart,
+                rawObservationCount: parsed.modelCandidateCount,
+                filteredObservationCount: parsed.thresholdPassedCount,
+                rawPredictions: parsed.rawPredictions,
+                filteredPredictions: parsed.filteredPredictions,
+                threshold: config.minConfidence
+            )
             completion(parsed.fruits)
         }
 
@@ -120,6 +187,16 @@ extension ImageDetector {
         } catch {
             Log.detection.error("VNImageRequestHandler failed: \(error.localizedDescription)")
             recordDetectionFailure(error.localizedDescription)
+            recordDebugDetectionResult(
+                startedAt: inferenceStart,
+                rawObservationCount: 0,
+                filteredObservationCount: 0,
+                rawPredictions: [],
+                filteredPredictions: [],
+                threshold: config.minConfidence,
+                errorMessage: error.localizedDescription
+            )
+            captureDetectionFailureSample(note: error.localizedDescription)
             completion([])
         }
     }
@@ -156,9 +233,23 @@ extension ImageDetector {
     func performVisionClassification(
         pixelBuffer: CVPixelBuffer,
         timestamp: TimeInterval,
+        imageSize: CGSize,
+        inferenceStart: Date,
+        config: FruitScanConfig,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
+        let reason = "CoreML model not loaded; fallback has no 2D bounding boxes"
         recordFallbackFrame(reason: modelStatus.hudDetail)
+        recordDebugDetectionResult(
+            startedAt: inferenceStart,
+            rawObservationCount: 0,
+            filteredObservationCount: 0,
+            rawPredictions: [],
+            filteredPredictions: [],
+            threshold: config.minConfidence,
+            errorMessage: reason
+        )
+        captureDetectionFailureSample(note: reason)
         completion([])
     }
 
@@ -175,7 +266,10 @@ extension ImageDetector {
                 fruits: [],
                 modelCandidateCount: 0,
                 confidenceFilteredCount: 0,
-                unmappedObservationCount: 0
+                thresholdPassedCount: 0,
+                unmappedObservationCount: 0,
+                rawPredictions: [],
+                filteredPredictions: []
             )
         }
 
@@ -189,7 +283,10 @@ extension ImageDetector {
                 fruits: [],
                 modelCandidateCount: 0,
                 confidenceFilteredCount: 0,
-                unmappedObservationCount: 0
+                thresholdPassedCount: 0,
+                unmappedObservationCount: 0,
+                rawPredictions: [],
+                filteredPredictions: []
             )
         }
 
@@ -202,14 +299,20 @@ extension ImageDetector {
                 fruits: [],
                 modelCandidateCount: 0,
                 confidenceFilteredCount: 0,
-                unmappedObservationCount: 0
+                thresholdPassedCount: 0,
+                unmappedObservationCount: 0,
+                rawPredictions: [],
+                filteredPredictions: []
             )
         }
 
         var predictions: [YOLOPrediction] = []
+        var rawDebugPredictions: [DetectionPredictionDebug] = []
+        var filteredDebugPredictions: [DetectionPredictionDebug] = []
         predictions.reserveCapacity(64)
         var modelCandidateCount = 0
         var confidenceFilteredCount = 0
+        var thresholdPassedCount = 0
         var unmappedObservationCount = 0
 
         for anchorIndex in 0..<anchorCount {
@@ -223,27 +326,45 @@ extension ImageDetector {
             guard confidence >= lowConfidenceFloor else { continue }
             modelCandidateCount += 1
 
-            guard confidence >= config.minConfidence else {
-                confidenceFilteredCount += 1
-                continue
-            }
-
-            guard let category = FruitCategory.fromCustomModel(classIndex) else {
-                unmappedObservationCount += 1
-                continue
-            }
-
             let centerX = value(in: multiArray, channel: 0, anchor: anchorIndex, channelAxis: channelAxis)
             let centerY = value(in: multiArray, channel: 1, anchor: anchorIndex, channelAxis: channelAxis)
             let width = value(in: multiArray, channel: 2, anchor: anchorIndex, channelAxis: channelAxis)
             let height = value(in: multiArray, channel: 3, anchor: anchorIndex, channelAxis: channelAxis)
 
-            guard let boundingBox = makeVisionBoundingBox(
+            let boundingBox = makeVisionBoundingBox(
                 centerX: centerX,
                 centerY: centerY,
                 width: width,
                 height: height
-            ) else {
+            )
+
+            if let boundingBox {
+                rawDebugPredictions.append(DetectionPredictionDebug(
+                    label: debugLabel(forClassIndex: classIndex),
+                    confidence: confidence,
+                    boundingBox: boundingBox
+                ))
+            }
+
+            guard confidence >= config.minConfidence else {
+                confidenceFilteredCount += 1
+                continue
+            }
+            thresholdPassedCount += 1
+
+            guard let boundingBox else {
+                unmappedObservationCount += 1
+                continue
+            }
+
+            let debugPrediction = DetectionPredictionDebug(
+                label: debugLabel(forClassIndex: classIndex),
+                confidence: confidence,
+                boundingBox: boundingBox
+            )
+            filteredDebugPredictions.append(debugPrediction)
+
+            guard let category = FruitCategory.fromCustomModel(classIndex) else {
                 unmappedObservationCount += 1
                 continue
             }
@@ -271,8 +392,59 @@ extension ImageDetector {
             fruits: fruits,
             modelCandidateCount: modelCandidateCount,
             confidenceFilteredCount: confidenceFilteredCount,
-            unmappedObservationCount: unmappedObservationCount
+            thresholdPassedCount: thresholdPassedCount,
+            unmappedObservationCount: unmappedObservationCount,
+            rawPredictions: rawDebugPredictions,
+            filteredPredictions: filteredDebugPredictions
         )
+    }
+
+    private func recordDebugDetectionResult(
+        startedAt: Date,
+        rawObservationCount: Int,
+        filteredObservationCount: Int,
+        rawPredictions: [DetectionPredictionDebug],
+        filteredPredictions: [DetectionPredictionDebug],
+        threshold: Float,
+        errorMessage: String? = nil
+    ) {
+        recordDebugInferenceCompleted(
+            elapsedMs: Date().timeIntervalSince(startedAt) * 1000,
+            rawObservationCount: rawObservationCount,
+            filteredObservationCount: filteredObservationCount,
+            rawPredictions: rawPredictions,
+            filteredPredictions: filteredPredictions,
+            threshold: threshold,
+            errorMessage: errorMessage
+        )
+
+        if errorMessage == nil, rawObservationCount == 0 {
+            captureDetectionFailureSample(note: "No raw detections")
+        } else if errorMessage == nil, rawObservationCount > 0, filteredObservationCount == 0 {
+            captureDetectionFailureSample(note: "Raw detections filtered by confidence threshold")
+        }
+    }
+
+    private static func pixelBufferSize(_ pixelBuffer: CVPixelBuffer) -> CGSize {
+        CGSize(
+            width: CGFloat(CVPixelBufferGetWidth(pixelBuffer)),
+            height: CGFloat(CVPixelBufferGetHeight(pixelBuffer))
+        )
+    }
+
+    private static func debugPrediction(
+        from observation: VNRecognizedObjectObservation
+    ) -> DetectionPredictionDebug? {
+        guard let topLabel = observation.labels.first else { return nil }
+        return DetectionPredictionDebug(
+            label: topLabel.identifier,
+            confidence: topLabel.confidence,
+            boundingBox: observation.boundingBox
+        )
+    }
+
+    private static func debugLabel(forClassIndex classIndex: Int) -> String {
+        FruitCategory.fromCustomModel(classIndex)?.displayName ?? "class \(classIndex)"
     }
 
     private static func bestClassScore(

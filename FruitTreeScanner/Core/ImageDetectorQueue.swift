@@ -13,7 +13,17 @@ extension ImageDetector {
         cameraIntrinsics: simd_float3x3,
         imageSize: CGSize
     ) {
+        let pixelBufferSize = CGSize(
+            width: CGFloat(CVPixelBufferGetWidth(pixelBuffer)),
+            height: CGFloat(CVPixelBufferGetHeight(pixelBuffer))
+        )
+
         lock.lock()
+        detectionDebugState.markFrameReceived(
+            frameSize: imageSize,
+            pixelBufferSize: pixelBufferSize,
+            threshold: config.minConfidence
+        )
         frameCounter += 1
 
         let detectionInterval = max(config.imageDetectionInterval, 1)

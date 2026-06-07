@@ -42,12 +42,16 @@ final class ImageDetector: @unchecked Sendable {
     var coreMLModel: VNCoreMLModel?
     private(set) var modelStatus: ImageDetectorModelStatus = .fallback(reason: "模型尚未加载")
     var diagnosticsRecorder = ImageDetectionDiagnosticsRecorder()
+    var detectionDebugState = DetectionDebugState()
+    var detectionFailureSamples: [DetectionFailureSample] = []
+    let maxDetectionFailureSamples = 20
     let categoryMapper = FruitCategoryMapper.standard
 
     // MARK: - Initialization
 
     init(config: FruitScanConfig = .default) {
         self.config = config
+        self.detectionDebugState = DetectionDebugState(currentThreshold: config.minConfidence)
         loadCoreMLModel()
     }
 
@@ -55,6 +59,8 @@ final class ImageDetector: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         self.config = newConfig
+        detectionDebugState.currentThreshold = newConfig.minConfidence
+        detectionDebugState.lastUpdatedAt = Date()
     }
 
     func configSnapshot() -> FruitScanConfig {
@@ -75,13 +81,21 @@ final class ImageDetector: @unchecked Sendable {
                 resourceName: loadedModel.resourceName,
                 bundleExtension: loadedModel.bundleExtension
             )
-            Log.detection.info("CoreML model loaded: \(loadedModel.resourceName)")
+            Log.detection.info("CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))")
             updateModelDiagnostics()
+            updateModelDebugStateLoaded(loadedModel)
         } catch {
+            let modelResource = ImageDetectorModelLoader.modelURL(named: "FruitsDetector")
+            let modelName = modelResource.map { "FruitsDetector.\($0.bundleExtension)" } ?? "FruitsDetector"
             coreMLModel = nil
             modelStatus = .fallback(reason: error.localizedDescription)
-            Log.detection.warning("CoreML model not available, using fallback: \(error.localizedDescription)")
+            Log.detection.error("CoreML model not available, using fallback: \(error.localizedDescription)")
             updateModelDiagnostics()
+            updateModelDebugStateFailure(
+                modelName: modelName,
+                modelURLFound: modelResource != nil,
+                errorMessage: error.localizedDescription
+            )
         }
     }
 
@@ -101,6 +115,30 @@ final class ImageDetector: @unchecked Sendable {
         diagnosticsRecorder.apply(modelStatus: modelStatus)
     }
 
+    private func updateModelDebugStateLoaded(_ loadedModel: ImageDetectorLoadedModel) {
+        lock.lock()
+        detectionDebugState.markModelLoaded(
+            modelName: loadedModel.displayName,
+            modelURLFound: true,
+            supportedClasses: loadedModel.supportedClasses
+        )
+        lock.unlock()
+    }
+
+    private func updateModelDebugStateFailure(
+        modelName: String,
+        modelURLFound: Bool,
+        errorMessage: String
+    ) {
+        lock.lock()
+        detectionDebugState.markModelLoadFailure(
+            modelName: modelName,
+            modelURLFound: modelURLFound,
+            errorMessage: errorMessage
+        )
+        lock.unlock()
+    }
+
     // MARK: - Public Methods
 
     /// Process the queued frames and return detected fruits.
@@ -112,7 +150,11 @@ final class ImageDetector: @unchecked Sendable {
         var allDetectedFruits: [DetectedFruit] = []
 
         for frame in framesToProcess {
-            let fruits = await performDetection(pixelBuffer: frame.pixelBuffer, timestamp: frame.timestamp)
+            let fruits = await performDetection(
+                pixelBuffer: frame.pixelBuffer,
+                timestamp: frame.timestamp,
+                imageSize: frame.imageSize
+            )
             let enriched = fruits.map { fruit in
                 DetectedFruit(
                     category: fruit.category,
@@ -156,5 +198,77 @@ final class ImageDetector: @unchecked Sendable {
         lock.lock()
         diagnosticsRecorder.recordFallbackFrame(reason: reason)
         lock.unlock()
+    }
+
+    func detectionDebugSnapshot() -> DetectionDebugState {
+        lock.lock()
+        defer { lock.unlock() }
+        return detectionDebugState
+    }
+
+    func detectionFailureSamplesSnapshot() -> [DetectionFailureSample] {
+        lock.lock()
+        defer { lock.unlock() }
+        return detectionFailureSamples
+    }
+
+    func recordDebugInferenceStarted(
+        frameSize: CGSize,
+        pixelBufferSize: CGSize,
+        threshold: Float
+    ) {
+        lock.lock()
+        detectionDebugState.markInferenceStarted(
+            frameSize: frameSize,
+            pixelBufferSize: pixelBufferSize,
+            threshold: threshold
+        )
+        lock.unlock()
+    }
+
+    func recordDebugInferenceCompleted(
+        elapsedMs: Double,
+        rawObservationCount: Int,
+        filteredObservationCount: Int,
+        rawPredictions: [DetectionPredictionDebug],
+        filteredPredictions: [DetectionPredictionDebug],
+        threshold: Float,
+        errorMessage: String? = nil
+    ) {
+        lock.lock()
+        detectionDebugState.markInferenceCompleted(
+            elapsedMs: elapsedMs,
+            rawObservationCount: rawObservationCount,
+            filteredObservationCount: filteredObservationCount,
+            rawPredictions: rawPredictions,
+            filteredPredictions: filteredPredictions,
+            threshold: threshold,
+            errorMessage: errorMessage
+        )
+        lock.unlock()
+    }
+
+    func captureDetectionFailureSample(
+        note: String? = nil,
+        fruitCategoryExpected: String? = nil
+    ) {
+        lock.lock()
+        let sample = DetectionFailureSample(
+            timestamp: Date(),
+            modelName: detectionDebugState.modelName,
+            threshold: detectionDebugState.currentThreshold,
+            topPredictions: detectionDebugState.topPredictions,
+            rawObservationCount: detectionDebugState.rawObservationCount,
+            filteredObservationCount: detectionDebugState.filteredObservationCount,
+            note: note,
+            fruitCategoryExpected: fruitCategoryExpected
+        )
+        detectionFailureSamples.append(sample)
+        if detectionFailureSamples.count > maxDetectionFailureSamples {
+            detectionFailureSamples.removeFirst(detectionFailureSamples.count - maxDetectionFailureSamples)
+        }
+        lock.unlock()
+
+        Log.detection.info("Detection failure sample captured: model=\(sample.modelName), raw=\(sample.rawObservationCount), filtered=\(sample.filteredObservationCount), threshold=\(sample.threshold)")
     }
 }
