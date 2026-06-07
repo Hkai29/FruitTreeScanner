@@ -63,6 +63,46 @@ vertex void unprojectVertex(uint vertexID [[vertex_id]],
         return;
     }
 
+    // Filter flying pixels near depth discontinuities. Consumer LiDAR often produces
+    // unstable edges around leaves, branches, and fruit boundaries.
+    if (uniforms.depthEdgeThreshold > 0.0f) {
+        const float2 texel = 1.0f / float2(depthTexture.get_width(), depthTexture.get_height());
+        int stableNeighbors = 0;
+
+        float neighborDepth = depthTexture.sample(colorSampler, texCoord + float2(texel.x, 0)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        neighborDepth = depthTexture.sample(colorSampler, texCoord - float2(texel.x, 0)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        neighborDepth = depthTexture.sample(colorSampler, texCoord + float2(0, texel.y)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        neighborDepth = depthTexture.sample(colorSampler, texCoord - float2(0, texel.y)).r;
+        if (neighborDepth >= uniforms.minDepth &&
+            neighborDepth <= uniforms.maxDepth &&
+            abs(neighborDepth - depth) <= uniforms.depthEdgeThreshold) {
+            stableNeighbors += 1;
+        }
+
+        if (stableNeighbors < 2) {
+            particleUniforms[currentPointIndex].confidence = 0.0f;
+            return;
+        }
+    }
+
     // With a 2D point plus depth, we can now get its 3D position
     const auto position = worldPoint(gridPoint, depth, uniforms.cameraIntrinsicsInversed, uniforms.localToWorld);
 
@@ -135,6 +175,98 @@ fragment float4 particleFragment(ParticleVertexOut in [[stage_in]],
     if (in.color.a == 0 || distSquared > 0.25) {
         discard_fragment();
     }
-    
+
     return in.color;
+}
+
+// MARK: - Compute Shaders for Point Cloud Processing
+
+struct VoxelFilterUniforms {
+    float voxelSize;
+    int pointCount;
+    int maxPoints;
+    int confidenceThreshold;
+    int pointStartIndex;     // ring buffer start
+};
+
+// Compute shader: mark each particle with its voxel key hash.
+// Output: per-particle voxel hash (uint) for CPU-side dedup, or 0 for invalid particles.
+kernel void computeVoxelKeys(
+    constant ParticleUniforms *particles [[buffer(0)]],
+    device uint *voxelKeys [[buffer(1)]],
+    constant VoxelFilterUniforms &uniforms [[buffer(2)]],
+    uint gid [[thread_position_in_grid]]
+) {
+    if (int(gid) >= uniforms.pointCount) return;
+
+    const int bufferIndex = (uniforms.pointStartIndex - uniforms.pointCount + int(gid) + uniforms.maxPoints) % uniforms.maxPoints;
+    const auto particle = particles[bufferIndex];
+
+    // Validate particle
+    if (particle.confidence < float(uniforms.confidenceThreshold)) {
+        voxelKeys[gid] = 0;
+        return;
+    }
+    const auto pos = particle.position;
+    if (!isfinite(pos.x) || !isfinite(pos.y) || !isfinite(pos.z)) {
+        voxelKeys[gid] = 0;
+        return;
+    }
+    if (length_squared(pos) < 0.000001f) {
+        voxelKeys[gid] = 0;
+        return;
+    }
+
+    // Compute voxel key hash
+    const float invVoxel = 1.0f / uniforms.voxelSize;
+    const int vx = int(floor(pos.x * invVoxel));
+    const int vy = int(floor(pos.y * invVoxel));
+    const int vz = int(floor(pos.z * invVoxel));
+
+    // FNV-1a inspired hash (non-zero for valid points)
+    uint h = 2166136261u;
+    h ^= uint(vx); h *= 16777619u;
+    h ^= uint(vy); h *= 16777619u;
+    h ^= uint(vz); h *= 16777619u;
+    // Ensure non-zero (0 reserved for invalid)
+    voxelKeys[gid] = (h == 0) ? 1u : h;
+}
+
+// Compute shader: compute per-particle neighbor count within a radius.
+// Used for fast SOR pre-filter on GPU (count neighbors, CPU does threshold).
+kernel void computeNeighborCounts(
+    constant ParticleUniforms *particles [[buffer(0)]],
+    device uint *neighborCounts [[buffer(1)]],
+    constant VoxelFilterUniforms &uniforms [[buffer(2)]],
+    uint gid [[thread_position_in_grid]]
+) {
+    if (int(gid) >= uniforms.pointCount) return;
+
+    const int myIdx = (uniforms.pointStartIndex - uniforms.pointCount + int(gid) + uniforms.maxPoints) % uniforms.maxPoints;
+    const auto myPos = particles[myIdx].position;
+
+    if (particles[myIdx].confidence < float(uniforms.confidenceThreshold)) {
+        neighborCounts[gid] = 0;
+        return;
+    }
+
+    const float radius = uniforms.voxelSize * 3.0f; // search radius = 3x voxel size
+    const float radiusSq = radius * radius;
+    uint count = 0;
+
+    // Sample a subset of points for efficiency (every 8th point)
+    for (int i = 0; i < uniforms.pointCount; i += 8) {
+        if (i == int(gid)) continue;
+        const int idx = (uniforms.pointStartIndex - uniforms.pointCount + i + uniforms.maxPoints) % uniforms.maxPoints;
+        const auto otherPos = particles[idx].position;
+        if (particles[idx].confidence < float(uniforms.confidenceThreshold)) continue;
+
+        const float distSq = length_squared(myPos - otherPos);
+        if (distSq < radiusSq) {
+            count++;
+            if (count >= 32) break; // cap for performance
+        }
+    }
+
+    neighborCounts[gid] = count;
 }

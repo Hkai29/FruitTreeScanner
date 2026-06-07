@@ -4,355 +4,206 @@
 import SwiftUI
 import SceneKit
 
-// MARK: - Point Cloud Color Mode
-enum PointCloudColorMode: String, CaseIterable {
-    case height = "高度"
-    case density = "密度"
-    case fruit = "果实"
-    case uniform = "统一"
-
-    var icon: String {
-        switch self {
-        case .height: return "arrow.up.arrow.down"
-        case .density: return "circle.grid.3x3"
-        case .fruit: return "leaf.fill"
-        case .uniform: return "paintpalette"
-        }
-    }
-}
-
 // MARK: - PointCloudView
 struct PointCloudView: View {
     let plyFileURL: URL?
 
     @State private var pointCount: Int = 0
     @State private var colorMode: PointCloudColorMode = .height
+    @State private var viewMode: PointCloudViewMode = .orbit
     @State private var showExportSheet = false
     @State private var isLoading = true
-
-    // TODO: Connect to actual PLY file data
-    private let mockPointCount = 45_231
+    @State private var pointCloudData: PointCloudData?
+    @State private var loadErrorMessage: String?
+    @StateObject private var cameraCoordinator = SceneKitPointCloudViewCoordinator()
+    @StateObject private var measurementController = PointCloudMeasurementController()
+    @State private var showMeasurement = false
+    @State private var measuredDistance: Float?
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
         ZStack {
             // SceneKit Point Cloud
             SceneKitPointCloudView(
                 plyFileURL: plyFileURL,
+                pointCloudData: pointCloudData,
                 colorMode: colorMode,
+                viewMode: viewMode,
                 pointCount: $pointCount,
-                isLoading: $isLoading
+                isLoading: $isLoading,
+                cameraCoordinator: cameraCoordinator,
+                measurementController: measurementController
             )
             .ignoresSafeArea()
+
+            statusOverlay
+
+            // Measurement Tool Overlay
+            if showMeasurement {
+                MeasurementToolOverlay(
+                    controller: measurementController,
+                    measuredDistance: $measuredDistance,
+                    onClose: stopMeasurement
+                )
+            }
 
             // Overlay UI
             VStack {
                 // Top Bar
-                topBar
+                PointCloudTopBar(
+                    pointCount: pointCount,
+                    bounds: pointCloudData?.bounds,
+                    viewMode: viewMode,
+                    canExport: canExportCurrentFile,
+                    onClose: { dismiss() },
+                    onExport: { showExportSheet = true }
+                )
 
                 Spacer()
 
                 // Bottom Controls
-                bottomControls
+                PointCloudBottomControls(
+                    pointCount: pointCount,
+                    canInteract: canUsePointCloud,
+                    bounds: pointCloudData?.bounds,
+                    colorMode: $colorMode,
+                    viewMode: $viewMode,
+                    isMeasurementActive: showMeasurement,
+                    onResetCamera: { cameraCoordinator.resetCamera() },
+                    onZoomIn: { cameraCoordinator.zoomIn() },
+                    onZoomOut: { cameraCoordinator.zoomOut() },
+                    onToggleMeasurement: toggleMeasurement
+                )
             }
             .padding(Design.Space.lg)
         }
         .navigationBarHidden(true)
-        .onAppear {
-            pointCount = mockPointCount
+        .task(id: plyFileURL) {
+            stopMeasurement()
+            await loadPointCloud()
         }
-    }
-
-    // MARK: - Top Bar
-    private var topBar: some View {
-        HStack(spacing: Design.Space.md) {
-            // Back Button
-            Button {
-                // Navigate back
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-            }
-
-            Spacer()
-
-            // Title
-            Text("点云预览")
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(.white)
-                .padding(.horizontal, Design.Space.md)
-                .padding(.vertical, Design.Space.sm)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-
-            Spacer()
-
-            // Export Button
-            Button {
-                showExportSheet = true
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
+        .sheet(isPresented: $showExportSheet) {
+            if let plyFileURL {
+                ShareSheet(items: [plyFileURL])
             }
         }
     }
 
-    // MARK: - Bottom Controls
-    private var bottomControls: some View {
-        VStack(spacing: Design.Space.lg) {
-            // Point Count Badge
-            HStack {
-                Spacer()
-
-                VStack(spacing: Design.Space.xs) {
-                    Text("\(pointCount.formatted())")
-                        .font(Design.Typography.title2)
-                        .foregroundColor(.white)
-
-                    Text("点云点数")
-                        .font(Design.Typography.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .padding(Design.Space.md)
-                .background(
-                    RoundedRectangle(cornerRadius: Design.Radius.large)
-                        .fill(.ultraThinMaterial)
-                )
-            }
-
-            // Control Toolbar
-            HStack(spacing: Design.Space.md) {
-                // Reset View
-                ControlButton(icon: "arrow.counterclockwise", label: "重置") {
-                    // Reset camera
-                }
-
-                // Color Mode
-                Menu {
-                    ForEach(PointCloudColorMode.allCases, id: \.self) { mode in
-                        Button {
-                            colorMode = mode
-                        } label: {
-                            HStack {
-                                Image(systemName: mode.icon)
-                                Text(mode.rawValue)
-                                if mode == colorMode {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    VStack(spacing: Design.Space.xs) {
-                        Image(systemName: colorMode.icon)
-                            .font(.system(size: 20, weight: .medium))
-
-                        Text("色彩")
-                            .font(Design.Typography.caption)
-                    }
-                    .foregroundColor(.white)
-                    .frame(width: 60, height: 56)
-                    .background(
-                        RoundedRectangle(cornerRadius: Design.Radius.medium)
-                            .fill(.ultraThinMaterial)
-                    )
-                }
-
-                // Zoom In
-                ControlButton(icon: "plus.magnifyingglass", label: "放大") {
-                    // Zoom in
-                }
-
-                // Zoom Out
-                ControlButton(icon: "minus.magnifyingglass", label: "缩小") {
-                    // Zoom out
-                }
-            }
-
-            // Color Legend
-            colorLegend
-        }
+    private var canExportCurrentFile: Bool {
+        plyFileURL != nil && canUsePointCloud
     }
 
-    // MARK: - Color Legend
-    private var colorLegend: some View {
-        HStack(spacing: Design.Space.lg) {
-            Text("色彩模式: \(colorMode.rawValue)")
-                .font(Design.Typography.caption)
-                .foregroundColor(.white.opacity(0.7))
-
-            Spacer()
-
-            // Legend items based on color mode
-            switch colorMode {
-            case .height:
-                HStack(spacing: Design.Space.xs) {
-                    Rectangle().fill(Color.blue).frame(width: 16, height: 8).cornerRadius(2)
-                    Text("低").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
-                    Image(systemName: "arrow.right").font(.system(size: 8)).foregroundColor(.white.opacity(0.5))
-                    Rectangle().fill(Color.red).frame(width: 16, height: 8).cornerRadius(2)
-                    Text("高").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
-                }
-
-            case .density:
-                HStack(spacing: Design.Space.xs) {
-                    Rectangle().fill(Color.gray.opacity(0.3)).frame(width: 16, height: 8).cornerRadius(2)
-                    Text("稀疏").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
-                    Image(systemName: "arrow.right").font(.system(size: 8)).foregroundColor(.white.opacity(0.5))
-                    Rectangle().fill(Color.gray.opacity(1.0)).frame(width: 16, height: 8).cornerRadius(2)
-                    Text("密集").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
-                }
-
-            case .fruit:
-                HStack(spacing: Design.Space.xs) {
-                    Circle().fill(Design.Colors.harvest).frame(width: 8, height: 8)
-                    Text("果实").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
-                }
-
-            case .uniform:
-                HStack(spacing: Design.Space.xs) {
-                    Circle().fill(Design.Colors.forest).frame(width: 8, height: 8)
-                    Text("统一").font(Design.Typography.caption).foregroundColor(.white.opacity(0.7))
-                }
-            }
-        }
-        .padding(Design.Space.md)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.medium)
-                .fill(.ultraThinMaterial)
-        )
+    private var canUsePointCloud: Bool {
+        !isLoading && pointCloudData != nil && pointCount > 0
     }
-}
 
-// MARK: - Control Button
-struct ControlButton: View {
-    let icon: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: Design.Space.xs) {
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .medium))
-
-                Text(label)
-                    .font(Design.Typography.caption)
-            }
-            .foregroundColor(.white)
-            .frame(width: 60, height: 56)
-            .background(
-                RoundedRectangle(cornerRadius: Design.Radius.medium)
-                    .fill(.ultraThinMaterial)
+    @ViewBuilder
+    private var statusOverlay: some View {
+        if isLoading {
+            PointCloudStatusPanel(
+                icon: "arrow.triangle.2.circlepath",
+                title: "正在读取点云",
+                message: "解析 PLY 点和颜色数据...",
+                showsProgress: true
+            )
+        } else if let loadErrorMessage {
+            PointCloudStatusPanel(
+                icon: "exclamationmark.triangle.fill",
+                title: "无法打开点云",
+                message: loadErrorMessage,
+                tint: Design.Colors.apple
+            )
+        } else if plyFileURL == nil {
+            PointCloudStatusPanel(
+                icon: "cube",
+                title: "暂无点云文件",
+                message: "完成扫描或导入 PLY 后，可在这里旋转、测量和分享点云。"
+            )
+        } else if pointCloudData == nil || pointCount == 0 {
+            PointCloudStatusPanel(
+                icon: "cube.transparent",
+                title: "没有可显示的点",
+                message: "该文件未解析到有效点云，请检查 PLY 内容。"
             )
         }
     }
-}
 
-// MARK: - SceneKit Point Cloud View
-struct SceneKitPointCloudView: UIViewRepresentable {
-    let plyFileURL: URL?
-    let colorMode: PointCloudColorMode
-    @Binding var pointCount: Int
-    @Binding var isLoading: Bool
-
-    func makeUIView(context: Context) -> SCNView {
-        let sceneView = SCNView()
-        sceneView.backgroundColor = UIColor(Design.Colors.charcoal)
-        sceneView.allowsCameraControl = true
-        sceneView.autoenablesDefaultLighting = false
-
-        // Create scene
-        let scene = SCNScene()
-        sceneView.scene = scene
-
-        // Add camera
-        let cameraNode = SCNNode()
-        cameraNode.camera = SCNCamera()
-        cameraNode.position = SCNVector3(x: 0, y: 0, z: 5)
-        scene.rootNode.addChildNode(cameraNode)
-
-        // Add ambient light
-        let ambientLight = SCNNode()
-        ambientLight.light = SCNLight()
-        ambientLight.light?.type = .ambient
-        ambientLight.light?.intensity = 500
-        scene.rootNode.addChildNode(ambientLight)
-
-        // TODO: Load actual PLY file and create point cloud geometry
-        // For now, create a demo point cloud
-        createDemoPointCloud(in: scene)
-
-        return sceneView
-    }
-
-    func updateUIView(_ uiView: SCNView, context: Context) {
-        // Update color mode if needed
-    }
-
-    private func createDemoPointCloud(in scene: SCNScene) {
-        // Create demo points forming a tree-like shape
-        var points: [SCNVector3] = []
-        var colors: [UIColor] = []
-
-        // Trunk (brownish points)
-        for _ in 0..<500 {
-            let x = Float.random(in: -0.1...0.1)
-            let y = Float.random(in: -1...0)
-            let z = Float.random(in: -0.1...0.1)
-            points.append(SCNVector3(x, y, z))
-            colors.append(UIColor.brown.withAlphaComponent(0.8))
+    @MainActor
+    private func loadPointCloud() async {
+        guard let plyFileURL else {
+            pointCloudData = nil
+            pointCount = 0
+            loadErrorMessage = nil
+            isLoading = false
+            return
         }
 
-        // Crown (green points with height variation)
-        for _ in 0..<2000 {
-            let radius = Float.random(in: 0...0.8)
-            let theta = Float.random(in: 0...(2 * .pi))
-            let phi = Float.random(in: 0...(1 * .pi))
+        isLoading = true
+        loadErrorMessage = nil
+        let loadedData = await Task.detached(priority: .userInitiated) {
+            PLYParserHelper.parsePointCloudData(at: plyFileURL)
+        }.value
+        guard !Task.isCancelled else { return }
+        pointCloudData = loadedData
+        pointCount = loadedData?.pointCount ?? 0
+        loadErrorMessage = loadedData == nil ? "无法读取点云文件" : nil
+        isLoading = false
+    }
 
-            let x = radius * sin(phi) * cos(theta)
-            let y = Float.random(in: 0...2) + radius * cos(phi) * 0.5
-            let z = radius * sin(phi) * sin(theta)
+    private func toggleMeasurement() {
+        guard canUsePointCloud else { return }
+        if measurementController.isActive {
+            stopMeasurement()
+        } else {
+            measurementController.activate()
+            showMeasurement = true
+            measuredDistance = nil
+        }
+    }
 
-            points.append(SCNVector3(x, y, z))
+    private func stopMeasurement() {
+        measurementController.deactivate()
+        showMeasurement = false
+        measuredDistance = nil
+    }
+}
 
-            // Color by height
-            let heightRatio = y / 2.5
-            if heightRatio > 0.7 {
-                colors.append(UIColor(Design.Colors.forest))
-            } else if heightRatio > 0.4 {
-                colors.append(UIColor(Design.Colors.sage))
-            } else {
-                colors.append(UIColor(Design.Colors.sageLight))
+private struct PointCloudStatusPanel: View {
+    let icon: String
+    let title: String
+    let message: String
+    var tint: Color = Design.Colors.harvest
+    var showsProgress = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 34, height: 34)
+                if showsProgress {
+                    ProgressView()
+                        .tint(tint)
+                        .scaleEffect(0.75)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(tint)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-
-        // Create point geometry using small spheres
-        for (index, point) in points.enumerated() {
-            let sphere = SCNSphere(radius: 0.008)
-            sphere.segmentCount = 6 // Low poly for performance
-
-            let material = SCNMaterial()
-            material.diffuse.contents = colors[index]
-            material.lightingModel = .constant
-            sphere.materials = [material]
-
-            let node = SCNNode(geometry: sphere)
-            node.position = point
-            scene.rootNode.addChildNode(node)
-        }
-
-        pointCount = points.count
+        .padding(14)
+        .frame(maxWidth: 280, alignment: .leading)
+        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.hudBackground)
     }
-}
-
-#Preview {
-    PointCloudView(plyFileURL: nil)
 }

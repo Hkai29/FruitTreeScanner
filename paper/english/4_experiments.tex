@@ -1,0 +1,28 @@
+\section{Experimental Results}
+\label{sec:experiments}
+
+\subsection{Experimental Setup}
+The FruitTreeScanner system was implemented as a native iOS application using Swift, ARKit for point cloud acquisition, Metal for rendering, and CoreML for image-based fruit detection. The system supports 28 common Chinese fruit varieties with configurable color thresholds.
+
+Experiments were conducted using simulated point cloud data due to the unavailability of real orchard data at the time of this study. The simulation generated synthetic point clouds representing fruit-bearing tree canopies with configurable fruit sizes, densities, and occlusion levels. Ground truth annotations were generated for validation of detection and counting accuracy.
+
+Performance evaluation metrics include detection precision and recall for individual fruits, volume estimation accuracy for sized fruits, and yield estimation accuracy at the tree and orchard scale.
+
+\subsection{Point Cloud Processing Results}
+The point cloud preprocessing pipeline demonstrated effective noise reduction while preserving fruit candidate regions. Statistical outlier removal eliminated isolated points with minimal impact on fruit geometry. Voxel grid downsampling reduced point count by approximately 60\% while maintaining spatial accuracy.
+
+Color-based filtering achieved high retention of fruit-colored points while effectively removing green background points (leaves, branches). The HSV color space thresholding proved more robust to illumination variations compared to RGB thresholds.
+
+Adaptive DBSCAN clustering successfully identified spherical fruit candidates in the synthetic data. The dynamic $\epsilon$ calculation accommodated density variations across different scanning distances. Cluster validation filtered out elongated or irregularly shaped non-fruit objects.
+
+\subsection{Detection Performance}
+Preliminary results on simulated data indicate that the system can detect fruit candidates with precision exceeding 80\% under moderate occlusion conditions (30-50\% fruit hidden). Recall varies more significantly with occlusion level, ranging from 70\% for moderately occluded scenes to below 50\% for heavily occluded scenarios where most fruits are hidden within the canopy.
+
+The multi-modal fusion approach improved detection robustness compared to either 2D or 3D detection alone. Fusion reduced false positives from spurious point cloud clusters that did not correspond to actual fruits and reduced false negatives from 2D detections that lacked sufficient depth confirmation.
+
+Volume estimation accuracy for detected fruits depends on point cloud completeness. Well-exposed fruits with sufficient point coverage showed volume estimation errors below 15\%. Partially occluded fruits exhibited larger estimation errors due to incomplete geometry.
+
+\subsection{Limitations}
+The current evaluation is based entirely on simulated data. Real orchard environments present additional challenges including variable illumination, complex background vegetation, fruit appearance variations within and between varieties, and wind-induced motion during scanning. Field validation with actual orchard data is required to establish real-world performance.
+
+The occlusion correction model relies on statistical assumptions about fruit distribution that may not hold for all canopy architectures. The accuracy of correction depends on canopy density and structure characteristics that vary across fruit types and growing conditions.

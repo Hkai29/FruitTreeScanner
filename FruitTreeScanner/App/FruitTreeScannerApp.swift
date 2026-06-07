@@ -5,9 +5,8 @@
 import SwiftUI
 
 enum AppScreen {
-    case launch      // 启动页（树木动画）
-    case transition  // 过渡页（生长动画）
-    case main       // 主界面
+    case launch
+    case main
 }
 
 @main
@@ -21,16 +20,12 @@ struct FruitTreeScannerApp: App {
                 case .launch:
                     LaunchScreen()
                         .onAppear {
-                            // 启动页显示2.5秒后进入过渡页
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                                 withAnimation {
-                                    currentScreen = .transition
+                                    currentScreen = .main
                                 }
                             }
                         }
-                case .transition:
-                    TransitionPageWrapper(currentScreen: $currentScreen)
-                        .transition(.opacity)
                 case .main:
                     DashboardView()
                         .transition(.opacity)
@@ -38,17 +33,5 @@ struct FruitTreeScannerApp: App {
             }
             .animation(.easeInOut(duration: 0.5), value: currentScreen)
         }
-    }
-}
-
-// TransitionPage 需要 Binding<Bool>，这里做转换
-struct TransitionPageWrapper: View {
-    @Binding var currentScreen: AppScreen
-
-    var body: some View {
-        TransitionPage(isFinished: Binding(
-            get: { false },  // 不使用
-            set: { if $0 { currentScreen = .main } }
-        ))
     }
 }

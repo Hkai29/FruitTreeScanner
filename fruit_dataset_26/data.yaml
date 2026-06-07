@@ -1,0 +1,32 @@
+path: /Users/reece24/FruitTreeScanner/fruit_dataset_26
+train: images/train
+val: images/val
+
+nc: 26
+names:
+  0: apple
+  1: orange
+  2: mandarin
+  3: pomelo
+  4: pear
+  5: peach
+  6: cherry
+  7: grape
+  8: persimmon
+  9: mango
+  10: kiwi
+  11: plum
+  12: pomegranate
+  13: loquat
+  14: lychee
+  15: longan
+  16: bayberry
+  17: jujube
+  18: hawthorn
+  19: fig
+  20: papaya
+  21: chestnut
+  22: mulberry
+  23: blueberry
+  24: strawberry
+  25: coconut

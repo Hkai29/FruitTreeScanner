@@ -41,6 +41,7 @@ struct PointCloudUniforms {
     int confidenceThreshold;
     float minDepth;
     float maxDepth;
+    float depthEdgeThreshold;
 };
 
 struct ParticleUniforms {

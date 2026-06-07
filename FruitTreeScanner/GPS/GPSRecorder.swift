@@ -6,6 +6,10 @@ import Combine
 
 class GPSRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
+    private var lastPublishedLocation: CLLocation?
+    private var lastPublishTime = Date.distantPast
+    private let minimumPublishInterval: TimeInterval = 2.0
+    private let minimumPublishDistance: CLLocationDistance = 3.0
 
     @Published var latitude: Double = 0.0
     @Published var longitude: Double = 0.0
@@ -14,30 +18,47 @@ class GPSRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        manager.distanceFilter = minimumPublishDistance
         manager.requestWhenInUseAuthorization()
-        manager.startUpdatingLocation()
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedWhenInUse ||
-           manager.authorizationStatus == .authorizedAlways {
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
             manager.startUpdatingLocation()
+        case .denied, .restricted:
+            DispatchQueue.main.async { self.isAvailable = false }
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        default:
+            break
         }
     }
 
     func locationManager(_ manager: CLLocationManager,
                          didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
+        let now = Date()
+        if let lastPublishedLocation {
+            let movedEnough = loc.distance(from: lastPublishedLocation) >= minimumPublishDistance
+            let waitedEnough = now.timeIntervalSince(lastPublishTime) >= minimumPublishInterval
+            guard movedEnough || waitedEnough || !isAvailable else { return }
+        }
+
+        lastPublishedLocation = loc
+        lastPublishTime = now
         DispatchQueue.main.async {
             self.latitude = loc.coordinate.latitude
             self.longitude = loc.coordinate.longitude
-            self.isAvailable = true
+            if !self.isAvailable {
+                self.isAvailable = true
+            }
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("GPS error: \(error.localizedDescription)")
+        Log.gps.error("GPS error: \(error.localizedDescription)")
         DispatchQueue.main.async { self.isAvailable = false }
     }
 }

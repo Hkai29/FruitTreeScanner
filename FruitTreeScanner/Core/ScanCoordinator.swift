@@ -1,0 +1,302 @@
+import ARKit
+import MetalKit
+import os
+import UIKit
+
+// MARK: - ScanCoordinator
+enum ScanDepthRuntimeStatus: String {
+    case unsupportedAR = "NoAR"
+    case unsupportedSceneDepth = "NoDepth"
+    case waitingForDepth = "Wait"
+    case activeDepth = "LiDAR"
+}
+
+class ScanCoordinator: NSObject {
+    let settings: ScanSettingsProviding
+
+    var renderer: Renderer?
+    var session: ARSession?
+    weak var mtkView: MTKView?
+
+    init(settings: ScanSettingsProviding = SettingsStore.shared) {
+        self.settings = settings
+        super.init()
+    }
+
+    var pointCount: Int = 0
+    var scannedRegionCount: Int = 0
+    var coveragePercent: Int = 0
+    var coverageVoxelCount: Int = 0
+
+    // 扫描完成度相关
+    var scanCompletion: ScanCompletion = ScanCompletion()
+
+    var detectedFruits: [DetectedFruit] = []
+
+    var onMeasurementReady: ((Renderer) -> Void)?
+    var onQualitySampleUpdate: ((ScanQualitySample) -> Void)?
+    var onCoveragePercentChange: ((Int) -> Void)?
+    var hudState: ScanHUDState?
+
+    #if DEBUG
+        func debugSnapshot() -> [DetectedFruit] {
+            detectedFruits
+        }
+    #endif
+
+    private var displayLink: CADisplayLink?
+    private var lastHUDUpdateTime: TimeInterval = 0
+    private var lastCompletionUpdateTime: TimeInterval = 0
+    var lastQualitySampleTime: TimeInterval = 0
+    var hasPublishedCameraResolution = false
+    var requestedSceneDepth = false
+    private var depthRuntimeStatus: ScanDepthRuntimeStatus?
+    var isTornDown = false
+    private let activeHUDUpdateInterval: TimeInterval = 0.1
+    private let idleHUDUpdateInterval: TimeInterval = 0.25
+    private let activeCompletionUpdateInterval: TimeInterval = 0.25
+    private let idleCompletionUpdateInterval: TimeInterval = 0.5
+    let qualitySampleInterval: TimeInterval = 0.25
+    private let completionEvaluator = ScanCompletionEvaluator()
+    let detectionProcessingLock = NSLock()
+    var isDetectionProcessing = false
+
+    // MARK: - 相机速度追踪
+    var lastCameraPosition: SIMD3<Float>?
+    var lastCameraSpeedTime: TimeInterval = 0
+    var smoothedCameraSpeed: Float = 0
+
+    // MARK: - 多模态融合组件
+    lazy var imageDetector: ImageDetector = {
+        let detector = ImageDetector(config: FruitScanConfig(
+            imageDetectionInterval: 10,
+            minConfidence: 0.5,
+            sizeTolerance: 0.2,
+            sphericityThreshold: 0.5
+        ))
+        return detector
+    }()
+    var detectionTask: Task<Void, Never>?
+    var fusionEstimateTask: Task<Void, Never>?
+
+    func bind(session: ARSession, renderer: Renderer, mtkView: MTKView) {
+        Log.scan.info("Binding scan session")
+        resetRuntimeState()
+        self.session = session
+        self.renderer = renderer
+        self.mtkView = mtkView
+
+        publishPendingCameraResolution()
+
+        let depthStatus = configureAndRunSession(session)
+        publishDepthRuntimeStatus(depthStatus)
+
+        // 注册帧回调用于图像检测
+        session.delegate = self
+        publishImageDetectorStatus()
+
+        // 启动定期处理队列的定时器
+        startDetectionTimer()
+
+        scheduleDeferredSettingsLoad()
+        startHUDDisplayLink()
+        UIApplication.shared.isIdleTimerDisabled = true
+
+        DispatchQueue.main.async {
+            self.onMeasurementReady?(renderer)
+        }
+    }
+
+    private func configureAndRunSession(_ session: ARSession) -> ScanDepthRuntimeStatus {
+        requestedSceneDepth = false
+
+        guard ARWorldTrackingConfiguration.isSupported else {
+            return .unsupportedAR
+        }
+
+        let config = ARWorldTrackingConfiguration()
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            config.frameSemantics = .sceneDepth
+            requestedSceneDepth = true
+        }
+        if let videoFormat = ScanSessionConfiguration.preferredVideoFormat() {
+            config.videoFormat = videoFormat
+        }
+        // 实时产量估计依赖 sceneDepth 点云，避免开启高负载的 ARKit mesh 重建。
+        session.run(config)
+
+        return requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth
+    }
+
+    func teardown() {
+        Log.scan.info("Tearing down scan session")
+        isTornDown = true
+        stopRuntimeServices()
+        clearRuntimeReferences()
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+
+    private func resetRuntimeState() {
+        isTornDown = false
+        hasPublishedCameraResolution = false
+    }
+
+    private func publishPendingCameraResolution() {
+        // 延后发布，避免 UIViewRepresentable 创建期触发 SwiftUI 状态警告。
+        DispatchQueue.main.async { [self] in
+            settings.currentCameraResolutionDisplay = L10n.Scan.detecting
+        }
+    }
+
+    private func scheduleDeferredSettingsLoad() {
+        // 等 session 初始化完成后再下发 Metal/检测参数。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            guard !self.isTornDown else { return }
+            self.loadSettings()
+            self.renderer?.applyScanQualitySettings()
+        }
+    }
+
+    private func startHUDDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = CADisplayLink(target: self, selector: #selector(updatePointCount))
+        displayLink?.add(to: .main, forMode: .common)
+    }
+
+    private func stopRuntimeServices() {
+        detectionTask?.cancel()
+        detectionTask = nil
+        fusionEstimateTask?.cancel()
+        fusionEstimateTask = nil
+        displayLink?.invalidate()
+        displayLink = nil
+        detectionTimer?.invalidate()
+        detectionTimer = nil
+        imageDetector.clearQueue()
+        session?.pause()
+        session?.delegate = nil
+        mtkView?.delegate = nil
+    }
+
+    private func clearRuntimeReferences() {
+        mtkView = nil
+        renderer = nil
+        session = nil
+        hudState = nil
+        depthRuntimeStatus = nil
+        requestedSceneDepth = false
+        onMeasurementReady = nil
+        onQualitySampleUpdate = nil
+        onCoveragePercentChange = nil
+        detectedFruits.removeAll()
+    }
+
+    // MARK: - 图像检测定时器
+    var detectionTimer: Timer?
+
+    func publishDepthRuntimeStatus(_ status: ScanDepthRuntimeStatus) {
+        guard depthRuntimeStatus != status else { return }
+        depthRuntimeStatus = status
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isTornDown else { return }
+            self.hudState?.update(depthRuntimeStatus: status.rawValue)
+        }
+    }
+
+    @MainActor
+    func startRecording() {
+        detectionTask?.cancel()
+        detectionTask = nil
+        fusionEstimateTask?.cancel()
+        fusionEstimateTask = nil
+        imageDetector.clearQueue()
+        createDirectory(folder: "scans")
+        pointCount = 0
+        scannedRegionCount = 0
+        coveragePercent = 0
+        coverageVoxelCount = 0
+        scanCompletion = ScanCompletion()
+        hudState?.resetForNewScan()
+        publishImageDetectorStatus()
+        hudState?.update(fusionStatus: "扫描中")
+        lastCameraPosition = nil
+        lastCameraSpeedTime = 0
+        smoothedCameraSpeed = 0
+        renderer?.currentFolder = "scans"
+        renderer?.isRecording = true
+    }
+
+    @MainActor
+    @objc private func updatePointCount() {
+        let now = CACurrentMediaTime()
+        let hudInterval = renderer?.isRecording == true ? activeHUDUpdateInterval : idleHUDUpdateInterval
+        guard now - lastHUDUpdateTime >= hudInterval else { return }
+        lastHUDUpdateTime = now
+
+        var hudPointCount: Int?
+        var hudCoveragePercent: Int?
+
+        if let renderer {
+            let exportableCount = renderer.exportablePointCountPublic
+            let nextPointCount = exportableCount > 0 ? exportableCount : renderer.currentPointCountPublic
+            if pointCount != nextPointCount {
+                pointCount = nextPointCount
+                hudPointCount = nextPointCount
+            }
+        } else {
+            if pointCount != 0 {
+                pointCount = 0
+                hudPointCount = 0
+            }
+        }
+        let regionCount = renderer?.scannedRegionCountPublic ?? 0
+        if scannedRegionCount != regionCount {
+            scannedRegionCount = regionCount
+        }
+        let maxRegions = 600
+        let nextCoveragePercent = min(Int(Double(regionCount) / Double(maxRegions) * 100), 100)
+        if coveragePercent != nextCoveragePercent {
+            coveragePercent = nextCoveragePercent
+            hudCoveragePercent = nextCoveragePercent
+            onCoveragePercentChange?(nextCoveragePercent)
+        }
+        let nextCoverageVoxelCount = renderer?.coverageVoxelCount ?? 0
+        if coverageVoxelCount != nextCoverageVoxelCount {
+            coverageVoxelCount = nextCoverageVoxelCount
+        }
+
+        let imageDiagnostics = imageDetector.diagnosticsSnapshot()
+        hudState?.update(
+            pointCount: hudPointCount,
+            coveragePercent: hudCoveragePercent,
+            exportablePointStatus: (renderer?.exportablePointCountPublic ?? 0) > 0 ? "Ready" : "NoCloud",
+            processedImageFrames: imageDiagnostics.processedFrameCount,
+            detectedFruitCount: max(detectedFruits.count, imageDiagnostics.mappedFruitCount),
+            fusionStatus: detectedFruits.isEmpty ? "Wait" : "OK"
+        )
+
+        updateScanCompletion()
+    }
+
+    @MainActor
+    private func updateScanCompletion() {
+        guard let renderer = renderer else { return }
+        let now = CACurrentMediaTime()
+        let completionInterval = renderer.isRecording ? activeCompletionUpdateInterval : idleCompletionUpdateInterval
+        guard now - lastCompletionUpdateTime >= completionInterval else { return }
+        lastCompletionUpdateTime = now
+
+        let completion = completionEvaluator.evaluate(
+            .init(
+                voxelCount: renderer.coverageVoxelCount,
+                scanDuration: renderer.scanDuration,
+                discoveryTrend: renderer.voxelDiscoveryTrendPublic,
+                discoveryRate: renderer.voxelDiscoveryRatePublic
+            )
+        )
+
+        scanCompletion = completion
+        hudState?.update(scanCompletion: completion)
+    }
+
+}

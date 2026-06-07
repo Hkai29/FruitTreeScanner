@@ -6,29 +6,18 @@ import CoreVideo
 import VideoToolbox
 import simd
 
-// MARK: - Delegate Protocol
-
-protocol FusionValidatorDelegate: AnyObject {
-    func fusionValidator(_ validator: FusionValidator, didValidate fruits: [ValidatedFruit])
-}
-
 // MARK: - Fusion Validator
 
-class FusionValidator {
+final class FusionValidator: Sendable {
 
     // MARK: - Properties
 
-    weak var delegate: FusionValidatorDelegate?
-    var config: FruitScanConfig
+    let config: FruitScanConfig
 
     // MARK: - Initialization
 
     init(config: FruitScanConfig = .default) {
         self.config = config
-    }
-
-    func updateConfig(_ newConfig: FruitScanConfig) {
-        self.config = newConfig
     }
 
     // MARK: - Validation
@@ -42,31 +31,32 @@ class FusionValidator {
         imageSize: CGSize
     ) -> [ValidatedFruit] {
         var validatedFruits: [ValidatedFruit] = []
+        var usedCandidateIDs = Set<UUID>()
 
-        print("🔍 [FusionValidator] 开始融合: \(detections.count) 个检测, \(candidates.count) 个候选")
-
-        // Match detections to candidates
         for detection in detections {
+            let useTransform = detection.cameraTransform ?? cameraTransform
+            let useIntrinsics = detection.cameraIntrinsics ?? cameraIntrinsics
+            let useImageSize = detection.imageSize ?? imageSize
+
             let projectedPosition = projectDetectionTo3D(
                 detection: detection,
                 depthMap: depthMap,
-                cameraIntrinsics: cameraIntrinsics,
-                cameraTransform: cameraTransform,
-                imageSize: imageSize
+                cameraIntrinsics: useIntrinsics,
+                cameraTransform: useTransform,
+                imageSize: useImageSize
             )
-
-            print("       检测: \(detection.category.displayName), 投影位置: \(projectedPosition)")
 
             // Find nearest candidate within tolerance
             let matchedCandidate = findNearestCandidate(
                 position: projectedPosition,
-                candidates: candidates,
+                candidates: candidates.filter { !usedCandidateIDs.contains($0.id) },
                 detection: detection
             )
 
             if let candidate = matchedCandidate {
+                usedCandidateIDs.insert(candidate.id)
+
                 // Fused: both image and point cloud validated
-                print("       → 匹配到候选: 位置\(candidate.position), 球形度\(candidate.sphericity)")
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: candidate.position,
@@ -76,7 +66,6 @@ class FusionValidator {
                 validatedFruits.append(validatedFruit)
             } else {
                 // Image only: no matching candidate found
-                print("       → 无匹配候选 (imageOnly)")
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: projectedPosition,
@@ -87,12 +76,28 @@ class FusionValidator {
             }
         }
 
-        print("🔍 [FusionValidator] 融合结果: \(validatedFruits.count) 个 (fused + imageOnly)")
-
-        // Notify delegate
-        delegate?.fusionValidator(self, didValidate: validatedFruits)
-
         return validatedFruits
+    }
+
+    static func depthSamplePoint(
+        normalizedPoint: CGPoint,
+        imageSize: CGSize,
+        depthSize: CGSize
+    ) -> CGPoint {
+        guard imageSize.width > 0, imageSize.height > 0,
+              depthSize.width > 0, depthSize.height > 0 else {
+            return .zero
+        }
+
+        let imagePoint = CGPoint(
+            x: normalizedPoint.x * imageSize.width,
+            y: (1 - normalizedPoint.y) * imageSize.height
+        )
+
+        return CGPoint(
+            x: imagePoint.x * depthSize.width / imageSize.width,
+            y: imagePoint.y * depthSize.height / imageSize.height
+        )
     }
 
     // MARK: - 2D → 3D Back Projection
@@ -104,81 +109,111 @@ class FusionValidator {
         cameraTransform: simd_float4x4,
         imageSize: CGSize
     ) -> SIMD3<Float> {
-        // Get bounding box center in pixel coordinates
         let box = detection.boundingBox
-        let centerX = (box.origin.x + box.size.width / 2) * imageSize.width
-        let centerY = (box.origin.y + box.size.height / 2) * imageSize.height
 
-        // Get depth at center point (scale from image coords to depth map coords)
-        var depth: Float = 2.0 // Default depth if no depth map
-        if let depthMap = depthMap {
-            let depthW = CVPixelBufferGetWidth(depthMap)
-            let depthH = CVPixelBufferGetHeight(depthMap)
-            let depthX = Int(centerX * CGFloat(depthW) / imageSize.width)
-            let depthY = Int(centerY * CGFloat(depthH) / imageSize.height)
-            depth = sampleDepth(depthMap: depthMap, x: depthX, y: depthY, imageSize: imageSize)
+        // 3×3 网格多点采样深度，比中心单点更抗噪声
+        var validDepths: [Float] = []
+        if let depthMap = depthMap, let depthSampler = DepthSampler(depthMap: depthMap) {
+            for row in 0..<3 {
+                for col in 0..<3 {
+                    // Vision boundingBox 是左下角原点；depthSamplePoint 会转换到图像像素坐标。
+                    let normalizedPoint = CGPoint(
+                        x: box.origin.x + box.size.width * CGFloat(col * 2 + 1) / 6.0,
+                        y: box.origin.y + box.size.height * CGFloat(row * 2 + 1) / 6.0
+                    )
+                    let depthPoint = Self.depthSamplePoint(
+                        normalizedPoint: normalizedPoint,
+                        imageSize: imageSize,
+                        depthSize: CGSize(width: depthSampler.width, height: depthSampler.height)
+                    )
+
+                    if let d = depthSampler.depth(x: Int(depthPoint.x), y: Int(depthPoint.y)) {
+                        validDepths.append(d)
+                    }
+                }
+            }
         }
 
-        // Create image point in camera coordinates (pixel)
-        let imagePoint = SIMD3<Float>(Float(centerX), Float(centerY), 1.0)
+        // 用中值深度（抗噪声），fallback 到默认深度
+        let depth: Float
+        if !validDepths.isEmpty {
+            let sorted = validDepths.sorted()
+            depth = sorted[sorted.count / 2]
+        } else {
+            depth = 2.0
+        }
 
-        // Back-project to camera space
-        // K_inv * [u, v, 1]^T gives ray direction, scale by depth to get camera point
+        // 中心点用于射线方向（像素坐标）
+        let normCenterX = box.origin.x + box.size.width / 2
+        let normCenterY = box.origin.y + box.size.height / 2
+        let centerX = normCenterX * imageSize.width
+        let centerY = (1 - normCenterY) * imageSize.height
+
+        let imagePoint = SIMD3<Float>(Float(centerX), Float(centerY), 1.0)
         let intrinsicsInverse = cameraIntrinsics.inverse
-        let direction = intrinsicsInverse * imagePoint
+        var direction = intrinsicsInverse * imagePoint
+        direction = simd_normalize(direction)
         let cameraPoint = direction * depth
 
-        // Transform to world space
         let worldPoint = cameraTransform * SIMD4<Float>(cameraPoint.x, cameraPoint.y, cameraPoint.z, 1.0)
-
         return SIMD3<Float>(worldPoint.x, worldPoint.y, worldPoint.z)
     }
 
     // MARK: - Depth Sampling
 
-    private func sampleDepth(depthMap: CVPixelBuffer, x: Int, y: Int, imageSize: CGSize) -> Float {
-        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+    private final class DepthSampler {
+        let width: Int
+        let height: Int
 
-        guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
-            return 2.0
+        private let depthMap: CVPixelBuffer
+        private let baseAddress: UnsafeMutableRawPointer
+        private let pixelFormat: FourCharCode
+
+        init?(depthMap: CVPixelBuffer) {
+            CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+            guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
+                CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
+                return nil
+            }
+
+            self.depthMap = depthMap
+            self.baseAddress = baseAddress
+            self.width = CVPixelBufferGetWidth(depthMap)
+            self.height = CVPixelBufferGetHeight(depthMap)
+            self.pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
         }
 
-        let width = CVPixelBufferGetWidth(depthMap)
-        let height = CVPixelBufferGetHeight(depthMap)
+        deinit {
+            CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
+        }
 
-        // Clamp coordinates to valid range
-        let clampedX = max(0, min(x, width - 1))
-        let clampedY = max(0, min(y, height - 1))
+        func depth(x: Int, y: Int) -> Float? {
+            guard width > 0, height > 0 else { return nil }
 
-        // Determine pixel format
-        let pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
-
-        // Determine pixel format using raw fourCC codes
-        let fp32: FourCharCode = 0x66703233  // 'fp32' = kCVPixelFormatType_32Float
-        let up16: FourCharCode = 0x75703136  // 'up16' = kCVPixelFormatType_16U
-        var depth: Float = 2.0
-
-        if pixelFormat == fp32 {
+            let clampedX = max(0, min(x, width - 1))
+            let clampedY = max(0, min(y, height - 1))
             let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
-            let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
-            let rowBytes = bytesPerRow / MemoryLayout<Float>.size
-            depth = floatBuffer[clampedY * rowBytes + clampedX]
-        } else if pixelFormat == up16 {
-            let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
-            let shortBuffer = baseAddress.assumingMemoryBound(to: UInt16.self)
-            let rowShorts = bytesPerRow / MemoryLayout<UInt16>.size
-            let rawDepth = shortBuffer[clampedY * rowShorts + clampedX]
-            // Convert mm to meters (typical depth sensor output)
-            depth = Float(rawDepth) / 1000.0
-        }
 
-        // Validate depth range (0.1m to 10m)
-        if depth < 0.1 || depth > 10.0 {
-            depth = 2.0
-        }
+            let fp32: FourCharCode = 0x66703233  // 'fp32' = kCVPixelFormatType_32Float
+            let up16: FourCharCode = 0x75703136  // 'up16' = kCVPixelFormatType_16U
+            let depth: Float
 
-        return depth
+            if pixelFormat == fp32 {
+                let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
+                let rowBytes = bytesPerRow / MemoryLayout<Float>.size
+                depth = floatBuffer[clampedY * rowBytes + clampedX]
+            } else if pixelFormat == up16 {
+                let shortBuffer = baseAddress.assumingMemoryBound(to: UInt16.self)
+                let rowShorts = bytesPerRow / MemoryLayout<UInt16>.size
+                let rawDepth = shortBuffer[clampedY * rowShorts + clampedX]
+                depth = Float(rawDepth) / 1000.0
+            } else {
+                return nil
+            }
+
+            guard depth > 0.1, depth < 10.0 else { return nil }
+            return depth
+        }
     }
 
     // MARK: - Candidate Matching
@@ -188,15 +223,14 @@ class FusionValidator {
         candidates: [FruitCandidate],
         detection: DetectedFruit
     ) -> FruitCandidate? {
-        let positionTolerance: Float = 0.1 // 0.1m tolerance
-        let sizeTolerance = config.sizeTolerance // ±20% from config
+        let positionTolerance: Float = 0.15
+        let sizeTolerance = config.sizeTolerance
 
         var nearestCandidate: FruitCandidate?
         var nearestDistance: Float = .infinity
 
         for candidate in candidates {
-            // Skip invalid candidates
-            guard candidate.isValidFruit() else { continue }
+            guard candidate.isValidFruit(expectedCategory: detection.category) else { continue }
 
             // Calculate 3D distance
             let distance = simd_distance(position, candidate.position)

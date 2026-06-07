@@ -23,10 +23,10 @@ struct LaunchScreen: View {
                 // App name
                 VStack(spacing: 6) {
                     Text("FruitScanner")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(Color(red: 0.24, green: 0.42, blue: 0.36))
 
-                    Text("智能果树产量估算")
+                    Text("果树 LiDAR 产量估算")
                         .font(.system(size: 15))
                         .foregroundColor(Color(red: 0.54, green: 0.53, blue: 0.52))
                 }

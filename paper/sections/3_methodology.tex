@@ -1,0 +1,46 @@
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{System Architecture}
+The FruitTreeScanner system comprises three primary layers: data acquisition, processing, and yield estimation. The data acquisition layer utilizes the LiDAR sensor and RGB camera integrated in consumer devices, operating in conjunction with ARKit for real-time point cloud streaming and spatial tracking. The processing layer performs point cloud preprocessing, color-based filtering, clustering, and multi-modal fusion. The yield estimation layer implements volume calculation and occlusion correction to produce yield estimates.
+
+\subsection{Data Acquisition Module}
+The LiDAR sensor captures three-dimensional point cloud data at approximately 60 frames per second, with each frame containing around 30,000 depth points. Simultaneously, the RGB camera records visual information that is spatially aligned with the point cloud through ARKit's sensor fusion capabilities. Time synchronization between depth and color data enables generation of colored point clouds where each point carries both spatial coordinates (x, y, z) and color information (R, G, B).
+
+The ARKit framework provides world tracking capabilities that maintain a coordinate system across frames, enabling point cloud accumulation during scanning movements. This facilitates construction of more complete 3D representations of scanned scenes compared to single-frame captures.
+
+\subsection{Point Cloud Preprocessing}
+Preprocessing operations prepare raw point cloud data for clustering analysis. Noise filtering removes isolated points that are likely measurement artifacts or background noise. Statistical outlier removal identifies points whose neighbors are significantly further away than the local average distance.
+
+Color space conversion transforms RGB color information into a color space more suitable for fruit detection. The system supports HSV (Hue, Saturation, Value) and Lab color space representations, which separate chromatic information from intensity and provide more intuitive thresholds for color-based segmentation.
+
+Downsampling reduces point cloud density to decrease computational burden while preserving geometric features. Voxel grid downsampling divides space into volumetric bins and retains representative points from each bin.
+
+\subsection{Color-Based Filtering}
+Fruit detection in the point cloud relies on color thresholds that identify regions likely to contain fruits. Different fruit types exhibit characteristic color ranges that can be expressed as hue intervals in the HSV color space. For example, ripe apples typically exhibit hue values in the red range (approximately 0-15 degrees), while citrus fruits show orange to yellow hues.
+
+The filtering algorithm evaluates each point's color against predefined thresholds for target fruit types. Points within the specified color range are retained as fruit candidates, while points falling outside the range are classified as non-fruit background.
+
+\subsection{Adaptive DBSCAN Clustering}
+The adaptive DBSCAN algorithm extends standard DBSCAN by dynamically calculating the neighborhood radius $\epsilon$ based on local point density and distance from the sensor. This adaptation addresses the characteristic of LiDAR data where point density decreases as distance increases from the sensor.
+
+The adaptive $\epsilon$ calculation considers two factors: local point density and depth-dependent scaling. Points at greater distances from the sensor require larger neighborhood radii to capture equivalent local density compared to nearby points. The algorithm computes $\epsilon$ as a function of the k-nearest neighbor distance scaled by the point's depth from the sensor.
+
+Cluster validation follows clustering to filter out spurious clusters that are unlikely to correspond to fruits. Validation criteria include cluster size constraints (too few points cannot represent a fruit, too many likely represent merged objects or background), shape regularity metrics (fruits approximate spheres), and color consistency within the cluster.
+
+\subsection{Multi-Modal Fusion Strategy}
+The fusion strategy combines 2D detection results from CoreML-based image analysis with 3D clustering candidates from point cloud processing. This approach leverages complementary strengths: 2D detection provides robust classification based on visual features, while 3D clustering provides accurate spatial localization and size estimation.
+
+The fusion process projects 2D detection bounding boxes into 3D space using the depth information associated with each detection. Point cloud clusters within the projected regions are candidate matches. A confidence score for each match considers detection confidence, spatial overlap between 2D and 3D regions, and size consistency with expected fruit dimensions.
+
+Unmatched 2D detections without corresponding 3D clusters may indicate occluded or partially visible fruits. Unmatched 3D clusters without 2D detection support are evaluated for potential novel fruit candidates that the detector failed to identify.
+
+\subsection{Occlusion Correction Model}
+Occlusion correction addresses the challenge that fruits hidden within tree canopies are not visible from any single scanning position. The system employs a statistical correction approach based on the visible fraction estimation.
+
+The correction model assumes that fruit distribution within a canopy can be approximated by a spherical shell model. The visible surface fraction depends on canopy density and viewing geometry. By analyzing the ratio of visible to total points in fruit-colored regions and comparing with expected distribution patterns, the model estimates the proportion of occluded fruits.
+
+\subsection{Yield Estimation}
+The system implements a dual-route yield estimation strategy. The volume-based route calculates individual fruit volume from the point cloud cluster geometry, approximates fruit weight using fruit-type-specific density parameters, and aggregates across all detected fruits. The canopy regression route employs a statistical model that correlates canopy volume or surface area with expected fruit load, calibrated against visible fruit counts.
+
+The final yield estimate combines outputs from both routes, weighting based on confidence levels. For well-exposed fruits with complete point coverage, the volume-based route receives higher weight. For occluded regions where only partial information is available, the canopy regression provides complementary estimates.

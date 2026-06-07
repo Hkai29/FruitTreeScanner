@@ -3,6 +3,8 @@
 YOLOv8 Fruit Detection Training Script
 Designed for Google Colab - no local Python environment required
 
+Supports 26 fruit categories matching FruitCategory enum in FruitModels.swift
+
 Usage:
     1. Upload this script to Google Colab
     2. Prepare dataset (see instructions below)
@@ -52,29 +54,58 @@ dataset = project.version(RF_VERSION).download("yolov8", location="./dataset")
 print("Configuring dataset...")
 dataset_path = "./dataset"
 
-# 创建 fruits.yaml
+FRUIT_CLASSES_26 = [
+    "apple",       # 0
+    "orange",      # 1
+    "mandarin",    # 2
+    "pomelo",      # 3
+    "pear",        # 4
+    "peach",       # 5
+    "cherry",      # 6
+    "grape",       # 7
+    "persimmon",   # 8
+    "mango",       # 9
+    "kiwi",        # 10
+    "plum",        # 11
+    "pomegranate", # 12
+    "loquat",      # 13
+    "lychee",      # 14
+    "longan",      # 15
+    "bayberry",    # 16
+    "jujube",      # 17
+    "hawthorn",    # 18
+    "fig",         # 19
+    "papaya",      # 20
+    "chestnut",    # 21
+    "mulberry",    # 22
+    "blueberry",   # 23
+    "strawberry",  # 24
+    "coconut",     # 25
+]
+
+names_yaml = ""
+for i, name in enumerate(FRUIT_CLASSES_26):
+    names_yaml += f"  {i}: {name}\n"
+
 yaml_content = f"""
 # FruitTreeScanner Dataset Configuration
-# 5 classes: apple, orange, pear, peach, cherry
+# 26 classes matching FruitCategory enum
 
 path: {dataset_path}
 train: images/train
 val: images/val
 test: images/test
 
-nc: 5
+nc: {len(FRUIT_CLASSES_26)}
 names:
-  0: apple
-  1: orange
-  2: pear
-  3: peach
-  4: cherry
+{names_yaml}
 """
 
 with open("fruits.yaml", "w") as f:
     f.write(yaml_content)
 
 print(f"Dataset downloaded to: {dataset_path}")
+print(f"Number of classes: {len(FRUIT_CLASSES_26)}")
 print("Contents:", os.listdir(dataset_path))
 
 # ============================================================
@@ -83,28 +114,17 @@ print("Contents:", os.listdir(dataset_path))
 print("Starting training...")
 from ultralytics import YOLO
 
-# 使用预训练模型 / Use pretrained model
-# yolov8n.pt - Nano (最快,最适合移动端)
-# yolov8s.pt - Small (平衡)
-# yolov8m.pt - Medium (更高精度)
 model = YOLO('yolov8s.pt')
 
-# 开始训练
-# 参数说明:
-#   data: 数据集配置文件
-#   epochs: 训练轮数 (100-300 推荐)
-#   imgsz: 输入图片大小 (640 足够)
-#   device: 训练设备 ('cpu' 或 'cuda')
-#   patience: 早停轮数 (50 无改善则停止)
 results = model.train(
     data='fruits.yaml',
-    epochs=100,           # 100-300 for production
+    epochs=150,
     imgsz=640,
-    device='cuda',        # Use GPU
+    device='cuda',
     patience=50,
     batch=16,
     project='./runs',
-    name='fruit_detector',
+    name='fruit_detector_26',
     exist_ok=True,
     verbose=True,
     save=True,
@@ -112,7 +132,7 @@ results = model.train(
 )
 
 print("Training complete!")
-print(f"Best model: runs/fruit_detector/train/weights/best.pt")
+print(f"Best model: runs/fruit_detector_26/train/weights/best.pt")
 
 # ============================================================
 # STEP 5: 验证模型 / Validate Model
@@ -141,11 +161,9 @@ print(f"\n✅ CoreML model exported to: {coreml_path}")
 import shutil
 from google.colab import files
 
-# 复制到当前目录
 shutil.copy(coreml_path, './FruitsDetector.mlmodel')
 print("Model copied to: ./FruitsDetector.mlmodel")
 
-# 下载
 print("\n⬇️ 点击下方链接下载 .mlmodel 文件")
 print("   Then add it to your Xcode project")
 files.download('./FruitsDetector.mlmodel')
@@ -165,19 +183,19 @@ print("""
    - 确保 "Target" 勾选 FruitTreeScanner
    - Xcode 会自动生成 Swift 接口
 
-3. 更新 ImageDetector.swift:
-   - 使用 VNCoreMLRequest 加载模型
-   - 处理 VNRecognizedObjectObservation 结果
-   - 映射到 DetectedFruit
+3. 模型输出类别 ID (0-25) 直接映射到 FruitCategory 枚举:
+   0: apple       1: orange       2: mandarin      3: pomelo
+   4: pear        5: peach        6: cherry        7: grape
+   8: persimmon   9: mango       10: kiwi         11: plum
+  12: pomegranate 13: loquat     14: lychee       15: longan
+  16: bayberry   17: jujube      18: hawthorn     19: fig
+  20: papaya     21: chestnut    22: mulberry     23: blueberry
+  24: strawberry 25: coconut
 
-4. 添加类别标签到 Labels.json:
-   {
-     "0": "apple",
-     "1": "orange",
-     "2": "pear",
-     "3": "peach",
-     "4": "cherry"
-   }
+4. ImageDetector.swift 已自动支持:
+   - 自定义模型输出字符串名称 -> stringCategoryMapping
+   - 自定义模型输出数字 ID -> customModelCategoryMapping
+   - COCO 预训练模型 -> cocoCategoryMapping (fallback)
 
 ============================================================
 """)

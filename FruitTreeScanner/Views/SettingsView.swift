@@ -1,437 +1,185 @@
-// SettingsView.swift
-// 设置页面 - 设备 / 数据 / 扫描 三个可展开分组
-
 import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
+    @ObservedObject private var settings = SettingsStore.shared
     @State private var deviceExpanded = true
     @State private var dataExpanded = true
     @State private var scanExpanded = true
+    @State private var maxPointCountDraft: Double = 1_000_000
+    @State private var scanPrecisionDraft: Double = 0.01
+    @State private var selectedFruitCategory: FruitCategory = .apple
+
+    private var maxPointCountBinding: Binding<Double> {
+        Binding(
+            get: { maxPointCountDraft },
+            set: { maxPointCountDraft = $0 }
+        )
+    }
+
+    private var scanPrecisionBinding: Binding<Double> {
+        Binding(
+            get: { scanPrecisionDraft },
+            set: { scanPrecisionDraft = $0 }
+        )
+    }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                Design.Colors.bgBase.ignoresSafeArea()
+                Design.Colors.Dark.bgDeep
+                    .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: Design.Space.lg) {
-                        // 设备
-                        expandableSection(
+                    VStack(spacing: 14) {
+                        GlassExpandableSection(
                             title: "设备",
                             icon: "cpu",
                             isExpanded: $deviceExpanded
                         ) {
-                            deviceSection
+                            NavigationLink {
+                                CameraSettingsView()
+                            } label: {
+                                SettingsNavigationRow(
+                                    icon: "camera.metering.center.weighted",
+                                    title: "相机设置",
+                                    subtitle: "分辨率与采集帧率"
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            GlassDivider()
+
+                            GlassReadonlyRow(
+                                icon: "rectangle.on.rectangle",
+                                title: "实际分辨率",
+                                value: settings.currentCameraResolutionDisplay
+                            )
                         }
 
-                        // 数据
-                        expandableSection(
+                        GlassExpandableSection(
                             title: "数据",
                             icon: "externaldrive.connected.to.line.below",
                             isExpanded: $dataExpanded
                         ) {
-                            dataSection
+                            GlassToggleRow(
+                                icon: "doc.text",
+                                title: "扫描后自动导出",
+                                isOn: $settings.autoExportCSV
+                            )
                         }
 
-                        // 扫描
-                        expandableSection(
+                        GlassExpandableSection(
                             title: "扫描",
                             icon: "viewfinder",
                             isExpanded: $scanExpanded
                         ) {
-                            scanSection
+                            FruitCategorySettingsRow(selection: $selectedFruitCategory)
+                                .onChange(of: selectedFruitCategory) { category in
+                                    settings.fruitType = category.rawValue
+                                }
+
+                            GlassDivider()
+
+                            NavigationLink {
+                                VarietyDatabaseView()
+                            } label: {
+                                SettingsNavigationRow(
+                                    icon: "leaf.circle",
+                                    title: "品种参数库",
+                                    subtitle: "编辑当前水果的尺寸、重量与聚类参数"
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            GlassDivider()
+
+                            SettingsMenuRow(
+                                icon: "chart.bar",
+                                title: "质量预设",
+                                value: $settings.qualityPreset,
+                                options: SettingsStore.qualityPresetOptions
+                            )
+
+                            GlassDivider()
+
+                            GlassSliderRow(
+                                icon: "circle.grid.3x3",
+                                title: "最大点数",
+                                value: maxPointCountBinding,
+                                range: 100000...3000000,
+                                step: 100000,
+                                onEditingChanged: { isEditing in
+                                    if !isEditing {
+                                        commitMaxPointCountDraft()
+                                    }
+                                },
+                                customDisplayValue: "\(Int(maxPointCountDraft) / 10000)万"
+                            )
+
+                            GlassDivider()
+
+                            GlassSliderRow(
+                                icon: "scope",
+                                title: "精度",
+                                value: scanPrecisionBinding,
+                                range: 0.001...0.05,
+                                step: 0.001,
+                                onEditingChanged: { isEditing in
+                                    if !isEditing {
+                                        commitScanPrecisionDraft()
+                                    }
+                                },
+                                customDisplayValue: String(format: "%.1f cm", scanPrecisionDraft * 100)
+                            )
                         }
                     }
-                    .padding(Design.Space.lg)
+                    .padding(.horizontal, Design.Space.md)
+                    .padding(.vertical, Design.Space.lg)
                 }
             }
+            .onAppear {
+                refreshDraftsFromSettings()
+            }
+            .onDisappear {
+                commitDrafts()
+            }
             .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { dismiss() }
-                        .foregroundColor(Design.Colors.forest)
+                        .foregroundColor(Design.Colors.harvest)
                 }
             }
         }
     }
 
-    // MARK: - 可展开分组
-    private func expandableSection<Content: View>(
-        title: String,
-        icon: String,
-        isExpanded: Binding<Bool>,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        VStack(spacing: 0) {
-            // Header（点击展开/折叠）
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.wrappedValue.toggle()
-                }
-            } label: {
-                HStack(spacing: Design.Space.sm) {
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Design.Colors.forest)
-                        .frame(width: 24)
-
-                    Text(title)
-                        .font(Design.Typography.headline)
-                        .foregroundColor(Design.Colors.charcoal)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Design.Colors.slate)
-                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 0 : -90))
-                }
-                .padding(Design.Space.md)
-                .background(Design.Colors.bgSurface)
-            }
-            .buttonStyle(.plain)
-
-            // 内容（展开时显示）
-            if isExpanded.wrappedValue {
-                VStack(spacing: 0) {
-                    content()
-                }
-                .background(Design.Colors.bgSurface)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .cornerRadius(Design.Radius.large)
-        .clipped()
+    private func refreshDraftsFromSettings() {
+        maxPointCountDraft = Double(settings.maxPointCount)
+        scanPrecisionDraft = settings.scanPrecision
+        selectedFruitCategory = FruitCategory(rawValue: settings.fruitType) ?? .apple
     }
 
-    // MARK: - 设备 Section
-    @ViewBuilder
-    private var deviceSection: some View {
-        VStack(spacing: 0) {
-            // 相机设置
-            NavItem(icon: "camera.metering.center.weighted", title: "相机设置", subtitle: "分辨率和检测频率") {
-                CameraSettingsView()
-            }
-
-            Divider().padding(.leading, 56)
-
-            // 实际分辨率
-            SettingReadOnlyRow(
-                icon: "rectangle.on.rectangle",
-                title: "实际分辨率",
-                value: SettingsStore.shared.currentCameraResolutionDisplay
-            )
-
-            Divider().padding(.leading, 56)
-
-            // 检测频率
-            SettingPickerRow(
-                icon: "speedometer",
-                title: "检测频率",
-                selection: SettingsStore.shared.cameraFrameRateBinding,
-                options: ["30fps", "60fps", "120fps"]
-            )
-        }
+    private func commitDrafts() {
+        commitMaxPointCountDraft()
+        commitScanPrecisionDraft()
     }
 
-    // MARK: - 数据 Section
-    @ViewBuilder
-    private var dataSection: some View {
-        VStack(spacing: 0) {
-            // 导出格式
-            SettingPickerRow(
-                icon: "square.and.arrow.up",
-                title: "导出格式",
-                selection: SettingsStore.shared.exportFormatBinding,
-                options: ["PLY", "CSV", "JSON"]
-            )
-
-            Divider().padding(.leading, 56)
-
-            SettingToggle(
-                icon: "doc.text",
-                title: "扫描后自动导出",
-                isOn: SettingsStore.shared.autoExportCSVBinding
-            )
-        }
+    private func commitMaxPointCountDraft() {
+        let rounded = Int((maxPointCountDraft / 100_000).rounded() * 100_000)
+        guard settings.maxPointCount != rounded else { return }
+        settings.maxPointCount = rounded
+        maxPointCountDraft = Double(settings.maxPointCount)
     }
 
-    // MARK: - 扫描 Section
-    @ViewBuilder
-    private var scanSection: some View {
-        VStack(spacing: 0) {
-            // 质量预设
-            SettingPickerRow(
-                icon: "chart.bar",
-                title: "质量预设",
-                selection: SettingsStore.shared.qualityPresetBinding,
-                options: ["高", "中", "低"]
-            )
-
-            Divider().padding(.leading, 56)
-
-            // 最大点数
-            SettingSliderRow(
-                icon: "circle.grid.3x3",
-                title: "最大点数",
-                value: Binding(
-                    get: { Double(SettingsStore.shared.maxPointCount) },
-                    set: { SettingsStore.shared.maxPointCount = Int($0) }
-                ),
-                range: 100000...3000000,
-                step: 100000,
-                displayValue: "\(SettingsStore.shared.maxPointCount)"
-            )
-
-            Divider().padding(.leading, 56)
-
-            // 精度
-            SettingSliderRow(
-                icon: "scope",
-                title: "精度",
-                value: SettingsStore.shared.scanPrecisionBinding,
-                range: 0.001...0.05,
-                step: 0.001,
-                displayValue: String(format: "%.3f", SettingsStore.shared.scanPrecision)
-            )
-        }
+    private func commitScanPrecisionDraft() {
+        let rounded = (scanPrecisionDraft / 0.001).rounded() * 0.001
+        guard abs(settings.scanPrecision - rounded) > 0.000_1 else { return }
+        settings.scanPrecision = rounded
+        scanPrecisionDraft = settings.scanPrecision
     }
-}
-
-// MARK: - NavItem（导航行）
-struct NavItem<Destination: View>: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    @ViewBuilder let destination: () -> Destination
-
-    var body: some View {
-        NavigationLink {
-            destination()
-        } label: {
-            HStack(spacing: Design.Space.md) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: Design.Radius.small)
-                        .fill(Design.Colors.forest.opacity(0.1))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Design.Colors.forest)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(Design.Typography.subheadlineMedium)
-                        .foregroundColor(Design.Colors.charcoal)
-                    Text(subtitle)
-                        .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.slate)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Design.Colors.pebble)
-            }
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, Design.Space.sm + 2)
-        }
-    }
-}
-
-// MARK: - SettingToggle
-struct SettingToggle: View {
-    let icon: String
-    let title: String
-    @Binding var isOn: Bool
-
-    var body: some View {
-        HStack(spacing: Design.Space.md) {
-            ZStack {
-                RoundedRectangle(cornerRadius: Design.Radius.small)
-                    .fill(Design.Colors.forest.opacity(0.1))
-                    .frame(width: 32, height: 32)
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Design.Colors.forest)
-            }
-
-            Text(title)
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.charcoal)
-
-            Spacer()
-
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(Design.Colors.forest)
-        }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm + 2)
-    }
-}
-
-// MARK: - SettingPickerRow
-struct SettingPickerRow: View {
-    let icon: String
-    let title: String
-    @Binding var selection: String
-    let options: [String]
-
-    var body: some View {
-        HStack(spacing: Design.Space.md) {
-            ZStack {
-                RoundedRectangle(cornerRadius: Design.Radius.small)
-                    .fill(Design.Colors.sage.opacity(0.15))
-                    .frame(width: 32, height: 32)
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Design.Colors.sage)
-            }
-
-            Text(title)
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.charcoal)
-
-            Spacer()
-
-            Menu {
-                ForEach(options, id: \.self) { opt in
-                    Button(opt) { selection = opt }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(selection)
-                        .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.forest)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10))
-                        .foregroundColor(Design.Colors.slate)
-                }
-            }
-        }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm + 2)
-    }
-}
-
-// MARK: - SettingSliderRow
-struct SettingSliderRow: View {
-    let icon: String
-    let title: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    let displayValue: String
-
-    var body: some View {
-        VStack(spacing: Design.Space.sm) {
-            HStack(spacing: Design.Space.md) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: Design.Radius.small)
-                        .fill(Design.Colors.forest.opacity(0.1))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Design.Colors.forest)
-                }
-
-                Text(title)
-                    .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Design.Colors.charcoal)
-
-                Spacer()
-
-                Text(displayValue)
-                    .font(Design.Typography.monoSmall)
-                    .foregroundColor(Design.Colors.forest)
-            }
-
-            Slider(value: $value, in: range, step: step)
-                .tint(Design.Colors.forest)
-        }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm + 2)
-    }
-}
-
-// MARK: - SettingReadOnlyRow（只读显示行）
-struct SettingReadOnlyRow: View {
-    let icon: String
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: Design.Space.md) {
-            ZStack {
-                RoundedRectangle(cornerRadius: Design.Radius.small)
-                    .fill(Design.Colors.forest.opacity(0.1))
-                    .frame(width: 32, height: 32)
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Design.Colors.forest)
-            }
-
-            Text(title)
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.charcoal)
-
-            Spacer()
-
-            Text(value)
-                .font(Design.Typography.subheadline)
-                .foregroundColor(Design.Colors.slate)
-        }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm + 2)
-    }
-}
-
-// MARK: - CameraSettingsView（相机设置）
-struct CameraSettingsView: View {
-    var body: some View {
-        ZStack {
-            Design.Colors.bgBase.ignoresSafeArea()
-
-            VStack(spacing: Design.Space.lg) {
-                // ARKit 实际分辨率（只读）
-                SettingReadOnlyRow(
-                    icon: "rectangle.on.rectangle",
-                    title: "实际分辨率",
-                    value: SettingsStore.shared.currentCameraResolutionDisplay
-                )
-                .padding(Design.Space.md)
-                .background(Design.Colors.bgSurface)
-                .cornerRadius(Design.Radius.medium)
-
-                // 检测频率
-                SettingPickerRow(
-                    icon: "speedometer",
-                    title: "检测频率",
-                    selection: SettingsStore.shared.cameraFrameRateBinding,
-                    options: ["30fps", "60fps", "120fps"]
-                )
-                .padding(Design.Space.md)
-                .background(Design.Colors.bgSurface)
-                .cornerRadius(Design.Radius.medium)
-
-                Text("检测频率：控制图像检测算法的执行频率。实际帧率由设备硬件决定，不受此设置影响。")
-                    .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.slate)
-                    .multilineTextAlignment(.center)
-
-                Spacer()
-            }
-            .padding(Design.Space.lg)
-        }
-        .navigationTitle("矫正相机设置")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-#Preview {
-    SettingsView()
 }
