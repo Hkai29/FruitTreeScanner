@@ -23,7 +23,9 @@ struct ScanView: View {
     @State private var hasShownCoverageComplete = false
     #if DEBUG
     @State private var showDebugView = false
-    @State private var debugDetectedFruits: [DetectedFruit] = []
+    @State private var detectionDebugState = DetectionDebugState(
+        currentThreshold: DetectionDebugConfiguration.defaultThreshold
+    )
     #endif
     @State private var measuredDistance: Float?
     @State private var scanNotice: String?
@@ -35,6 +37,9 @@ struct ScanView: View {
     var body: some View {
         ZStack {
             renderLayer
+            #if DEBUG
+            detectionDebugOverlayLayer
+            #endif
             guideLayer
             statusLayer
             guidanceLayer
@@ -51,6 +56,11 @@ struct ScanView: View {
             refreshScanReadiness()
             coordinator.hudState = hudState
             coordinator.onCoveragePercentChange = handleCoveragePercentChange
+            #if DEBUG
+            coordinator.onDetectionDebugStateChange = { state in
+                detectionDebugState = state
+            }
+            #endif
             coordinator.onMeasurementReady = { renderer in
                 measurementController.renderer = renderer
             }
@@ -66,9 +76,7 @@ struct ScanView: View {
         }
         #if DEBUG
             .sheet(isPresented: $showDebugView) {
-                FruitDetectionDebugView(
-                    detectedFruits: debugDetectedFruits
-                )
+                DetectionDebugView(state: detectionDebugState)
             }
         #endif
             .alert("取消本次扫描？", isPresented: $showCancelConfirmation) {
@@ -97,6 +105,14 @@ struct ScanView: View {
             Color.black.ignoresSafeArea()
         }
     }
+
+    #if DEBUG
+    private var detectionDebugOverlayLayer: some View {
+        DetectionDebugOverlayView(state: detectionDebugState)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+    }
+    #endif
 
     @ViewBuilder
     private var guideLayer: some View {
@@ -252,7 +268,7 @@ struct ScanView: View {
 
     #if DEBUG
         private func showDebugSnapshot() {
-            debugDetectedFruits = coordinator.debugSnapshot()
+            detectionDebugState = coordinator.detectionDebugSnapshot()
             showDebugView = true
         }
     #endif

@@ -96,6 +96,7 @@
 		IMGDETINFER001 /* ImageDetectorInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETINFER002 /* ImageDetectorInference.swift */; };
 		IMGDETLOAD001 /* ImageDetectorModelLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETLOAD002 /* ImageDetectorModelLoading.swift */; };
 		IMGDETHELP001 /* ImageDetectionHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETHELP002 /* ImageDetectionHelpers.swift */; };
+		DETDBGSTATE001 /* DetectionDebugState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DETDBGSTATE002 /* DetectionDebugState.swift */; };
 		FUSIONVAL279228 /* FusionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONVAL987654321 /* FusionValidator.swift */; };
 		FRUITCNT279228 /* FruitCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCNT987654321 /* FruitCounter.swift */; };
 		SETTINGS279228 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGS987654321 /* SettingsStore.swift */; };
@@ -135,6 +136,7 @@
 		IMPORTCOMP001 /* ImportFileComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORTCOMP002 /* ImportFileComponents.swift */; };
 		SCANQUAL001122 /* ScanQualityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANQUAL778899 /* ScanQualityMonitor.swift */; };
 		DEBUG001122 /* FruitDetectionDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUG778899 /* FruitDetectionDebugView.swift */; };
+		DETDBGVIEW001 /* DetectionDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DETDBGVIEW002 /* DetectionDebugView.swift */; };
 		FVARIETYPB001122 /* FruitParametersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FVARIETYP001122 /* FruitParametersStore.swift */; };
 		VARIDBB001122 /* VarietyDatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = VARIDB001122 /* VarietyDatabaseView.swift */; };
 		VARIDBCOMP001 /* VarietyDatabaseComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = VARIDBCOMP002 /* VarietyDatabaseComponents.swift */; };
@@ -159,6 +161,7 @@
 		TESTDASHSUM001 /* DashboardSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDASHSUM002 /* DashboardSummaryTests.swift */; };
 		TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTBATCH778899 /* BatchExportServiceTests.swift */; };
 		TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTPCPR778899 /* PointCloudProcessingTests.swift */; };
+		TESTDETDBG001 /* DetectionDebugStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDETDBG002 /* DetectionDebugStateTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -267,6 +270,7 @@
 		IMGDETINFER002 /* ImageDetectorInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorInference.swift; sourceTree = "<group>"; };
 		IMGDETLOAD002 /* ImageDetectorModelLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorModelLoading.swift; sourceTree = "<group>"; };
 		IMGDETHELP002 /* ImageDetectionHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectionHelpers.swift; sourceTree = "<group>"; };
+		DETDBGSTATE002 /* DetectionDebugState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugState.swift; sourceTree = "<group>"; };
 		FUSIONVAL987654321 /* FusionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidator.swift; sourceTree = "<group>"; };
 		FRUITCNT987654321 /* FruitCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCounter.swift; sourceTree = "<group>"; };
 		SETTINGS987654321 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
@@ -306,6 +310,7 @@
 		IMPORTCOMP002 /* ImportFileComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFileComponents.swift; sourceTree = "<group>"; };
 		SCANQUAL778899 /* ScanQualityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQualityMonitor.swift; sourceTree = "<group>"; };
 		DEBUG778899 /* FruitDetectionDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitDetectionDebugView.swift; sourceTree = "<group>"; };
+		DETDBGVIEW002 /* DetectionDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugView.swift; sourceTree = "<group>"; };
 		FVARIETYP001122 /* FruitParametersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitParametersStore.swift; sourceTree = "<group>"; };
 		VARIDB001122 /* VarietyDatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VarietyDatabaseView.swift; sourceTree = "<group>"; };
 		VARIDBCOMP002 /* VarietyDatabaseComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VarietyDatabaseComponents.swift; sourceTree = "<group>"; };
@@ -330,6 +335,7 @@
 		TESTDASHSUM002 /* DashboardSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSummaryTests.swift; sourceTree = "<group>"; };
 		TESTBATCH778899 /* BatchExportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportServiceTests.swift; sourceTree = "<group>"; };
 		TESTPCPR778899 /* PointCloudProcessingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudProcessingTests.swift; sourceTree = "<group>"; };
+		TESTDETDBG002 /* DetectionDebugStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugStateTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXVariantGroup section */
@@ -388,6 +394,7 @@
 				TESTDASHSUM002 /* DashboardSummaryTests.swift */,
 				TESTBATCH778899 /* BatchExportServiceTests.swift */,
 				TESTPCPR778899 /* PointCloudProcessingTests.swift */,
+				TESTDETDBG002 /* DetectionDebugStateTests.swift */,
 			);
 			path = FruitTreeScannerTests;
 			sourceTree = "<group>";
@@ -453,6 +460,7 @@
 				IMPORT778899 /* ImportFileView.swift */,
 				IMPORTCOMP002 /* ImportFileComponents.swift */,
 				DEBUG778899 /* FruitDetectionDebugView.swift */,
+				DETDBGVIEW002 /* DetectionDebugView.swift */,
 				VARIDB001122 /* VarietyDatabaseView.swift */,
 				VARIDBCOMP002 /* VarietyDatabaseComponents.swift */,
 				VARIEDIT002 /* VarietyEditView.swift */,
@@ -539,6 +547,7 @@
 				IMGDETINFER002 /* ImageDetectorInference.swift */,
 				IMGDETLOAD002 /* ImageDetectorModelLoading.swift */,
 				IMGDETHELP002 /* ImageDetectionHelpers.swift */,
+				DETDBGSTATE002 /* DetectionDebugState.swift */,
 				FUSIONVAL987654321 /* FusionValidator.swift */,
 				FRUITCNT987654321 /* FruitCounter.swift */,
 				SETTINGS987654321 /* SettingsStore.swift */,
@@ -759,6 +768,7 @@
 				IMGDETINFER001 /* ImageDetectorInference.swift in Sources */,
 				IMGDETLOAD001 /* ImageDetectorModelLoading.swift in Sources */,
 				IMGDETHELP001 /* ImageDetectionHelpers.swift in Sources */,
+				DETDBGSTATE001 /* DetectionDebugState.swift in Sources */,
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
 				FRUITCNT279228 /* FruitCounter.swift in Sources */,
 				SETTINGS279228 /* SettingsStore.swift in Sources */,
@@ -797,6 +807,7 @@
 				IMPORTCOMP001 /* ImportFileComponents.swift in Sources */,
 				SCANQUAL001122 /* ScanQualityMonitor.swift in Sources */,
 				DEBUG001122 /* FruitDetectionDebugView.swift in Sources */,
+				DETDBGVIEW001 /* DetectionDebugView.swift in Sources */,
 				FVARIETYPB001122 /* FruitParametersStore.swift in Sources */,
 				VARIDBB001122 /* VarietyDatabaseView.swift in Sources */,
 				VARIDBCOMP001 /* VarietyDatabaseComponents.swift in Sources */,
@@ -828,6 +839,7 @@
 				TESTDASHSUM001 /* DashboardSummaryTests.swift in Sources */,
 				TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */,
 				TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */,
+				TESTDETDBG001 /* DetectionDebugStateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

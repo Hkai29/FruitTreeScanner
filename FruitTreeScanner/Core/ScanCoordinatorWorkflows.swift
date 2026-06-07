@@ -14,7 +14,11 @@ extension ScanCoordinator {
 
     @MainActor
     func loadSettings() {
-        imageDetector.updateConfig(settings.fruitScanConfig)
+        var detectorConfig = settings.fruitScanConfig
+        #if DEBUG
+        detectorConfig.minConfidence = DetectionDebugConfiguration.effectiveThreshold(for: detectorConfig.minConfidence)
+        #endif
+        imageDetector.updateConfig(detectorConfig)
         publishImageDetectorStatus()
         renderer?.applyScanQualitySettings()
     }
