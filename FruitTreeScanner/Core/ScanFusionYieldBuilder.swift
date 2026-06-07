@@ -194,6 +194,7 @@ enum ScanFusionYieldBuilder {
         result.colorFilterDesc = (input.colorFilter ?? input.fruitCategory?.colorFilter)?.description ?? "N/A"
         result.occlusionK = occlusion.correction
         result.diagnostics = diagnostics
+        result.fruitMassEstimates = visibleYieldEstimate.massEstimates
         return result
     }
 

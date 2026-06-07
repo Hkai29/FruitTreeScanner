@@ -36,14 +36,23 @@ struct FruitCandidate: Identifiable, Sendable {
     let sphericity: Float
     let pointCount: Int
     let averageColor: SIMD3<Float>
+    let points: [SIMD3<Float>]
 
-    init(position: SIMD3<Float>, diameter: Float, sphericity: Float, pointCount: Int, averageColor: SIMD3<Float>) {
+    init(
+        position: SIMD3<Float>,
+        diameter: Float,
+        sphericity: Float,
+        pointCount: Int,
+        averageColor: SIMD3<Float>,
+        points: [SIMD3<Float>] = []
+    ) {
         self.id = UUID()
         self.position = position
         self.diameter = diameter
         self.sphericity = sphericity
         self.pointCount = pointCount
         self.averageColor = averageColor
+        self.points = points
     }
 
     func isValidFruit(expectedCategory: FruitCategory? = nil) -> Bool {

@@ -35,7 +35,8 @@ extension PointCloudCluster {
             diameter: diameter,
             sphericity: sphericity,
             pointCount: clusterPoints.count,
-            averageColor: avgColor
+            averageColor: avgColor,
+            points: positions
         )
     }
 

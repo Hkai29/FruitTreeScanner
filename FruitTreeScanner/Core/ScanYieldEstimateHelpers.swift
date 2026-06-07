@@ -12,6 +12,7 @@ enum ScanYieldEstimateHelpers {
         let yieldKg: Float
         let meanDiameterCm: Float
         let meanVolumeCm3: Float
+        let massEstimates: [FruitMassEstimate]
     }
 
     static func estimateQuality(
@@ -36,7 +37,7 @@ enum ScanYieldEstimateHelpers {
         defaultParams: FruitVarietyParams
     ) -> VisibleYieldEstimate {
         guard !validatedFruits.isEmpty else {
-            return VisibleYieldEstimate(yieldKg: 0, meanDiameterCm: 0, meanVolumeCm3: 0)
+            return VisibleYieldEstimate(yieldKg: 0, meanDiameterCm: 0, meanVolumeCm3: 0, massEstimates: [])
         }
 
         var totalWeightKg: Float = 0
@@ -44,6 +45,7 @@ enum ScanYieldEstimateHelpers {
         var weightedVolumeSum: Float = 0
         var measuredWeight: Float = 0
         var usedCandidateIDs = Set<UUID>()
+        var massEstimates: [FruitMassEstimate] = []
 
         for fruit in validatedFruits {
             let availableCandidates = candidates.filter { !usedCandidateIDs.contains($0.id) }
@@ -54,16 +56,21 @@ enum ScanYieldEstimateHelpers {
                 .map { $0.candidate }
 
             if let candidate = matchedCandidate {
-                let radiusCm = candidate.diameter * 100 / 2
-                let volumeCm3 = (4.0 / 3.0) * Float.pi * pow(radiusCm, 3)
-                let density = fruit.category.flatMap { paramsByCategory[$0.rawValue] }?.density ?? defaultParams.density
-                let weightG = volumeCm3 * density
+                let params = fruit.category.flatMap { paramsByCategory[$0.rawValue] } ?? defaultParams
+                let massEstimate = SimpleFruitGeometryEstimator.estimate(
+                    candidate: candidate,
+                    fruitCategory: fruit.category ?? params.fruitCategory,
+                    densityGPerCm3: params.density,
+                    highConfidenceRatio: fruit.confidence,
+                    validDepthRatio: 1
+                )
                 let sourceWeight = fruit.source.countWeight
-                totalWeightKg += weightG / 1000 * sourceWeight
-                weightedDiameterSum += candidate.diameter * 100 * sourceWeight
-                weightedVolumeSum += volumeCm3 * sourceWeight
+                totalWeightKg += massEstimate.estimatedWeightG / 1000 * sourceWeight
+                weightedDiameterSum += massEstimate.equivalentDiameterCm * sourceWeight
+                weightedVolumeSum += massEstimate.selectedVolumeCm3 * sourceWeight
                 measuredWeight += sourceWeight
                 usedCandidateIDs.insert(candidate.id)
+                massEstimates.append(massEstimate)
             } else {
                 let avgG = fruit.category.flatMap { paramsByCategory[$0.rawValue] }?.averageWeightG ?? defaultParams.averageWeightG
                 totalWeightKg += avgG / 1000 * fruit.source.countWeight
@@ -75,7 +82,8 @@ enum ScanYieldEstimateHelpers {
         return VisibleYieldEstimate(
             yieldKg: totalWeightKg,
             meanDiameterCm: meanDiameter,
-            meanVolumeCm3: meanVolume
+            meanVolumeCm3: meanVolume,
+            massEstimates: massEstimates
         )
     }
 

@@ -203,6 +203,133 @@ final class YieldEstimatorTests: XCTestCase {
         XCTAssertEqual(cloudQuality.sourceDescription, "点云候选估计")
     }
 
+    func testTenCentimeterSphereVolumeBaseline() {
+        let estimate = SimpleFruitGeometryEstimator.estimateFromDiameter(
+            diameterM: 0.10,
+            fruitCategory: .apple,
+            densityGPerCm3: 1,
+            pointCount: 40,
+            highConfidenceRatio: 1,
+            validDepthRatio: 1
+        )
+
+        XCTAssertEqual(estimate.sphereVolumeCm3, 523.6, accuracy: 0.2)
+        XCTAssertEqual(estimate.selectedVolumeCm3, estimate.sphereVolumeCm3, accuracy: 0.001)
+        XCTAssertEqual(estimate.shapeModelUsed, .sphere)
+    }
+
+    func testTenEightSixCentimeterEllipsoidVolume() {
+        let estimate = SimpleFruitGeometryEstimator.estimate(
+            points: cuboidPoints(lengthM: 0.10, widthM: 0.08, heightM: 0.06),
+            fruitCategory: .pear,
+            densityGPerCm3: 1,
+            highConfidenceRatio: 1,
+            validDepthRatio: 1
+        )
+
+        XCTAssertEqual(estimate.ellipsoidVolumeCm3, 251.33, accuracy: 0.2)
+        XCTAssertEqual(estimate.selectedVolumeCm3, estimate.ellipsoidVolumeCm3, accuracy: 0.001)
+        XCTAssertEqual(estimate.shapeModelUsed, .ellipsoid)
+    }
+
+    func testTooFewPointsWarning() {
+        let estimate = SimpleFruitGeometryEstimator.estimate(
+            points: [SIMD3<Float>(0, 0, 0)],
+            fruitCategory: .apple,
+            densityGPerCm3: 1,
+            highConfidenceRatio: 1,
+            validDepthRatio: 1
+        )
+
+        XCTAssertTrue(estimate.warningFlags.contains(.tooFewPoints))
+    }
+
+    func testSmallFruitWarning() {
+        let estimate = SimpleFruitGeometryEstimator.estimateFromDiameter(
+            diameterM: 0.02,
+            fruitCategory: .cherry,
+            densityGPerCm3: 1,
+            pointCount: 40,
+            highConfidenceRatio: 1,
+            validDepthRatio: 1
+        )
+
+        XCTAssertTrue(estimate.warningFlags.contains(.smallFruitLowLiDARReliability))
+    }
+
+    func testLowDepthQualityLowersConfidenceAndAddsWarnings() {
+        let estimate = SimpleFruitGeometryEstimator.estimate(
+            points: cuboidPoints(lengthM: 0.08, widthM: 0.08, heightM: 0.08),
+            fruitCategory: .apple,
+            densityGPerCm3: 1,
+            highConfidenceRatio: 0.2,
+            validDepthRatio: 0.3
+        )
+
+        XCTAssertTrue(estimate.warningFlags.contains(.lowDepthConfidence))
+        XCTAssertTrue(estimate.warningFlags.contains(.lowValidDepthRatio))
+        XCTAssertLessThanOrEqual(estimate.confidenceScore, 0.55)
+    }
+
+    func testResearchCSVHeaderIncludesEstimateAndGroundTruthFields() {
+        let estimate = SimpleFruitGeometryEstimator.estimateFromDiameter(
+            diameterM: 0.10,
+            fruitCategory: .apple,
+            densityGPerCm3: 1,
+            pointCount: 40,
+            highConfidenceRatio: 1,
+            validDepthRatio: 1
+        )
+
+        let csv = ResearchCSVExporter.makeCSV(estimates: [estimate])
+        let header = csv.components(separatedBy: .newlines)[0]
+
+        XCTAssertTrue(header.contains("estimatedWeightG"))
+        XCTAssertTrue(header.contains("confidenceScore"))
+        XCTAssertTrue(header.contains("trueWeightG"))
+        XCTAssertTrue(header.contains("trueVolumeCm3"))
+    }
+
+    func testConfidenceScoreIsClampedToUnitRange() {
+        let estimate = SimpleFruitGeometryEstimator.estimate(
+            points: cuboidPoints(lengthM: 0.08, widthM: 0.08, heightM: 0.08),
+            fruitCategory: .apple,
+            densityGPerCm3: 1,
+            highConfidenceRatio: 8,
+            validDepthRatio: -2
+        )
+
+        XCTAssertGreaterThanOrEqual(estimate.confidenceScore, 0)
+        XCTAssertLessThanOrEqual(estimate.confidenceScore, 1)
+    }
+
+    func testCandidateOnlyYieldEstimateCreatesSphereBaselineMassEstimate() {
+        let candidate = FruitCandidate(
+            position: SIMD3<Float>(0, 0, 1),
+            diameter: 0.10,
+            sphericity: 0.9,
+            pointCount: 40,
+            averageColor: SIMD3<Float>(0.8, 0.2, 0.1)
+        )
+        let validatedFruit = ValidatedFruit(
+            category: .apple,
+            position: SIMD3<Float>(0, 0, 1),
+            confidence: 0.9,
+            source: .fused
+        )
+
+        let visibleEstimate = ScanYieldEstimateHelpers.computeYieldFromValidatedFruits(
+            [validatedFruit],
+            candidates: [candidate],
+            paramsByCategory: [FruitCategory.apple.rawValue: FruitVarietyParams(category: .apple)],
+            defaultParams: FruitVarietyParams(category: .apple)
+        )
+
+        XCTAssertEqual(visibleEstimate.massEstimates.count, 1)
+        XCTAssertEqual(visibleEstimate.massEstimates[0].shapeModelUsed, .sphere)
+        XCTAssertTrue(visibleEstimate.massEstimates[0].warningFlags.contains(.usingSphereBaseline))
+    }
+
     private func makeFruit(confidence: Float, source: ValidationSource) -> ValidatedFruit {
         ValidatedFruit(
             category: .apple,
@@ -210,5 +337,19 @@ final class YieldEstimatorTests: XCTestCase {
             confidence: confidence,
             source: source
         )
+    }
+
+    private func cuboidPoints(lengthM: Float, widthM: Float, heightM: Float) -> [SIMD3<Float>] {
+        let corners = [
+            SIMD3<Float>(0, 0, 0),
+            SIMD3<Float>(lengthM, 0, 0),
+            SIMD3<Float>(0, widthM, 0),
+            SIMD3<Float>(0, 0, heightM),
+            SIMD3<Float>(lengthM, widthM, 0),
+            SIMD3<Float>(lengthM, 0, heightM),
+            SIMD3<Float>(0, widthM, heightM),
+            SIMD3<Float>(lengthM, widthM, heightM),
+        ]
+        return Array(repeating: corners, count: 3).flatMap { $0 }
     }
 }

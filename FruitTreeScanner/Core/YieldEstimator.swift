@@ -14,6 +14,7 @@ struct FruitInfo {
     let volumeCm3: Float
     let weightG: Float
     let pointCount: Int
+    let massEstimate: FruitMassEstimate?
 }
 
 // MARK: - 估算结果
@@ -44,6 +45,7 @@ struct YieldResult: Sendable {
     var occlusionK: Float = 1.0
     var pointCloudSize: Int = 0
     var diagnostics: ScanYieldDiagnostics = ScanYieldDiagnostics()
+    var fruitMassEstimates: [FruitMassEstimate] = []
 }
 
 struct ScanYieldDiagnostics: Sendable, Equatable {
@@ -118,16 +120,19 @@ class YieldEstimator {
         var fruits: [FruitInfo] = []
         let candidates = clusterer.processSync(points: filtered)
         for candidate in candidates {
-            let radiusCm = candidate.diameter * 100 / 2
-            let volCm3 = (4.0 / 3.0) * Float.pi * pow(radiusCm, 3)
-            let weightG = volCm3 * params.density
+            let massEstimate = SimpleFruitGeometryEstimator.estimate(
+                candidate: candidate,
+                fruitCategory: fruitCategory,
+                densityGPerCm3: params.density
+            )
             let info = FruitInfo(
                 center: candidate.position,
                 radiusM: candidate.diameter / 2,
-                diameterCm: candidate.diameter * 100,
-                volumeCm3: volCm3,
-                weightG: weightG,
-                pointCount: candidate.pointCount
+                diameterCm: massEstimate.equivalentDiameterCm,
+                volumeCm3: massEstimate.selectedVolumeCm3,
+                weightG: massEstimate.estimatedWeightG,
+                pointCount: candidate.pointCount,
+                massEstimate: massEstimate
             )
             fruits.append(info)
         }
@@ -155,6 +160,7 @@ class YieldEstimator {
         result.yieldBCorrectedKg = totalWeightG * k / 1000
         result.meanDiameterCm    = fruits.reduce(0) { $0 + $1.diameterCm } / Float(fruits.count)
         result.meanVolumeCm3     = totalVolCm3 / Float(fruits.count)
+        result.fruitMassEstimates = fruits.compactMap(\.massEstimate)
 
         return (fruits, result)
     }
@@ -245,6 +251,7 @@ class YieldEstimator {
             result.colorFilterDesc   = bResult.colorFilterDesc
             result.occlusionK        = bResult.occlusionK
             result.pointCloudSize    = bResult.pointCloudSize
+            result.fruitMassEstimates = bResult.fruitMassEstimates
         }
 
         let yieldBVal: Float? = (season == .mature && fruitCategory != nil && result.nLidar > 0)

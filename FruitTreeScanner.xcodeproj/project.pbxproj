@@ -26,6 +26,10 @@
 		SCANDIAG001 /* ScanDiagnosticsBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANDIAG002 /* ScanDiagnosticsBuilder.swift */; };
 		SCANFUSYLD001 /* ScanFusionYieldBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */; };
 		SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANRESULTEXP002 /* ScanResultExportService.swift */; };
+		FRUITMASS001 /* FruitMassEstimate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITMASS002 /* FruitMassEstimate.swift */; };
+		FRUITGEOM001 /* SimpleFruitGeometryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITGEOM002 /* SimpleFruitGeometryEstimator.swift */; };
+		FRUITQUAL001 /* FruitEstimationQualityScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITQUAL002 /* FruitEstimationQualityScorer.swift */; };
+		RESEARCHCSV001 /* ResearchCSVExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESEARCHCSV002 /* ResearchCSVExporter.swift */; };
 		23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115AA07F0ADF20776A78BADD /* ResultView.swift */; };
 		RESULTSECT001 /* ResultSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTSECT002 /* ResultSections.swift */; };
 		RESULTTAG001 /* ResultTaggingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTTAG002 /* ResultTaggingView.swift */; };
@@ -193,6 +197,10 @@
 		SCANDIAG002 /* ScanDiagnosticsBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanDiagnosticsBuilder.swift; sourceTree = "<group>"; };
 		SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFusionYieldBuilder.swift; sourceTree = "<group>"; };
 		SCANRESULTEXP002 /* ScanResultExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultExportService.swift; sourceTree = "<group>"; };
+		FRUITMASS002 /* FruitMassEstimate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitMassEstimate.swift; sourceTree = "<group>"; };
+		FRUITGEOM002 /* SimpleFruitGeometryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleFruitGeometryEstimator.swift; sourceTree = "<group>"; };
+		FRUITQUAL002 /* FruitEstimationQualityScorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitEstimationQualityScorer.swift; sourceTree = "<group>"; };
+		RESEARCHCSV002 /* ResearchCSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchCSVExporter.swift; sourceTree = "<group>"; };
 		115AA07F0ADF20776A78BADD /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		RESULTSECT002 /* ResultSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSections.swift; sourceTree = "<group>"; };
 		RESULTTAG002 /* ResultTaggingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultTaggingView.swift; sourceTree = "<group>"; };
@@ -536,6 +544,10 @@
 				SCANDIAG002 /* ScanDiagnosticsBuilder.swift */,
 				SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */,
 				SCANRESULTEXP002 /* ScanResultExportService.swift */,
+				FRUITMASS002 /* FruitMassEstimate.swift */,
+				FRUITGEOM002 /* SimpleFruitGeometryEstimator.swift */,
+				FRUITQUAL002 /* FruitEstimationQualityScorer.swift */,
+				RESEARCHCSV002 /* ResearchCSVExporter.swift */,
 				CLUSTER987654321 /* PointCloudCluster.swift */,
 				CLUSTANALYSIS002 /* PointCloudClusterAnalysis.swift */,
 				KDTREE002 /* KDTree.swift */,
@@ -757,6 +769,10 @@
 				SCANDIAG001 /* ScanDiagnosticsBuilder.swift in Sources */,
 				SCANFUSYLD001 /* ScanFusionYieldBuilder.swift in Sources */,
 				SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */,
+				FRUITMASS001 /* FruitMassEstimate.swift in Sources */,
+				FRUITGEOM001 /* SimpleFruitGeometryEstimator.swift in Sources */,
+				FRUITQUAL001 /* FruitEstimationQualityScorer.swift in Sources */,
+				RESEARCHCSV001 /* ResearchCSVExporter.swift in Sources */,
 				CLUSTER279228 /* PointCloudCluster.swift in Sources */,
 				CLUSTANALYSIS001 /* PointCloudClusterAnalysis.swift in Sources */,
 				KDTREE001 /* KDTree.swift in Sources */,
