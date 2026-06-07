@@ -146,6 +146,7 @@ struct FruitScanConfig: Sendable {
     var minConfidence: Float = 0.5
     var sizeTolerance: Float = 0.35
     var sphericityThreshold: Float = 0.5
+    var selectedFruitType: String?
 
     static let `default` = FruitScanConfig()
 }

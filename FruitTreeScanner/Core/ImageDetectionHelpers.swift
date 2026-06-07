@@ -1,7 +1,14 @@
 import Foundation
 
+struct FruitCategoryMappingResult: Sendable, Equatable {
+    let category: FruitCategory
+    let usedGenericFallback: Bool
+    let debugWarning: String?
+}
+
 struct FruitCategoryMapper {
     static let standard = FruitCategoryMapper()
+    static let genericFruitMappingWarning = "Generic fruit label mapped to selected fruit category."
 
     private let customModelCategoryMapping: [Int: FruitCategory] = [
         0:  .apple,
@@ -73,19 +80,56 @@ struct FruitCategoryMapper {
         "banana": .pear,
     ]
 
+    private let genericFruitLabels: Set<String> = [
+        "fruit",
+        "fruits",
+        "produce",
+        "unknown_fruit",
+        "generic_fruit",
+    ]
+
     func category(for identifier: String) -> FruitCategory? {
-        if let customID = Int(identifier),
+        categoryMapping(for: identifier, selectedFruitType: nil)?.category
+    }
+
+    func categoryMapping(for identifier: String, selectedFruitType: String?) -> FruitCategoryMappingResult? {
+        let normalizedIdentifier = identifier
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if let customID = Int(normalizedIdentifier),
            let mapped = customModelCategoryMapping[customID] {
-            return mapped
+            return FruitCategoryMappingResult(
+                category: mapped,
+                usedGenericFallback: false,
+                debugWarning: nil
+            )
         }
 
-        if let mapped = stringCategoryMapping[identifier.lowercased()] {
-            return mapped
+        if let mapped = stringCategoryMapping[normalizedIdentifier] {
+            return FruitCategoryMappingResult(
+                category: mapped,
+                usedGenericFallback: false,
+                debugWarning: nil
+            )
         }
 
-        if let cocoID = Int(identifier),
+        if let cocoID = Int(normalizedIdentifier),
            let mapped = cocoCategoryMapping[cocoID] {
-            return mapped
+            return FruitCategoryMappingResult(
+                category: mapped,
+                usedGenericFallback: false,
+                debugWarning: nil
+            )
+        }
+
+        if genericFruitLabels.contains(normalizedIdentifier) {
+            let selectedCategory = selectedFruitType.flatMap(FruitCategory.init(rawValue:)) ?? .apple
+            return FruitCategoryMappingResult(
+                category: selectedCategory,
+                usedGenericFallback: true,
+                debugWarning: Self.genericFruitMappingWarning
+            )
         }
 
         return nil

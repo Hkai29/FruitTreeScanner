@@ -11,7 +11,8 @@ extension ImageDetector {
         timestamp: TimeInterval,
         cameraTransform: simd_float4x4,
         cameraIntrinsics: simd_float3x3,
-        imageSize: CGSize
+        imageSize: CGSize,
+        shouldStoreDetection: Bool = true
     ) {
         let pixelBufferSize = CGSize(
             width: CGFloat(CVPixelBufferGetWidth(pixelBuffer)),
@@ -54,7 +55,8 @@ extension ImageDetector {
             timestamp: timestamp,
             cameraTransform: cameraTransform,
             cameraIntrinsics: cameraIntrinsics,
-            imageSize: imageSize
+            imageSize: imageSize,
+            shouldStoreDetection: shouldStoreDetection
         )
         detectionQueue.async { [weak self, queuedFrame, generation] in
             self?.finishPreparingFrame(queuedFrame, generation: generation)

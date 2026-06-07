@@ -274,7 +274,8 @@ final class SettingsStore: ObservableObject {
             imageDetectionInterval: detectionIntervalFromFps,
             minConfidence: presetConfidence,
             sizeTolerance: 0.2,
-            sphericityThreshold: presetSphericity
+            sphericityThreshold: presetSphericity,
+            selectedFruitType: fruitType
         )
     }
 

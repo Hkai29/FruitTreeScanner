@@ -18,7 +18,7 @@ extension ScanCoordinator: ARSessionDelegate {
     }
 
     private func enqueueDetectionFrameIfRecording(_ frame: ARFrame) {
-        guard renderer?.isRecording == true else { return }
+        guard shouldProcessDetectionFrames() else { return }
         let imageSize = CGSize(
             width: CGFloat(frame.camera.imageResolution.width),
             height: CGFloat(frame.camera.imageResolution.height)
@@ -28,7 +28,8 @@ extension ScanCoordinator: ARSessionDelegate {
             timestamp: frame.timestamp,
             cameraTransform: frame.camera.transform,
             cameraIntrinsics: frame.camera.intrinsics,
-            imageSize: imageSize
+            imageSize: imageSize,
+            shouldStoreDetection: renderer?.isRecording == true
         )
     }
 

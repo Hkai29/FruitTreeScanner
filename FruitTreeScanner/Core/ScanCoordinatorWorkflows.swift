@@ -39,9 +39,34 @@ extension ScanCoordinator {
         }
     }
 
+    static func allowsDetectionProcessing(
+        isRecording: Bool,
+        debugRunDetectionWhilePreviewing: Bool,
+        debugBuild: Bool
+    ) -> Bool {
+        isRecording || (debugBuild && debugRunDetectionWhilePreviewing)
+    }
+
+    func shouldProcessDetectionFrames() -> Bool {
+        #if DEBUG
+        return Self.allowsDetectionProcessing(
+            isRecording: renderer?.isRecording == true,
+            debugRunDetectionWhilePreviewing: debugRunDetectionWhilePreviewing,
+            debugBuild: true
+        )
+        #else
+        return Self.allowsDetectionProcessing(
+            isRecording: renderer?.isRecording == true,
+            debugRunDetectionWhilePreviewing: false,
+            debugBuild: false
+        )
+        #endif
+    }
+
     func processDetectionQueue() {
-        guard renderer?.isRecording == true else { return }
+        guard shouldProcessDetectionFrames() else { return }
         guard beginDetectionProcessing() else { return }
+        let shouldStoreDetections = renderer?.isRecording == true
 
         detectionTask = Task { [weak self] in
             guard let self = self else { return }
@@ -49,7 +74,9 @@ extension ScanCoordinator {
             let detected = await self.imageDetector.processQueue()
             guard !Task.isCancelled else { return }
 
-            await self.appendDetectedFruits(detected)
+            if shouldStoreDetections {
+                await self.appendDetectedFruits(detected)
+            }
         }
     }
 

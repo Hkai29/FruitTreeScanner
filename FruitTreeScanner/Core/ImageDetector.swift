@@ -19,6 +19,7 @@ final class ImageDetector: @unchecked Sendable {
         let cameraTransform: simd_float4x4
         let cameraIntrinsics: simd_float3x3
         let imageSize: CGSize
+        let shouldStoreDetection: Bool
     }
 
     struct SendablePixelBuffer: @unchecked Sendable {
@@ -81,21 +82,16 @@ final class ImageDetector: @unchecked Sendable {
                 resourceName: loadedModel.resourceName,
                 bundleExtension: loadedModel.bundleExtension
             )
-            Log.detection.info("CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))")
+            Log.detection.info("CoreML model loaded: expected=\(loadedModel.diagnostics.expectedModelName), path=\(loadedModel.diagnostics.bundlePath ?? "--"), labelsSource=\(loadedModel.diagnostics.labelsSource), supportedClassesCount=\(loadedModel.supportedClasses.count)")
             updateModelDiagnostics()
             updateModelDebugStateLoaded(loadedModel)
         } catch {
-            let modelResource = ImageDetectorModelLoader.modelURL(named: "FruitsDetector")
-            let modelName = modelResource.map { "FruitsDetector.\($0.bundleExtension)" } ?? "FruitsDetector"
+            let diagnostics = ImageDetectorModelLoader.failureDiagnostics(named: "FruitsDetector", error: error)
             coreMLModel = nil
-            modelStatus = .fallback(reason: error.localizedDescription)
-            Log.detection.error("CoreML model not available, using fallback: \(error.localizedDescription)")
+            modelStatus = .fallback(reason: diagnostics.loadErrorMessage ?? error.localizedDescription)
+            Log.detection.error("CoreML model not available, using fallback: expected=\(diagnostics.expectedModelName), found=\(diagnostics.foundModelURL), extension=\(diagnostics.foundExtension ?? "none"), error=\(diagnostics.loadErrorMessage ?? error.localizedDescription)")
             updateModelDiagnostics()
-            updateModelDebugStateFailure(
-                modelName: modelName,
-                modelURLFound: modelResource != nil,
-                errorMessage: error.localizedDescription
-            )
+            updateModelDebugStateFailure(diagnostics)
         }
     }
 
@@ -117,25 +113,13 @@ final class ImageDetector: @unchecked Sendable {
 
     private func updateModelDebugStateLoaded(_ loadedModel: ImageDetectorLoadedModel) {
         lock.lock()
-        detectionDebugState.markModelLoaded(
-            modelName: loadedModel.displayName,
-            modelURLFound: true,
-            supportedClasses: loadedModel.supportedClasses
-        )
+        detectionDebugState.markModelDiagnostics(loadedModel.diagnostics)
         lock.unlock()
     }
 
-    private func updateModelDebugStateFailure(
-        modelName: String,
-        modelURLFound: Bool,
-        errorMessage: String
-    ) {
+    private func updateModelDebugStateFailure(_ diagnostics: ModelResourceDiagnostics) {
         lock.lock()
-        detectionDebugState.markModelLoadFailure(
-            modelName: modelName,
-            modelURLFound: modelURLFound,
-            errorMessage: errorMessage
-        )
+        detectionDebugState.markModelDiagnostics(diagnostics)
         lock.unlock()
     }
 
@@ -155,6 +139,8 @@ final class ImageDetector: @unchecked Sendable {
                 timestamp: frame.timestamp,
                 imageSize: frame.imageSize
             )
+            guard frame.shouldStoreDetection else { continue }
+
             let enriched = fruits.map { fruit in
                 DetectedFruit(
                     category: fruit.category,
@@ -233,7 +219,8 @@ final class ImageDetector: @unchecked Sendable {
         rawPredictions: [DetectionPredictionDebug],
         filteredPredictions: [DetectionPredictionDebug],
         threshold: Float,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        yoloOutputDiagnostics: YOLOOutputDiagnostics? = nil
     ) {
         lock.lock()
         detectionDebugState.markInferenceCompleted(
@@ -243,9 +230,17 @@ final class ImageDetector: @unchecked Sendable {
             rawPredictions: rawPredictions,
             filteredPredictions: filteredPredictions,
             threshold: threshold,
-            errorMessage: errorMessage
+            errorMessage: errorMessage,
+            yoloOutputDiagnostics: yoloOutputDiagnostics
         )
         lock.unlock()
+    }
+
+    func recordDebugWarning(_ warning: String) {
+        lock.lock()
+        detectionDebugState.markWarning(warning)
+        lock.unlock()
+        Log.detection.warning("\(warning)")
     }
 
     func captureDetectionFailureSample(

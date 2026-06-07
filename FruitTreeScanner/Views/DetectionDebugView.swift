@@ -17,6 +17,7 @@ struct DetectionDebugView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         modelSection
                         pipelineSection
+                        yoloSection
                         hintSection
                         predictionsSection
                         errorSection
@@ -39,7 +40,13 @@ struct DetectionDebugView: View {
         DetectionDebugCard(title: "Model") {
             DetectionDebugRow(label: "Model Loaded", value: state.modelLoaded ? "true" : "false")
             DetectionDebugRow(label: "Model Name", value: state.modelName)
+            DetectionDebugRow(label: "Expected Model", value: state.modelResourceDiagnostics.expectedModelName)
             DetectionDebugRow(label: "Model URL Found", value: state.modelURLFound ? "true" : "false")
+            DetectionDebugRow(label: "Model File Found", value: state.modelResourceDiagnostics.foundModelURL ? "true" : "false")
+            DetectionDebugRow(label: "Extension", value: state.modelResourceDiagnostics.foundExtension ?? "none")
+            DetectionDebugRow(label: "Loaded Successfully", value: state.modelResourceDiagnostics.loadedSuccessfully ? "true" : "false")
+            DetectionDebugRow(label: "Labels Source", value: state.modelResourceDiagnostics.labelsSource)
+            DetectionDebugRow(label: "Supported Classes Count", value: "\(state.supportedClasses.count)")
             VStack(alignment: .leading, spacing: 6) {
                 Text("Supported Classes")
                     .font(Design.Typography.caption)
@@ -57,12 +64,36 @@ struct DetectionDebugView: View {
             DetectionDebugRow(label: "Frame Received", value: state.frameReceived ? "true" : "false")
             DetectionDebugRow(label: "Inference Requested", value: state.inferenceRequested ? "true" : "false")
             DetectionDebugRow(label: "Inference Running", value: state.inferenceRunning ? "true" : "false")
+            DetectionDebugRow(label: "Preview Detection Enabled", value: state.previewDetectionEnabled ? "true" : "false")
             DetectionDebugRow(label: "Raw Detections", value: "\(state.rawObservationCount)")
             DetectionDebugRow(label: "Filtered Detections", value: "\(state.filteredObservationCount)")
             DetectionDebugRow(label: "Threshold", value: String(format: "%.2f", state.currentThreshold))
             DetectionDebugRow(label: "Last Inference Time", value: String(format: "%.1f ms", state.lastInferenceTimeMs))
             DetectionDebugRow(label: "Frame Size", value: format(size: state.lastFrameSize))
             DetectionDebugRow(label: "Pixel Buffer Size", value: format(size: state.lastPixelBufferSize))
+        }
+    }
+
+    private var yoloSection: some View {
+        DetectionDebugCard(title: "YOLO Output") {
+            DetectionDebugRow(label: "Output Shape", value: yoloShapeText)
+            DetectionDebugRow(label: "Channel Axis", value: optionalIntText(state.yoloOutputDiagnostics.channelAxis))
+            DetectionDebugRow(label: "Anchor Axis", value: optionalIntText(state.yoloOutputDiagnostics.anchorAxis))
+            DetectionDebugRow(label: "Class Count", value: "\(state.yoloOutputDiagnostics.classCount)")
+            DetectionDebugRow(label: "Anchor Count", value: "\(state.yoloOutputDiagnostics.anchorCount)")
+            DetectionDebugRow(label: "Low Confidence Floor", value: String(format: "%.2f", state.yoloOutputDiagnostics.lowConfidenceFloor))
+            DetectionDebugRow(label: "Candidate Count", value: "\(state.yoloOutputDiagnostics.modelCandidateCount)")
+            DetectionDebugRow(label: "Invalid BBox Count", value: "\(state.yoloOutputDiagnostics.invalidBoundingBoxCount)")
+            DetectionDebugRow(label: "Coordinate Scale Guess", value: String(format: "%.1f", state.yoloOutputDiagnostics.coordinateScaleGuess))
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sample Raw Boxes")
+                    .font(Design.Typography.caption)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                Text(sampleRawBoxesText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -99,18 +130,42 @@ struct DetectionDebugView: View {
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundColor(state.lastErrorMessage == nil ? Design.Colors.Dark.textSecondary : Design.Colors.warning)
                 .fixedSize(horizontal: false, vertical: true)
+            if let warning = state.lastWarningMessage {
+                Text("Warning: \(warning)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(Design.Colors.harvest)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
     private var supportedClassesText: String {
         if state.supportedClasses.isEmpty {
-            return "None exposed by model metadata. TODO: read labels file when bundled."
+            return "None"
         }
         return state.supportedClasses.joined(separator: ", ")
     }
 
+    private var yoloShapeText: String {
+        if state.yoloOutputDiagnostics.outputShape.isEmpty {
+            return "none"
+        }
+        return state.yoloOutputDiagnostics.outputShape.map(String.init).joined(separator: "x")
+    }
+
+    private var sampleRawBoxesText: String {
+        if state.yoloOutputDiagnostics.sampleRawBoxes.isEmpty {
+            return "None"
+        }
+        return state.yoloOutputDiagnostics.sampleRawBoxes.joined(separator: "\n")
+    }
+
     private func format(size: CGSize) -> String {
         "\(Int(size.width))x\(Int(size.height))"
+    }
+
+    private func optionalIntText(_ value: Int?) -> String {
+        value.map(String.init) ?? "none"
     }
 }
 
