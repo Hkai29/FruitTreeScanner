@@ -17,6 +17,7 @@ extension ImageDetector {
         let unmappedObservationCount: Int
         let rawPredictions: [DetectionPredictionDebug]
         let filteredPredictions: [DetectionPredictionDebug]
+        let yoloDiagnostics: YOLOOutputDiagnostics
     }
 
     private struct YOLOPrediction {
@@ -173,7 +174,8 @@ extension ImageDetector {
                 filteredObservationCount: parsed.thresholdPassedCount,
                 rawPredictions: parsed.rawPredictions,
                 filteredPredictions: parsed.filteredPredictions,
-                threshold: config.minConfidence
+                threshold: config.minConfidence,
+                yoloOutputDiagnostics: parsed.yoloDiagnostics
             )
             completion(parsed.fruits)
         }
@@ -217,9 +219,15 @@ extension ImageDetector {
                 continue
             }
 
-            if let fruitCategory = categoryMapper.category(for: topLabel.identifier) {
+            if let mapping = categoryMapper.categoryMapping(
+                for: topLabel.identifier,
+                selectedFruitType: config.selectedFruitType
+            ) {
+                if mapping.usedGenericFallback, let debugWarning = mapping.debugWarning {
+                    recordDebugWarning(debugWarning)
+                }
                 detectedFruits.append(DetectedFruit(
-                    category: fruitCategory,
+                    category: mapping.category,
                     boundingBox: observation.boundingBox,
                     confidence: topLabel.confidence,
                     timestamp: timestamp
@@ -261,16 +269,13 @@ extension ImageDetector {
         nmsThreshold: Float = 0.45
     ) -> YOLOParsingResult {
         let dimensions = multiArray.shape.map { $0.intValue }
+        var diagnostics = YOLOOutputDiagnostics(
+            outputShape: dimensions,
+            lowConfidenceFloor: lowConfidenceFloor,
+            coordinateScaleGuess: 1
+        )
         guard dimensions.count == 3 else {
-            return YOLOParsingResult(
-                fruits: [],
-                modelCandidateCount: 0,
-                confidenceFilteredCount: 0,
-                thresholdPassedCount: 0,
-                unmappedObservationCount: 0,
-                rawPredictions: [],
-                filteredPredictions: []
-            )
+            return emptyYOLOParsingResult(diagnostics: diagnostics)
         }
 
         let channelAxis: Int
@@ -279,31 +284,19 @@ extension ImageDetector {
         } else if dimensions[2] >= 5 {
             channelAxis = 2
         } else {
-            return YOLOParsingResult(
-                fruits: [],
-                modelCandidateCount: 0,
-                confidenceFilteredCount: 0,
-                thresholdPassedCount: 0,
-                unmappedObservationCount: 0,
-                rawPredictions: [],
-                filteredPredictions: []
-            )
+            return emptyYOLOParsingResult(diagnostics: diagnostics)
         }
 
         let anchorAxis = channelAxis == 1 ? 2 : 1
         let channelCount = dimensions[channelAxis]
         let anchorCount = dimensions[anchorAxis]
         let classCount = channelCount - 4
+        diagnostics.channelAxis = channelAxis
+        diagnostics.anchorAxis = anchorAxis
+        diagnostics.classCount = max(classCount, 0)
+        diagnostics.anchorCount = anchorCount
         guard classCount > 0, anchorCount > 0 else {
-            return YOLOParsingResult(
-                fruits: [],
-                modelCandidateCount: 0,
-                confidenceFilteredCount: 0,
-                thresholdPassedCount: 0,
-                unmappedObservationCount: 0,
-                rawPredictions: [],
-                filteredPredictions: []
-            )
+            return emptyYOLOParsingResult(diagnostics: diagnostics)
         }
 
         var predictions: [YOLOPrediction] = []
@@ -314,6 +307,7 @@ extension ImageDetector {
         var confidenceFilteredCount = 0
         var thresholdPassedCount = 0
         var unmappedObservationCount = 0
+        var invalidBoundingBoxCount = 0
 
         for anchorIndex in 0..<anchorCount {
             let (classIndex, confidence) = bestClassScore(
@@ -331,6 +325,25 @@ extension ImageDetector {
             let width = value(in: multiArray, channel: 2, anchor: anchorIndex, channelAxis: channelAxis)
             let height = value(in: multiArray, channel: 3, anchor: anchorIndex, channelAxis: channelAxis)
 
+            if diagnostics.sampleRawBoxes.count < 5 {
+                diagnostics.sampleRawBoxes.append(rawBoxSample(
+                    centerX: centerX,
+                    centerY: centerY,
+                    width: width,
+                    height: height,
+                    confidence: confidence
+                ))
+            }
+            diagnostics.coordinateScaleGuess = max(
+                diagnostics.coordinateScaleGuess,
+                coordinateScaleGuess(
+                    centerX: centerX,
+                    centerY: centerY,
+                    width: width,
+                    height: height
+                )
+            )
+
             let boundingBox = makeVisionBoundingBox(
                 centerX: centerX,
                 centerY: centerY,
@@ -344,6 +357,8 @@ extension ImageDetector {
                     confidence: confidence,
                     boundingBox: boundingBox
                 ))
+            } else {
+                invalidBoundingBoxCount += 1
             }
 
             guard confidence >= config.minConfidence else {
@@ -388,6 +403,8 @@ extension ImageDetector {
             )
         }
 
+        diagnostics.modelCandidateCount = modelCandidateCount
+        diagnostics.invalidBoundingBoxCount = invalidBoundingBoxCount
         return YOLOParsingResult(
             fruits: fruits,
             modelCandidateCount: modelCandidateCount,
@@ -395,7 +412,8 @@ extension ImageDetector {
             thresholdPassedCount: thresholdPassedCount,
             unmappedObservationCount: unmappedObservationCount,
             rawPredictions: rawDebugPredictions,
-            filteredPredictions: filteredDebugPredictions
+            filteredPredictions: filteredDebugPredictions,
+            yoloDiagnostics: diagnostics
         )
     }
 
@@ -406,7 +424,8 @@ extension ImageDetector {
         rawPredictions: [DetectionPredictionDebug],
         filteredPredictions: [DetectionPredictionDebug],
         threshold: Float,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        yoloOutputDiagnostics: YOLOOutputDiagnostics? = nil
     ) {
         recordDebugInferenceCompleted(
             elapsedMs: Date().timeIntervalSince(startedAt) * 1000,
@@ -415,7 +434,8 @@ extension ImageDetector {
             rawPredictions: rawPredictions,
             filteredPredictions: filteredPredictions,
             threshold: threshold,
-            errorMessage: errorMessage
+            errorMessage: errorMessage,
+            yoloOutputDiagnostics: yoloOutputDiagnostics
         )
 
         if errorMessage == nil, rawObservationCount == 0 {
@@ -445,6 +465,19 @@ extension ImageDetector {
 
     private static func debugLabel(forClassIndex classIndex: Int) -> String {
         FruitCategory.fromCustomModel(classIndex)?.displayName ?? "class \(classIndex)"
+    }
+
+    private static func emptyYOLOParsingResult(diagnostics: YOLOOutputDiagnostics) -> YOLOParsingResult {
+        YOLOParsingResult(
+            fruits: [],
+            modelCandidateCount: 0,
+            confidenceFilteredCount: 0,
+            thresholdPassedCount: 0,
+            unmappedObservationCount: 0,
+            rawPredictions: [],
+            filteredPredictions: [],
+            yoloDiagnostics: diagnostics
+        )
     }
 
     private static func bestClassScore(
@@ -503,7 +536,12 @@ extension ImageDetector {
         guard centerX.isFinite, centerY.isFinite, width.isFinite, height.isFinite,
               width > 0, height > 0 else { return nil }
 
-        let coordinateScale: Float = max(abs(centerX), abs(centerY), abs(width), abs(height)) > 2 ? 320 : 1
+        let coordinateScale = coordinateScaleGuess(
+            centerX: centerX,
+            centerY: centerY,
+            width: width,
+            height: height
+        )
         let normalizedCenterX = centerX / coordinateScale
         let normalizedCenterY = centerY / coordinateScale
         let normalizedWidth = width / coordinateScale
@@ -523,6 +561,32 @@ extension ImageDetector {
             y: CGFloat(1 - maxYTopOrigin),
             width: CGFloat(clampedWidth),
             height: CGFloat(clampedHeight)
+        )
+    }
+
+    private static func coordinateScaleGuess(
+        centerX: Float,
+        centerY: Float,
+        width: Float,
+        height: Float
+    ) -> Float {
+        max(abs(centerX), abs(centerY), abs(width), abs(height)) > 2 ? 320 : 1
+    }
+
+    private static func rawBoxSample(
+        centerX: Float,
+        centerY: Float,
+        width: Float,
+        height: Float,
+        confidence: Float
+    ) -> String {
+        String(
+            format: "cx=%.3f cy=%.3f w=%.3f h=%.3f conf=%.3f",
+            centerX,
+            centerY,
+            width,
+            height,
+            confidence
         )
     }
 

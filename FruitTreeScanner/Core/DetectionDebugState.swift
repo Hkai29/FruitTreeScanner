@@ -26,8 +26,35 @@ struct DetectionFailureSample: Identifiable, Sendable, Equatable {
     let fruitCategoryExpected: String?
 }
 
+struct ModelResourceDiagnostics: Sendable, Equatable {
+    var expectedModelName: String = "FruitsDetector"
+    var foundModelURL: Bool = false
+    var foundExtension: String?
+    var bundlePath: String?
+    var loadedSuccessfully: Bool = false
+    var loadErrorMessage: String?
+    var supportedClasses: [String] = []
+    var labelsSource: String = "none"
+}
+
+struct YOLOOutputDiagnostics: Sendable, Equatable {
+    var outputShape: [Int] = []
+    var channelAxis: Int?
+    var anchorAxis: Int?
+    var classCount: Int = 0
+    var anchorCount: Int = 0
+    var lowConfidenceFloor: Float = 0
+    var modelCandidateCount: Int = 0
+    var invalidBoundingBoxCount: Int = 0
+    var coordinateScaleGuess: Float = 0
+    var sampleRawBoxes: [String] = []
+}
+
 enum DetectionDebugConfiguration {
     static let defaultThreshold: Float = 0.25
+    #if DEBUG
+    static var debugRunDetectionWhilePreviewing: Bool = true
+    #endif
 
     static func effectiveThreshold(for configuredThreshold: Float, debugEnabled: Bool = isBuildDebug) -> Float {
         let clampedThreshold = clamped(configuredThreshold)
@@ -67,6 +94,10 @@ struct DetectionDebugState: Sendable, Equatable {
     var lastUpdatedAt: Date = Date()
     var rawPredictions: [DetectionPredictionDebug] = []
     var filteredPredictions: [DetectionPredictionDebug] = []
+    var modelResourceDiagnostics = ModelResourceDiagnostics()
+    var yoloOutputDiagnostics = YOLOOutputDiagnostics()
+    var previewDetectionEnabled: Bool = false
+    var lastWarningMessage: String?
 
     init(currentThreshold: Float = 0.5) {
         self.currentThreshold = currentThreshold
@@ -96,12 +127,17 @@ struct DetectionDebugState: Sendable, Equatable {
         modelURLFound: Bool,
         supportedClasses: [String]
     ) {
-        self.modelLoaded = true
-        self.modelName = modelName
-        self.modelURLFound = modelURLFound
-        self.supportedClasses = supportedClasses
-        self.lastErrorMessage = nil
-        self.lastUpdatedAt = Date()
+        let diagnostics = ModelResourceDiagnostics(
+            expectedModelName: modelName,
+            foundModelURL: modelURLFound,
+            foundExtension: nil,
+            bundlePath: nil,
+            loadedSuccessfully: true,
+            loadErrorMessage: nil,
+            supportedClasses: supportedClasses,
+            labelsSource: supportedClasses.isEmpty ? "none" : "coremlMetadata"
+        )
+        markModelDiagnostics(diagnostics)
     }
 
     mutating func markModelLoadFailure(
@@ -109,12 +145,27 @@ struct DetectionDebugState: Sendable, Equatable {
         modelURLFound: Bool,
         errorMessage: String
     ) {
-        self.modelLoaded = false
-        self.modelName = modelName
-        self.modelURLFound = modelURLFound
-        self.supportedClasses = []
-        self.lastErrorMessage = errorMessage
-        self.lastUpdatedAt = Date()
+        let diagnostics = ModelResourceDiagnostics(
+            expectedModelName: modelName,
+            foundModelURL: modelURLFound,
+            foundExtension: nil,
+            bundlePath: nil,
+            loadedSuccessfully: false,
+            loadErrorMessage: errorMessage,
+            supportedClasses: [],
+            labelsSource: "none"
+        )
+        markModelDiagnostics(diagnostics)
+    }
+
+    mutating func markModelDiagnostics(_ diagnostics: ModelResourceDiagnostics) {
+        modelResourceDiagnostics = diagnostics
+        modelLoaded = diagnostics.loadedSuccessfully
+        modelName = diagnostics.foundExtension.map { "\(diagnostics.expectedModelName).\($0)" } ?? diagnostics.expectedModelName
+        modelURLFound = diagnostics.foundModelURL
+        supportedClasses = diagnostics.supportedClasses
+        lastErrorMessage = diagnostics.loadErrorMessage
+        lastUpdatedAt = Date()
     }
 
     mutating func markFrameReceived(
@@ -150,7 +201,8 @@ struct DetectionDebugState: Sendable, Equatable {
         rawPredictions: [DetectionPredictionDebug],
         filteredPredictions: [DetectionPredictionDebug],
         threshold: Float,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        yoloOutputDiagnostics: YOLOOutputDiagnostics? = nil
     ) {
         inferenceRunning = false
         inferenceRequested = true
@@ -162,6 +214,12 @@ struct DetectionDebugState: Sendable, Equatable {
         self.topPredictions = Self.sortedTopPredictions(rawPredictions)
         currentThreshold = threshold
         lastErrorMessage = errorMessage
+        self.yoloOutputDiagnostics = yoloOutputDiagnostics ?? YOLOOutputDiagnostics()
+        lastUpdatedAt = Date()
+    }
+
+    mutating func markWarning(_ warning: String) {
+        lastWarningMessage = warning
         lastUpdatedAt = Date()
     }
 }

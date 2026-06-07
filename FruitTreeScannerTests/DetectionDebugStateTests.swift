@@ -79,4 +79,58 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.label), ["apple", "orange", "pear"])
     }
 
+    func testLabelsTextParserIgnoresTrailingNewline() {
+        let labels = ImageDetectorModelLoader.parseLabelsText("apple\norange\nfruit\n")
+
+        XCTAssertEqual(labels, ["apple", "orange", "fruit"])
+    }
+
+    func testClassesJSONParserReadsSimpleArray() throws {
+        let data = Data(#"["apple","orange","fruit"]"#.utf8)
+
+        let labels = try ImageDetectorModelLoader.parseLabelsJSON(data)
+
+        XCTAssertEqual(labels, ["apple", "orange", "fruit"])
+    }
+
+    func testGenericFruitLabelMapsToSelectedFruitType() {
+        let mapping = FruitCategoryMapper.standard.categoryMapping(
+            for: "fruit",
+            selectedFruitType: "persimmon"
+        )
+
+        XCTAssertEqual(mapping?.category, .persimmon)
+        XCTAssertTrue(mapping?.usedGenericFallback == true)
+        XCTAssertEqual(mapping?.debugWarning, FruitCategoryMapper.genericFruitMappingWarning)
+    }
+
+    func testPreviewDetectionAllowedInDebugWhenNotRecording() {
+        XCTAssertTrue(ScanCoordinator.allowsDetectionProcessing(
+            isRecording: false,
+            debugRunDetectionWhilePreviewing: true,
+            debugBuild: true
+        ))
+    }
+
+    func testPreviewDetectionDisabledPreservesRecordingGate() {
+        XCTAssertFalse(ScanCoordinator.allowsDetectionProcessing(
+            isRecording: false,
+            debugRunDetectionWhilePreviewing: false,
+            debugBuild: true
+        ))
+    }
+
+    func testReleaseDetectionPreservesRecordingGate() {
+        XCTAssertFalse(ScanCoordinator.allowsDetectionProcessing(
+            isRecording: false,
+            debugRunDetectionWhilePreviewing: true,
+            debugBuild: false
+        ))
+        XCTAssertTrue(ScanCoordinator.allowsDetectionProcessing(
+            isRecording: true,
+            debugRunDetectionWhilePreviewing: false,
+            debugBuild: false
+        ))
+    }
+
 }

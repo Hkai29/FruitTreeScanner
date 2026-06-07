@@ -47,7 +47,9 @@ class ScanCoordinator: NSObject {
         }
 
         func detectionDebugSnapshot() -> DetectionDebugState {
-            imageDetector.detectionDebugSnapshot()
+            var state = imageDetector.detectionDebugSnapshot()
+            state.previewDetectionEnabled = debugRunDetectionWhilePreviewing
+            return state
         }
 
         func detectionFailureSamplesSnapshot() -> [DetectionFailureSample] {
@@ -71,6 +73,9 @@ class ScanCoordinator: NSObject {
     private let completionEvaluator = ScanCompletionEvaluator()
     let detectionProcessingLock = NSLock()
     var isDetectionProcessing = false
+    #if DEBUG
+    var debugRunDetectionWhilePreviewing = DetectionDebugConfiguration.debugRunDetectionWhilePreviewing
+    #endif
 
     // MARK: - 相机速度追踪
     var lastCameraPosition: SIMD3<Float>?
@@ -83,7 +88,8 @@ class ScanCoordinator: NSObject {
             imageDetectionInterval: 10,
             minConfidence: 0.5,
             sizeTolerance: 0.2,
-            sphericityThreshold: 0.5
+            sphericityThreshold: 0.5,
+            selectedFruitType: settings.fruitType
         )
         #if DEBUG
         config.minConfidence = DetectionDebugConfiguration.effectiveThreshold(for: config.minConfidence)
@@ -285,7 +291,7 @@ class ScanCoordinator: NSObject {
 
         let imageDiagnostics = imageDetector.diagnosticsSnapshot()
         #if DEBUG
-        onDetectionDebugStateChange?(imageDetector.detectionDebugSnapshot())
+        onDetectionDebugStateChange?(detectionDebugSnapshot())
         #endif
         hudState?.update(
             pointCount: hudPointCount,
