@@ -30,7 +30,8 @@ enum DetectionDebugConfiguration {
     static let defaultThreshold: Float = 0.25
 
     static func effectiveThreshold(for configuredThreshold: Float, debugEnabled: Bool = isBuildDebug) -> Float {
-        debugEnabled ? defaultThreshold : configuredThreshold
+        let clampedThreshold = clamped(configuredThreshold)
+        return debugEnabled ? min(clampedThreshold, defaultThreshold) : clampedThreshold
     }
 
     private static var isBuildDebug: Bool {
@@ -39,6 +40,11 @@ enum DetectionDebugConfiguration {
         #else
         return false
         #endif
+    }
+
+    private static func clamped(_ threshold: Float) -> Float {
+        guard threshold.isFinite else { return 0 }
+        return min(max(threshold, 0), 1)
     }
 }
 

@@ -2,10 +2,34 @@ import XCTest
 @testable import FruitTreeScanner
 
 final class DetectionDebugStateTests: XCTestCase {
-    func testDebugThresholdDefaultsToPoint25() {
-        let state = DetectionDebugState(currentThreshold: DetectionDebugConfiguration.defaultThreshold)
+    func testDebugThresholdUsesDefaultWhenConfiguredThresholdIsHigher() {
+        let threshold = DetectionDebugConfiguration.effectiveThreshold(for: 0.5, debugEnabled: true)
 
-        XCTAssertEqual(state.currentThreshold, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(threshold, 0.25, accuracy: 0.0001)
+    }
+
+    func testDebugThresholdKeepsLowerConfiguredThreshold() {
+        let threshold = DetectionDebugConfiguration.effectiveThreshold(for: 0.1, debugEnabled: true)
+
+        XCTAssertEqual(threshold, 0.1, accuracy: 0.0001)
+    }
+
+    func testReleaseThresholdKeepsConfiguredThreshold() {
+        let threshold = DetectionDebugConfiguration.effectiveThreshold(for: 0.7, debugEnabled: false)
+
+        XCTAssertEqual(threshold, 0.7, accuracy: 0.0001)
+    }
+
+    func testThresholdBelowZeroClampsToZero() {
+        let threshold = DetectionDebugConfiguration.effectiveThreshold(for: -0.2, debugEnabled: true)
+
+        XCTAssertEqual(threshold, 0, accuracy: 0.0001)
+    }
+
+    func testThresholdAboveOneClampsToOneInReleaseMode() {
+        let threshold = DetectionDebugConfiguration.effectiveThreshold(for: 1.5, debugEnabled: false)
+
+        XCTAssertEqual(threshold, 1, accuracy: 0.0001)
     }
 
     func testThresholdHintWhenRawDetectionsAreFilteredOut() {
@@ -55,9 +79,4 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.label), ["apple", "orange", "pear"])
     }
 
-    func testOrdinaryModeKeepsConfiguredThreshold() {
-        let threshold = DetectionDebugConfiguration.effectiveThreshold(for: 0.7, debugEnabled: false)
-
-        XCTAssertEqual(threshold, 0.7, accuracy: 0.0001)
-    }
 }
