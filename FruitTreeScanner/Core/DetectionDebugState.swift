@@ -14,8 +14,39 @@ struct DetectionPredictionDebug: Identifiable, Sendable, Equatable {
     }
 }
 
-struct DetectionFailureSample: Identifiable, Sendable, Equatable {
-    let id = UUID()
+extension DetectionPredictionDebug: Codable {
+    enum CodingKeys: String, CodingKey {
+        case label, confidence, boundingBox
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = try container.decode(String.self, forKey: .label)
+        confidence = try container.decode(Float.self, forKey: .confidence)
+        let box = try container.decode([CGFloat].self, forKey: .boundingBox)
+        guard box.count == 4 else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .boundingBox,
+                in: container,
+                debugDescription: "boundingBox must have exactly 4 values [x, y, width, height]"
+            )
+        }
+        boundingBox = CGRect(x: box[0], y: box[1], width: box[2], height: box[3])
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(label, forKey: .label)
+        try container.encode(confidence, forKey: .confidence)
+        try container.encode(
+            [boundingBox.origin.x, boundingBox.origin.y, boundingBox.size.width, boundingBox.size.height],
+            forKey: .boundingBox
+        )
+    }
+}
+
+struct DetectionFailureSample: Identifiable, Sendable, Equatable, Codable {
+    let id: UUID
     let timestamp: Date
     let modelName: String
     let threshold: Float
@@ -24,6 +55,28 @@ struct DetectionFailureSample: Identifiable, Sendable, Equatable {
     let filteredObservationCount: Int
     let note: String?
     let fruitCategoryExpected: String?
+
+    init(
+        id: UUID = UUID(),
+        timestamp: Date,
+        modelName: String,
+        threshold: Float,
+        topPredictions: [DetectionPredictionDebug],
+        rawObservationCount: Int,
+        filteredObservationCount: Int,
+        note: String?,
+        fruitCategoryExpected: String?
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.modelName = modelName
+        self.threshold = threshold
+        self.topPredictions = topPredictions
+        self.rawObservationCount = rawObservationCount
+        self.filteredObservationCount = filteredObservationCount
+        self.note = note
+        self.fruitCategoryExpected = fruitCategoryExpected
+    }
 }
 
 enum DetectionDebugConfiguration {

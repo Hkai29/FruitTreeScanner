@@ -41,6 +41,8 @@ struct ResultView: View {
                         selectedStatus: $selectedStatus
                     )
 
+                    ResultPostScanWorkflowSection(result: result)
+
                     ResultActionButtons(
                         onDismiss: onDismiss,
                         onDismissToHome: onDismissToHome

@@ -42,10 +42,15 @@ private enum DashboardDestination: Identifiable, Equatable {
 }
 
 struct DashboardView: View {
+    @ObservedObject var router: NavigationRouter
     @State private var destination: DashboardDestination?
     @State private var pendingScanRequest: ScanLaunchRequest?
     @State private var activeScanRequest: ScanLaunchRequest?
     @ObservedObject private var historyStore = ScanHistoryStore.shared
+
+    init(router: NavigationRouter) {
+        self.router = router
+    }
 
     private var recentScans: [ScanFileRecord] {
         Array(historyStore.scanFiles.prefix(3))
@@ -98,8 +103,32 @@ struct DashboardView: View {
                 gps: request.gps
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: AppNavigation.notificationName)) { notification in
+            guard let raw = notification.object as? String,
+                  let nav = AppNavigation(rawValue: raw) else { return }
+            AppNavigation.clearPersistedRequest()
+            applyNavigation(nav)
+        }
+        .onReceive(router.$pendingDestination) { nav in
+            guard let nav else { return }
+            applyNavigation(nav)
+            router.clear()
+        }
         .onAppear {
             historyStore.loadRecords()
+            if let nav = router.pendingDestination {
+                applyNavigation(nav)
+                router.clear()
+            }
+        }
+    }
+
+    private func applyNavigation(_ nav: AppNavigation) {
+        switch nav {
+        case .scanner: destination = .startScan
+        case .history: destination = .scanHistory
+        case .batchExport: destination = .batchExport
+        case .map: destination = .map
         }
     }
 

@@ -162,6 +162,42 @@ struct DashboardToolHeader: View {
     }
 }
 
+// MARK: - Mini Icon Badge
+
+struct DashboardMiniIcon: View {
+    let icon: String
+    var size: CGFloat = 40
+
+    private var radius: CGFloat { size > 36 ? 10 : 8 }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            RoundedRectangle(cornerRadius: radius)
+                .fill(Design.Colors.Dark.bgElevated)
+
+            RoundedRectangle(cornerRadius: radius)
+                .stroke(Design.Colors.harvest.opacity(0.18), lineWidth: 1)
+
+            Image(systemName: icon)
+                .font(.system(size: size * 0.44, weight: .semibold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Design.Colors.harvest, Design.Colors.harvestLight],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Circle()
+                .fill(Design.Colors.harvest.opacity(0.85))
+                .frame(width: 5, height: 5)
+                .padding(6)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 struct DashboardSheetAction {
     let title: String
     let icon: String

@@ -130,7 +130,7 @@ extension ScanGuidanceHint {
     var icon: String {
         switch self {
         case .none: return ""
-        case .tooFast: return "hare.fill"
+        case .tooFast: return "speedometer"
         case .tooClose: return "arrow.up.backward.and.arrow.down.forward"
         case .tooFar: return "arrow.down.forward.and.arrow.up.backward"
         case .trackingLost: return "exclamationmark.triangle.fill"
@@ -165,12 +165,12 @@ extension ScanGuidanceHint {
     var subtitle: String {
         switch self {
         case .none: return ""
-        case .tooFast: return "请放慢移动速度，确保点云质量"
-        case .tooClose: return "请后退一步，保持 0.3m 以上距离"
-        case .tooFar: return "请靠近目标，保持 4m 以内距离"
-        case .trackingLost: return "请缓慢移动，对准有纹理的区域"
-        case .lowLight: return "环境光线过暗，扫描质量可能受影响"
-        case .goodPace: return "保持当前速度，扫描效果最佳"
+        case .tooFast: return "放慢脚步，让树冠和主枝有足够重叠"
+        case .tooClose: return "后退一步，先保住整棵树轮廓"
+        case .tooFar: return "靠近果树，优先补主干和果实密集区"
+        case .trackingLost: return "对准树干、地面或纹理清晰的枝条恢复追踪"
+        case .lowLight: return "光线偏暗，果实检测和纹理质量会下降"
+        case .goodPace: return "保持速度，继续绕树补齐背面盲区"
         }
     }
 

@@ -166,6 +166,8 @@
 		TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTBATCH778899 /* BatchExportServiceTests.swift */; };
 		TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTPCPR778899 /* PointCloudProcessingTests.swift */; };
 		TESTDETDBG001 /* DetectionDebugStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDETDBG002 /* DetectionDebugStateTests.swift */; };
+		APPSHORTCUTS002 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPSHORTCUTS001 /* AppShortcuts.swift */; };
+		NAVROUTER002 /* NavigationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAVROUTER001 /* NavigationRouter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -344,6 +346,8 @@
 		TESTBATCH778899 /* BatchExportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportServiceTests.swift; sourceTree = "<group>"; };
 		TESTPCPR778899 /* PointCloudProcessingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudProcessingTests.swift; sourceTree = "<group>"; };
 		TESTDETDBG002 /* DetectionDebugStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugStateTests.swift; sourceTree = "<group>"; };
+		APPSHORTCUTS001 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
+		NAVROUTER001 /* NavigationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRouter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXVariantGroup section */
@@ -371,6 +375,7 @@
 				DD98D30826CA1066D0905621 /* Design */,
 				COMPONENTS001122 /* Components */,
 				898DE573025C3A364767ABC3 /* GPS */,
+				SYSTEMINTEGRATION001 /* SystemIntegration */,
 				77FCC2F2178481AB923AC132 /* Views */,
 			);
 			path = FruitTreeScanner;
@@ -597,6 +602,15 @@
 				METALMEAS7799 /* MetalMeasurementOverlay.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		SYSTEMINTEGRATION001 /* SystemIntegration */ = {
+			isa = PBXGroup;
+			children = (
+				APPSHORTCUTS001 /* AppShortcuts.swift */,
+				NAVROUTER001 /* NavigationRouter.swift */,
+			);
+			path = SystemIntegration;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -834,6 +848,8 @@
 				BATCH001122 /* BatchExportService.swift in Sources */,
 				BATCHVIEW001122 /* BatchExportView.swift in Sources */,
 				BATCHCOMP001 /* BatchExportComponents.swift in Sources */,
+				APPSHORTCUTS002 /* AppShortcuts.swift in Sources */,
+				NAVROUTER002 /* NavigationRouter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

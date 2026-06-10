@@ -17,21 +17,8 @@ struct TopNavigationBar: View {
 
     private var brand: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Design.Colors.Dark.bgElevated)
-                    .frame(width: 44, height: 44)
-                Image(systemName: "cube.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Design.Colors.harvest, Design.Colors.harvestLight],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            .accessibilityHidden(true)
+            DashboardMiniIcon(icon: "tree.fill", size: 44)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("FruitScanner")
@@ -48,9 +35,8 @@ struct TopNavigationBar: View {
         HStack(spacing: 8) {
             Button(action: { onHistoryTap?() }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                    DashboardMiniIcon(icon: "clock.arrow.circlepath", size: 28)
+                        .accessibilityHidden(true)
                     if historyCount > 0 {
                         Text("\(historyCount)")
                             .font(.system(size: 11, weight: .bold))
@@ -70,12 +56,7 @@ struct TopNavigationBar: View {
             .accessibilityLabel("扫描历史\(historyCount > 0 ? "，\(historyCount)条记录" : "")")
 
             Button(action: onSettingsTap) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(Design.Colors.Dark.bgElevated)
-                    .clipShape(Circle())
+                DashboardMiniIcon(icon: "gearshape.fill", size: 44)
             }
             .accessibilityLabel("设置")
         }
@@ -149,8 +130,8 @@ struct DashboardHeroPanel: View {
                     Spacer()
 
                     HStack(spacing: 6) {
-                        Image(systemName: "leaf.fill")
-                            .font(.system(size: 11, weight: .semibold))
+                        DashboardMiniIcon(icon: "leaf.fill", size: 20)
+                            .accessibilityHidden(true)
                         Text("现场")
                             .font(.system(size: 11, weight: .semibold))
                     }
@@ -158,6 +139,10 @@ struct DashboardHeroPanel: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .background(Color.black.opacity(0.32))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 999)
+                            .stroke(Design.Colors.harvest.opacity(0.22), lineWidth: 1)
+                    )
                     .clipShape(Capsule())
                 }
 

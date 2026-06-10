@@ -242,6 +242,74 @@ struct ResultDiagnosticsSection: View {
     }
 }
 
+struct ResultPostScanWorkflowSection: View {
+    let result: YieldResult
+
+    private var confidenceText: String {
+        ResultConfidencePresentation(result.confidence).label
+    }
+
+    private var primaryAdvice: String {
+        switch result.confidence {
+        case "high":
+            return "结果可直接入库；建议补充地块和状态标签后继续下一棵。"
+        case "medium":
+            return "结果可用但建议抽查点云预览，确认树冠背面和果实密集区没有明显缺口。"
+        default:
+            return "建议保留本次记录作为原始点云，并从主干到树冠背面补扫一次。"
+        }
+    }
+
+    private var reviewFocus: String {
+        if result.yieldFinalKg == 0 || result.confidence == "low" {
+            return "优先检查 LiDAR 深度、点云数量、图像帧和果实是否清晰可见。"
+        }
+        if result.nLidar == 0 {
+            return "点云已生成但果实候选不足，建议查看果实密集区是否进入画面。"
+        }
+        return "抽查树冠轮廓、果实密集区和冠幅估算，确认符合田间记录。"
+    }
+
+    var body: some View {
+        ResultSectionCard(
+            title: "扫描后处理建议",
+            icon: "checklist",
+            color: Design.Colors.harvest
+        ) {
+            ResultInfoRow(label: "当前置信度", value: confidenceText, highlight: result.confidence == "high")
+            ResultInfoRow(label: "下一步", value: result.confidence == "low" ? "复扫或人工复核" : "保存并继续")
+
+            VStack(alignment: .leading, spacing: 8) {
+                ResultWorkflowAdviceRow(icon: "archivebox", text: primaryAdvice)
+                ResultWorkflowAdviceRow(icon: "cube.transparent", text: reviewFocus)
+                ResultWorkflowAdviceRow(icon: "tag", text: "完成后给记录补地块、品种和扫描状态，便于历史比较和批量导出。")
+            }
+        }
+    }
+}
+
+private struct ResultWorkflowAdviceRow: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Design.Colors.harvest)
+                .frame(width: 18)
+                .padding(.top, 2)
+
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
 private struct DiagnosticReasonRow: View {
     let reason: String
 

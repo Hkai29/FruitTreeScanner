@@ -147,9 +147,9 @@ struct StatsOverviewSection: View {
         VStack(alignment: .leading, spacing: 16) {
             DashboardSectionHeader(title: "今日概览")
             HStack(spacing: 16) {
-                StatCard(value: "\(summary.scanCount)", label: "扫描数量", icon: "viewfinder", color: Design.Colors.harvest)
-                StatCard(value: String(format: "%.1f", todaysYield), label: "总产量/kg", icon: "scalemass.fill", color: Design.Colors.harvest)
-                StatCard(value: "\(todaysTrees)", label: "树编号", icon: "tree.fill", color: Design.Colors.Dark.info)
+                StatCard(value: "\(summary.scanCount)", label: "扫描数量", icon: "viewfinder")
+                StatCard(value: String(format: "%.1f", todaysYield), label: "总产量/kg", icon: "scalemass.fill")
+                StatCard(value: "\(todaysTrees)", label: "树编号", icon: "tree.fill")
             }
         }
         .padding(16)
@@ -161,16 +161,10 @@ struct StatCard: View {
     let value: String
     let label: String
     let icon: String
-    let color: Color
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(color)
-                .frame(width: 34, height: 34)
-                .background(color.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            DashboardMiniIcon(icon: icon, size: 34)
             Text(value)
                 .font(.system(size: 24, weight: .semibold, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textPrimary)

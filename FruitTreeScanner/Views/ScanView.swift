@@ -117,14 +117,7 @@ struct ScanView: View {
     @ViewBuilder
     private var guideLayer: some View {
         if showGuide {
-            VStack {
-                HStack {
-                    Button(L10n.Scan.skipGuide) { showGuide = false }
-                        .padding()
-                    Spacer()
-                }
-                Spacer()
-            }
+            ScanFieldGuideOverlay(onClose: { showGuide = false })
         }
     }
 
@@ -163,6 +156,14 @@ struct ScanView: View {
             if isRecording {
                 ScanCoverageHintBar(hudState: hudState)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            if shouldShowPostCapturePanel {
+                ScanPostCapturePanel(
+                    pointCount: hudState.pointCount,
+                    coveragePercent: hudState.coveragePercent,
+                    completion: hudState.scanCompletion
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             #if DEBUG
                 ScanBottomControlBar(
@@ -241,6 +242,10 @@ struct ScanView: View {
         if let scanNotice {
             ScanNoticeToast(message: scanNotice)
         }
+    }
+
+    private var shouldShowPostCapturePanel: Bool {
+        !isRecording && !isEstimating && !showResult && hudState.pointCount > 0
     }
 
     private func handleCoveragePercentChange(_ newValue: Int) {

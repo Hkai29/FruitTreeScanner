@@ -21,13 +21,13 @@ struct ScanCompletion: Equatable {
     var statusHint: String {
         switch discoveryTrend {
         case .collecting:
-            return "请环绕果树扫描"
+            return "从主干开始慢速环绕"
         case .increasing:
-            return "持续发现新区域"
+            return "正在发现树冠新区域"
         case .decreasing:
-            return "接近完成，可保存"
+            return "补树冠背面后可保存"
         case .stable:
-            return "覆盖完整，可保存"
+            return "覆盖完整，可保存分析"
         }
     }
 
