@@ -9,22 +9,40 @@ import CoreVideo
 
 final class Renderer: NSObject {
     // MARK: - 公开属性
+    private var shouldResetPointCloudOnRecordingStart = true
+
     public var isRecording = false {
         didSet {
-            if isRecording {
-                scannedRegions.removeAll()
-                do {
-                    pointBufferLock.lock()
-                    defer { pointBufferLock.unlock() }
-                    currentPointIndex = 0
-                    currentPointCount = 0
-                }
-                coverageVoxels.removeAll()
-                scanProgress.reset()
+            guard isRecording else {
+                scanProgress.pause()
+                return
             }
+            if shouldResetPointCloudOnRecordingStart {
+                resetPointCloudCapture()
+            } else {
+                scanProgress.resume()
+            }
+            shouldResetPointCloudOnRecordingStart = true
         }
     }
     public var currentFolder = ""
+
+    public func resumeRecordingPreservingPointCloud() {
+        shouldResetPointCloudOnRecordingStart = false
+        isRecording = true
+    }
+
+    private func resetPointCloudCapture() {
+        scannedRegions.removeAll()
+        do {
+            pointBufferLock.lock()
+            defer { pointBufferLock.unlock() }
+            currentPointIndex = 0
+            currentPointCount = 0
+        }
+        coverageVoxels.removeAll()
+        scanProgress.reset()
+    }
 
     // MARK: - 扫描时长和完成度追踪
     var scanProgress = RendererScanProgress()

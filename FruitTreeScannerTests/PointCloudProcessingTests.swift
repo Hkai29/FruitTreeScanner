@@ -176,6 +176,20 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(progress.voxelDiscoveryTrend, .collecting)
     }
 
+    func testScanProgress_PauseResumeExcludesPausedDuration() {
+        let start = Date(timeIntervalSince1970: 1000)
+        var progress = RendererScanProgress()
+        progress.reset(now: start)
+
+        progress.pause(now: start.addingTimeInterval(5))
+        XCTAssertEqual(progress.scanDuration, 5, accuracy: 0.001)
+
+        progress.resume(now: start.addingTimeInterval(15))
+        progress.pause(now: start.addingTimeInterval(18))
+
+        XCTAssertEqual(progress.scanDuration, 8, accuracy: 0.001)
+    }
+
     func testScanProgress_RecordVoxelCountRespectsInterval() {
         let start = Date(timeIntervalSince1970: 1000)
         var progress = RendererScanProgress()

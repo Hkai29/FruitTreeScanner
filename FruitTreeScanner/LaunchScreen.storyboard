@@ -14,16 +14,16 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" image="LaunchArtwork" translatesAutoresizingMaskIntoConstraints="NO" id="bmr-hd-tf5">
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchArtwork" translatesAutoresizingMaskIntoConstraints="NO" id="bmr-hd-tf5">
                                 <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                             </imageView>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="FruitScanner" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" translatesAutoresizingMaskIntoConstraints="NO" id="ngA-hd-7UW">
+                            <label hidden="YES" opaque="NO" userInteractionEnabled="NO" contentMode="left" text="FruitScanner" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" translatesAutoresizingMaskIntoConstraints="NO" id="ngA-hd-7UW">
                                 <rect key="frame" x="91" y="117" width="211" height="36"/>
                                 <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="30"/>
                                 <color key="textColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="果树 LiDAR 扫描" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" translatesAutoresizingMaskIntoConstraints="NO" id="cRB-df-c5b">
+                            <label hidden="YES" opaque="NO" userInteractionEnabled="NO" contentMode="left" text="果树 LiDAR 扫描" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" translatesAutoresizingMaskIntoConstraints="NO" id="cRB-df-c5b">
                                 <rect key="frame" x="134" y="158" width="125" height="18"/>
                                 <fontDescription key="fontDescription" type="system" weight="medium" pointSize="15"/>
                                 <color key="textColor" white="1" alpha="0.78" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>

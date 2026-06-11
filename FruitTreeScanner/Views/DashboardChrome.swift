@@ -83,18 +83,31 @@ struct DashboardHeroPanel: View {
     let records: [ScanFileRecord]
     let onStartScan: () -> Void
     let onQuickScan: () -> Void
+    var compactLandscape: Bool = false
 
     private var summary: DashboardDailySummary {
         DashboardDailySummary(records: records)
     }
 
+    private var panelHeight: CGFloat { compactLandscape ? 260 : 226 }
+
     var body: some View {
+        if compactLandscape {
+            GeometryReader { proxy in
+                heroPanel(height: max(220, proxy.size.height))
+            }
+        } else {
+            heroPanel(height: panelHeight)
+        }
+    }
+
+    private func heroPanel(height: CGFloat) -> some View {
         ZStack(alignment: .bottomLeading) {
             Image("DashboardHero")
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity)
-                .frame(height: 226)
+                .frame(height: height)
                 .clipped()
 
             LinearGradient(
@@ -160,6 +173,7 @@ struct DashboardHeroPanel: View {
                         icon: "viewfinder",
                         imageName: "FeatureStartScan",
                         isPrimary: true,
+                        compactLandscape: compactLandscape,
                         action: onStartScan
                     )
 
@@ -168,13 +182,14 @@ struct DashboardHeroPanel: View {
                         icon: "bolt.fill",
                         imageName: "FeatureQuickScan",
                         isPrimary: false,
+                        compactLandscape: compactLandscape,
                         action: onQuickScan
                     )
                 }
             }
             .padding(16)
         }
-        .frame(height: 226)
+        .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .shadow(
             color: Color.black.opacity(0.22),
@@ -222,23 +237,26 @@ private struct DashboardHeroButton: View {
     let icon: String
     let imageName: String
     let isPrimary: Bool
+    var compactLandscape: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                DashboardFeatureImage(
-                    name: imageName,
-                    accent: isPrimary ? Design.Colors.harvestDark : Design.Colors.Dark.info,
-                    cornerRadius: 7
-                )
-                .frame(width: 34, height: 30)
+                if !compactLandscape {
+                    DashboardFeatureImage(
+                        name: imageName,
+                        accent: isPrimary ? Design.Colors.harvestDark : Design.Colors.Dark.info,
+                        cornerRadius: 7
+                    )
+                    .frame(width: 34, height: 30)
+                }
 
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
 
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: compactLandscape ? 13 : 14, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }

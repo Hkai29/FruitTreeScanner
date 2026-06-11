@@ -6,6 +6,7 @@ import SwiftUI
 struct ScanHistoryView: View {
     var customTitle: String = "扫描历史"
     var onStartScan: (() -> Void)? = nil
+    var onRescanTree: ((String) -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
     @ObservedObject var historyStore = ScanHistoryStore.shared
     @ObservedObject private var tagStore = TagStore.shared
@@ -66,6 +67,10 @@ struct ScanHistoryView: View {
                                     }, onShare: {
                                         shareItems = [record.fileURL]
                                         showShareSheet = true
+                                    }, onRescan: {
+                                        rescan(record)
+                                    }, onMarkReview: {
+                                        markReview(record)
                                     }, onDelete: {
                                         recordPendingDeletion = record
                                     })
@@ -151,6 +156,32 @@ struct ScanHistoryView: View {
         historyStore.deleteRecord(record)
     }
 
+    private func rescan(_ record: ScanFileRecord) {
+        if let onRescanTree {
+            onRescanTree(record.treeID)
+        } else {
+            onStartScan?()
+        }
+    }
+
+    private func markReview(_ record: ScanFileRecord) {
+        if let existing = tagStore.getAssignment(treeId: record.treeID) {
+            tagStore.createOrUpdateAssignment(
+                treeId: record.treeID,
+                plotId: existing.plotId,
+                tagIds: existing.tagIds,
+                status: .reviewing
+            )
+        } else {
+            tagStore.createOrUpdateAssignment(
+                treeId: record.treeID,
+                plotId: nil,
+                tagIds: [],
+                status: .reviewing
+            )
+        }
+    }
+
     // MARK: - Filter Bar
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -219,6 +250,8 @@ struct HistoryRow: View {
     let record: ScanFileRecord
     let onPreview: () -> Void
     let onShare: () -> Void
+    let onRescan: () -> Void
+    let onMarkReview: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -267,6 +300,15 @@ struct HistoryRow: View {
             .accessibilityLabel("预览点云")
 
             Menu {
+                Button(action: onPreview) {
+                    Label("预览点云", systemImage: "cube.transparent")
+                }
+                Button(action: onRescan) {
+                    Label("复扫这棵", systemImage: "viewfinder")
+                }
+                Button(action: onMarkReview) {
+                    Label("标记待复核", systemImage: "flag")
+                }
                 Button(action: onShare) {
                     Label("分享点云", systemImage: "square.and.arrow.up")
                 }

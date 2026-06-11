@@ -107,46 +107,18 @@ struct StartView: View {
     }
 
     var body: some View {
-        ZStack {
-            Design.Colors.Dark.bgDeep
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            let isLandscape = proxy.size.width > proxy.size.height && proxy.size.width >= 760
 
-            VStack(spacing: 0) {
-                topNavigation
+            ZStack {
+                Design.Colors.Dark.bgDeep
+                    .ignoresSafeArea()
 
-                StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
-                    .padding(.top, Design.Space.xs)
-
-                ScrollView {
-                    VStack(spacing: Design.Space.lg) {
-                        DashboardToolHeader(
-                            imageName: stepHeader.imageName,
-                            title: stepHeader.title,
-                            subtitle: stepHeader.subtitle,
-                            icon: stepHeader.icon,
-                            accent: stepHeader.accent
-                        )
-
-                        stepContent
-                            .frame(maxWidth: .infinity)
-                    }
-                    .padding(.horizontal, Design.Space.lg)
-                    .padding(.top, Design.Space.lg)
-                    .padding(.bottom, Design.Space.xl)
+                if isLandscape {
+                    landscapeContent(width: proxy.size.width)
+                } else {
+                    portraitContent
                 }
-                .scrollDismissesKeyboard(.interactively)
-
-                StepNavigationBar(
-                    currentStep: currentStep,
-                    totalSteps: totalSteps,
-                    canGoBack: currentStep > 1,
-                    canGoNext: canGoNext && !isLaunchingScan,
-                    isLaunching: isLaunchingScan,
-                    onBack: goBack,
-                    onNext: goNext
-                )
-                .padding(.horizontal, Design.Space.lg)
-                .padding(.bottom, Design.Space.lg)
             }
         }
         .sheet(isPresented: $showPlotEdit) {
@@ -159,6 +131,83 @@ struct StartView: View {
                 TagStore.shared.addTag(name: newTag.name, colorHex: newTag.colorHex)
             })
         }
+    }
+
+    private var portraitContent: some View {
+        VStack(spacing: 0) {
+            topNavigation
+
+            StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
+                .padding(.top, Design.Space.xs)
+
+            ScrollView {
+                VStack(spacing: Design.Space.lg) {
+                    stepToolHeader
+
+                    stepContent
+                        .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, Design.Space.lg)
+                .padding(.top, Design.Space.lg)
+                .padding(.bottom, Design.Space.xl)
+            }
+            .scrollDismissesKeyboard(.interactively)
+
+            bottomNavigation
+        }
+    }
+
+    private func landscapeContent(width: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            topNavigation
+
+            HStack(alignment: .top, spacing: Design.Space.lg) {
+                VStack(alignment: .leading, spacing: Design.Space.lg) {
+                    stepToolHeader
+
+                    StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
+                        .padding(.horizontal, -Design.Space.lg)
+
+                    Spacer(minLength: Design.Space.sm)
+                }
+                .frame(width: min(330, width * 0.34), alignment: .topLeading)
+
+                ScrollView {
+                    stepContent
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(.bottom, Design.Space.xl)
+                }
+                .scrollDismissesKeyboard(.interactively)
+            }
+            .padding(.horizontal, Design.Space.lg)
+            .padding(.top, Design.Space.md)
+
+            bottomNavigation
+        }
+    }
+
+    private var stepToolHeader: some View {
+        DashboardToolHeader(
+            imageName: stepHeader.imageName,
+            title: stepHeader.title,
+            subtitle: stepHeader.subtitle,
+            icon: stepHeader.icon,
+            accent: stepHeader.accent
+        )
+    }
+
+    private var bottomNavigation: some View {
+        StepNavigationBar(
+            currentStep: currentStep,
+            totalSteps: totalSteps,
+            canGoBack: currentStep > 1,
+            canGoNext: canGoNext && !isLaunchingScan,
+            isLaunching: isLaunchingScan,
+            onBack: goBack,
+            onNext: goNext
+        )
+        .padding(.horizontal, Design.Space.lg)
+        .padding(.bottom, Design.Space.lg)
     }
 
     private var topNavigation: some View {

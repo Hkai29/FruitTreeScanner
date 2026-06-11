@@ -57,37 +57,38 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        ZStack {
-            Design.Colors.Dark.bgDeep
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            let isLandscape = proxy.size.width > proxy.size.height && proxy.size.width >= 760
 
-            VStack(spacing: 0) {
-                TopNavigationBar(
-                    onSettingsTap: { destination = .settings },
-                    onHistoryTap: { destination = .scanHistory },
-                    historyCount: historyStore.scanFiles.count
-                )
-                .background(Design.Colors.Dark.bgSurface)
+            ZStack {
+                Design.Colors.Dark.bgDeep
+                    .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 18) {
-                        DashboardHeroPanel(
-                            records: historyStore.scanFiles,
-                            onStartScan: { destination = .startScan },
-                            onQuickScan: { destination = .quickScan }
-                        )
-                        QuickActionsGrid(onAction: handleQuickAction)
-                        RecentScansSection(
-                            scans: recentScans,
-                            onViewAll: { destination = .scanHistory },
-                            onScanTap: openPointCloud,
-                            onStartScan: { destination = .startScan }
-                        )
-                        StatsOverviewSection(records: historyStore.scanFiles)
-                        Spacer(minLength: 100)
+                VStack(spacing: 0) {
+                    TopNavigationBar(
+                        onSettingsTap: { destination = .settings },
+                        onHistoryTap: { destination = .scanHistory },
+                        historyCount: historyStore.scanFiles.count
+                    )
+                    .background(Design.Colors.Dark.bgSurface)
+
+                    if isLandscape {
+                        GeometryReader { contentProxy in
+                            ScrollView(showsIndicators: false) {
+                                landscapeDashboard(
+                                    width: contentProxy.size.width,
+                                    height: max(contentProxy.size.height, 392)
+                                )
+                                .padding(18)
+                            }
+                        }
+                    } else {
+                        ScrollView {
+                            portraitDashboard
+                                .padding(.horizontal, 18)
+                                .padding(.top, 14)
+                        }
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 14)
                 }
             }
         }
@@ -121,6 +122,66 @@ struct DashboardView: View {
                 router.clear()
             }
         }
+    }
+
+    private var portraitDashboard: some View {
+        VStack(spacing: 18) {
+            DashboardHeroPanel(
+                records: historyStore.scanFiles,
+                onStartScan: { destination = .startScan },
+                onQuickScan: { destination = .quickScan }
+            )
+            QuickActionsGrid(onAction: handleQuickAction)
+            RecentScansSection(
+                scans: recentScans,
+                onViewAll: { destination = .scanHistory },
+                onScanTap: openPointCloud,
+                onStartScan: { destination = .startScan }
+            )
+            StatsOverviewSection(records: historyStore.scanFiles)
+            Spacer(minLength: 100)
+        }
+    }
+
+    private func landscapeDashboard(width: CGFloat, height: CGFloat) -> some View {
+        let contentWidth = min(width - 36, 1180)
+        let contentHeight = max(0, height - 36)
+        let columnWidth = (contentWidth - 14) / 2
+        let rowHeight = max(160, (contentHeight - 16) / 2)
+
+        return VStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                DashboardHeroPanel(
+                    records: historyStore.scanFiles,
+                    onStartScan: { destination = .startScan },
+                    onQuickScan: { destination = .quickScan },
+                    compactLandscape: true
+                )
+                .frame(width: columnWidth, height: rowHeight, alignment: .topLeading)
+
+                QuickActionsGrid(compactLandscape: true, onAction: handleQuickAction)
+                    .frame(width: columnWidth, height: rowHeight, alignment: .topLeading)
+            }
+            .frame(height: rowHeight)
+
+            HStack(alignment: .top, spacing: 14) {
+                RecentScansSection(
+                    scans: recentScans,
+                    onViewAll: { destination = .scanHistory },
+                    onScanTap: openPointCloud,
+                    onStartScan: { destination = .startScan },
+                    compactLandscape: true
+                )
+                .frame(width: columnWidth, height: rowHeight, alignment: .topLeading)
+
+                StatsOverviewSection(records: historyStore.scanFiles, compactLandscape: true)
+                    .frame(width: columnWidth, height: rowHeight, alignment: .topLeading)
+            }
+            .frame(height: rowHeight)
+        }
+        .frame(width: contentWidth)
+        .frame(height: contentHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func applyNavigation(_ nav: AppNavigation) {
@@ -219,6 +280,7 @@ struct DashboardView: View {
         case .scanHistory:
             HistorySheetView(
                 onStartScan: { self.destination = .startScan },
+                onRescanTree: launchRescan,
                 onImportFile: { self.destination = .importFile }
             )
         case .pointCloud(let initialFileURL):
@@ -250,6 +312,32 @@ struct DashboardView: View {
             )
         case .startScan, .quickScan:
             EmptyView()
+        }
+    }
+
+    private func launchRescan(treeID: String) {
+        let normalizedTreeID = treeID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTreeID.isEmpty else {
+            destination = .startScan
+            return
+        }
+        destination = nil
+        let existing = TagStore.shared.getAssignment(treeId: normalizedTreeID)
+        let request = ScanLaunchRequest(
+            treeID: normalizedTreeID,
+            season: .mature,
+            gps: GPSRecorder(),
+            plotId: existing?.plotId,
+            tagIds: existing?.tagIds ?? []
+        )
+        TagStore.shared.createOrUpdateAssignment(
+            treeId: request.treeID,
+            plotId: request.plotId,
+            tagIds: request.tagIds,
+            status: .reviewing
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            activeScanRequest = request
         }
     }
 }

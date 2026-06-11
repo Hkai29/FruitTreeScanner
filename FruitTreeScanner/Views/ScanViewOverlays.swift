@@ -122,6 +122,9 @@ struct ScanPostCapturePanel: View {
     let pointCount: Int
     let coveragePercent: Int
     let completion: ScanCompletion
+    let canFinish: Bool
+    let onResume: () -> Void
+    let onFinish: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -150,6 +153,32 @@ struct ScanPostCapturePanel: View {
                 ScanPostCaptureMetric(label: "点云", value: ScanHUDValueFormatter.pointCount(pointCount))
                 ScanPostCaptureMetric(label: "时长", value: completion.formattedDuration)
                 ScanPostCaptureMetric(label: "状态", value: completion.statusTitle)
+            }
+
+            HStack(spacing: 8) {
+                Button(action: onResume) {
+                    Label("继续补扫", systemImage: "plus.viewfinder")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(Design.Colors.Dark.bgElevated.opacity(0.86))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onFinish) {
+                    Label("完成估算", systemImage: "checkmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.84))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(canFinish ? Design.Colors.harvest : Design.Colors.Dark.textMuted)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canFinish)
+                .opacity(canFinish ? 1 : 0.55)
             }
         }
         .padding(.horizontal, 16)

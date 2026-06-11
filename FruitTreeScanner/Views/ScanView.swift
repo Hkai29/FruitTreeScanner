@@ -161,7 +161,10 @@ struct ScanView: View {
                 ScanPostCapturePanel(
                     pointCount: hudState.pointCount,
                     coveragePercent: hudState.coveragePercent,
-                    completion: hudState.scanCompletion
+                    completion: hudState.scanCompletion,
+                    canFinish: hudState.pointCount > 0,
+                    onResume: resumeRecording,
+                    onFinish: finishScan
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -294,6 +297,21 @@ struct ScanView: View {
         }
         createDirectory(folder: "scans")
         coordinator.startRecording()
+        isRecording = true
+        showGuide = false
+    }
+
+    private func resumeRecording() {
+        guard scanReadiness == .ready else {
+            showTemporaryNotice(scanReadiness.title)
+            return
+        }
+        guard coordinator.pointCount > 0 || hudState.pointCount > 0 else {
+            startRecording()
+            return
+        }
+        createDirectory(folder: "scans")
+        coordinator.resumeRecordingPreservingCapture()
         isRecording = true
         showGuide = false
     }

@@ -245,6 +245,19 @@ class ScanCoordinator: NSObject {
     }
 
     @MainActor
+    func resumeRecordingPreservingCapture() {
+        detectionTask?.cancel()
+        detectionTask = nil
+        fusionEstimateTask?.cancel()
+        fusionEstimateTask = nil
+        imageDetector.clearQueue()
+        publishImageDetectorStatus()
+        hudState?.update(fusionStatus: "补扫中")
+        renderer?.currentFolder = "scans"
+        renderer?.resumeRecordingPreservingPointCloud()
+    }
+
+    @MainActor
     @objc private func updatePointCount() {
         let now = CACurrentMediaTime()
         let hudInterval = renderer?.isRecording == true ? activeHUDUpdateInterval : idleHUDUpdateInterval

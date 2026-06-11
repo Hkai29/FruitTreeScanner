@@ -374,7 +374,7 @@ struct ScanBottomControlBar: View {
                 )
 
                 ScanPrimaryControlButton(
-                    title: isRecording ? "停止录制" : "开始录制",
+                    title: recordingButtonTitle,
                     icon: isRecording ? "stop.fill" : "record.circle",
                     role: isRecording ? .recording : .primary,
                     isLoading: false,
@@ -414,6 +414,12 @@ struct ScanBottomControlBar: View {
 
     private var isFinishDisabled: Bool {
         isEstimating || hudState.pointCount == 0
+    }
+
+    private var recordingButtonTitle: String {
+        if isRecording { return "停止录制" }
+        if hudState.pointCount > 0 { return "重新录制" }
+        return "开始录制"
     }
 }
 

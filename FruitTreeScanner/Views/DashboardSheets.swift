@@ -6,6 +6,7 @@ import SwiftUI
 struct HistorySheetView: View {
     @Environment(\.dismiss) var dismiss
     var onStartScan: (() -> Void)? = nil
+    var onRescanTree: ((String) -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
 
     var body: some View {
@@ -15,6 +16,7 @@ struct HistorySheetView: View {
                 ScanHistoryView(
                     customTitle: "扫描历史",
                     onStartScan: onStartScan,
+                    onRescanTree: onRescanTree,
                     onImportFile: onImportFile
                 )
             }
