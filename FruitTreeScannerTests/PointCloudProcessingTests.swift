@@ -6,6 +6,56 @@ import simd
 
 final class PointCloudProcessingTests: XCTestCase {
 
+    func testTreeIdentifierPolicyRejectsPathAndHeaderInjectionCharacters() {
+        XCTAssertTrue(TreeIdentifierPolicy.isValid("T001"))
+        XCTAssertTrue(TreeIdentifierPolicy.isValid("三号地块 12-A"))
+        XCTAssertFalse(TreeIdentifierPolicy.isValid(""))
+        XCTAssertFalse(TreeIdentifierPolicy.isValid("../escape"))
+        XCTAssertFalse(TreeIdentifierPolicy.isValid("A/B"))
+        XCTAssertFalse(TreeIdentifierPolicy.isValid("A\\B"))
+        XCTAssertFalse(TreeIdentifierPolicy.isValid("A:B"))
+        XCTAssertFalse(TreeIdentifierPolicy.isValid("A\ncomment gps_lat 90"))
+        XCTAssertFalse(TreeIdentifierPolicy.isValid(String(repeating: "A", count: 65)))
+    }
+
+    func testTreeIdentifierPolicyMakesBoundedSafeFileComponent() {
+        let component = TreeIdentifierPolicy.safeFileComponent(
+            from: " ../果园 A/B:\n" + String(repeating: "树", count: 80)
+        )
+
+        XCTAssertFalse(component.isEmpty)
+        XCTAssertFalse(component.contains("/"))
+        XCTAssertFalse(component.contains("\\"))
+        XCTAssertFalse(component.contains(":"))
+        XCTAssertFalse(component.contains("\n"))
+        XCTAssertLessThanOrEqual(component.utf8.count, 80)
+    }
+
+    func testTreeFilenameIsSafeAndUniqueForSameTimestamp() {
+        let date = Date(timeIntervalSince1970: 1_750_000_000)
+        let first = makeTreeFileName(
+            treeID: "../Tree/A",
+            lat: 35.1,
+            lon: 139.2,
+            date: date,
+            uniqueSuffix: "ABCDEF123456"
+        )
+        let second = makeTreeFileName(
+            treeID: "../Tree/A",
+            lat: 35.1,
+            lon: 139.2,
+            date: date,
+            uniqueSuffix: "654321FEDCBA"
+        )
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertTrue(LocalFileStorage.isSafeLeafFilename(first))
+        XCTAssertTrue(LocalFileStorage.isSafeLeafFilename(second))
+        XCTAssertFalse(LocalFileStorage.isSafeLeafFilename("../escape.ply"))
+        XCTAssertFalse(LocalFileStorage.isSafeLeafFilename("nested/scan.ply"))
+        XCTAssertTrue(first.hasSuffix("_lat35.1000_lon139.2000.ply"))
+    }
+
     // MARK: - PointCloudDenoiser.statisticalOutlierRemoval
 
     func testSOR_ReturnsOriginalForSmallInput() {
@@ -315,6 +365,27 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertTrue(lines.contains("end_header"))
     }
 
+    func testMakeDataSanitizesTreeIDBeforeWritingPLYHeader() {
+        let sample = RendererPointSample(
+            position: SIMD3<Float>(1, 2, 3),
+            color: SIMD3<Float>(0.1, 0.2, 0.3),
+            confidence: 0.9
+        )
+        let data = RendererPLYDataBuilder.makeData(
+            samples: [sample],
+            treeID: "T001\r\nelement vertex 999\ncomment gps_lat 90",
+            scanDate: "2026-06-25 10:00:00",
+            gpsLat: 35,
+            gpsLon: 139
+        )
+        let contents = String(decoding: data, as: UTF8.self)
+        let lines = contents.components(separatedBy: "\r\n")
+
+        XCTAssertTrue(lines.contains("comment tree_id T001 element vertex 999 comment gps_lat 90"))
+        XCTAssertEqual(lines.filter { $0.hasPrefix("element vertex") }, ["element vertex 1"])
+        XCTAssertEqual(lines.filter { $0.hasPrefix("comment gps_lat") }, ["comment gps_lat 35.000000"])
+    }
+
     func testMakeData_GPSFormatSixDecimals() {
         let gpsLinePattern = try! NSRegularExpression(pattern: "comment gps_(lat|lon) \\-?\\d+\\.\\d{6}")
         let samples: [RendererPointSample] = [
@@ -505,5 +576,603 @@ final class PointCloudProcessingTests: XCTestCase {
 
     func testPointCloudBoundsEmptyInputReturnsNil() {
         XCTAssertNil(PointCloudBounds(vertices: []))
+    }
+
+    // MARK: - PLYImportService reject/cleanup
+
+    func testPLYImportRejectsCorruptPLYAndLeavesScansDirectoryClean() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+        let plyURL = tempDir.appendingPathComponent("corrupt.ply")
+        try "not a valid ply file".write(to: plyURL, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(try PLYImportService.importFile(plyURL, scansDirectory: scansDir))
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Failed import left artifacts: \(contents)")
+    }
+
+    func testPLYImportRejectsMissingPLYHeader() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+        let plyURL = tempDir.appendingPathComponent("noheader.ply")
+        // Write a file with ply magic but no format/element lines
+        try "ply\r\ncomment no format line\r\nend_header\r\n".write(to: plyURL, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(try PLYImportService.importFile(plyURL, scansDirectory: scansDir))
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Invalid header import left artifacts: \(contents)")
+    }
+
+    // MARK: - PLYImportService success + duplicate import
+
+    func testPLYImportSanitizesSourceFileNameAndImportTwiceDoesNotOverwrite() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+
+        let plyContent = """
+        ply
+        format ascii 1.0
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        property uchar red
+        property uchar green
+        property uchar blue
+        element face 0
+        property list uchar int vertex_indices
+        end_header
+        1.0 2.0 3.0 128 128 128
+        """
+
+        // Source filename with characters that safeFileComponent will transform
+        let plyURL = tempDir.appendingPathComponent("My Tree Scan.ply")
+        try plyContent.write(to: plyURL, atomically: true, encoding: .utf8)
+
+        let imported1 = try PLYImportService.importFile(plyURL, scansDirectory: scansDir)
+        XCTAssertTrue(LocalFileStorage.isSafeLeafFilename(imported1),
+                      "Imported filename should be safe: \(imported1)")
+        XCTAssertFalse(imported1.contains(" "),
+                       "Imported filename should have spaces collapsed: \(imported1)")
+
+        // Import the same file a second time — must not overwrite the first
+        let imported2 = try PLYImportService.importFile(plyURL, scansDirectory: scansDir)
+        XCTAssertNotEqual(imported1, imported2,
+                         "Second import should produce a distinct filename from first")
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: scansDir.appendingPathComponent(imported1).path),
+                      "First imported file should still exist")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: scansDir.appendingPathComponent(imported2).path),
+                      "Second imported file should exist")
+
+        let content1 = try String(contentsOf: scansDir.appendingPathComponent(imported1), encoding: .utf8)
+        let content2 = try String(contentsOf: scansDir.appendingPathComponent(imported2), encoding: .utf8)
+        XCTAssertTrue(content1.contains("1.0 2.0 3.0"))
+        XCTAssertTrue(content2.contains("1.0 2.0 3.0"))
+    }
+
+    // MARK: - Binary PLY with malicious vertex count
+
+    func testBinaryPLYHugeVertexCountReturnsNilWithoutCrash() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("huge_binary.ply")
+
+        // Build a binary PLY with a header claiming a massively huge vertex count
+        // but only a tiny body — the guard should reject it without overflow.
+        let header = """
+        ply
+        format binary_little_endian 1.0
+        element vertex \(Int.max)
+        property float x
+        property float y
+        property float z
+        end_header
+
+        """.data(using: .ascii)!
+        let body = Data(count: 36) // 3 vertices worth of binary data, far less than claimed
+        var data = Data()
+        data.append(header)
+        data.append(body)
+        try data.write(to: plyURL)
+
+        let result = PLYParserHelper.parsePointCloudData(at: plyURL)
+        XCTAssertNil(result, "Huge vertex count with tiny body should return nil, not crash")
+    }
+
+    func testBinaryPLYZeroVertexCountReturnsNil() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("zero_vertex.ply")
+        let header = """
+        ply
+        format binary_little_endian 1.0
+        element vertex 0
+        property float x
+        property float y
+        property float z
+        end_header
+
+        """.data(using: .ascii)!
+        try header.write(to: plyURL)
+
+        let result = PLYParserHelper.parsePointCloudData(at: plyURL)
+        XCTAssertNil(result, "Zero vertex count should return nil")
+    }
+
+    // MARK: - ASCII PLY property-driven parsing matrix
+
+    func testASCIIPLYParsesReorderedXYZAndRGBWithExtraProperty() throws {
+        let pointCloud = try XCTUnwrap(parsePLY("""
+        ply
+        format ascii 1.0
+        element vertex 2
+        property float z
+        property float x
+        property uchar red
+        property float y
+        property uchar green
+        property uchar blue
+        property float confidence
+        end_header
+        3.0 1.0 255 2.0 128 0 0.95
+        6.0 4.0 100 5.0 200 50 0.85
+        """, name: "reordered_ascii.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 2)
+        assertVertex(pointCloud.vertices[0], x: 1, y: 2, z: 3)
+        assertColor(pointCloud.colors[0], r: 1, g: 128.0 / 255.0, b: 0)
+        assertVertex(pointCloud.vertices[1], x: 4, y: 5, z: 6)
+        assertColor(pointCloud.colors[1], r: 100.0 / 255.0, g: 200.0 / 255.0, b: 50.0 / 255.0)
+    }
+
+    func testASCIIDoubleCoordinatesNoColorGetsDefaultGray() throws {
+        let pointCloud = try XCTUnwrap(parsePLY("""
+        ply
+        format ascii 1.0
+        element vertex 2
+        property double x
+        property double y
+        property double z
+        end_header
+        1.5 -2.5 3.5
+        10.0 20.0 30.0
+        """, name: "double_no_color.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 2)
+        assertVertex(pointCloud.vertices[0], x: 1.5, y: -2.5, z: 3.5)
+        assertVertex(pointCloud.vertices[1], x: 10, y: 20, z: 30)
+        assertColor(pointCloud.colors[0], r: 0.5, g: 0.5, b: 0.5)
+        assertColor(pointCloud.colors[1], r: 0.5, g: 0.5, b: 0.5)
+    }
+
+    func testASCIIFloatColorsNormalizeUnitAndByteRangesPerPoint() throws {
+        let pointCloud = try XCTUnwrap(parsePLY("""
+        ply
+        format ascii 1.0
+        element vertex 2
+        property float x
+        property float y
+        property float z
+        property float red
+        property float green
+        property float blue
+        end_header
+        0 0 0 0.2 0.7 1.0
+        1 0 0 51.0 178.5 255.0
+        """, name: "float_color_ranges.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 2)
+        assertColor(pointCloud.colors[0], r: 0.2, g: 0.7, b: 1)
+        assertColor(pointCloud.colors[1], r: 51.0 / 255.0, g: 178.5 / 255.0, b: 1)
+    }
+
+    func testUTF8ChineseTreeIDHeaderCommentDoesNotBreakParsing() throws {
+        let pointCloud = try XCTUnwrap(parsePLY("""
+        ply
+        format ascii 1.0
+        comment tree_id 三号果园·苹果树A12
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        property uchar red
+        property uchar green
+        property uchar blue
+        end_header
+        5.0 6.0 7.0 255 128 64
+        """, name: "chinese_tree.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 1)
+        assertVertex(pointCloud.vertices[0], x: 5, y: 6, z: 7)
+    }
+
+    func testUTF8ChineseCommentImportDoesNotThrow() throws {
+        let plyURL = try writeTemporaryPLY(name: "fruit_tree_chinese.ply", content: """
+        ply
+        format ascii 1.0
+        comment tree_id 果树·桃
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        property uchar red
+        property uchar green
+        property uchar blue
+        end_header
+        1.0 2.0 3.0 100 150 200
+        """)
+
+        let scansDir = plyURL.deletingLastPathComponent().appendingPathComponent("scans", isDirectory: true)
+        let importedName = try PLYImportService.importFile(plyURL, scansDirectory: scansDir)
+        XCTAssertTrue(importedName.hasSuffix(".ply"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: scansDir.appendingPathComponent(importedName).path))
+    }
+
+    // MARK: - Binary PLY parsing matrix
+
+    func testBinaryLittleEndianParsesMixedScalarTypesAndExtraProperty() throws {
+        var body = Data()
+        body.append(Self.leFloat32(1))
+        body.append(Self.leFloat64(2))
+        body.append(Self.leInt32(3))
+        body.append(contentsOf: [255, 128, 0] as [UInt8])
+        body.append(Self.leFloat32(0.95))
+        body.append(Self.leFloat32(10))
+        body.append(Self.leFloat64(20))
+        body.append(Self.leInt32(30))
+        body.append(contentsOf: [0, 64, 192] as [UInt8])
+        body.append(Self.leFloat32(0.3))
+
+        let pointCloud = try XCTUnwrap(parsePLY(data: binaryPLYData(
+            format: "binary_little_endian",
+            vertexCount: 2,
+            properties: [
+                "property float x",
+                "property double y",
+                "property int z",
+                "property uchar red",
+                "property uchar green",
+                "property uchar blue",
+                "property float confidence",
+            ],
+            body: body
+        ), name: "mixed_le.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 2)
+        assertVertex(pointCloud.vertices[0], x: 1, y: 2, z: 3)
+        assertColor(pointCloud.colors[0], r: 1, g: 128.0 / 255.0, b: 0)
+        assertVertex(pointCloud.vertices[1], x: 10, y: 20, z: 30)
+        assertColor(pointCloud.colors[1], r: 0, g: 64.0 / 255.0, b: 192.0 / 255.0)
+    }
+
+    func testBinaryBigEndianParsesCoordinatesAndColors() throws {
+        var body = Data()
+        body.append(Self.beFloat32(1.5))
+        body.append(Self.beFloat32(2.5))
+        body.append(Self.beFloat32(3.5))
+        body.append(contentsOf: [200, 100, 50] as [UInt8])
+        body.append(Self.beFloat32(-1))
+        body.append(Self.beFloat32(0))
+        body.append(Self.beFloat32(5))
+        body.append(contentsOf: [10, 20, 30] as [UInt8])
+
+        let pointCloud = try XCTUnwrap(parsePLY(data: binaryPLYData(
+            format: "binary_big_endian",
+            vertexCount: 2,
+            properties: [
+                "property float x",
+                "property float y",
+                "property float z",
+                "property uchar red",
+                "property uchar green",
+                "property uchar blue",
+            ],
+            body: body
+        ), name: "be.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 2)
+        assertVertex(pointCloud.vertices[0], x: 1.5, y: 2.5, z: 3.5)
+        assertColor(pointCloud.colors[0], r: 200.0 / 255.0, g: 100.0 / 255.0, b: 50.0 / 255.0)
+        assertVertex(pointCloud.vertices[1], x: -1, y: 0, z: 5)
+        assertColor(pointCloud.colors[1], r: 10.0 / 255.0, g: 20.0 / 255.0, b: 30.0 / 255.0)
+    }
+
+    func testBinaryLittleEndianUShortColorNormalization() throws {
+        var body = Data()
+        body.append(Self.leFloat32(0))
+        body.append(Self.leFloat32(0))
+        body.append(Self.leFloat32(0))
+        body.append(Self.leUInt16(0))
+        body.append(Self.leUInt16(32_768))
+        body.append(Self.leUInt16(65_535))
+        body.append(Self.leFloat32(1))
+        body.append(Self.leFloat32(1))
+        body.append(Self.leFloat32(1))
+        body.append(Self.leUInt16(65_535))
+        body.append(Self.leUInt16(0))
+        body.append(Self.leUInt16(16_384))
+
+        let pointCloud = try XCTUnwrap(parsePLY(data: binaryPLYData(
+            format: "binary_little_endian",
+            vertexCount: 2,
+            properties: [
+                "property float x",
+                "property float y",
+                "property float z",
+                "property ushort red",
+                "property ushort green",
+                "property ushort blue",
+            ],
+            body: body
+        ), name: "ushort_color_le.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 2)
+        assertColor(pointCloud.colors[0], r: 0, g: 32_768.0 / 65_535.0, b: 1)
+        assertColor(pointCloud.colors[1], r: 1, g: 0, b: 16_384.0 / 65_535.0)
+    }
+
+    // MARK: - Malformed-input rejection matrix
+
+    func testMalformedASCIIPLYInputsReturnNil() throws {
+        let malformedCases: [(name: String, content: String)] = [
+            ("truncated_row", """
+            ply
+            format ascii 1.0
+            element vertex 2
+            property float x
+            property float y
+            property float z
+            property uchar red
+            property uchar green
+            property uchar blue
+            end_header
+            1.0 2.0 3.0 255 128 64
+            4.0 5.0 6.0
+            """),
+            ("extra_vertex_columns", """
+            ply
+            format ascii 1.0
+            element vertex 1
+            property float x
+            property float y
+            property float z
+            end_header
+            1.0 2.0 3.0 4.0
+            """),
+            ("nan_coordinate", """
+            ply
+            format ascii 1.0
+            element vertex 1
+            property float x
+            property float y
+            property float z
+            end_header
+            nan 1.0 2.0
+            """),
+            ("float32_overflow_extra_property", """
+            ply
+            format ascii 1.0
+            element vertex 1
+            property float x
+            property float y
+            property float z
+            property float confidence
+            end_header
+            1.0 2.0 3.0 1e100
+            """),
+            ("inf_coordinate", """
+            ply
+            format ascii 1.0
+            element vertex 1
+            property float x
+            property float y
+            property float z
+            end_header
+            1.0 -inf 2.0
+            """),
+            ("missing_xyz", """
+            ply
+            format ascii 1.0
+            element vertex 1
+            property float x
+            property float y
+            end_header
+            1.0 2.0
+            """),
+            ("list_property_under_vertex", """
+            ply
+            format ascii 1.0
+            element vertex 1
+            property float x
+            property float y
+            property float z
+            property list uchar int vertex_indices
+            end_header
+            1.0 2.0 3.0 0
+            """),
+        ]
+
+        for malformed in malformedCases {
+            let pointCloud = try parsePLY(malformed.content, name: "\(malformed.name).ply")
+            XCTAssertNil(pointCloud, malformed.name)
+        }
+    }
+
+    func testTruncatedBinaryBodyReturnsNil() throws {
+        var body = Data()
+        body.append(Self.leFloat32(1))
+        body.append(Self.leFloat32(2))
+        body.append(Self.leFloat32(3))
+        body.append(contentsOf: [255, 128, 64] as [UInt8])
+
+        let pointCloud = try parsePLY(data: binaryPLYData(
+            format: "binary_little_endian",
+            vertexCount: 3,
+            properties: [
+                "property float x",
+                "property float y",
+                "property float z",
+                "property uchar red",
+                "property uchar green",
+                "property uchar blue",
+            ],
+            body: body
+        ), name: "truncated_binary.ply")
+
+        XCTAssertNil(pointCloud)
+    }
+
+    // MARK: - PLY test helpers
+
+    private func parsePLY(_ content: String, name: String = "point_cloud.ply") throws -> PointCloudData? {
+        try parsePLY(data: Data(content.utf8), name: name)
+    }
+
+    private func parsePLY(data: Data, name: String = "point_cloud.ply") throws -> PointCloudData? {
+        let url = try writeTemporaryPLY(name: name, data: data)
+        return PLYParserHelper.parsePointCloudData(at: url)
+    }
+
+    private func writeTemporaryPLY(name: String, content: String) throws -> URL {
+        try writeTemporaryPLY(name: name, data: Data(content.utf8))
+    }
+
+    private func writeTemporaryPLY(name: String, data: Data) throws -> URL {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let url = tempDir.appendingPathComponent(name)
+        try data.write(to: url)
+        return url
+    }
+
+    private func binaryPLYData(
+        format: String,
+        vertexCount: Int,
+        properties: [String],
+        body: Data
+    ) -> Data {
+        var data = Data("""
+        ply
+        format \(format) 1.0
+        element vertex \(vertexCount)
+        \(properties.joined(separator: "\n"))
+        end_header
+
+        """.utf8)
+        data.append(body)
+        return data
+    }
+
+    private func assertVertex(
+        _ actual: SCNVector3,
+        x: Float,
+        y: Float,
+        z: Float,
+        accuracy: Float = 0.001,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.x, x, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actual.y, y, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actual.z, z, accuracy: accuracy, file: file, line: line)
+    }
+
+    private func assertColor(
+        _ actual: PointCloudColor,
+        r: Float,
+        g: Float,
+        b: Float,
+        accuracy: Float = 0.001,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.r, r, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actual.g, g, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actual.b, b, accuracy: accuracy, file: file, line: line)
+    }
+
+    // MARK: - Binary byte-level helpers (endianness-explicit)
+
+    private static func leFloat32(_ value: Float) -> Data {
+        let bits = value.bitPattern
+        return Data([
+            UInt8(bits & 0xFF),
+            UInt8((bits >> 8) & 0xFF),
+            UInt8((bits >> 16) & 0xFF),
+            UInt8((bits >> 24) & 0xFF),
+        ])
+    }
+
+    private static func leFloat64(_ value: Double) -> Data {
+        let bits = value.bitPattern
+        return Data([
+            UInt8(bits & 0xFF),
+            UInt8((bits >> 8) & 0xFF),
+            UInt8((bits >> 16) & 0xFF),
+            UInt8((bits >> 24) & 0xFF),
+            UInt8((bits >> 32) & 0xFF),
+            UInt8((bits >> 40) & 0xFF),
+            UInt8((bits >> 48) & 0xFF),
+            UInt8((bits >> 56) & 0xFF),
+        ])
+    }
+
+    private static func leInt32(_ value: Int32) -> Data {
+        let bits = UInt32(bitPattern: value)
+        return Data([
+            UInt8(bits & 0xFF),
+            UInt8((bits >> 8) & 0xFF),
+            UInt8((bits >> 16) & 0xFF),
+            UInt8((bits >> 24) & 0xFF),
+        ])
+    }
+
+    private static func leUInt16(_ value: UInt16) -> Data {
+        Data([
+            UInt8(value & 0xFF),
+            UInt8((value >> 8) & 0xFF),
+        ])
+    }
+
+    private static func beFloat32(_ value: Float) -> Data {
+        let bits = value.bitPattern
+        return Data([
+            UInt8((bits >> 24) & 0xFF),
+            UInt8((bits >> 16) & 0xFF),
+            UInt8((bits >> 8) & 0xFF),
+            UInt8(bits & 0xFF),
+        ])
     }
 }

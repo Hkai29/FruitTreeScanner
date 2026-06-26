@@ -185,6 +185,21 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertEqual(samples.last?.note, "sample 24")
     }
 
+    @MainActor
+    func testResumePreservesPendingDetectionWork() {
+        let coordinator = ScanCoordinator()
+        let detector = coordinator.imageDetector
+        let queueGeneration = detector.queueGeneration
+        let pendingTask = Task<Void, Never> {}
+        coordinator.detectionTask = pendingTask
+
+        coordinator.resumeRecordingPreservingCapture()
+
+        XCTAssertNotNil(coordinator.detectionTask)
+        XCTAssertEqual(detector.queueGeneration, queueGeneration)
+        pendingTask.cancel()
+    }
+
 #if DEBUG
     // MARK: - Export JSON
 
@@ -241,7 +256,8 @@ final class DetectionDebugStateTests: XCTestCase {
         let topPreds = try XCTUnwrap(s["topPredictions"] as? [[String: Any]])
         XCTAssertEqual(topPreds.count, 1)
         XCTAssertEqual(topPreds[0]["label"] as? String, "apple")
-        XCTAssertEqual(topPreds[0]["confidence"] as? Double, 0.9, accuracy: 0.001)
+        let confidence = try XCTUnwrap(topPreds[0]["confidence"] as? Double)
+        XCTAssertEqual(confidence, 0.9, accuracy: 0.001)
     }
 
     func testExportJSONWithEmptySamples() throws {
@@ -309,6 +325,31 @@ final class DetectionDebugStateTests: XCTestCase {
         let data = try Data(contentsOf: fileURL)
         let dict = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(dict["sampleCount"] as? Int, 1)
+    }
+
+    func testExportFileUsesUniqueFilenameForRapidConsecutiveExports() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DetectionDebugStateTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let state = DetectionDebugState(currentThreshold: 0.5)
+        let firstURL = try DetectionFailureExportService.exportFile(
+            from: [],
+            debugState: state,
+            directory: directory
+        )
+        let secondURL = try DetectionFailureExportService.exportFile(
+            from: [],
+            debugState: state,
+            directory: directory
+        )
+
+        XCTAssertNotEqual(firstURL, secondURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondURL.path))
     }
 
     func testExportPayloadDebugStateSnapshotMirrorsSource() {

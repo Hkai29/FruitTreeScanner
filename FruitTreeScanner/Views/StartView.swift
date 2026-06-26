@@ -83,7 +83,7 @@ struct StartView: View {
             return (
                 "FeatureYieldReport",
                 "估算阶段",
-                "选择成熟期或非成熟期，系统会采用对应的产量估算路径。",
+                "当前开放成熟期融合估算；冠层回归完成实测标定后开放。",
                 "chart.bar.fill",
                 Design.Colors.harvest
             )
@@ -289,8 +289,8 @@ struct StartView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            let normalizedTreeID = treeID.trimmingCharacters(in: .whitespaces)
-            guard !normalizedTreeID.isEmpty else {
+            let normalizedTreeID = TreeIdentifierPolicy.normalized(treeID)
+            guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
                 isLaunchingScan = false
                 return
             }

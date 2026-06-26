@@ -49,7 +49,7 @@ enum ResearchCSVExporter {
     ) -> [String] {
         [
             estimate.id.uuidString,
-            estimate.fruitCategory,
+            SpreadsheetTextSafety.neutralizingFormula(estimate.fruitCategory),
             format(estimate.lengthCm),
             format(estimate.widthCm),
             format(estimate.heightCm),
@@ -63,8 +63,8 @@ enum ResearchCSVExporter {
             "\(estimate.pointCount)",
             format(estimate.highConfidenceRatio),
             format(estimate.validDepthRatio),
-            estimate.shapeModelUsed.rawValue,
-            estimate.warningFlags.map(\.rawValue).joined(separator: ";"),
+            SpreadsheetTextSafety.neutralizingFormula(estimate.shapeModelUsed.rawValue),
+            SpreadsheetTextSafety.neutralizingFormula(estimate.warningFlags.map(\.rawValue).joined(separator: ";")),
             ISO8601DateFormatter().string(from: estimate.createdAt),
             groundTruth?.trueWeightG.map(format) ?? "",
             groundTruth?.trueVolumeCm3.map(format) ?? "",

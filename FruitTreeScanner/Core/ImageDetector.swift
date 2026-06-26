@@ -321,7 +321,11 @@ enum DetectionFailureExportService {
     ) throws -> URL {
         let payload = makePayload(from: samples, debugState: debugState)
         let data = try encode(payload: payload, formatting: [.prettyPrinted, .sortedKeys])
-        let filename = "detection-failure-samples-\(filenameTimestamp(from: payload.exportTimestamp)).json"
+        let filename = [
+            "detection-failure-samples",
+            filenameTimestamp(from: payload.exportTimestamp),
+            UUID().uuidString.lowercased()
+        ].joined(separator: "-") + ".json"
         let fileURL = directory.appendingPathComponent(filename, isDirectory: false)
         try data.write(to: fileURL, options: .atomic)
         return fileURL

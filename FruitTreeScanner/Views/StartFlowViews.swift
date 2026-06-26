@@ -8,6 +8,7 @@ struct Step1_IDEntry: View {
     @Binding var isValid: Bool
     @State private var draftTreeID = ""
     @State private var localIsValid = false
+    @State private var validationErrorMessage: String?
     @State private var syncTask: Task<Void, Never>?
 
     var body: some View {
@@ -25,7 +26,7 @@ struct Step1_IDEntry: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(Design.Colors.Dark.textSecondary)
                     Spacer()
-                    Text(localIsValid ? "可用" : "必填")
+                    Text(localIsValid ? "可用" : (validationErrorMessage != nil ? "无效" : "必填"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(localIsValid ? Design.Colors.forest : Design.Colors.harvest)
                 }
@@ -42,6 +43,12 @@ struct Step1_IDEntry: View {
                     .textContentType(.none)
                     .submitLabel(.next)
                     .onSubmit(syncImmediately)
+
+                if let error = validationErrorMessage {
+                    Text(error)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Design.Colors.harvest)
+                }
             }
             .padding(Design.Space.lg)
             .startSurface(cornerRadius: 10)
@@ -81,13 +88,23 @@ struct Step1_IDEntry: View {
     }
 
     private func updateLocalValidity(for value: String) {
-        localIsValid = !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let normalized = TreeIdentifierPolicy.normalized(value)
+        if normalized.isEmpty {
+            localIsValid = false
+            validationErrorMessage = nil
+        } else if let error = TreeIdentifierPolicy.validationError(for: normalized) {
+            localIsValid = false
+            validationErrorMessage = error
+        } else {
+            localIsValid = true
+            validationErrorMessage = nil
+        }
     }
 
     private func publish(_ value: String) {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = TreeIdentifierPolicy.normalized(value)
         treeID = normalized
-        isValid = !normalized.isEmpty
+        isValid = TreeIdentifierPolicy.isValid(normalized)
     }
 }
 
@@ -170,15 +187,15 @@ struct Step3_SeasonSelection: View {
             StartStepHeader(
                 step: 3,
                 totalSteps: 5,
-                title: "扫描季节",
-                subtitle: "影响产量估算路径，不影响点云保存。"
+                title: "估算阶段",
+                subtitle: "当前仅开放已具备可靠输入的成熟期估算。"
             )
 
             VStack(spacing: 0) {
                 SeasonOptionRow(
                     icon: "apple.logo",
                     title: "成熟期",
-                    subtitle: "果实体积法 + 冠层体积法",
+                    subtitle: "RGB + LiDAR 果实融合估算",
                     isSelected: season == .mature,
                     color: Design.Colors.forest
                 ) {
@@ -189,19 +206,20 @@ struct Step3_SeasonSelection: View {
 
                 SeasonOptionRow(
                     icon: "leaf.fill",
-                    title: "非成熟期",
-                    subtitle: "仅使用冠层体积法",
+                    title: "非成熟期（待标定）",
+                    subtitle: "冠层回归尚缺实测系数，暂不可选择",
                     isSelected: season == .off,
-                    color: Design.Colors.harvest
+                    color: Design.Colors.harvest,
+                    isEnabled: false
                 ) {
-                    season = .off
+                    // 冠层回归完成实测标定后再开放。
                 }
             }
             .startSurface(cornerRadius: 10)
 
             StartNoteRow(
                 icon: "info.circle",
-                text: "成熟期建议采集完整树冠和可见果实；非成熟期更适合早期长势记录。"
+                text: "非成熟期冠层路线需先用真实称重数据完成模型标定，避免输出缺乏依据的产量。"
             )
         }
     }
@@ -213,6 +231,7 @@ struct SeasonOptionRow: View {
     let subtitle: String
     let isSelected: Bool
     let color: Color
+    var isEnabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -224,8 +243,14 @@ struct SeasonOptionRow: View {
             isSelected: isSelected,
             action: action
         ) {
-            EmptyView()
+            if !isEnabled {
+                Text("待标定")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+            }
         }
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.58)
     }
 }
 

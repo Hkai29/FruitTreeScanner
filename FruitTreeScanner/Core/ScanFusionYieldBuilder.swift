@@ -24,9 +24,14 @@ enum ScanFusionYieldBuilder {
         let clusterConfig: ClusterConfig
         let fusionConfig: FruitScanConfig
         let colorFilter: ColorFilter?
+        var season: Season = .mature
     }
 
     static func build(from input: Input) async -> (YieldResult, FruitCountResult) {
+        guard input.season.supportsYieldEstimation else {
+            return makeUncalibratedSeasonResult(input: input)
+        }
+
         var diagnostics = ScanDiagnosticsBuilder.makeDiagnostics(
             pointCloudPointCount: input.points.count,
             depthAvailable: input.frameContext?.depthMap != nil,
@@ -102,6 +107,34 @@ enum ScanFusionYieldBuilder {
             ),
             countResult
         )
+    }
+
+    private static func makeUncalibratedSeasonResult(
+        input: Input
+    ) -> (YieldResult, FruitCountResult) {
+        var diagnostics = ScanDiagnosticsBuilder.makeDiagnostics(
+            pointCloudPointCount: input.points.count,
+            depthAvailable: input.frameContext?.depthMap != nil,
+            imageDiagnostics: input.imageDiagnostics
+        )
+        diagnostics.imageDetectionCount = input.savedDetections.count
+        diagnostics.zeroYieldReasons = ["非成熟期冠层回归模型尚未标定，本次未生成产量估算"]
+
+        var result = YieldResult()
+        result.yieldFinalKg = 0
+        result.confidence = "manual_review"
+        result.methodUsed = "crown_untrained"
+        result.note = diagnostics.zeroYieldReasons[0]
+        result.pointCloudSize = input.points.count
+        result.fruitCategory = input.fruitCategory?.displayName ?? input.fruitType
+        result.colorFilterDesc = "N/A"
+        result.diagnostics = diagnostics
+
+        let countResult = FruitCounter().count(
+            [],
+            defaultCategory: input.fruitCategory ?? .apple
+        )
+        return (result, countResult)
     }
 
     private static func makeValidatedFruits(

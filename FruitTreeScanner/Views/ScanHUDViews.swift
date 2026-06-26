@@ -307,6 +307,7 @@ struct ScanCoverageHintBar: View {
 struct ScanBottomControlBar: View {
     let isRecording: Bool
     let isEstimating: Bool
+    let canFinish: Bool
     @ObservedObject var hudState: ScanHUDState
     @ObservedObject var measurementController: MetalMeasurementController
     let onToggleGuide: () -> Void
@@ -413,7 +414,7 @@ struct ScanBottomControlBar: View {
     }
 
     private var isFinishDisabled: Bool {
-        isEstimating || hudState.pointCount == 0
+        isEstimating || !canFinish
     }
 
     private var recordingButtonTitle: String {

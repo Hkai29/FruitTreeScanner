@@ -15,6 +15,7 @@ struct BatchExportView: View {
     @State private var errorMessage = ""
     @State private var showShareSheet = false
     @State private var exportTask: Task<Void, Never>?
+    @State private var exportGeneration = 0
     
     var body: some View {
         NavigationStack {
@@ -41,7 +42,7 @@ struct BatchExportView: View {
                             BatchExportCompletionPanel(
                                 url: exportedURL,
                                 onShare: { showShareSheet = true },
-                                onClear: { self.exportedURL = nil }
+                                onClear: clearExportedFile
                             )
                             .padding(.horizontal, Design.Space.md)
                             .padding(.top, Design.Space.md)
@@ -105,6 +106,7 @@ struct BatchExportView: View {
         }
         .onDisappear {
             cancelExport()
+            clearExportedFile()
         }
     }
     
@@ -117,6 +119,8 @@ struct BatchExportView: View {
                         isSelected: selectedRecords.contains(record.id),
                         onToggle: { toggleSelection(record.id) }
                     )
+                    .disabled(isExporting)
+                    .opacity(isExporting ? 0.65 : 1)
                 }
             }
             .padding(Design.Space.md)
@@ -145,12 +149,15 @@ struct BatchExportView: View {
                         format: format,
                         isSelected: exportFormat == format,
                         action: {
+                            guard !isExporting else { return }
                             exportFormat = format
-                            exportedURL = nil
+                            clearExportedFile()
                         }
                     )
                 }
             }
+            .disabled(isExporting)
+            .opacity(isExporting ? 0.65 : 1)
         }
     }
     
@@ -167,6 +174,8 @@ struct BatchExportView: View {
                 BatchExportOptionToggle(label: "GPS位置", isOn: optionBinding(\.includeGPS))
                 BatchExportOptionToggle(label: "扫描日期", isOn: optionBinding(\.includeDate))
             }
+            .disabled(isExporting)
+            .opacity(isExporting ? 0.65 : 1)
 
             Divider()
                 .background(Design.Colors.Dark.glassBorder)
@@ -182,8 +191,10 @@ struct BatchExportView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .disabled(isExporting)
+                .opacity(isExporting ? 0.65 : 1)
                 .onChange(of: exportOptions.groupBy) { _ in
-                    exportedURL = nil
+                    clearExportedFile()
                 }
             }
         }
@@ -193,14 +204,16 @@ struct BatchExportView: View {
         Binding(
             get: { exportOptions[keyPath: keyPath] },
             set: { newValue in
+                guard !isExporting else { return }
                 exportOptions[keyPath: keyPath] = newValue
-                exportedURL = nil
+                clearExportedFile()
             }
         )
     }
     
     private func toggleSelection(_ id: String) {
-        exportedURL = nil
+        guard !isExporting else { return }
+        clearExportedFile()
         if selectedRecords.contains(id) {
             selectedRecords.remove(id)
         } else {
@@ -209,7 +222,8 @@ struct BatchExportView: View {
     }
     
     private func toggleSelectAll() {
-        exportedURL = nil
+        guard !isExporting else { return }
+        clearExportedFile()
         if selectedRecords.count == store.scanFiles.count {
             selectedRecords.removeAll()
         } else {
@@ -230,34 +244,58 @@ struct BatchExportView: View {
         guard !selectedFiles.isEmpty else { return }
         
         exportTask?.cancel()
+        exportGeneration += 1
+        let generation = exportGeneration
         isExporting = true
-        exportedURL = nil
+        clearExportedFile()
+        let selectionSnapshot = selectedRecords
         let format = exportFormat
-        var options = exportOptions
+        let optionSnapshot = exportOptions
+        var options = optionSnapshot
         options.plotNameByTreeID = plotNameByTreeID()
 
         exportTask = Task {
+            defer {
+                if exportGeneration == generation {
+                    isExporting = false
+                    exportTask = nil
+                }
+            }
+
             do {
                 let exportResult = try await BatchExportService.shared.export(
                     records: selectedFiles,
                     format: format,
                     options: options
                 )
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      exportGeneration == generation
+                else {
+                    try? FileManager.default.removeItem(at: exportResult.url)
+                    return
+                }
+                guard selectedRecords == selectionSnapshot,
+                      exportFormat == format,
+                      exportOptions == optionSnapshot
+                else {
+                    try? FileManager.default.removeItem(at: exportResult.url)
+                    return
+                }
                 exportedURL = exportResult.url
                 showShareSheet = true
             } catch is CancellationError {
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      exportGeneration == generation
+                else { return }
                 errorMessage = error.localizedDescription
                 showError = true
             }
-            isExporting = false
-            exportTask = nil
         }
     }
 
     private func cancelExport() {
+        exportGeneration += 1
         exportTask?.cancel()
         exportTask = nil
         if isExporting {
@@ -265,10 +303,19 @@ struct BatchExportView: View {
         }
     }
 
+    private func clearExportedFile() {
+        guard let url = exportedURL else { return }
+        exportedURL = nil
+
+        let tempDirectory = FileManager.default.temporaryDirectory.standardizedFileURL
+        guard url.deletingLastPathComponent().standardizedFileURL == tempDirectory else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
     private func pruneSelection(to files: [ScanFileRecord]) {
         let availableIDs = Set(files.map(\.id))
         if !selectedRecords.isSubset(of: availableIDs) {
-            exportedURL = nil
+            clearExportedFile()
             selectedRecords.formIntersection(availableIDs)
         }
     }

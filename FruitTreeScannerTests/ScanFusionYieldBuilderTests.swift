@@ -316,4 +316,31 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
 
         XCTAssertFalse(yield.colorFilterDesc.isEmpty, "colorFilterDesc 不应为空")
     }
+
+    func testBuildOffSeasonSkipsFruitPipelineWhenCrownModelIsUncalibrated() async {
+        let points = makeAppleSphere(center: SIMD3<Float>(0, 0, 2))
+        let input = ScanFusionYieldBuilder.Input(
+            points: points,
+            savedDetections: [],
+            imageDiagnostics: emptyImageDiagnostics(),
+            frameContext: nil,
+            fruitType: "苹果",
+            fruitCategory: .apple,
+            paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+            defaultParams: appleParams(),
+            clusterConfig: .default,
+            fusionConfig: .default,
+            colorFilter: nil,
+            season: .off
+        )
+
+        let (yield, countResult) = await ScanFusionYieldBuilder.build(from: input)
+
+        XCTAssertEqual(yield.methodUsed, "crown_untrained")
+        XCTAssertEqual(yield.confidence, "manual_review")
+        XCTAssertEqual(yield.nLidar, 0)
+        XCTAssertEqual(countResult.totalCount, 0)
+        XCTAssertEqual(yield.diagnostics.pointCloudCandidateCount, 0)
+        XCTAssertTrue(yield.note.contains("尚未标定"))
+    }
 }

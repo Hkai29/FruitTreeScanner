@@ -50,8 +50,9 @@ extension PLYParserHelper {
         }
 
         guard treeID != nil || scanDate != nil || gpsLat != nil || gpsLon != nil else { return nil }
+        let safeTreeID = treeID.map(TreeIdentifierPolicy.safePLYCommentValue)
         return ParsedPLYMetadata(
-            treeID: treeID?.isEmpty == false ? treeID! : url.deletingPathExtension().lastPathComponent,
+            treeID: safeTreeID?.isEmpty == false ? safeTreeID! : url.deletingPathExtension().lastPathComponent,
             scanDate: scanDate ?? fallbackDate(for: url),
             gpsLat: gpsLat ?? 0,
             gpsLon: gpsLon ?? 0
@@ -94,7 +95,7 @@ extension PLYParserHelper {
     static func readPLYHeader(from url: URL) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
-        let data = handle.readData(ofLength: 16_384)
+        let data = handle.readData(ofLength: PLYParserHelper.maximumHeaderSize)
         guard let prefix = String(data: data, encoding: .utf8) else { return nil }
         if let endRange = prefix.range(of: "end_header") {
             return String(prefix[..<endRange.upperBound])

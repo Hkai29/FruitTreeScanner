@@ -83,30 +83,53 @@ final class ScanHistoryStore: ObservableObject {
     func deleteRecords(_ records: [ScanFileRecord]) {
         let recordsToDelete = records
         Task.detached(priority: .utility) { [weak self] in
-            recordsToDelete.forEach(Self.deleteFiles)
+            let failedCount = recordsToDelete.reduce(into: 0) { count, record in
+                if !Self.deleteFiles(for: record) {
+                    count += 1
+                }
+            }
+            if failedCount > 0 {
+                Log.general.error("Failed to fully delete \(failedCount) scan record(s); some primary or companion files may remain")
+            }
             guard !Task.isCancelled else { return }
             await self?.loadRecords(postNotification: true)
         }
     }
 
-    nonisolated private static func deleteFiles(for record: ScanFileRecord) {
-        do {
-            try FileManager.default.removeItem(at: record.fileURL)
-        } catch {
-        }
-        let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
-        if FileManager.default.fileExists(atPath: csvURL.path) {
+    @discardableResult
+    nonisolated static func deleteFiles(
+        for record: ScanFileRecord,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
+    ) -> Bool {
+        if fileExists(record.fileURL.path) {
             do {
-                try FileManager.default.removeItem(at: csvURL)
+                try removeItem(record.fileURL)
             } catch {
+                return false
+            }
+        }
+
+        var deletedAllAvailableFiles = true
+        let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
+        if fileExists(csvURL.path) {
+            do {
+                try removeItem(csvURL)
+            } catch {
+                deletedAllAvailableFiles = false
             }
         }
         let baseName = record.fileURL.deletingPathExtension().lastPathComponent
         let jsonURL = record.fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_result.json")
-        if FileManager.default.fileExists(atPath: jsonURL.path) {
-            try? FileManager.default.removeItem(at: jsonURL)
+        if fileExists(jsonURL.path) {
+            do {
+                try removeItem(jsonURL)
+            } catch {
+                deletedAllAvailableFiles = false
+            }
         }
+        return deletedAllAvailableFiles
     }
 
     func notifyRecordsUpdated() {

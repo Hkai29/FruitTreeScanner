@@ -56,8 +56,11 @@ struct AddCalibrationRecordView: View {
     }
 
     private var canSave: Bool {
-        !treeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        Int(estimatedFruitCount) != nil
+        TreeIdentifierPolicy.isValid(treeID)
+            && CalibrationRecordInputParser.requiredNonNegativeInt(estimatedFruitCount) != nil
+            && CalibrationRecordInputParser.estimatedYieldKgOrZero(estimatedYieldKg) != nil
+            && CalibrationRecordInputParser.isOptionalNonNegativeIntValid(manualFruitCount)
+            && CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid(actualYieldKg)
     }
 
     private var recentScanImportSection: some View {
@@ -194,19 +197,76 @@ struct AddCalibrationRecordView: View {
     }
 
     private func saveRecord() {
-        let normalizedTreeID = treeID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTreeID = TreeIdentifierPolicy.normalized(treeID)
+        guard TreeIdentifierPolicy.isValid(normalizedTreeID),
+              let estimatedCount = CalibrationRecordInputParser.requiredNonNegativeInt(estimatedFruitCount),
+              let estimatedYield = CalibrationRecordInputParser.estimatedYieldKgOrZero(estimatedYieldKg),
+              CalibrationRecordInputParser.isOptionalNonNegativeIntValid(manualFruitCount),
+              CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid(actualYieldKg)
+        else { return }
         let record = CalibrationRecord(
             id: UUID(),
             treeID: normalizedTreeID,
             scanDate: scanDate,
-            estimatedFruitCount: Int(estimatedFruitCount) ?? 0,
-            manualFruitCount: Int(manualFruitCount),
-            estimatedYieldKg: Double(estimatedYieldKg) ?? 0,
-            actualYieldKg: Double(actualYieldKg),
+            estimatedFruitCount: estimatedCount,
+            manualFruitCount: CalibrationRecordInputParser.optionalNonNegativeInt(manualFruitCount),
+            estimatedYieldKg: estimatedYield,
+            actualYieldKg: CalibrationRecordInputParser.optionalNonNegativeDouble(actualYieldKg),
             fruitType: selectedFruitCategory.displayName
         )
         onSave(record)
         dismiss()
+    }
+}
+
+enum CalibrationRecordInputParser {
+    static func requiredNonNegativeInt(_ value: String) -> Int? {
+        let normalized = normalizedNumberText(value)
+        guard !normalized.isEmpty,
+              let parsed = Int(normalized),
+              parsed >= 0
+        else { return nil }
+        return parsed
+    }
+
+    static func optionalNonNegativeInt(_ value: String) -> Int? {
+        let normalized = normalizedNumberText(value)
+        guard !normalized.isEmpty else { return nil }
+        guard let parsed = Int(normalized),
+              parsed >= 0
+        else { return nil }
+        return parsed
+    }
+
+    static func optionalNonNegativeDouble(_ value: String) -> Double? {
+        let normalized = normalizedNumberText(value)
+        guard !normalized.isEmpty else { return nil }
+        guard let parsed = Double(normalized),
+              parsed.isFinite,
+              parsed >= 0
+        else { return nil }
+        return parsed
+    }
+
+    static func estimatedYieldKgOrZero(_ value: String) -> Double? {
+        let normalized = normalizedNumberText(value)
+        guard !normalized.isEmpty else { return 0 }
+        guard let parsed = optionalNonNegativeDouble(normalized) else { return nil }
+        return parsed
+    }
+
+    static func isOptionalNonNegativeIntValid(_ value: String) -> Bool {
+        let normalized = normalizedNumberText(value)
+        return normalized.isEmpty || optionalNonNegativeInt(normalized) != nil
+    }
+
+    static func isOptionalNonNegativeDoubleValid(_ value: String) -> Bool {
+        let normalized = normalizedNumberText(value)
+        return normalized.isEmpty || optionalNonNegativeDouble(normalized) != nil
+    }
+
+    private static func normalizedNumberText(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

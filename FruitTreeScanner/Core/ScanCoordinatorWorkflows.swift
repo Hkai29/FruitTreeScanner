@@ -121,7 +121,10 @@ extension ScanCoordinator {
 
     /// 多模态融合产量估算（新 pipeline）
     @MainActor
-    func runMultiModalYieldEstimate(completion: @escaping (YieldResult, FruitCountResult?) -> Void) {
+    func runMultiModalYieldEstimate(
+        season: Season = .mature,
+        completion: @escaping (YieldResult, FruitCountResult?) -> Void
+    ) {
         let frameContext = makeFusionFrameContext()
         let fruitType = settings.fruitType
         let fruitCat = FruitCategory(rawValue: fruitType)
@@ -162,7 +165,8 @@ extension ScanCoordinator {
                     defaultParams: defaultParams,
                     clusterConfig: clusterConfig,
                     fusionConfig: fusionConfig,
-                    colorFilter: colorFilter
+                    colorFilter: colorFilter,
+                    season: season
                 )
             )
             guard !Task.isCancelled else { return }

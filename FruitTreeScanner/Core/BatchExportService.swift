@@ -32,7 +32,7 @@ final class BatchExportService {
         }
     }
     
-    struct ExportOptions {
+    struct ExportOptions: Equatable {
         var includeGPS: Bool = true
         var includeFruitCount: Bool = true
         var includeYield: Bool = true
@@ -41,7 +41,7 @@ final class BatchExportService {
         var groupBy: GroupByOption = .none
         var plotNameByTreeID: [String: String] = [:]
         
-        enum GroupByOption: String, CaseIterable {
+        enum GroupByOption: String, CaseIterable, Equatable {
             case none = "不分组"
             case fruitType = "按水果类型"
             case date = "按日期"
@@ -61,7 +61,7 @@ final class BatchExportService {
         format: ExportFormat,
         options: ExportOptions
     ) async throws -> ExportResult {
-        try await Task.detached(priority: .utility) {
+        let exportTask = Task.detached(priority: .utility) {
             try Task.checkCancellation()
             guard !records.isEmpty else {
                 throw BatchExportError.noRecords
@@ -70,6 +70,12 @@ final class BatchExportService {
             let timestamp = Self.filenameDateFormatter.string(from: Date())
             let filename = "果园批次数据_\(timestamp)_\(UUID().uuidString.prefix(8)).\(format.fileExtension)"
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+            var shouldKeepFile = false
+            defer {
+                if !shouldKeepFile, FileManager.default.fileExists(atPath: tempURL.path) {
+                    try? FileManager.default.removeItem(at: tempURL)
+                }
+            }
 
             let totalYield = records.reduce(0) { $0 + $1.yieldKg }
             let totalFruitCount = records.reduce(0) { $0 + $1.fruitCount }
@@ -82,13 +88,20 @@ final class BatchExportService {
             }
 
             try Task.checkCancellation()
+            shouldKeepFile = true
             return ExportResult(
                 url: tempURL,
                 recordCount: records.count,
                 totalYield: totalYield,
                 totalFruitCount: totalFruitCount
             )
-        }.value
+        }
+
+        return try await withTaskCancellationHandler {
+            try await exportTask.value
+        } onCancel: {
+            exportTask.cancel()
+        }
     }
     
     nonisolated private static func exportToCSV(records: [ScanFileRecord], options: ExportOptions, to url: URL) throws {
@@ -115,8 +128,12 @@ final class BatchExportService {
         for record in orderedRecords(records, options: options) {
             try Task.checkCancellation()
             var row: [String] = []
-            if options.groupBy != .none { row.append(groupLabel(for: record, options: options)) }
-            if options.includeTreeID { row.append(record.treeID) }
+            if options.groupBy != .none {
+                row.append(SpreadsheetTextSafety.neutralizingFormula(groupLabel(for: record, options: options)))
+            }
+            if options.includeTreeID {
+                row.append(SpreadsheetTextSafety.neutralizingFormula(record.treeID))
+            }
             if options.includeFruitCount { row.append("\(record.fruitCount)") }
             if options.includeYield { row.append(String(format: "%.2f", record.yieldKg)) }
             if options.includeGPS {
@@ -124,7 +141,7 @@ final class BatchExportService {
                 row.append(String(format: "%.6f", record.gpsLon))
             }
             if options.includeDate { row.append(dateFormatter.string(from: record.scanDate)) }
-            row.append(record.fruitType)
+            row.append(SpreadsheetTextSafety.neutralizingFormula(record.fruitType))
             
             rows.append(row.map(escapeCSV).joined(separator: ","))
         }
@@ -173,10 +190,10 @@ final class BatchExportService {
             try Task.checkCancellation()
             xmlContent += "              <Row>\n"
             if options.groupBy != .none {
-                xmlContent += "                <Cell><Data ss:Type=\"String\">\(escapeXML(groupLabel(for: record, options: options)))</Data></Cell>\n"
+                xmlContent += "                <Cell><Data ss:Type=\"String\">\(escapeXML(spreadsheetText(groupLabel(for: record, options: options))))</Data></Cell>\n"
             }
             if options.includeTreeID {
-                xmlContent += "                <Cell><Data ss:Type=\"String\">\(escapeXML(record.treeID))</Data></Cell>\n"
+                xmlContent += "                <Cell><Data ss:Type=\"String\">\(escapeXML(spreadsheetText(record.treeID)))</Data></Cell>\n"
             }
             if options.includeFruitCount {
                 xmlContent += "                <Cell><Data ss:Type=\"Number\">\(record.fruitCount)</Data></Cell>\n"
@@ -191,7 +208,7 @@ final class BatchExportService {
             if options.includeDate {
                 xmlContent += "                <Cell><Data ss:Type=\"String\">\(escapeXML(dateFormatter.string(from: record.scanDate)))</Data></Cell>\n"
             }
-            xmlContent += "                <Cell><Data ss:Type=\"String\">\(escapeXML(record.fruitType))</Data></Cell>\n"
+            xmlContent += "                <Cell><Data ss:Type=\"String\">\(escapeXML(spreadsheetText(record.fruitType)))</Data></Cell>\n"
             xmlContent += "              </Row>\n"
         }
         
@@ -236,10 +253,14 @@ final class BatchExportService {
     }
     
     nonisolated private static func escapeCSV(_ field: String) -> String {
-        if field.contains(",") || field.contains("\"") || field.contains("\n") {
+        if field.contains(",") || field.contains("\"") || field.contains("\n") || field.contains("\r") {
             return "\"\(field.replacingOccurrences(of: "\"", with: "\"\""))\""
         }
         return field
+    }
+
+    nonisolated private static func spreadsheetText(_ field: String) -> String {
+        SpreadsheetTextSafety.neutralizingFormula(field)
     }
 
     nonisolated private static func escapeXML(_ string: String) -> String {

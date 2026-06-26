@@ -29,7 +29,13 @@ final class ScanResultExportService {
     @discardableResult
     func exportIfNeeded(_ request: ExportRequest) throws -> ExportedFiles? {
         let scansDir = try scansDirectory()
+        guard LocalFileStorage.isSafeLeafFilename(request.sourceFilename) else {
+            throw LocalFileStorageError.invalidFilename
+        }
         let baseName = (request.sourceFilename as NSString).deletingPathExtension
+        guard !baseName.isEmpty else {
+            throw LocalFileStorageError.invalidFilename
+        }
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
 
         if request.includeCSV && !fileManager.fileExists(atPath: csvURL.path) {
@@ -75,8 +81,8 @@ final class ScanResultExportService {
         ]
 
         let row = [
-            request.treeID,
-            request.fruitType,
+            SpreadsheetTextSafety.neutralizingFormula(request.treeID),
+            SpreadsheetTextSafety.neutralizingFormula(request.fruitType),
             formatter.string(from: request.scanDate),
             "\(result.nLidar)",
             String(format: "%.2f", result.yieldFinalKg),
@@ -84,12 +90,14 @@ final class ScanResultExportService {
             String(format: "%.6f", request.gpsLon),
             String(format: "%.3f", result.clusterEps),
             "\(result.clusterMinPoints)",
-            result.colorFilterDesc.isEmpty ? "N/A" : result.colorFilterDesc,
+            SpreadsheetTextSafety.neutralizingFormula(
+                result.colorFilterDesc.isEmpty ? "N/A" : result.colorFilterDesc
+            ),
             String(format: "%.2f", result.occlusionK),
             "\(result.pointCloudSize)",
-            result.confidence,
-            result.methodUsed,
-            result.note
+            SpreadsheetTextSafety.neutralizingFormula(result.confidence),
+            SpreadsheetTextSafety.neutralizingFormula(result.methodUsed),
+            SpreadsheetTextSafety.neutralizingFormula(result.note)
         ]
 
         return csvLine(header) + csvLine(row)
@@ -123,7 +131,7 @@ final class ScanResultExportService {
         ]
 
         let data = try JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
-        try data.write(to: metadataURL)
+        try data.write(to: metadataURL, options: .atomic)
         return metadataURL
     }
 
@@ -133,7 +141,7 @@ final class ScanResultExportService {
 
     private func csvEscape(_ field: String) -> String {
         let escaped = field.replacingOccurrences(of: "\"", with: "\"\"")
-        if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") {
+        if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") || escaped.contains("\r") {
             return "\"\(escaped)\""
         }
         return escaped

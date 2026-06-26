@@ -6,6 +6,7 @@ import SwiftUI
 struct ScanView: View {
     let treeID: String
     @ObservedObject var gps: GPSRecorder
+    let season: Season
 
     @State private var coordinator = ScanCoordinator()
     @StateObject private var hudState = ScanHUDState()
@@ -40,11 +41,11 @@ struct ScanView: View {
             #if DEBUG
             detectionDebugOverlayLayer
             #endif
-            guideLayer
             statusLayer
             guidanceLayer
             measurementLayer
             controlLayer
+            guideLayer
             resultLayer
             estimatingLayer
             coverageCompleteLayer
@@ -76,7 +77,10 @@ struct ScanView: View {
         }
         #if DEBUG
             .sheet(isPresented: $showDebugView) {
-                DetectionDebugView(state: detectionDebugState)
+                DetectionDebugView(
+                    state: detectionDebugState,
+                    onExport: { try coordinator.imageDetector.exportFailureSamplesFile() }
+                )
             }
         #endif
             .alert("取消本次扫描？", isPresented: $showCancelConfirmation) {
@@ -117,7 +121,10 @@ struct ScanView: View {
     @ViewBuilder
     private var guideLayer: some View {
         if showGuide {
-            ScanFieldGuideOverlay(onClose: { showGuide = false })
+            ScanFieldGuideOverlay(
+                onClose: { showGuide = false },
+                onStartScan: startRecording
+            )
         }
     }
 
@@ -162,7 +169,7 @@ struct ScanView: View {
                     pointCount: hudState.pointCount,
                     coveragePercent: hudState.coveragePercent,
                     completion: hudState.scanCompletion,
-                    canFinish: hudState.pointCount > 0,
+                    canFinish: canExportScan,
                     onResume: resumeRecording,
                     onFinish: finishScan
                 )
@@ -172,6 +179,7 @@ struct ScanView: View {
                 ScanBottomControlBar(
                     isRecording: isRecording,
                     isEstimating: isEstimating,
+                    canFinish: canExportScan,
                     hudState: hudState,
                     measurementController: measurementController,
                     onToggleGuide: { showGuide.toggle() },
@@ -185,6 +193,7 @@ struct ScanView: View {
                 ScanBottomControlBar(
                     isRecording: isRecording,
                     isEstimating: isEstimating,
+                    canFinish: canExportScan,
                     hudState: hudState,
                     measurementController: measurementController,
                     onToggleGuide: { showGuide.toggle() },
@@ -352,7 +361,7 @@ struct ScanView: View {
     // MARK: - 导出 + 估算
     private func exportAndEstimate() {
         guard !isEstimating else { return }
-        guard coordinator.pointCount > 0 else {
+        guard canExportScan else {
             showTemporaryNotice(exportBlockedReason)
             return
         }
@@ -369,7 +378,7 @@ struct ScanView: View {
 
             ScanHistoryStore.shared.notifyRecordsUpdated()
 
-            self.coordinator.runMultiModalYieldEstimate { result, _ in
+            self.coordinator.runMultiModalYieldEstimate(season: season) { result, _ in
                 guard self.isViewActive else { return }
                 self.isEstimating = false
                 self.yieldResult = result
@@ -387,6 +396,16 @@ struct ScanView: View {
             scanIsReady: scanReadiness == .ready,
             scanBlockedTitle: scanReadiness.title,
             depthRuntimeStatus: hudState.depthRuntimeStatus,
+            pointCount: hudState.pointCount,
+            exportablePointStatus: hudState.exportablePointStatus
+        )
+    }
+
+    private var canExportScan: Bool {
+        ScanExportReadiness.canExport(
+            scanIsReady: scanReadiness == .ready,
+            depthRuntimeStatus: hudState.depthRuntimeStatus,
+            exportablePointStatus: hudState.exportablePointStatus,
             pointCount: hudState.pointCount
         )
     }

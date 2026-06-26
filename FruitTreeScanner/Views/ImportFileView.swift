@@ -159,7 +159,7 @@ struct ImportFileView: View {
             importTask?.cancel()
             importTask = Task.detached(priority: .utility) {
                 do {
-                    let importedName = try Self.importFile(fileURL)
+                    let importedName = try PLYImportService.importFile(fileURL)
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
                         guard isViewActive else { return }
@@ -180,7 +180,13 @@ struct ImportFileView: View {
         }
     }
 
-    nonisolated private static func importFile(_ fileURL: URL) throws -> String {
+}
+
+enum PLYImportService {
+    nonisolated static func importFile(
+        _ fileURL: URL,
+        scansDirectory: URL? = nil
+    ) throws -> String {
         guard fileURL.pathExtension.lowercased() == "ply" else {
             throw ImportError.unsupportedFormat
         }
@@ -193,67 +199,93 @@ struct ImportFileView: View {
         }
         try Task.checkCancellation()
 
-        let scansDir = FileManager.default.urls(
+        let fileManager = FileManager.default
+        let scansDir = scansDirectory ?? fileManager.urls(
             for: .documentDirectory,
             in: .userDomainMask
-        )[0].appendingPathComponent("scans")
+        )[0].appendingPathComponent("scans", isDirectory: true)
 
-        try FileManager.default.createDirectory(at: scansDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: scansDir, withIntermediateDirectories: true)
 
         let destURL = uniqueDestinationURL(for: fileURL, in: scansDir)
-        try FileManager.default.copyItem(at: fileURL, to: destURL)
-        try Task.checkCancellation()
+        let stagingURL = scansDir.appendingPathComponent(".import-\(UUID().uuidString).ply-partial")
+        defer {
+            if fileManager.fileExists(atPath: stagingURL.path) {
+                try? fileManager.removeItem(at: stagingURL)
+            }
+        }
 
-        try validatePLYHeader(at: destURL)
-        _ = PLYParserHelper.parsePLYFile(at: destURL)
+        try fileManager.copyItem(at: fileURL, to: stagingURL)
+        try Task.checkCancellation()
+        try validatePLYHeader(at: stagingURL)
+        guard PLYParserHelper.parsePointCloudData(at: stagingURL) != nil else {
+            throw ImportError.invalidPointCloud
+        }
+        try Task.checkCancellation()
+        try fileManager.moveItem(at: stagingURL, to: destURL)
 
         return destURL.lastPathComponent
     }
 
-    nonisolated private static func uniqueDestinationURL(for sourceURL: URL, in directory: URL) -> URL {
+    nonisolated static func uniqueDestinationURL(for sourceURL: URL, in directory: URL) -> URL {
         let fileManager = FileManager.default
-        let ext = sourceURL.pathExtension
         let baseName = sourceURL.deletingPathExtension().lastPathComponent
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let safeBaseName = baseName.isEmpty ? "ImportedScan" : baseName
-        var candidate = directory.appendingPathComponent(sourceURL.lastPathComponent)
+        let safeBaseName = TreeIdentifierPolicy.safeFileComponent(from: baseName)
+        var candidate = directory.appendingPathComponent("\(safeBaseName).ply")
 
         guard fileManager.fileExists(atPath: candidate.path) else {
             return candidate
         }
 
         let timestamp = importTimestamp()
-        candidate = directory.appendingPathComponent("\(safeBaseName)_import_\(timestamp).\(ext)")
+        candidate = directory.appendingPathComponent("\(safeBaseName)_import_\(timestamp).ply")
 
         if !fileManager.fileExists(atPath: candidate.path) {
             return candidate
         }
 
         let shortID = UUID().uuidString.prefix(6)
-        return directory.appendingPathComponent("\(safeBaseName)_import_\(timestamp)_\(shortID).\(ext)")
+        return directory.appendingPathComponent("\(safeBaseName)_import_\(timestamp)_\(shortID).ply")
     }
 
-    nonisolated private static func validatePLYHeader(at fileURL: URL) throws {
+    nonisolated static func validatePLYHeader(at fileURL: URL) throws {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer {
             try? handle.close()
         }
 
-        let headerData = try handle.read(upToCount: 3) ?? Data()
-        guard String(data: headerData, encoding: .ascii) == "ply" else {
+        let prefix = try handle.read(upToCount: PLYParserHelper.maximumHeaderSize + 1) ?? Data()
+        let terminator = PLYParserHelper.headerEndRange(in: prefix)
+        guard let terminator,
+              terminator.upperBound <= PLYParserHelper.maximumHeaderSize,
+              let header = String(data: prefix[..<terminator.upperBound], encoding: .utf8)
+        else {
+            throw ImportError.invalidPLY
+        }
+
+        let lines = header
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard lines.first == "ply",
+              PLYParserHelper.parsePointCloudHeader(lines) != nil
+        else {
             throw ImportError.invalidPLY
         }
     }
 
-    nonisolated private static func importTimestamp() -> String {
+    nonisolated static func importTimestamp() -> String {
         let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         return formatter.string(from: Date())
     }
 
-    private enum ImportError: LocalizedError {
+    enum ImportError: LocalizedError {
         case unsupportedFormat
         case invalidPLY
+        case invalidPointCloud
 
         var errorDescription: String? {
             switch self {
@@ -261,6 +293,8 @@ struct ImportFileView: View {
                 return "当前导入记录只支持 PLY 点云文件"
             case .invalidPLY:
                 return "文件不是有效的 PLY 点云"
+            case .invalidPointCloud:
+                return "PLY 点云数据不完整或当前无法读取"
             }
         }
     }

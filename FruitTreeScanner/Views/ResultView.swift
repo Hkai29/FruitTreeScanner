@@ -23,7 +23,7 @@ struct ResultView: View {
                 VStack(spacing: 14) {
                     ResultSummaryHeader(treeID: treeID, result: result)
 
-                    if result.yieldFinalKg == 0 || result.confidence == "low" {
+                    if result.yieldFinalKg == 0 || ResultReviewPolicy.needsReview(result.confidence) {
                         ResultDiagnosticsSection(result: result)
                     }
 

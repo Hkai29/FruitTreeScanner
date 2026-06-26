@@ -24,6 +24,15 @@ final class ResultConfidencePresentationTests: XCTestCase {
         _ = ResultConfidencePresentation("unknown").color
     }
 
+    func testResultReviewPolicyIsConservativeForUntrustedValues() {
+        XCTAssertFalse(ResultReviewPolicy.needsReview("high"))
+        XCTAssertFalse(ResultReviewPolicy.needsReview("medium"))
+        XCTAssertTrue(ResultReviewPolicy.needsReview("low"))
+        XCTAssertTrue(ResultReviewPolicy.needsReview("manual_review"))
+        XCTAssertTrue(ResultReviewPolicy.needsReview(""))
+        XCTAssertTrue(ResultReviewPolicy.needsReview("unknown"))
+    }
+
     func testResultValueFormatterKeepsExistingUnitsAndPrecision() {
         XCTAssertEqual(ResultValueFormatter.finalYieldKg(12.34), "12.3")
         XCTAssertEqual(ResultValueFormatter.correctionFactor(1.234), "×1.23")

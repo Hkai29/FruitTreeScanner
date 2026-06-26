@@ -261,7 +261,7 @@ struct ResultPostScanWorkflowSection: View {
     }
 
     private var reviewFocus: String {
-        if result.yieldFinalKg == 0 || result.confidence == "low" {
+        if result.yieldFinalKg == 0 || ResultReviewPolicy.needsReview(result.confidence) {
             return "优先检查 LiDAR 深度、点云数量、图像帧和果实是否清晰可见。"
         }
         if result.nLidar == 0 {
@@ -277,7 +277,7 @@ struct ResultPostScanWorkflowSection: View {
             color: Design.Colors.harvest
         ) {
             ResultInfoRow(label: "当前置信度", value: confidenceText, highlight: result.confidence == "high")
-            ResultInfoRow(label: "下一步", value: result.confidence == "low" ? "复扫或人工复核" : "保存并继续")
+            ResultInfoRow(label: "下一步", value: ResultReviewPolicy.needsReview(result.confidence) ? "复扫或人工复核" : "保存并继续")
 
             VStack(alignment: .leading, spacing: 8) {
                 ResultWorkflowAdviceRow(icon: "archivebox", text: primaryAdvice)
@@ -465,6 +465,8 @@ struct AlgorithmParametersResultSection: View {
             return "RGB + LiDAR 融合"
         case "flagged":
             return "人工复核"
+        case "crown_untrained":
+            return "冠层模型待标定"
         case "none", "":
             return "未形成估算"
         default:
@@ -484,8 +486,21 @@ struct AlgorithmParametersResultSection: View {
             return "当前结果来自图像识别、LiDAR 点云聚类和遮挡补偿的融合。"
         case "flagged":
             return "两条估算路线差异较大，建议结合现场抽样复核。"
+        case "crown_untrained":
+            return "冠层回归尚未使用真实收获数据标定，本次不提供产量结论。"
         default:
             return "显示本次最终产量采用的证据组合和估算策略。"
+        }
+    }
+}
+
+enum ResultReviewPolicy {
+    static func needsReview(_ confidence: String) -> Bool {
+        switch confidence {
+        case "high", "medium":
+            return false
+        default:
+            return true
         }
     }
 }

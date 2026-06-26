@@ -93,6 +93,65 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.fruitType, "apple")
     }
 
+    func testPLYParserPrefersHeaderIdentityOverSanitizedFilename() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent(
+            "Tree-a1b2c3d4_20260625_101500_lat35.1000_lon139.2000.ply"
+        )
+        let headerContent = """
+        ply
+        format ascii 1.0
+        comment tree_id 三号地块 12-A
+        comment scan_date 2026-06-25 10:15:00
+        comment gps_lat 35.123456
+        comment gps_lon 139.654321
+        element vertex 0
+        end_header
+        """
+        try headerContent.write(to: plyURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.treeID, "三号地块 12-A")
+        XCTAssertEqual(parsed.gpsLat, 35.123456, accuracy: 0.000001)
+        XCTAssertEqual(parsed.gpsLon, 139.654321, accuracy: 0.000001)
+    }
+
+    func testPLYParserReadsHeaderMetadataBeyondLegacy16KBPrefix() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent(
+            "Fallback_20260625_101500_lat35.1000_lon139.2000.ply"
+        )
+        let longComment = "comment filler \(String(repeating: "x", count: 17_000))"
+        let headerContent = """
+        ply
+        format ascii 1.0
+        \(longComment)
+        comment tree_id 长注释后的树
+        comment gps_lat 35.333333
+        comment gps_lon 139.444444
+        element vertex 0
+        end_header
+        """
+        XCTAssertGreaterThan(headerContent.utf8.count, 16_384)
+        XCTAssertLessThan(headerContent.utf8.count, PLYParserHelper.maximumHeaderSize)
+        try headerContent.write(to: plyURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.treeID, "长注释后的树")
+        XCTAssertEqual(parsed.gpsLat, 35.333333, accuracy: 0.000001)
+        XCTAssertEqual(parsed.gpsLon, 139.444444, accuracy: 0.000001)
+    }
+
     func testPLYParserMissingCSVReturnsDefaults() throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -172,5 +231,167 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(components.hour, 12)
         XCTAssertEqual(components.minute, 34)
         XCTAssertEqual(components.second, 56)
+    }
+
+    // MARK: - ScanHistoryStore.deleteFiles transaction ordering
+
+    func testDeleteFilesPrimaryPLYExistsRemoveThrows() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
+        let record = ScanFileRecord(
+            id: "test_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        var removed: [URL] = []
+        let removeItem: (URL) throws -> Void = { url in
+            removed.append(url)
+            throw NSError(domain: "TestError", code: 1)
+        }
+        let fileExists: (String) -> Bool = { $0 == fileURL.path }
+
+        let result = ScanHistoryStore.deleteFiles(
+            for: record,
+            fileExists: fileExists,
+            removeItem: removeItem
+        )
+
+        XCTAssertFalse(result, "Should return false when primary PLY removal throws")
+        XCTAssertEqual(removed.count, 1, "Should only attempt primary PLY removal, not companions")
+        XCTAssertEqual(removed.first, fileURL, "Only the primary PLY URL should be passed to removeItem")
+    }
+
+    func testDeleteFilesPrimaryPLYMissingCleansCompanions() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let jsonURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+
+        let record = ScanFileRecord(
+            id: "test_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        var removed: [URL] = []
+        let removeItem: (URL) throws -> Void = { removed.append($0) }
+        let fileExists: (String) -> Bool = {
+            $0 == csvURL.path || $0 == jsonURL.path
+        }
+
+        let result = ScanHistoryStore.deleteFiles(
+            for: record,
+            fileExists: fileExists,
+            removeItem: removeItem
+        )
+
+        XCTAssertTrue(result, "Should return true when companions are cleaned")
+        XCTAssertEqual(removed.count, 2, "Should clean both CSV and JSON companions")
+        XCTAssertEqual(removed[0], csvURL, "CSV companion should be removed first")
+        XCTAssertEqual(removed[1], jsonURL, "JSON companion should be removed second")
+    }
+
+    func testDeleteFilesCompanionFailureReturnsFalseAndContinuesCleanup() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let jsonURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+
+        let record = ScanFileRecord(
+            id: "test_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        var removed: [URL] = []
+        let removeItem: (URL) throws -> Void = { url in
+            removed.append(url)
+            if url == csvURL {
+                throw NSError(domain: "TestError", code: 2)
+            }
+        }
+        let fileExists: (String) -> Bool = { _ in true }
+
+        let result = ScanHistoryStore.deleteFiles(
+            for: record,
+            fileExists: fileExists,
+            removeItem: removeItem
+        )
+
+        XCTAssertFalse(result, "Should return false when any companion removal throws")
+        XCTAssertEqual(removed.count, 3, "Should still attempt JSON cleanup after CSV removal fails")
+        XCTAssertEqual(removed[0], fileURL, "First removal must be primary PLY")
+        XCTAssertEqual(removed[1], csvURL, "Second removal must be CSV companion")
+        XCTAssertEqual(removed[2], jsonURL, "Third removal must be JSON companion")
+    }
+
+    func testDeleteFilesOrderPLYThenCSVThenJSON() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let jsonURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+
+        let record = ScanFileRecord(
+            id: "test_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        var removed: [URL] = []
+        let removeItem: (URL) throws -> Void = { removed.append($0) }
+        let fileExists: (String) -> Bool = { _ in true }
+
+        let result = ScanHistoryStore.deleteFiles(
+            for: record,
+            fileExists: fileExists,
+            removeItem: removeItem
+        )
+
+        XCTAssertTrue(result, "Should return true when all files exist and removal succeeds")
+        XCTAssertEqual(removed.count, 3, "Should attempt removal of all three files")
+        XCTAssertEqual(removed[0], fileURL, "First removal must be primary PLY")
+        XCTAssertEqual(removed[1], csvURL, "Second removal must be CSV companion")
+        XCTAssertEqual(removed[2], jsonURL, "Third removal must be JSON companion")
+    }
+
+    // MARK: - Calibration input parsing
+
+    func testCalibrationInputParserRequiresNonNegativeEstimatedFruitCount() {
+        XCTAssertEqual(CalibrationRecordInputParser.requiredNonNegativeInt(" 12 "), 12)
+        XCTAssertEqual(CalibrationRecordInputParser.requiredNonNegativeInt("0"), 0)
+        XCTAssertNil(CalibrationRecordInputParser.requiredNonNegativeInt(""))
+        XCTAssertNil(CalibrationRecordInputParser.requiredNonNegativeInt("-1"))
+        XCTAssertNil(CalibrationRecordInputParser.requiredNonNegativeInt("1.5"))
+        XCTAssertNil(CalibrationRecordInputParser.requiredNonNegativeInt("abc"))
+    }
+
+    func testCalibrationInputParserAllowsBlankEstimatedYieldButRejectsInvalidValues() throws {
+        XCTAssertEqual(CalibrationRecordInputParser.estimatedYieldKgOrZero(""), 0)
+        let parsedYield = try XCTUnwrap(CalibrationRecordInputParser.estimatedYieldKgOrZero(" 2.75 "))
+        XCTAssertEqual(parsedYield, 2.75, accuracy: 0.001)
+        XCTAssertNil(CalibrationRecordInputParser.estimatedYieldKgOrZero("-0.1"))
+        XCTAssertNil(CalibrationRecordInputParser.estimatedYieldKgOrZero("nan"))
+        XCTAssertNil(CalibrationRecordInputParser.estimatedYieldKgOrZero("abc"))
+    }
+
+    func testCalibrationInputParserOptionalFieldsTreatBlankAsValidAndRejectNegativeValues() throws {
+        XCTAssertTrue(CalibrationRecordInputParser.isOptionalNonNegativeIntValid(""))
+        XCTAssertNil(CalibrationRecordInputParser.optionalNonNegativeInt(""))
+        XCTAssertEqual(CalibrationRecordInputParser.optionalNonNegativeInt("4"), 4)
+        XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeIntValid("-4"))
+
+        XCTAssertTrue(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid(""))
+        XCTAssertNil(CalibrationRecordInputParser.optionalNonNegativeDouble(""))
+        let parsedActualYield = try XCTUnwrap(CalibrationRecordInputParser.optionalNonNegativeDouble("1.25"))
+        XCTAssertEqual(parsedActualYield, 1.25, accuracy: 0.001)
+        XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("-1.25"))
+        XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("inf"))
     }
 }

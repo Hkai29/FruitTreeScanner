@@ -267,4 +267,11 @@ class YieldEstimator {
 
 }
 
-enum Season { case mature, off }
+enum Season: Sendable {
+    case mature
+    case off
+
+    var supportsYieldEstimation: Bool {
+        self == .mature
+    }
+}

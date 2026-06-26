@@ -77,7 +77,7 @@ struct DashboardView: View {
                             ScrollView(showsIndicators: false) {
                                 landscapeDashboard(
                                     width: contentProxy.size.width,
-                                    height: max(contentProxy.size.height, 392)
+                                    height: max(contentProxy.size.height, 492)
                                 )
                                 .padding(18)
                             }
@@ -85,11 +85,13 @@ struct DashboardView: View {
                     } else {
                         ScrollView {
                             portraitDashboard
+                                .frame(width: max(0, proxy.size.width - 36))
                                 .padding(.horizontal, 18)
                                 .padding(.top, 14)
                         }
                     }
                 }
+                .frame(width: proxy.size.width)
             }
         }
         .sheet(item: sheetDestination) { destination in
@@ -101,14 +103,9 @@ struct DashboardView: View {
         .fullScreenCover(item: $activeScanRequest, onDismiss: refreshScanHistory) { request in
             ScanView(
                 treeID: request.treeID,
-                gps: request.gps
+                gps: request.gps,
+                season: request.season
             )
-        }
-        .onReceive(NotificationCenter.default.publisher(for: AppNavigation.notificationName)) { notification in
-            guard let raw = notification.object as? String,
-                  let nav = AppNavigation(rawValue: raw) else { return }
-            AppNavigation.clearPersistedRequest()
-            applyNavigation(nav)
         }
         .onReceive(router.$pendingDestination) { nav in
             guard let nav else { return }
@@ -117,6 +114,7 @@ struct DashboardView: View {
         }
         .onAppear {
             historyStore.loadRecords()
+            router.consumePendingUserDefaults()
             if let nav = router.pendingDestination {
                 applyNavigation(nav)
                 router.clear()
@@ -147,7 +145,7 @@ struct DashboardView: View {
         let contentWidth = min(width - 36, 1180)
         let contentHeight = max(0, height - 36)
         let columnWidth = (contentWidth - 14) / 2
-        let rowHeight = max(160, (contentHeight - 16) / 2)
+        let rowHeight = max(220, (contentHeight - 16) / 2)
 
         return VStack(spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
@@ -316,8 +314,8 @@ struct DashboardView: View {
     }
 
     private func launchRescan(treeID: String) {
-        let normalizedTreeID = treeID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedTreeID.isEmpty else {
+        let normalizedTreeID = TreeIdentifierPolicy.normalized(treeID)
+        guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
             destination = .startScan
             return
         }

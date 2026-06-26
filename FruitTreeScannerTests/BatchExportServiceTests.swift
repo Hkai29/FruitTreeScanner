@@ -52,6 +52,24 @@ final class BatchExportServiceTests: XCTestCase {
         return try String(contentsOf: result.url, encoding: .utf8)
     }
 
+    private func makeYieldResult(
+        nLidar: Int = 12,
+        yieldKg: Float = 3.45
+    ) -> YieldResult {
+        var result = YieldResult()
+        result.nLidar = nLidar
+        result.yieldFinalKg = yieldKg
+        result.clusterEps = 0.05
+        result.clusterMinPoints = 6
+        result.colorFilterDesc = "@color"
+        result.occlusionK = 1.2
+        result.pointCloudSize = 1234
+        result.confidence = "-low"
+        result.methodUsed = "\tmethod"
+        result.note = "\nmanual review"
+        return result
+    }
+
     // MARK: - Helpers for CSV content inspection
 
     private func stripBOM(_ csv: String) -> String {
@@ -82,6 +100,31 @@ final class BatchExportServiceTests: XCTestCase {
             XCTFail("Expected BatchExportError.noRecords to be thrown")
         } catch let error as BatchExportError {
             XCTAssertEqual(error, .noRecords)
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testExportCancellationPropagatesToBackgroundTask() async {
+        let records = (0..<20_000).map { index in
+            makeRecord(id: "cancel_\(index).ply", treeID: "T-\(index)")
+        }
+
+        let task = Task {
+            try await BatchExportService.shared.export(
+                records: records,
+                format: .csv,
+                options: .init()
+            )
+        }
+        task.cancel()
+
+        do {
+            let result = try await task.value
+            try? FileManager.default.removeItem(at: result.url)
+            XCTFail("Expected cancellation to stop background export")
+        } catch is CancellationError {
+            // Expected: cancellation should reach the detached export worker.
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
@@ -323,6 +366,169 @@ final class BatchExportServiceTests: XCTestCase {
         let xml = try await exportExcelContent(records: [record])
         XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">T-001</Data>"))
         XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">grape</Data>"))
+    }
+
+    func testExcelNeutralizesFormulaPrefixTreeIDAndFruitType() async throws {
+        let record = makeRecord(id: "x.ply", treeID: "=FORMULA(1+2)", fruitType: "+SUM(A1:A10)")
+        let xml = try await exportExcelContent(records: [record])
+        XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">&apos;=FORMULA(1+2)</Data>"))
+        XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">&apos;+SUM(A1:A10)</Data>"))
+    }
+
+    func testExcelNeutralizesFormulaGroupLabel() async throws {
+        let record = makeRecord(id: "x.ply", treeID: "T-001", fruitType: "apple")
+        var options = BatchExportService.ExportOptions()
+        options.groupBy = .plot
+        options.plotNameByTreeID = ["T-001": "@dangerous"]
+        let xml = try await exportExcelContent(records: [record], options: options)
+        XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">&apos;@dangerous</Data>"))
+    }
+
+    // MARK: - SpreadsheetTextSafety direct unit tests
+
+    func testSpreadsheetTextSafetyNeutralizesFormulaPrefixes() {
+        // = + - @ tab LF CR trigger apostrophe prefix
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("=cmd"), "'=cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("+cmd"), "'+cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("-cmd"), "'-cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("@cmd"), "'@cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\tcmd"), "'\tcmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\ncmd"), "'\ncmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\rcmd"), "'\rcmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(" =cmd"), "' =cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("  @cmd"), "'  @cmd")
+    }
+
+    func testSpreadsheetTextSafetyPreservesNormalText() {
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("apple"), "apple")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("T-001"), "T-001")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("123"), "123")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("三号地块"), "三号地块")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(" orchard"), " orchard")
+    }
+
+    func testSpreadsheetTextSafetyHandlesEmptyString() {
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(""), "")
+    }
+
+    // MARK: - CSV formula neutralization in export
+
+    func testCSVNeutralizesFormulaPrefixTreeID() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "=FORMULA(1+2)", fruitType: "apple")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'=FORMULA(1+2)"))
+    }
+
+    func testCSVNeutralizesFormulaPrefixFruitType() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "T-OK", fruitType: "+SUM(A1:A10)")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'+SUM(A1:A10)"))
+    }
+
+    func testCSVNeutralizesAtPrefixInTreeID() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "@dangerous", fruitType: "pear")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'@dangerous"))
+    }
+
+    func testCSVNeutralizesTabAndCRInTreeID() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "\tTabStart", fruitType: "\rCRStart")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'\tTabStart"))
+        XCTAssertTrue(csv.contains("'\rCRStart"))
+    }
+
+    func testCSVNeutralizesLFInTextFields() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "\nLFStart", fruitType: "apple")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'\nLFStart"))
+    }
+
+    func testCSVPreservesNegativeGPSSinceGPSSkippedNeutralization() async throws {
+        let record = makeRecord(
+            id: "a.ply",
+            treeID: "T-Neg",
+            gpsLat: -33.8688, gpsLon: 151.2093,
+            fruitType: "apple"
+        )
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("-33.868800"))
+        XCTAssertTrue(csv.contains("151.209300"))
+    }
+
+    func testCSVNeutralizesFormulaGroupLabel() async throws {
+        let date = Date(timeIntervalSince1970: 1717200000)
+        let records = [makeRecord(id: "a.ply", treeID: "T-001", scanDate: date, fruitType: "apple")]
+        var options = BatchExportService.ExportOptions()
+        options.groupBy = .plot
+        options.plotNameByTreeID = ["T-001": "=SUM(A1:A2)"]
+        let csv = try await exportCSVContent(records: records, options: options)
+        XCTAssertTrue(csv.contains("'=SUM(A1:A2)"))
+    }
+
+    func testCSVNeutralizesNegativePrefixInFruitType() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "T-OK", fruitType: "-DASH")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'-DASH"))
+    }
+
+    // MARK: - Single scan CSV/result export safety
+
+    func testScanResultExportRejectsUnsafeSourceFilename() throws {
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-001",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: "../evil.ply",
+            result: makeYieldResult(),
+            includeCSV: true
+        )
+
+        XCTAssertThrowsError(try ScanResultExportService.shared.exportIfNeeded(request)) { error in
+            guard case LocalFileStorageError.invalidFilename = error else {
+                return XCTFail("Expected invalidFilename, got \(error)")
+            }
+        }
+    }
+
+    func testScanResultExportNeutralizesCSVAndWritesMetadata() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "=FORMULA(1+2)",
+            fruitType: "+SUM(A1:A10)",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: -33.8688,
+            gpsLon: 151.2093,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(),
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        defer {
+            try? FileManager.default.removeItem(at: exported.csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: exported.csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains("'=FORMULA(1+2)"))
+        XCTAssertTrue(csv.contains("'+SUM(A1:A10)"))
+        XCTAssertTrue(csv.contains("'@color"))
+        XCTAssertTrue(csv.contains("'-low"))
+        XCTAssertTrue(csv.contains("'\tmethod"))
+        XCTAssertTrue(csv.contains("'\nmanual review"))
+        XCTAssertTrue(csv.contains("-33.868800"))
+        XCTAssertTrue(csv.contains("151.209300"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["treeID"] as? String, "=FORMULA(1+2)")
+        XCTAssertEqual(payload["fruitCount"] as? Int, 12)
     }
 
     func testExcelExcludedColumnsOmitCells() async throws {

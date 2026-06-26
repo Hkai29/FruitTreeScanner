@@ -3,6 +3,84 @@ import XCTest
 
 final class DashboardSummaryTests: XCTestCase {
 
+    @MainActor
+    func testNavigationRouterReceivesRequestPostedAfterInitialization() {
+        let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let notificationCenter = NotificationCenter()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let router = NavigationRouter(
+            defaults: defaults,
+            notificationCenter: notificationCenter
+        )
+
+        defaults.set(AppNavigation.history.rawValue, forKey: AppNavigation.defaultsKey)
+        notificationCenter.post(
+            name: AppNavigation.notificationName,
+            object: AppNavigation.history.rawValue
+        )
+
+        XCTAssertEqual(router.pendingDestination?.rawValue, AppNavigation.history.rawValue)
+        XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
+    }
+
+    @MainActor
+    func testNavigationRouterConsumesPersistedColdStartRequest() {
+        let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(AppNavigation.map.rawValue, forKey: AppNavigation.defaultsKey)
+
+        let router = NavigationRouter(
+            defaults: defaults,
+            notificationCenter: NotificationCenter()
+        )
+
+        XCTAssertEqual(router.pendingDestination?.rawValue, AppNavigation.map.rawValue)
+        XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
+    }
+
+    @MainActor
+    func testNavigationRouterDropsInvalidPersistedColdStartRequest() {
+        let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set("not-a-navigation-target", forKey: AppNavigation.defaultsKey)
+
+        let router = NavigationRouter(
+            defaults: defaults,
+            notificationCenter: NotificationCenter()
+        )
+
+        XCTAssertNil(router.pendingDestination)
+        XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
+    }
+
+    @MainActor
+    func testNavigationRouterIgnoresInvalidNotificationAndClearsMatchingPersistedRequest() {
+        let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let notificationCenter = NotificationCenter()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let router = NavigationRouter(
+            defaults: defaults,
+            notificationCenter: notificationCenter
+        )
+
+        defaults.set("not-a-navigation-target", forKey: AppNavigation.defaultsKey)
+        notificationCenter.post(
+            name: AppNavigation.notificationName,
+            object: "not-a-navigation-target"
+        )
+
+        XCTAssertNil(router.pendingDestination)
+        XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
+    }
+
     func testSummaryCountsOnlyTodaysRecordsAndUniqueTrees() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date()

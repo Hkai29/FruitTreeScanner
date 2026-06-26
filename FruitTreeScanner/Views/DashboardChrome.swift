@@ -103,13 +103,6 @@ struct DashboardHeroPanel: View {
 
     private func heroPanel(height: CGFloat) -> some View {
         ZStack(alignment: .bottomLeading) {
-            Image("DashboardHero")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .clipped()
-
             LinearGradient(
                 colors: [
                     Color.black.opacity(0.74),
@@ -189,7 +182,18 @@ struct DashboardHeroPanel: View {
             }
             .padding(16)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: height)
+        .background {
+            GeometryReader { proxy in
+                Image("DashboardHero")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
+                    .accessibilityHidden(true)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .shadow(
             color: Color.black.opacity(0.22),

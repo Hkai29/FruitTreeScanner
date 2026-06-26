@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ScanFieldGuideOverlay: View {
     let onClose: () -> Void
+    let onStartScan: () -> Void
 
     private let tips: [(icon: String, title: String, message: String)] = [
         ("figure.walk.motion", "慢速环绕", "从树干开始，绕树一圈；每一步都让树冠和主枝保持在画面中。"),
@@ -59,7 +60,7 @@ struct ScanFieldGuideOverlay: View {
                     Spacer()
                 }
 
-                Button(action: onClose) {
+                Button(action: onStartScan) {
                     Text("开始扫描")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.black)

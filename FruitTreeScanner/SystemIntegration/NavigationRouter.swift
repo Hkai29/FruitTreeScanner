@@ -9,10 +9,6 @@ enum AppNavigation: String {
     static let defaultsKey = "com.hkai29.fruitscanner.pendingNavigation"
     static let notificationName = Notification.Name("com.hkai29.fruitscanner.navigation")
 
-    static func clearPersistedRequest() {
-        UserDefaults.standard.removeObject(forKey: defaultsKey)
-    }
-
     init?(url: URL) {
         guard url.scheme == "fruittreescanner" else { return nil }
 
@@ -35,8 +31,30 @@ enum AppNavigation: String {
 final class NavigationRouter: ObservableObject {
     @Published var pendingDestination: AppNavigation?
 
-    init() {
+    private let defaults: UserDefaults
+    private let notificationCenter: NotificationCenter
+    private var navigationObserver: NSObjectProtocol?
+
+    init(
+        defaults: UserDefaults = .standard,
+        notificationCenter: NotificationCenter = .default
+    ) {
+        self.defaults = defaults
+        self.notificationCenter = notificationCenter
+        navigationObserver = notificationCenter.addObserver(
+            forName: AppNavigation.notificationName,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleNavigationNotification(notification)
+        }
         consumePendingUserDefaults()
+    }
+
+    deinit {
+        if let navigationObserver {
+            notificationCenter.removeObserver(navigationObserver)
+        }
     }
 
     func handle(_ destination: AppNavigation) {
@@ -48,9 +66,18 @@ final class NavigationRouter: ObservableObject {
     }
 
     func consumePendingUserDefaults() {
-        guard let raw = UserDefaults.standard.string(forKey: AppNavigation.defaultsKey),
-              let destination = AppNavigation(rawValue: raw) else { return }
-        AppNavigation.clearPersistedRequest()
+        guard let raw = defaults.string(forKey: AppNavigation.defaultsKey) else { return }
+        defaults.removeObject(forKey: AppNavigation.defaultsKey)
+        guard let destination = AppNavigation(rawValue: raw) else { return }
         pendingDestination = destination
+    }
+
+    private func handleNavigationNotification(_ notification: Notification) {
+        guard let raw = notification.object as? String else { return }
+        if defaults.string(forKey: AppNavigation.defaultsKey) == raw {
+            defaults.removeObject(forKey: AppNavigation.defaultsKey)
+        }
+        guard let destination = AppNavigation(rawValue: raw) else { return }
+        handle(destination)
     }
 }

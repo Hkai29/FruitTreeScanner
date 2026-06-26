@@ -35,8 +35,8 @@ struct Step5_Confirmation: View {
 
                 ConfirmationRow(
                     icon: season == .mature ? "apple.logo" : "leaf.fill",
-                    label: "季节",
-                    value: season == .mature ? "成熟期（双路线）" : "非成熟期（冠层体积）",
+                    label: "估算阶段",
+                    value: season == .mature ? "成熟期（RGB + LiDAR 融合）" : "非成熟期（待标定）",
                     valueColor: Design.Colors.harvest
                 )
 

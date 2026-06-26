@@ -125,10 +125,11 @@ enum RendererPLYDataBuilder {
         gpsLat: Double,
         gpsLon: Double
     ) -> Data {
+        let safeTreeID = TreeIdentifierPolicy.safePLYCommentValue(treeID)
         let headers = [
             "ply",
             "format ascii 1.0",
-            "comment tree_id \(treeID)",
+            "comment tree_id \(safeTreeID)",
             "comment scan_date \(scanDate)",
             "comment gps_lat \(String(format: "%.6f", gpsLat))",
             "comment gps_lon \(String(format: "%.6f", gpsLon))",

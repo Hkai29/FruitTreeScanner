@@ -290,6 +290,34 @@ final class YieldEstimatorTests: XCTestCase {
         XCTAssertTrue(header.contains("trueVolumeCm3"))
     }
 
+    func testResearchCSVNeutralizesTextFormulaPrefixesWithoutChangingNegativeNumbers() {
+        let estimate = FruitMassEstimate(
+            id: UUID(),
+            fruitCategory: "=CMD()",
+            lengthCm: 1,
+            widthCm: 2,
+            heightCm: 3,
+            equivalentDiameterCm: 2,
+            sphereVolumeCm3: 4,
+            ellipsoidVolumeCm3: 5,
+            selectedVolumeCm3: 5,
+            densityGPerCm3: 1,
+            estimatedWeightG: -12.5,
+            confidenceScore: 0.5,
+            pointCount: 12,
+            highConfidenceRatio: 0.8,
+            validDepthRatio: 0.9,
+            shapeModelUsed: .sphere,
+            warningFlags: [.usingSphereBaseline],
+            createdAt: Date(timeIntervalSince1970: 0)
+        )
+
+        let csv = ResearchCSVExporter.makeCSV(estimates: [estimate])
+
+        XCTAssertTrue(csv.contains("'=CMD()"))
+        XCTAssertTrue(csv.contains("-12.5000"))
+    }
+
     func testConfidenceScoreIsClampedToUnitRange() {
         let estimate = SimpleFruitGeometryEstimator.estimate(
             points: cuboidPoints(lengthM: 0.08, widthM: 0.08, heightM: 0.08),

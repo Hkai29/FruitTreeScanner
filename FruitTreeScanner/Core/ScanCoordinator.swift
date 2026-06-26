@@ -246,11 +246,11 @@ class ScanCoordinator: NSObject {
 
     @MainActor
     func resumeRecordingPreservingCapture() {
-        detectionTask?.cancel()
-        detectionTask = nil
+        // This is the same logical scan. Keep the in-flight detection task and
+        // queued frames so stopping briefly does not discard image evidence
+        // that still needs to be fused with the preserved point cloud.
         fusionEstimateTask?.cancel()
         fusionEstimateTask = nil
-        imageDetector.clearQueue()
         publishImageDetectorStatus()
         hudState?.update(fusionStatus: "补扫中")
         renderer?.currentFolder = "scans"
@@ -305,8 +305,7 @@ class ScanCoordinator: NSObject {
             coveragePercent: hudCoveragePercent,
             exportablePointStatus: (renderer?.exportablePointCountPublic ?? 0) > 0 ? "Ready" : "NoCloud",
             processedImageFrames: imageDiagnostics.processedFrameCount,
-            detectedFruitCount: max(detectedFruits.count, imageDiagnostics.mappedFruitCount),
-            fusionStatus: detectedFruits.isEmpty ? "Wait" : "OK"
+            detectedFruitCount: max(detectedFruits.count, imageDiagnostics.mappedFruitCount)
         )
 
         updateScanCompletion()
