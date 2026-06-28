@@ -126,14 +126,14 @@ extension PLYParserHelper {
         return nil
     }
 
-    static func readCompanionResult(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String) {
+    static func readCompanionResult(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String, confidence: String) {
         if let metadata = readCompanionMetadata(for: plyURL) {
             return metadata
         }
         return readCompanionCSV(for: plyURL)
     }
 
-    static func readCompanionMetadata(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String)? {
+    static func readCompanionMetadata(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String, confidence: String)? {
         let baseName = plyURL.deletingPathExtension().lastPathComponent
         let metadataURL = plyURL.deletingLastPathComponent().appendingPathComponent("\(baseName)_result.json")
         guard let data = try? Data(contentsOf: metadataURL),
@@ -143,32 +143,81 @@ extension PLYParserHelper {
         return (
             fruitCount: intValue(payload["fruitCount"]),
             yieldKg: floatValue(payload["yieldKg"]),
-            fruitType: payload["fruitType"] as? String ?? "apple"
+            fruitType: payload["fruitType"] as? String ?? "apple",
+            confidence: payload["confidence"] as? String ?? "low"
         )
     }
 
-    static func readCompanionCSV(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String) {
+    static func readCompanionCSV(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String, confidence: String) {
         let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
         guard FileManager.default.fileExists(atPath: csvURL.path) else {
-            return (0, 0, "apple")
+            return (0, 0, "apple", "low")
         }
 
         do {
             let csvContent = try String(contentsOf: csvURL, encoding: .utf8)
             let lines = csvContent.split(separator: "\n")
-            guard lines.count >= 2, let dataLine = lines.dropFirst().first else {
-                return (0, 0, "apple")
+            guard let headerLine = lines.first,
+                  let dataLine = lines.dropFirst().first else {
+                return (0, 0, "apple", "low")
             }
+            let header = parseCSVLine(String(headerLine))
             let values = parseCSVLine(String(dataLine))
-            guard values.count >= 7 else { return (0, 0, "apple") }
+            guard !values.isEmpty else { return (0, 0, "apple", "low") }
             return (
-                fruitCount: Int(values[3]) ?? 0,
-                yieldKg: Float(values[4]) ?? 0,
-                fruitType: values[1]
+                fruitCount: intValue(csvValue(
+                    in: values,
+                    header: header,
+                    named: ["果实数量", "fruitCount", "fruit_count"],
+                    fallbackIndex: 3
+                )),
+                yieldKg: floatValue(csvValue(
+                    in: values,
+                    header: header,
+                    named: ["产量(kg)", "yieldKg", "yield_kg"],
+                    fallbackIndex: 4
+                )),
+                fruitType: csvValue(
+                    in: values,
+                    header: header,
+                    named: ["水果类型", "fruitType", "fruit_type"],
+                    fallbackIndex: 1
+                ) ?? "apple",
+                confidence: csvValue(
+                    in: values,
+                    header: header,
+                    named: ["置信度", "confidence"],
+                    fallbackIndex: 12
+                ) ?? "low"
             )
         } catch {
-            return (0, 0, "apple")
+            return (0, 0, "apple", "low")
         }
+    }
+
+    static func csvValue(
+        in values: [String],
+        header: [String],
+        named names: [String],
+        fallbackIndex: Int
+    ) -> String? {
+        let normalizedNames = Set(names.map(normalizedCSVHeader))
+        if let headerIndex = header.firstIndex(where: { normalizedNames.contains(normalizedCSVHeader($0)) }),
+           values.indices.contains(headerIndex),
+           !values[headerIndex].isEmpty {
+            return values[headerIndex]
+        }
+        guard values.indices.contains(fallbackIndex), !values[fallbackIndex].isEmpty else {
+            return nil
+        }
+        return values[fallbackIndex]
+    }
+
+    static func normalizedCSVHeader(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\u{FEFF}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     static func intValue(_ value: Any?) -> Int {

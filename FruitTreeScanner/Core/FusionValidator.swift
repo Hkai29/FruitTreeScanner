@@ -2,13 +2,20 @@
 // 图像检测 ↔ 点云聚类融合验证
 
 import Foundation
-import CoreVideo
+@preconcurrency import CoreVideo
 import VideoToolbox
 import simd
 
 // MARK: - Fusion Validator
 
 final class FusionValidator: Sendable {
+
+    private struct ProjectionContext {
+        let depthMap: CVPixelBuffer?
+        let cameraIntrinsics: matrix_float3x3
+        let cameraTransform: simd_float4x4
+        let imageSize: CGSize
+    }
 
     // MARK: - Properties
 
@@ -30,20 +37,57 @@ final class FusionValidator: Sendable {
         cameraTransform: simd_float4x4,
         imageSize: CGSize
     ) -> [ValidatedFruit] {
+        validate(detections: detections, candidates: candidates) { detection in
+            ProjectionContext(
+                depthMap: depthMap,
+                cameraIntrinsics: detection.cameraIntrinsics ?? cameraIntrinsics,
+                cameraTransform: detection.cameraTransform ?? cameraTransform,
+                imageSize: detection.imageSize ?? imageSize
+            )
+        }
+    }
+
+    /// Validates live scan detections only when each one carries the depth map
+    /// captured with its RGB frame. This avoids projecting old detections
+    /// through a later ARFrame's depth map after the operator has moved.
+    func validate(
+        detections: [DetectedFruit],
+        candidates: [FruitCandidate]
+    ) -> [ValidatedFruit] {
+        validate(detections: detections, candidates: candidates) { detection in
+            guard let depthMap = detection.depthMap,
+                  let cameraIntrinsics = detection.cameraIntrinsics,
+                  let cameraTransform = detection.cameraTransform,
+                  let imageSize = detection.imageSize
+            else {
+                return nil
+            }
+            return ProjectionContext(
+                depthMap: depthMap,
+                cameraIntrinsics: cameraIntrinsics,
+                cameraTransform: cameraTransform,
+                imageSize: imageSize
+            )
+        }
+    }
+
+    private func validate(
+        detections: [DetectedFruit],
+        candidates: [FruitCandidate],
+        projectionContext: (DetectedFruit) -> ProjectionContext?
+    ) -> [ValidatedFruit] {
         var validatedFruits: [ValidatedFruit] = []
         var usedCandidateIDs = Set<UUID>()
 
         for detection in detections {
-            let useTransform = detection.cameraTransform ?? cameraTransform
-            let useIntrinsics = detection.cameraIntrinsics ?? cameraIntrinsics
-            let useImageSize = detection.imageSize ?? imageSize
+            guard let context = projectionContext(detection) else { continue }
 
             let projectedPosition = projectDetectionTo3D(
                 detection: detection,
-                depthMap: depthMap,
-                cameraIntrinsics: useIntrinsics,
-                cameraTransform: useTransform,
-                imageSize: useImageSize
+                depthMap: context.depthMap,
+                cameraIntrinsics: context.cameraIntrinsics,
+                cameraTransform: context.cameraTransform,
+                imageSize: context.imageSize
             )
 
             // Find nearest candidate within tolerance

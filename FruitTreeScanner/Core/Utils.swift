@@ -210,21 +210,28 @@ func createDirectory(folder: String) {
     try? FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
 }
 
-/// CVPixelBuffer 深拷贝（避免 ARFrame 内存池耗尽）
-func duplicatePixelBuffer(input: CVPixelBuffer) -> CVPixelBuffer {
+/// CVPixelBuffer 深拷贝（避免持有 ARFrame 可复用内存池中的 buffer）
+func duplicatePixelBuffer(input: CVPixelBuffer) -> CVPixelBuffer? {
     var copyOut: CVPixelBuffer?
     let w = CVPixelBufferGetWidth(input)
     let h = CVPixelBufferGetHeight(input)
     let fmt = CVPixelBufferGetPixelFormatType(input)
     let attachments = CVBufferCopyAttachments(input, .shouldPropagate)
-    _ = CVPixelBufferCreate(kCFAllocatorDefault, w, h, fmt,
-                            attachments, &copyOut)
-    guard let output = copyOut else {
-        return input
-    }
+    let createStatus = CVPixelBufferCreate(
+        kCFAllocatorDefault,
+        w,
+        h,
+        fmt,
+        attachments,
+        &copyOut
+    )
+    guard createStatus == kCVReturnSuccess, let output = copyOut else { return nil }
 
-    CVPixelBufferLockBaseAddress(input, .readOnly)
-    CVPixelBufferLockBaseAddress(output, [])
+    guard CVPixelBufferLockBaseAddress(input, .readOnly) == kCVReturnSuccess else { return nil }
+    guard CVPixelBufferLockBaseAddress(output, []) == kCVReturnSuccess else {
+        CVPixelBufferUnlockBaseAddress(input, .readOnly)
+        return nil
+    }
     defer {
         CVPixelBufferUnlockBaseAddress(input, .readOnly)
         CVPixelBufferUnlockBaseAddress(output, [])
@@ -235,7 +242,7 @@ func duplicatePixelBuffer(input: CVPixelBuffer) -> CVPixelBuffer {
         for plane in 0..<planeCount {
             guard let src = CVPixelBufferGetBaseAddressOfPlane(input, plane),
                   let dst = CVPixelBufferGetBaseAddressOfPlane(output, plane)
-            else { continue }
+            else { return nil }
 
             let rows = CVPixelBufferGetHeightOfPlane(input, plane)
             let srcBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(input, plane)
@@ -264,6 +271,8 @@ func duplicatePixelBuffer(input: CVPixelBuffer) -> CVPixelBuffer {
                 bytesPerRow
             )
         }
+    } else {
+        return nil
     }
 
     return output

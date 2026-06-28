@@ -174,7 +174,19 @@ extension Renderer {
     func savePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
                         completion: @escaping (String?) -> Void = { _ in }) {
         Task(priority: .utility) {
-            let rawSamples = makeFilteredPointSamples(voxelSize: snapshotVoxelSize)
+            // `currentPointIndex` advances when work is encoded, not when the
+            // GPU has written the buffer. Drain in-flight rendering first.
+            if !waitForPointCloudWritesToComplete() {
+                Log.pointCloud.error("Timed out waiting for in-flight point cloud writes before export")
+                await MainActor.run {
+                    completion(nil)
+                }
+                return
+            }
+            let rawSamples = makeFilteredPointSamples(
+                voxelSize: snapshotVoxelSize,
+                inputSampleLimit: analysisInputSampleLimit
+            )
             let pointsCopy = PointCloudDenoiser.statisticalOutlierRemoval(samples: rawSamples)
             guard !pointsCopy.isEmpty else {
                 await MainActor.run {

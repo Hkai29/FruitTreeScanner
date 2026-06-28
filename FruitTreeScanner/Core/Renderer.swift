@@ -143,6 +143,10 @@ final class Renderer: NSObject {
     var lastSnapshotUpdateTime = Date.distantPast
     let baseSnapshotUpdateInterval: TimeInterval = 0.9
     let liveSnapshotInputSampleLimit = 240_000
+    /// The final estimation path performs CPU KNN denoising and DBSCAN. Keep
+    /// its input bounded on mobile hardware even when capture retains millions
+    /// of raw points for display quality.
+    let analysisInputSampleLimit = 120_000
 
     // MARK: - 体素网格去重（避免重复扫描）
     var scannedRegions: Set<RendererCameraRegionKey> = []  // 已扫描的区域（相机位置离散化）
@@ -220,6 +224,31 @@ final class Renderer: NSObject {
         pointBufferLock.lock()
         defer { pointBufferLock.unlock() }
         return (currentPointCount, currentPointIndex)
+    }
+
+    /// Wait until every submitted render command buffer has completed. Call
+    /// after recording is stopped and before CPU-side export reads the shared
+    /// particle buffer, otherwise the last in-flight GPU write can race the
+    /// snapshot.
+    @discardableResult
+    func waitForPointCloudWritesToComplete(timeout: TimeInterval = 5) -> Bool {
+        let deadline = DispatchTime.now() + .milliseconds(Int(timeout * 1_000))
+        var acquiredPermits = 0
+
+        for _ in 0..<maxInFlightBuffers {
+            guard inFlightSemaphore.wait(timeout: deadline) == .success else {
+                for _ in 0..<acquiredPermits {
+                    inFlightSemaphore.signal()
+                }
+                return false
+            }
+            acquiredPermits += 1
+        }
+
+        for _ in 0..<acquiredPermits {
+            inFlightSemaphore.signal()
+        }
+        return true
     }
 
     var scannedRegionCountPublic: Int { scannedRegions.count }

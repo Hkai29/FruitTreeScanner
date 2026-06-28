@@ -64,12 +64,19 @@ struct DetectionDeduplicator {
         centerDistanceThreshold: CGFloat,
         timeWindow: TimeInterval
     ) -> Bool {
+        let timeDelta = abs(candidate.timestamp - kept.timestamp)
+        // Normalized image coordinates are only comparable while the camera is
+        // observing nearly the same view. Across a whole walk-around scan, two
+        // distinct fruits can occupy the same 2D box at different times.
+        guard timeDelta <= timeWindow else {
+            return false
+        }
+
         let iou = computeIoU(kept.boundingBox, candidate.boundingBox)
         if iou > iouThreshold {
             return true
         }
 
-        let timeDelta = abs(candidate.timestamp - kept.timestamp)
         guard timeDelta > 0.03, timeDelta <= timeWindow else {
             return false
         }
@@ -96,6 +103,27 @@ struct DetectionDeduplicator {
         let larger = max(areaA, areaB)
         guard larger > 0 else { return 0 }
         return min(areaA, areaB) / larger
+    }
+}
+
+// MARK: - Detection retention
+
+enum DetectionRetentionPolicy {
+    /// Keep a generous window of image-detection frames so long scans cannot
+    /// retain an unbounded number of copied depth maps. Point-cloud capture is
+    /// unaffected; this only bounds RGB/depth evidence held for fusion.
+    static let defaultMaxFrameCount = 360
+
+    static func trimmedByFrameLimit(
+        _ detections: [DetectedFruit],
+        maxFrameCount: Int = defaultMaxFrameCount
+    ) -> [DetectedFruit] {
+        guard maxFrameCount > 0 else { return [] }
+        let frameTimestamps = Array(Set(detections.map(\.timestamp))).sorted()
+        guard frameTimestamps.count > maxFrameCount else { return detections }
+
+        let retainedTimestamps = Set(frameTimestamps.suffix(maxFrameCount))
+        return detections.filter { retainedTimestamps.contains($0.timestamp) }
     }
 }
 

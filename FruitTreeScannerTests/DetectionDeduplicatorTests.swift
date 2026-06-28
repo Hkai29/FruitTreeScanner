@@ -35,6 +35,27 @@ final class DetectionDeduplicatorTests: XCTestCase {
         XCTAssertEqual(result.first?.confidence, 0.9, "应保留高置信度")
     }
 
+    func testDeduplicate2DDoesNotMergeOverlappingBoxesFromDistantFrames() {
+        let d1 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.2, height: 0.2),
+            confidence: 0.9,
+            timestamp: 10
+        )
+        let d2 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.2, height: 0.2),
+            confidence: 0.7,
+            timestamp: 13
+        )
+
+        XCTAssertEqual(
+            DetectionDeduplicator.deduplicate2D([d1, d2]).count,
+            2,
+            "跨视角的远时刻检测不能只凭相同 2D 框合并"
+        )
+    }
+
     func testDeduplicate2DDifferentCategories() {
         let d1 = DetectedFruit(
             category: .apple,
@@ -48,6 +69,55 @@ final class DetectionDeduplicatorTests: XCTestCase {
         )
         let result = DetectionDeduplicator.deduplicate2D([d1, d2])
         XCTAssertEqual(result.count, 2, "不同类别不应去重")
+    }
+
+    func testRetentionPolicyKeepsAllDetectionsFromRecentFrames() {
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.1, y: 0.1, width: 0.1, height: 0.1),
+                confidence: 0.9,
+                timestamp: 1
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.2, y: 0.1, width: 0.1, height: 0.1),
+                confidence: 0.8,
+                timestamp: 2
+            ),
+            DetectedFruit(
+                category: .pear,
+                boundingBox: CGRect(x: 0.3, y: 0.1, width: 0.1, height: 0.1),
+                confidence: 0.7,
+                timestamp: 2
+            ),
+            DetectedFruit(
+                category: .orange,
+                boundingBox: CGRect(x: 0.4, y: 0.1, width: 0.1, height: 0.1),
+                confidence: 0.6,
+                timestamp: 3
+            ),
+        ]
+
+        let retained = DetectionRetentionPolicy.trimmedByFrameLimit(detections, maxFrameCount: 2)
+
+        XCTAssertEqual(retained.count, 3)
+        XCTAssertFalse(retained.contains { $0.timestamp == 1 })
+        XCTAssertEqual(retained.filter { $0.timestamp == 2 }.count, 2)
+        XCTAssertEqual(retained.filter { $0.timestamp == 3 }.count, 1)
+    }
+
+    func testRetentionPolicyDropsAllWhenFrameLimitIsZero() {
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.1, y: 0.1, width: 0.1, height: 0.1),
+                confidence: 0.9,
+                timestamp: 1
+            )
+        ]
+
+        XCTAssertTrue(DetectionRetentionPolicy.trimmedByFrameLimit(detections, maxFrameCount: 0).isEmpty)
     }
 
     func testComputeIoUNoOverlap() {

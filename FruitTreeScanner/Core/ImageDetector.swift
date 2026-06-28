@@ -11,10 +11,12 @@ import simd
 
 final class ImageDetector: @unchecked Sendable {
 
-    // pixelBuffer is synchronously copied (duplicatePixelBuffer) inside enqueueFrame
-    // before QueuedFrame is created, so cross-detectionQueue transfer is safe.
+    // RGB and depth buffers are synchronously copied (duplicatePixelBuffer)
+    // inside enqueueFrame before QueuedFrame is created, so transferring the
+    // frame to detectionQueue does not retain ARKit's reusable buffers.
     struct QueuedFrame: @unchecked Sendable {
         let pixelBuffer: CVPixelBuffer
+        let depthMap: CVPixelBuffer?
         let timestamp: TimeInterval
         let cameraTransform: simd_float4x4
         let cameraIntrinsics: simd_float3x3
@@ -163,7 +165,8 @@ final class ImageDetector: @unchecked Sendable {
                     timestamp: fruit.timestamp,
                     cameraTransform: frame.cameraTransform,
                     cameraIntrinsics: frame.cameraIntrinsics,
-                    imageSize: frame.imageSize
+                    imageSize: frame.imageSize,
+                    depthMap: frame.depthMap
                 )
             }
             allDetectedFruits.append(contentsOf: enriched)

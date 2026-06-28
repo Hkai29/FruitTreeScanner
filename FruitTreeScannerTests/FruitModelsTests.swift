@@ -164,6 +164,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.fruitCount, 0, "缺失CSV时fruitCount应为0")
         XCTAssertEqual(parsed.yieldKg, 0, "缺失CSV时yieldKg应为0")
         XCTAssertEqual(parsed.fruitType, "apple", "缺失CSV时fruitType默认apple")
+        XCTAssertEqual(parsed.confidence, "low", "缺失CSV时confidence默认low")
     }
 
     func testPLYParserResultJSONCompanion() throws {
@@ -174,7 +175,7 @@ final class FruitModelsTests: XCTestCase {
         let plyURL = tempDir.appendingPathComponent("T003_20250601_120000_lat25.0_lon121.0.ply")
         let jsonURL = tempDir.appendingPathComponent("T003_20250601_120000_lat25.0_lon121.0_result.json")
         let jsonContent = """
-        {"fruitCount": 25, "yieldKg": 8.75, "fruitType": "orange"}
+        {"fruitCount": 25, "yieldKg": 8.75, "fruitType": "orange", "confidence": "high"}
         """
         try Data().write(to: plyURL)
         try jsonContent.write(to: jsonURL, atomically: true, encoding: .utf8)
@@ -183,6 +184,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.fruitCount, 25)
         XCTAssertEqual(parsed.yieldKg, 8.75, accuracy: 0.01)
         XCTAssertEqual(parsed.fruitType, "orange")
+        XCTAssertEqual(parsed.confidence, "high")
     }
 
     func testPLYParserFallbackMetadataFromURL() throws {
@@ -231,6 +233,50 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(components.hour, 12)
         XCTAssertEqual(components.minute, 34)
         XCTAssertEqual(components.second, 56)
+    }
+
+    func testPLYParserReadsConfidenceFromResultCSV() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("T004_20240506_123456_lat22.0_lon114.0.ply")
+        let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
+
+        try Data().write(to: plyURL)
+        try """
+        树编号,水果类型,扫描日期,果实数量,产量(kg),GPS纬度,GPS经度,聚类Eps,聚类MinPoints,颜色过滤,遮挡系数K,点云大小,置信度,方法,备注
+        T004,pear,2024-05-06 12:34:56,18,4.25,22.0,114.0,0.050,6,N/A,1.00,1000,medium,Fusion,OK
+        """.write(to: csvURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.fruitCount, 18)
+        XCTAssertEqual(parsed.yieldKg, 4.25, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruitType, "pear")
+        XCTAssertEqual(parsed.confidence, "medium")
+    }
+
+    func testPLYParserReadsResultCSVByHeaderWhenColumnsAreReordered() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("T005_20240506_123456_lat22.0_lon114.0.ply")
+        let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
+
+        try Data().write(to: plyURL)
+        try """
+        置信度,树编号,产量(kg),水果类型,果实数量
+        high,T005,8.75,orange,31
+        """.write(to: csvURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.fruitCount, 31)
+        XCTAssertEqual(parsed.yieldKg, 8.75, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruitType, "orange")
+        XCTAssertEqual(parsed.confidence, "high")
     }
 
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering

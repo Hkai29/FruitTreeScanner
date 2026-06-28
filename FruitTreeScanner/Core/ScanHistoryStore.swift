@@ -67,6 +67,7 @@ final class ScanHistoryStore: ObservableObject {
                         gpsLat: result.gpsLat,
                         gpsLon: result.gpsLon,
                         fruitType: result.fruitType,
+                        confidence: result.confidence,
                         fileSizeBytes: fileSizeBytes
                     )
                 }
@@ -147,9 +148,10 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
     let gpsLat: Double
     let gpsLon: Double
     let fruitType: String
+    let confidence: String
     let fileSizeBytes: Int
 
-    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple", fileSizeBytes: Int = 0) {
+    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple", confidence: String = "low", fileSizeBytes: Int = 0) {
         self.id = id
         self.treeID = treeID
         self.fileURL = fileURL
@@ -159,6 +161,7 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
         self.gpsLat = gpsLat
         self.gpsLon = gpsLon
         self.fruitType = fruitType
+        self.confidence = confidence
         self.fileSizeBytes = fileSizeBytes
     }
 }

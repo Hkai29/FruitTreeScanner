@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-final class ScanResultExportService {
+final class ScanResultExportService: @unchecked Sendable {
     static let shared = ScanResultExportService()
 
     struct ExportRequest: Sendable {
@@ -21,6 +21,7 @@ final class ScanResultExportService {
     }
 
     private let fileManager: FileManager
+    private let exportQueue = DispatchQueue(label: "com.fruittreescanner.scan-result-export")
 
     private init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -28,6 +29,13 @@ final class ScanResultExportService {
 
     @discardableResult
     func exportIfNeeded(_ request: ExportRequest) throws -> ExportedFiles? {
+        try exportQueue.sync {
+            try exportIfNeededOnQueue(request)
+        }
+    }
+
+    @discardableResult
+    private func exportIfNeededOnQueue(_ request: ExportRequest) throws -> ExportedFiles? {
         let scansDir = try scansDirectory()
         guard LocalFileStorage.isSafeLeafFilename(request.sourceFilename) else {
             throw LocalFileStorageError.invalidFilename
@@ -38,13 +46,14 @@ final class ScanResultExportService {
         }
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
 
+        let metadataURL = try writeMetadata(for: request, baseName: baseName, scansDir: scansDir)
+
         if request.includeCSV && !fileManager.fileExists(atPath: csvURL.path) {
             let csvContent = makeCSVContent(for: request)
             try csvContent.write(to: csvURL, atomically: true, encoding: .utf8)
             Log.export.info("CSV exported: \(baseName).csv")
         }
 
-        let metadataURL = try writeMetadata(for: request, baseName: baseName, scansDir: scansDir)
         Log.export.info("Export complete for \(request.treeID)")
 
         return ExportedFiles(csvURL: csvURL, metadataURL: metadataURL)

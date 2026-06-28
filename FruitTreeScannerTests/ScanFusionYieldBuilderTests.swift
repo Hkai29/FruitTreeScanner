@@ -68,14 +68,13 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         ImageDetectionDiagnostics()
     }
 
-    // MARK: - A.1 Empty point cloud + no frameContext → 0kg, zeroYieldReasons
+    // MARK: - A.1 Empty point cloud → 0kg, zeroYieldReasons
 
     func testBuildEmptyInputReturnsZeroKgWithReasons() async {
         let input = ScanFusionYieldBuilder.Input(
             points: [],
             savedDetections: [],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: nil,
             fruitType: "苹果",
             fruitCategory: .apple,
             paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
@@ -104,7 +103,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             points: points,
             savedDetections: [],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: nil,
             fruitType: "苹果",
             fruitCategory: .apple,
             paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
@@ -122,24 +120,17 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         )
         XCTAssertFalse(
             yield.diagnostics.depthAvailable,
-            "nil frameContext 应标记深度不可用"
+            "没有带深度的检测帧应标记深度不可用"
         )
     }
 
-    // MARK: - A.3 With detections + frameContext → populated diagnostics
+    // MARK: - A.3 With aligned detection depth → populated diagnostics
 
-    func testBuildWithDetectionsAndFrameContextPopulatesDiagnostics() async {
+    func testBuildWithAlignedDetectionDepthPopulatesDiagnostics() async {
         let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
         XCTAssertNotNil(depthMap)
 
         let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
-
-        let frameContext = ScanFusionFrameContext(
-            depthMap: depthMap,
-            cameraIntrinsics: intrinsics,
-            cameraTransform: identityTransform,
-            imageSize: CGSize(width: 1920, height: 1080)
-        )
 
         let points = makeAppleSphere(center: SIMD3<Float>(0, 0, 2))
 
@@ -149,14 +140,14 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             confidence: 0.9,
             cameraTransform: identityTransform,
             cameraIntrinsics: intrinsics,
-            imageSize: CGSize(width: 1920, height: 1080)
+            imageSize: CGSize(width: 1920, height: 1080),
+            depthMap: depthMap
         )
 
         let input = ScanFusionYieldBuilder.Input(
             points: points,
             savedDetections: [detection],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: frameContext,
             fruitType: "苹果",
             fruitCategory: .apple,
             paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
@@ -193,18 +184,72 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         )
         XCTAssertTrue(
             yield.diagnostics.depthAvailable,
-            "frameContext 含深度图时应标记 depthAvailable"
+            "检测帧含对齐深度图时应标记 depthAvailable"
         )
         XCTAssertFalse(
             yield.diagnostics.cloudOnlyConservativeMode,
-            "有检测且有 frameContext 时不应进入保守模式"
+            "有对齐检测深度时不应进入保守模式"
         )
         XCTAssertGreaterThanOrEqual(countResult.totalCount, 1)
     }
 
-    // MARK: - A.4 nil frameContext + detections → cloudOnlyConservativeMode, depth unavailable
+    func testBuildMixedAlignedAndUnalignedDetectionsUsesOnlyAlignedOnes() async {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let points = makeAppleSphere(center: SIMD3<Float>(0, 0, 2))
 
-    func testBuildDetectionsWithNilFrameContextEntersConservativeMode() async {
+        let aligned = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: CGSize(width: 1920, height: 1080),
+            depthMap: depthMap
+        )
+        let unaligned = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.70, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.95
+        )
+
+        let input = ScanFusionYieldBuilder.Input(
+            points: points,
+            savedDetections: [aligned, unaligned],
+            imageDiagnostics: emptyImageDiagnostics(),
+            fruitType: "苹果",
+            fruitCategory: .apple,
+            paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+            defaultParams: appleParams(),
+            clusterConfig: ClusterConfig(
+                minPoints: 3,
+                minDiameter: 0.015,
+                maxDiameter: 0.20,
+                baseEps: 0.1,
+                sphericityThreshold: 0.5
+            ),
+            fusionConfig: FruitScanConfig(
+                imageDetectionInterval: 10,
+                minConfidence: 0.5,
+                sizeTolerance: 0.35,
+                sphericityThreshold: 0.5
+            ),
+            colorFilter: nil
+        )
+
+        let (yield, _) = await ScanFusionYieldBuilder.build(from: input)
+
+        XCTAssertEqual(yield.diagnostics.imageDetectionCount, 2)
+        XCTAssertEqual(yield.diagnostics.deduplicatedImageDetectionCount, 1)
+        XCTAssertTrue(yield.diagnostics.depthAvailable)
+        XCTAssertFalse(yield.diagnostics.cloudOnlyConservativeMode)
+        XCTAssertGreaterThan(yield.diagnostics.fusedFruitCount, 0)
+    }
+
+    // MARK: - A.4 Unaligned detections → cloudOnlyConservativeMode, depth unavailable
+
+    func testBuildDetectionsWithoutAlignedDepthEntersConservativeMode() async {
         let points = makeAppleSphere(center: SIMD3<Float>(0, 0, 2))
 
         let detection = DetectedFruit(
@@ -217,7 +262,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             points: points,
             savedDetections: [detection],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: nil,
             fruitType: "苹果",
             fruitCategory: .apple,
             paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
@@ -231,11 +275,11 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
 
         XCTAssertTrue(
             yield.diagnostics.cloudOnlyConservativeMode,
-            "nil frameContext 有检测时应进入保守模式"
+            "未携带对齐深度的检测应进入保守模式"
         )
         XCTAssertFalse(
             yield.diagnostics.depthAvailable,
-            "nil frameContext 应标记深度不可用"
+            "未携带对齐深度应标记深度不可用"
         )
         XCTAssertEqual(
             yield.diagnostics.imageDetectionCount, 1,
@@ -243,15 +287,15 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         )
         XCTAssertEqual(
             yield.diagnostics.deduplicatedImageDetectionCount, 0,
-            "保守模式不走 2D 去重路径"
+            "未携带深度的检测不会参与融合去重"
         )
         XCTAssertEqual(
             yield.yieldFinalKg, 0,
-            "nil frameContext 保守模式下应输出 0kg"
+            "未携带深度的检测不应产生伪融合产量"
         )
         XCTAssertTrue(
             yield.diagnostics.zeroYieldReasons.contains("深度不可用"),
-            "nil frameContext 时应明确诊断深度不可用"
+            "未携带对齐深度时应明确诊断深度不可用"
         )
     }
 
@@ -262,7 +306,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             points: [],
             savedDetections: [],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: nil,
             fruitType: "苹果",
             fruitCategory: .apple,
             paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
@@ -282,7 +325,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             points: [],
             savedDetections: [],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: nil,
             fruitType: "自定义果",
             fruitCategory: nil,
             paramsSnapshot: [:],
@@ -302,7 +344,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             points: [],
             savedDetections: [],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: nil,
             fruitType: "苹果",
             fruitCategory: .apple,
             paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
@@ -323,7 +364,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             points: points,
             savedDetections: [],
             imageDiagnostics: emptyImageDiagnostics(),
-            frameContext: nil,
             fruitType: "苹果",
             fruitCategory: .apple,
             paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],

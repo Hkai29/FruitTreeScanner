@@ -84,7 +84,10 @@ extension Renderer {
             return cachedPoints
         }
 
-        let samples = makeFilteredPointSamples(voxelSize: snapshotVoxelSize)
+        let samples = makeFilteredPointSamples(
+            voxelSize: snapshotVoxelSize,
+            inputSampleLimit: analysisInputSampleLimit
+        )
         let denoised = PointCloudDenoiser.statisticalOutlierRemoval(samples: samples)
         let pts = RendererPointCloudSnapshot.makeColoredPoints(from: denoised)
         storeSnapshot(points: pts, fullSignature: signature)

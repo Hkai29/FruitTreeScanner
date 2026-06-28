@@ -1,22 +1,12 @@
-import CoreVideo
 import Foundation
 import os
 import simd
-import UIKit
-
-struct ScanFusionFrameContext: @unchecked Sendable {
-    let depthMap: CVPixelBuffer?
-    let cameraIntrinsics: simd_float3x3
-    let cameraTransform: simd_float4x4
-    let imageSize: CGSize
-}
 
 enum ScanFusionYieldBuilder {
     struct Input: @unchecked Sendable {
         let points: [ColoredPoint]
         let savedDetections: [DetectedFruit]
         let imageDiagnostics: ImageDetectionDiagnostics
-        let frameContext: ScanFusionFrameContext?
         let fruitType: String
         let fruitCategory: FruitCategory?
         let paramsSnapshot: [String: FruitVarietyParams]
@@ -32,9 +22,10 @@ enum ScanFusionYieldBuilder {
             return makeUncalibratedSeasonResult(input: input)
         }
 
+        let hasAlignedDetectionDepth = input.savedDetections.contains { $0.hasAlignedDepthContext }
         var diagnostics = ScanDiagnosticsBuilder.makeDiagnostics(
             pointCloudPointCount: input.points.count,
-            depthAvailable: input.frameContext?.depthMap != nil,
+            depthAvailable: hasAlignedDetectionDepth,
             imageDiagnostics: input.imageDiagnostics
         )
         diagnostics.imageDetectionCount = input.savedDetections.count
@@ -50,7 +41,6 @@ enum ScanFusionYieldBuilder {
         let fusion = makeValidatedFruits(
             detections: input.savedDetections,
             candidates: candidates,
-            frameContext: input.frameContext,
             fusionConfig: input.fusionConfig,
             diagnostics: &diagnostics
         )
@@ -114,7 +104,7 @@ enum ScanFusionYieldBuilder {
     ) -> (YieldResult, FruitCountResult) {
         var diagnostics = ScanDiagnosticsBuilder.makeDiagnostics(
             pointCloudPointCount: input.points.count,
-            depthAvailable: input.frameContext?.depthMap != nil,
+            depthAvailable: input.savedDetections.contains { $0.hasAlignedDepthContext },
             imageDiagnostics: input.imageDiagnostics
         )
         diagnostics.imageDetectionCount = input.savedDetections.count
@@ -140,28 +130,29 @@ enum ScanFusionYieldBuilder {
     private static func makeValidatedFruits(
         detections: [DetectedFruit],
         candidates: [FruitCandidate],
-        frameContext: ScanFusionFrameContext?,
         fusionConfig: FruitScanConfig,
         diagnostics: inout ScanYieldDiagnostics
     ) -> (validatedFruits: [ValidatedFruit], deduplicatedDetectionCount: Int) {
-        if !detections.isEmpty, let frameContext {
-            let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(detections)
+        if !detections.isEmpty {
+            let alignedDetections = detections.filter(\.hasAlignedDepthContext)
+            guard !alignedDetections.isEmpty else {
+                diagnostics.cloudOnlyConservativeMode = true
+                Log.fusion.warning("Skipping \(detections.count) image detections because none carried aligned depth context")
+                return ([], 0)
+            }
+            let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(alignedDetections)
             let fusionValidator = FusionValidator(config: fusionConfig)
             let fusedFruits = fusionValidator.validate(
                 detections: deduplicatedDetections,
-                candidates: candidates,
-                depthMap: frameContext.depthMap,
-                cameraIntrinsics: frameContext.cameraIntrinsics,
-                cameraTransform: frameContext.cameraTransform,
-                imageSize: frameContext.imageSize
+                candidates: candidates
             )
+            if fusedFruits.isEmpty {
+                diagnostics.cloudOnlyConservativeMode = true
+            }
             return (ValidatedFruit.deduplicate3D(fusedFruits), deduplicatedDetections.count)
         }
 
         diagnostics.cloudOnlyConservativeMode = true
-        guard detections.isEmpty else {
-            return ([], 0)
-        }
 
         let cloudOnlyFruits = candidates.compactMap { candidate -> ValidatedFruit? in
             guard candidate.sphericity > 0.7, candidate.hasFruitColor() else { return nil }

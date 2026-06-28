@@ -59,7 +59,7 @@ struct TreeAssignment: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-private struct TagStoreSnapshot: Sendable {
+private struct TagStoreSnapshot: Codable, Sendable {
     let plots: [Plot]
     let tags: [GroupTag]
     let assignments: [TreeAssignment]
@@ -78,6 +78,9 @@ final class TagStore: ObservableObject {
     static let didUpdateNotification = Notification.Name("TagStoreDidUpdate")
 
     private enum StorageKeys {
+        static let snapshot = "TagStore.snapshot.v1"
+        // Legacy keys are retained only to migrate installations that used the
+        // earlier three-record layout.
         static let plots = "TagStore.plots"
         static let tags = "TagStore.tags"
         static let assignments = "TagStore.assignments"
@@ -94,6 +97,18 @@ final class TagStore: ObservableObject {
 
     private func loadData() {
         do {
+            if let snapshot: TagStoreSnapshot = try UserDefaults.standard.getObject(forKey: StorageKeys.snapshot) {
+                plots = snapshot.plots
+                tags = snapshot.tags
+                assignments = snapshot.assignments
+                return
+            }
+        } catch {
+            Log.general.error("Failed to read tag store snapshot: \(error.localizedDescription)")
+        }
+
+        // One-time migration from the legacy independently-written keys.
+        do {
             plots = try UserDefaults.standard.getObject(forKey: StorageKeys.plots) ?? []
         } catch {
             plots = []
@@ -107,6 +122,10 @@ final class TagStore: ObservableObject {
             assignments = try UserDefaults.standard.getObject(forKey: StorageKeys.assignments) ?? []
         } catch {
             assignments = []
+        }
+
+        if !plots.isEmpty || !tags.isEmpty || !assignments.isEmpty {
+            persistChanges()
         }
     }
 
@@ -135,11 +154,10 @@ final class TagStore: ObservableObject {
     }
 
     nonisolated private static func writeSnapshot(_ snapshot: TagStoreSnapshot) throws {
-        try UserDefaults.standard.setObject(snapshot.plots, forKey: StorageKeys.plots)
-        try Task.checkCancellation()
-        try UserDefaults.standard.setObject(snapshot.tags, forKey: StorageKeys.tags)
-        try Task.checkCancellation()
-        try UserDefaults.standard.setObject(snapshot.assignments, forKey: StorageKeys.assignments)
+        // A single encoded value makes plots, tags, and assignments one logical
+        // commit. Cancelling a newer save can no longer leave the three sets at
+        // different generations.
+        try UserDefaults.standard.setObject(snapshot, forKey: StorageKeys.snapshot)
     }
 
     private func notifyUpdate() {

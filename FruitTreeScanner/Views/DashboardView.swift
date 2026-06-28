@@ -211,11 +211,12 @@ struct DashboardView: View {
     private func presentPendingScanIfNeeded() {
         guard let request = pendingScanRequest else { return }
         pendingScanRequest = nil
+        let existing = TagStore.shared.getAssignment(treeId: request.treeID)
         TagStore.shared.createOrUpdateAssignment(
             treeId: request.treeID,
             plotId: request.plotId,
             tagIds: request.tagIds,
-            status: .reviewing
+            status: existing?.status ?? .notScanned
         )
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             activeScanRequest = request
@@ -332,7 +333,7 @@ struct DashboardView: View {
             treeId: request.treeID,
             plotId: request.plotId,
             tagIds: request.tagIds,
-            status: .reviewing
+            status: existing?.status ?? .notScanned
         )
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             activeScanRequest = request

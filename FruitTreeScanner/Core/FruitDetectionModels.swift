@@ -3,10 +3,16 @@
 
 import CoreGraphics
 import Foundation
+@preconcurrency import CoreVideo
 import simd
 
 // MARK: - 图像检测结果
-struct DetectedFruit: Identifiable, Sendable {
+/// A detection and the AR frame data required to place it in world space.
+///
+/// `depthMap` is a private, copied depth buffer captured with the RGB frame.
+/// Core Video buffers are not formally `Sendable`, but this value never shares
+/// ARKit's reusable buffer pool across queues.
+struct DetectedFruit: Identifiable, @unchecked Sendable {
     let id: UUID
     let category: FruitCategory
     let boundingBox: CGRect
@@ -15,8 +21,22 @@ struct DetectedFruit: Identifiable, Sendable {
     let cameraTransform: simd_float4x4?
     let cameraIntrinsics: simd_float3x3?
     let imageSize: CGSize?
+    let depthMap: CVPixelBuffer?
 
-    init(category: FruitCategory, boundingBox: CGRect, confidence: Float, timestamp: TimeInterval = Date().timeIntervalSince1970, cameraTransform: simd_float4x4? = nil, cameraIntrinsics: simd_float3x3? = nil, imageSize: CGSize? = nil) {
+    var hasAlignedDepthContext: Bool {
+        depthMap != nil && cameraTransform != nil && cameraIntrinsics != nil && imageSize != nil
+    }
+
+    init(
+        category: FruitCategory,
+        boundingBox: CGRect,
+        confidence: Float,
+        timestamp: TimeInterval = Date().timeIntervalSince1970,
+        cameraTransform: simd_float4x4? = nil,
+        cameraIntrinsics: simd_float3x3? = nil,
+        imageSize: CGSize? = nil,
+        depthMap: CVPixelBuffer? = nil
+    ) {
         self.id = UUID()
         self.category = category
         self.boundingBox = boundingBox
@@ -25,6 +45,7 @@ struct DetectedFruit: Identifiable, Sendable {
         self.cameraTransform = cameraTransform
         self.cameraIntrinsics = cameraIntrinsics
         self.imageSize = imageSize
+        self.depthMap = depthMap
     }
 }
 

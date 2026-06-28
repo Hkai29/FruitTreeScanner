@@ -31,7 +31,6 @@ struct ScanView: View {
     @State private var measuredDistance: Float?
     @State private var scanNotice: String?
     @State private var isViewActive = false
-    @State private var autoExportTask: Task<Void, Never>?
     @State private var scanReadiness: ScanReadiness = .checking
     @State private var showCancelConfirmation = false
 
@@ -69,8 +68,6 @@ struct ScanView: View {
         .onDisappear {
             isViewActive = false
             isEstimating = false
-            autoExportTask?.cancel()
-            autoExportTask = nil
             measurementController.deactivate()
             measurementController.renderer = nil
             coordinator.teardown()
@@ -339,8 +336,6 @@ struct ScanView: View {
     }
 
     private func cancelScan() {
-        autoExportTask?.cancel()
-        autoExportTask = nil
         isEstimating = false
         if isRecording {
             stopRecording()
@@ -369,23 +364,25 @@ struct ScanView: View {
         withAnimation(.easeInOut(duration: 0.2)) { isEstimating = true }
         coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
             guard self.isViewActive else { return }
-            self.savedFilename = filename ?? ""
-            guard filename != nil else {
+            guard let filename else {
                 self.isEstimating = false
                 self.showTemporaryNotice(L10n.Scan.exportFailed)
                 return
             }
-
-            ScanHistoryStore.shared.notifyRecordsUpdated()
+            self.savedFilename = filename
 
             self.coordinator.runMultiModalYieldEstimate(season: season) { result, _ in
-                guard self.isViewActive else { return }
-                self.isEstimating = false
-                self.yieldResult = result
-                withAnimation(.easeInOut(duration: 0.3)) { self.showResult = true }
+                Task { @MainActor in
+                    let didPersist = await self.persistScanResult(result: result, filename: filename)
+                    if !didPersist {
+                        ScanHistoryStore.shared.notifyRecordsUpdated()
+                        self.showTemporaryNotice("结果文件保存失败，请保留点云后重试导出")
+                    }
 
-                if let filename {
-                    self.persistScanResult(result: result, filename: filename)
+                    guard self.isViewActive else { return }
+                    self.isEstimating = false
+                    self.yieldResult = result
+                    withAnimation(.easeInOut(duration: 0.3)) { self.showResult = true }
                 }
             }
         }
@@ -443,7 +440,8 @@ struct ScanView: View {
         UIApplication.shared.open(url)
     }
 
-    private func persistScanResult(result: YieldResult, filename: String) {
+    @MainActor
+    private func persistScanResult(result: YieldResult, filename: String) async -> Bool {
         let includeCSV = SettingsStore.shared.autoExportCSV
         let scanMetadata = savedScanMetadata(for: filename)
         let request = ScanResultExportService.ExportRequest(
@@ -457,18 +455,30 @@ struct ScanView: View {
             includeCSV: includeCSV
         )
 
-        autoExportTask?.cancel()
-        autoExportTask = Task.detached(priority: .utility) {
-            do {
-                let exportedFiles = try ScanResultExportService.shared.exportIfNeeded(request)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    ScanHistoryStore.shared.notifyRecordsUpdated()
-                }
-                _ = exportedFiles
-            } catch {
-                _ = error
+        do {
+            _ = try await Task.detached(priority: .utility) {
+                try ScanResultExportService.shared.exportIfNeeded(request)
+            }.value
+            ScanHistoryStore.shared.notifyRecordsUpdated()
+            if let existing = TagStore.shared.getAssignment(treeId: treeID) {
+                TagStore.shared.createOrUpdateAssignment(
+                    treeId: treeID,
+                    plotId: existing.plotId,
+                    tagIds: existing.tagIds,
+                    status: .scanned
+                )
+            } else {
+                TagStore.shared.createOrUpdateAssignment(
+                    treeId: treeID,
+                    plotId: nil,
+                    tagIds: [],
+                    status: .scanned
+                )
             }
+            return true
+        } catch {
+            Log.export.error("Failed to persist scan result: \(error.localizedDescription)")
+            return false
         }
     }
 

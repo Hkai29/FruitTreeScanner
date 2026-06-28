@@ -531,6 +531,51 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(payload["fruitCount"] as? Int, 12)
     }
 
+    func testScanResultExportPreservesExistingCSVAndRefreshesMetadata() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let firstRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-first",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25),
+            includeCSV: true
+        )
+        let secondRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-second",
+            fruitType: "orange",
+            scanDate: Date(timeIntervalSince1970: 1717203600),
+            gpsLat: 36.0,
+            gpsLon: 140.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 21, yieldKg: 4.5),
+            includeCSV: true
+        )
+
+        let firstExport = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(firstRequest))
+        let secondExport = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(secondRequest))
+        defer {
+            try? FileManager.default.removeItem(at: firstExport.csvURL)
+            if let metadataURL = firstExport.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        XCTAssertEqual(firstExport.csvURL, secondExport.csvURL)
+
+        let csv = try String(contentsOf: firstExport.csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains("T-first"))
+        XCTAssertFalse(csv.contains("T-second"))
+
+        let metadataURL = try XCTUnwrap(secondExport.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["treeID"] as? String, "T-second")
+        XCTAssertEqual(payload["fruitCount"] as? Int, 21)
+    }
+
     func testExcelExcludedColumnsOmitCells() async throws {
         var options = BatchExportService.ExportOptions()
         options.includeGPS = false

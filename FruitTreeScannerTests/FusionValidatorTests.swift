@@ -140,6 +140,41 @@ final class FusionValidatorTests: XCTestCase {
         XCTAssertEqual(result.first?.category, FruitCategory.apple)
     }
 
+    func testValidateUsesOnlyDepthAlignedDetectionFrames() {
+        let validator = FusionValidator(config: .default)
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let candidate = appleCandidate(at: SIMD3<Float>(0, 0, 2))
+
+        let aligned = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+        let missingDepth = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.8,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize
+        )
+
+        let result = validator.validate(
+            detections: [aligned, missingDepth],
+            candidates: [candidate]
+        )
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.source, .fused)
+    }
+
     // MARK: - B.3 candidate beyond distance threshold → imageOnly
 
     func testValidateImageOnlyWhenCandidateTooFar() {

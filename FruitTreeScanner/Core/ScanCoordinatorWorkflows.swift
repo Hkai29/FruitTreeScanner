@@ -1,7 +1,4 @@
-import ARKit
-import os
-import QuartzCore
-import UIKit
+import Foundation
 
 extension ScanCoordinator {
     func startDetectionTimer() {
@@ -72,6 +69,7 @@ extension ScanCoordinator {
         await MainActor.run {
             guard !self.isTornDown else { return }
             self.detectedFruits.append(contentsOf: detected)
+            self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
         }
     }
 
@@ -125,7 +123,6 @@ extension ScanCoordinator {
         season: Season = .mature,
         completion: @escaping (YieldResult, FruitCountResult?) -> Void
     ) {
-        let frameContext = makeFusionFrameContext()
         let fruitType = settings.fruitType
         let fruitCat = FruitCategory(rawValue: fruitType)
         let paramsSnapshot = FruitParametersStore.shared.parameterSnapshot()
@@ -158,7 +155,6 @@ extension ScanCoordinator {
                     points: points,
                     savedDetections: savedDetections,
                     imageDiagnostics: imageDiagnostics,
-                    frameContext: frameContext,
                     fruitType: fruitType,
                     fruitCategory: fruitCat,
                     paramsSnapshot: paramsSnapshot,
@@ -184,24 +180,4 @@ extension ScanCoordinator {
         }
     }
 
-    private func makeFusionFrameContext() -> ScanFusionFrameContext? {
-        guard let frame = session?.currentFrame else { return nil }
-
-        let depthMap: CVPixelBuffer?
-        if let sourceDepthMap = (frame.smoothedSceneDepth ?? frame.sceneDepth)?.depthMap {
-            depthMap = duplicatePixelBuffer(input: sourceDepthMap)
-        } else {
-            depthMap = nil
-        }
-
-        return ScanFusionFrameContext(
-            depthMap: depthMap,
-            cameraIntrinsics: frame.camera.intrinsics,
-            cameraTransform: frame.camera.transform,
-            imageSize: CGSize(
-                width: CGFloat(frame.camera.imageResolution.width),
-                height: CGFloat(frame.camera.imageResolution.height)
-            )
-        )
-    }
 }

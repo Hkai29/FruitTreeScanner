@@ -34,7 +34,7 @@ struct TreeAnnotation: Identifiable, Hashable {
             treeID: record.treeID,
             coordinate: CLLocationCoordinate2D(latitude: record.gpsLat, longitude: record.gpsLon),
             weight: Double(record.yieldKg),
-            confidence: "medium",
+            confidence: record.confidence,
             scanDate: record.scanDate,
             fruitCount: record.fruitCount
         )

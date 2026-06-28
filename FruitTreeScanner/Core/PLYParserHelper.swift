@@ -9,6 +9,7 @@ struct PLYParserResult: Sendable {
     let fruitCount: Int
     let yieldKg: Float
     let fruitType: String
+    let confidence: String
 }
 
 // MARK: - Shared PLY filename + result parsing
@@ -33,7 +34,8 @@ enum PLYParserHelper {
             gpsLon: metadata.gpsLon,
             fruitCount: result.fruitCount,
             yieldKg: result.yieldKg,
-            fruitType: result.fruitType
+            fruitType: result.fruitType,
+            confidence: result.confidence
         )
     }
 
