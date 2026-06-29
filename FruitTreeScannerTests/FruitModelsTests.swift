@@ -118,6 +118,33 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.gpsLon, 116.4074, accuracy: 0.0001)
     }
 
+    func testPLYParserRejectsNonFiniteGPSMetadata() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let headerURL = tempDir.appendingPathComponent("bad_header_gps.ply")
+        try """
+        ply
+        format ascii 1.0
+        comment tree_id Bad_GPS
+        comment gps_lat nan
+        comment gps_lon inf
+        end_header
+        """.write(to: headerURL, atomically: true, encoding: .utf8)
+
+        let headerParsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: headerURL))
+        XCTAssertEqual(headerParsed.gpsLat, 0)
+        XCTAssertEqual(headerParsed.gpsLon, 0)
+
+        let filenameURL = tempDir.appendingPathComponent("BadGPS_20240506_123456_latnan_loninf.ply")
+        try Data().write(to: filenameURL)
+
+        let filenameParsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: filenameURL))
+        XCTAssertEqual(filenameParsed.gpsLat, 0)
+        XCTAssertEqual(filenameParsed.gpsLon, 0)
+    }
+
     func testPLYParserPrefersHeaderIdentityOverSanitizedFilename() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

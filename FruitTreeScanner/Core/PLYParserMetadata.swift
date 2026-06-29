@@ -24,8 +24,8 @@ extension PLYParserHelper {
         return ParsedPLYMetadata(
             treeID: treeID.isEmpty ? filename : treeID,
             scanDate: parseScanDate(from: parts, fallbackURL: url),
-            gpsLat: Double(latStr.dropFirst(3)) ?? 0,
-            gpsLon: Double(lonStr.dropFirst(3)) ?? 0
+            gpsLat: finiteDouble(String(latStr.dropFirst(3))) ?? 0,
+            gpsLon: finiteDouble(String(lonStr.dropFirst(3))) ?? 0
         )
     }
 
@@ -44,9 +44,9 @@ extension PLYParserHelper {
             } else if let value = commentValue(in: trimmed, key: "scan_date") {
                 scanDate = parseHeaderDate(value)
             } else if let value = commentValue(in: trimmed, key: "gps_lat") {
-                gpsLat = Double(value)
+                gpsLat = finiteDouble(value)
             } else if let value = commentValue(in: trimmed, key: "gps_lon") {
-                gpsLon = Double(value)
+                gpsLon = finiteDouble(value)
             }
         }
 
@@ -125,6 +125,11 @@ extension PLYParserHelper {
             }
         }
         return nil
+    }
+
+    static func finiteDouble(_ value: String) -> Double? {
+        guard let number = Double(value), number.isFinite else { return nil }
+        return number
     }
 
     static func readCompanionResult(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String, confidence: String) {
