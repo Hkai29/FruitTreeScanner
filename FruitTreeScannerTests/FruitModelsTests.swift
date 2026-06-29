@@ -93,6 +93,31 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.fruitType, "apple")
     }
 
+    func testPLYParserReadsCRLFHeaderMetadataFromRendererStyleExport() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("renderer_crlf_header.ply")
+        let headerContent = [
+            "ply",
+            "format ascii 1.0",
+            "comment tree_id Renderer_CRLF_42",
+            "comment scan_date 2025-01-15T10:30:00Z",
+            "comment gps_lat 39.9042",
+            "comment gps_lon 116.4074",
+            "element vertex 0",
+            "end_header"
+        ].joined(separator: "\r\n") + "\r\n"
+        try headerContent.write(to: plyURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.treeID, "Renderer_CRLF_42")
+        XCTAssertEqual(parsed.gpsLat, 39.9042, accuracy: 0.0001)
+        XCTAssertEqual(parsed.gpsLon, 116.4074, accuracy: 0.0001)
+    }
+
     func testPLYParserPrefersHeaderIdentityOverSanitizedFilename() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -36,8 +36,9 @@ extension PLYParserHelper {
         var gpsLat: Double?
         var gpsLon: Double?
 
-        for line in header.split(separator: "\n") {
+        for line in header.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
             if let value = commentValue(in: trimmed, key: "tree_id") {
                 treeID = value
             } else if let value = commentValue(in: trimmed, key: "scan_date") {
