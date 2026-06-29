@@ -236,18 +236,32 @@ extension PLYParserHelper {
 
     static func intValue(_ value: Any?) -> Int {
         if let int = value as? Int { return int }
-        if let double = value as? Double { return Int(double) }
-        if let number = value as? NSNumber { return number.intValue }
+        if let double = value as? Double { return finiteInt(double) ?? 0 }
+        if let number = value as? NSNumber { return finiteInt(number.doubleValue) ?? 0 }
         if let string = value as? String { return Int(string) ?? 0 }
         return 0
     }
 
     static func floatValue(_ value: Any?) -> Float {
-        if let float = value as? Float { return float }
-        if let double = value as? Double { return Float(double) }
-        if let number = value as? NSNumber { return number.floatValue }
-        if let string = value as? String { return Float(string) ?? 0 }
+        if let float = value as? Float { return finiteFloat(float) ?? 0 }
+        if let double = value as? Double { return finiteFloat(Float(double)) ?? 0 }
+        if let number = value as? NSNumber { return finiteFloat(number.floatValue) ?? 0 }
+        if let string = value as? String,
+           let float = Float(string) {
+            return finiteFloat(float) ?? 0
+        }
         return 0
+    }
+
+    private static func finiteInt(_ value: Double) -> Int? {
+        guard value.isFinite,
+              value >= Double(Int.min),
+              value <= Double(Int.max) else { return nil }
+        return Int(value)
+    }
+
+    private static func finiteFloat(_ value: Float) -> Float? {
+        value.isFinite ? value : nil
     }
 
     static func parseCSVLine(_ line: String) -> [String] {
