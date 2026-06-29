@@ -279,6 +279,26 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.confidence, "high")
     }
 
+    func testPLYParserTrimsCompanionCSVValuesAndCRLF() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("T006_20240506_123456_lat22.0_lon114.0.ply")
+        let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
+
+        try Data().write(to: plyURL)
+        try "水果类型,果实数量,产量(kg),置信度\r\n orange , 31 , 8.75 ,high\r\n"
+            .write(to: csvURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.fruitCount, 31)
+        XCTAssertEqual(parsed.yieldKg, 8.75, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruitType, "orange")
+        XCTAssertEqual(parsed.confidence, "high")
+    }
+
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering
 
     func testDeleteFilesPrimaryPLYExistsRemoveThrows() {

@@ -156,13 +156,15 @@ extension PLYParserHelper {
 
         do {
             let csvContent = try String(contentsOf: csvURL, encoding: .utf8)
-            let lines = csvContent.split(separator: "\n")
+            let lines = csvContent
+                .components(separatedBy: .newlines)
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             guard let headerLine = lines.first,
                   let dataLine = lines.dropFirst().first else {
                 return (0, 0, "apple", "low")
             }
-            let header = parseCSVLine(String(headerLine))
-            let values = parseCSVLine(String(dataLine))
+            let header = parseCSVLine(headerLine)
+            let values = parseCSVLine(dataLine)
             guard !values.isEmpty else { return (0, 0, "apple", "low") }
             return (
                 fruitCount: intValue(csvValue(
@@ -204,13 +206,14 @@ extension PLYParserHelper {
         let normalizedNames = Set(names.map(normalizedCSVHeader))
         if let headerIndex = header.firstIndex(where: { normalizedNames.contains(normalizedCSVHeader($0)) }),
            values.indices.contains(headerIndex),
-           !values[headerIndex].isEmpty {
-            return values[headerIndex]
+           let value = nonEmptyCSVValue(values[headerIndex]) {
+            return value
         }
-        guard values.indices.contains(fallbackIndex), !values[fallbackIndex].isEmpty else {
+        guard values.indices.contains(fallbackIndex),
+              let value = nonEmptyCSVValue(values[fallbackIndex]) else {
             return nil
         }
-        return values[fallbackIndex]
+        return value
     }
 
     static func normalizedCSVHeader(_ value: String) -> String {
@@ -218,6 +221,11 @@ extension PLYParserHelper {
             .replacingOccurrences(of: "\u{FEFF}", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+    }
+
+    static func nonEmptyCSVValue(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     static func intValue(_ value: Any?) -> Int {
