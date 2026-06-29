@@ -532,6 +532,63 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(payload["fruitCount"] as? Int, 12)
     }
 
+    func testScanResultExportSanitizesNonFiniteNumericValues() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        var result = makeYieldResult()
+        result.yieldFinalKg = .nan
+        result.clusterEps = .infinity
+        result.occlusionK = -.infinity
+        result.meanDiameterCm = .nan
+        result.meanVolumeCm3 = .infinity
+        result.correctionK = .nan
+        result.yieldBVisibleKg = .infinity
+        result.yieldBCorrectedKg = -.infinity
+
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-clean",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: .nan,
+            gpsLon: .infinity,
+            sourceFilename: sourceFilename,
+            result: result,
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: csvURL, encoding: .utf8).lowercased()
+        XCTAssertFalse(csv.contains("nan"))
+        XCTAssertFalse(csv.contains("inf"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        for key in [
+            "yieldKg",
+            "clusterEps",
+            "occlusionK",
+            "meanDiameterCm",
+            "meanVolumeCm3",
+            "correctionK",
+            "yieldBVisibleKg",
+            "yieldBCorrectedKg",
+            "gpsLat",
+            "gpsLon"
+        ] {
+            let value = try XCTUnwrap(payload[key] as? NSNumber, "Missing numeric key \(key)")
+            XCTAssertEqual(value.doubleValue, 0, accuracy: 0.000001, key)
+        }
+    }
+
     func testScanResultExportPreservesExistingCSVAndRefreshesMetadata() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
         let firstRequest = ScanResultExportService.ExportRequest(
