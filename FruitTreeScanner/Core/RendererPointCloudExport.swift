@@ -70,14 +70,12 @@ enum RendererPointCloudSnapshot {
             let bufferIndex = (currentPointIndex - currentPointCount + i + maxPoints) % maxPoints
             let particle = particlesBuffer[bufferIndex]
             defer { i += sampleStep }
-            guard isExportableParticle(particle, confidenceThreshold: confidenceThreshold) else { continue }
+            guard let sample = makeExportableSample(
+                from: particle,
+                confidenceThreshold: confidenceThreshold
+            ) else { continue }
 
-            let key = voxelKey(for: particle.position, size: voxelSize)
-            let sample = RendererPointSample(
-                position: particle.position,
-                color: clampColor(particle.color),
-                confidence: particle.confidence
-            )
+            let key = voxelKey(for: sample.position, size: voxelSize)
             if let existing = bestSamplesByVoxel[key], existing.confidence >= sample.confidence {
                 continue
             }
@@ -97,6 +95,20 @@ enum RendererPointCloudSnapshot {
         guard simd_length_squared(position) > 0.000001 else { return false }
         let color = particle.color
         return color.x.isFinite && color.y.isFinite && color.z.isFinite
+    }
+
+    static func makeExportableSample(
+        from particle: ParticleUniforms,
+        confidenceThreshold: Int
+    ) -> RendererPointSample? {
+        guard isExportableParticle(particle, confidenceThreshold: confidenceThreshold) else {
+            return nil
+        }
+        return RendererPointSample(
+            position: particle.position,
+            color: clampColor(particle.color),
+            confidence: particle.confidence
+        )
     }
 
     private static func voxelKey(for position: SIMD3<Float>, size: Float) -> RendererVoxelKey {

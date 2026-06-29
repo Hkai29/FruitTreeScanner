@@ -178,8 +178,7 @@ extension Renderer {
                 return gpuAssistedFilter(
                     voxelKeys: voxelKeys,
                     count: count,
-                    index: index,
-                    voxelSize: voxelSize
+                    index: index
                 )
             }
         }
@@ -200,8 +199,7 @@ extension Renderer {
     private func gpuAssistedFilter(
         voxelKeys: [UInt32],
         count: Int,
-        index: Int,
-        voxelSize: Float
+        index: Int
     ) -> [RendererPointSample] {
         var bestByVoxel: [UInt32: RendererPointSample] = [:]
         bestByVoxel.reserveCapacity(min(count, 200_000))
@@ -212,11 +210,10 @@ extension Renderer {
 
             let bufferIndex = (index - count + i + maxPoints) % maxPoints
             let particle = particlesBuffer[bufferIndex]
-            let sample = RendererPointSample(
-                position: particle.position,
-                color: RendererPointCloudSnapshot.clampColorPublic(particle.color),
-                confidence: particle.confidence
-            )
+            guard let sample = RendererPointCloudSnapshot.makeExportableSample(
+                from: particle,
+                confidenceThreshold: confidenceThreshold
+            ) else { continue }
             if let existing = bestByVoxel[key], existing.confidence >= sample.confidence {
                 continue
             }

@@ -188,6 +188,36 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(valid, SIMD3<Float>(0, 0.5, 1), "In-range values should pass through unchanged")
     }
 
+    func testMakeExportableSample_RejectsNonFiniteColorBeforeGPUAssistedExport() {
+        let particle = ParticleUniforms(
+            position: SIMD3<Float>(1, 2, 3),
+            color: SIMD3<Float>(.nan, 0.5, 0.5),
+            confidence: 100
+        )
+
+        let sample = RendererPointCloudSnapshot.makeExportableSample(
+            from: particle,
+            confidenceThreshold: 10
+        )
+
+        XCTAssertNil(sample, "GPU-assisted filtering must keep the same finite-color gate as CPU filtering")
+    }
+
+    func testMakeExportableSample_ClampsValidOutOfRangeColor() throws {
+        let particle = ParticleUniforms(
+            position: SIMD3<Float>(1, 2, 3),
+            color: SIMD3<Float>(-0.1, 0.5, 1.2),
+            confidence: 100
+        )
+
+        let sample = try XCTUnwrap(RendererPointCloudSnapshot.makeExportableSample(
+            from: particle,
+            confidenceThreshold: 10
+        ))
+
+        XCTAssertEqual(sample.color, SIMD3<Float>(0, 0.5, 1))
+    }
+
     // MARK: - makeColoredPoints
 
     func testMakeColoredPoints_ConvertsCorrectly() {
