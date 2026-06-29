@@ -16,7 +16,7 @@ final class ScanResultExportService: @unchecked Sendable {
     }
 
     struct ExportedFiles: Sendable {
-        let csvURL: URL
+        let csvURL: URL?
         let metadataURL: URL?
     }
 
@@ -56,7 +56,8 @@ final class ScanResultExportService: @unchecked Sendable {
 
         Log.export.info("Export complete for \(request.treeID)")
 
-        return ExportedFiles(csvURL: csvURL, metadataURL: metadataURL)
+        let exportedCSVURL = fileManager.fileExists(atPath: csvURL.path) ? csvURL : nil
+        return ExportedFiles(csvURL: exportedCSVURL, metadataURL: metadataURL)
     }
 
     private func scansDirectory() throws -> URL {

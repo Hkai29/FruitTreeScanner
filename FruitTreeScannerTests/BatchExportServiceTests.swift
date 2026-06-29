@@ -507,14 +507,15 @@ final class BatchExportServiceTests: XCTestCase {
         )
 
         let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
         defer {
-            try? FileManager.default.removeItem(at: exported.csvURL)
+            try? FileManager.default.removeItem(at: csvURL)
             if let metadataURL = exported.metadataURL {
                 try? FileManager.default.removeItem(at: metadataURL)
             }
         }
 
-        let csv = try String(contentsOf: exported.csvURL, encoding: .utf8)
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
         XCTAssertTrue(csv.contains("'=FORMULA(1+2)"))
         XCTAssertTrue(csv.contains("'+SUM(A1:A10)"))
         XCTAssertTrue(csv.contains("'@color"))
@@ -556,16 +557,18 @@ final class BatchExportServiceTests: XCTestCase {
 
         let firstExport = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(firstRequest))
         let secondExport = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(secondRequest))
+        let firstCSVURL = try XCTUnwrap(firstExport.csvURL)
+        let secondCSVURL = try XCTUnwrap(secondExport.csvURL)
         defer {
-            try? FileManager.default.removeItem(at: firstExport.csvURL)
+            try? FileManager.default.removeItem(at: firstCSVURL)
             if let metadataURL = firstExport.metadataURL {
                 try? FileManager.default.removeItem(at: metadataURL)
             }
         }
 
-        XCTAssertEqual(firstExport.csvURL, secondExport.csvURL)
+        XCTAssertEqual(firstCSVURL, secondCSVURL)
 
-        let csv = try String(contentsOf: firstExport.csvURL, encoding: .utf8)
+        let csv = try String(contentsOf: firstCSVURL, encoding: .utf8)
         XCTAssertTrue(csv.contains("T-first"))
         XCTAssertFalse(csv.contains("T-second"))
 
@@ -574,6 +577,37 @@ final class BatchExportServiceTests: XCTestCase {
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(payload["treeID"] as? String, "T-second")
         XCTAssertEqual(payload["fruitCount"] as? Int, 21)
+    }
+
+    func testScanResultExportSkipsCSVWhenDisabledButWritesMetadata() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let baseName = (sourceFilename as NSString).deletingPathExtension
+        let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("scans", isDirectory: true)
+        let expectedCSVURL = scansDir.appendingPathComponent("\(baseName).csv")
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-no-csv",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(),
+            includeCSV: false
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        defer {
+            try? FileManager.default.removeItem(at: expectedCSVURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        XCTAssertNil(exported.csvURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: expectedCSVURL.path))
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: metadataURL.path))
     }
 
     func testExcelExcludedColumnsOmitCells() async throws {
