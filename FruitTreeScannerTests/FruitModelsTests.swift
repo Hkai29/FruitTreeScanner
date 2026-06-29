@@ -409,6 +409,54 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.confidence, "high")
     }
 
+    func testScanFileRecordNormalizesInvalidNumericFields() {
+        let negativeRecord = ScanFileRecord(
+            id: "bad-record.ply",
+            treeID: "T-bad",
+            fileURL: URL(fileURLWithPath: "/tmp/bad-record.ply"),
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            fruitCount: -7,
+            yieldKg: -1.25
+        )
+
+        XCTAssertEqual(negativeRecord.fruitCount, 0)
+        XCTAssertEqual(negativeRecord.yieldKg, 0)
+
+        let nonFiniteRecord = ScanFileRecord(
+            id: "non-finite-record.ply",
+            treeID: "T-non-finite",
+            fileURL: URL(fileURLWithPath: "/tmp/non-finite-record.ply"),
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            fruitCount: 7,
+            yieldKg: .nan,
+            gpsLat: .infinity,
+            gpsLon: -.infinity
+        )
+
+        XCTAssertEqual(nonFiniteRecord.fruitCount, 7)
+        XCTAssertEqual(nonFiniteRecord.yieldKg, 0)
+        XCTAssertEqual(nonFiniteRecord.gpsLat, 0)
+        XCTAssertEqual(nonFiniteRecord.gpsLon, 0)
+    }
+
+    func testScanFileRecordPreservesValidNegativeGPSCoordinates() {
+        let record = ScanFileRecord(
+            id: "southern-western.ply",
+            treeID: "T-gps",
+            fileURL: URL(fileURLWithPath: "/tmp/southern-western.ply"),
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            fruitCount: 4,
+            yieldKg: 1.25,
+            gpsLat: -33.8688,
+            gpsLon: -70.6693
+        )
+
+        XCTAssertEqual(record.fruitCount, 4)
+        XCTAssertEqual(record.yieldKg, 1.25, accuracy: 0.0001)
+        XCTAssertEqual(record.gpsLat, -33.8688, accuracy: 0.000001)
+        XCTAssertEqual(record.gpsLon, -70.6693, accuracy: 0.000001)
+    }
+
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering
 
     func testDeleteFilesPrimaryPLYExistsRemoveThrows() {

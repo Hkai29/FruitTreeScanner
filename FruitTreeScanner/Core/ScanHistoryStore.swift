@@ -156,12 +156,20 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
         self.treeID = treeID
         self.fileURL = fileURL
         self.scanDate = scanDate
-        self.fruitCount = fruitCount
-        self.yieldKg = yieldKg
-        self.gpsLat = gpsLat
-        self.gpsLon = gpsLon
+        self.fruitCount = max(0, fruitCount)
+        self.yieldKg = Self.nonNegativeFinite(yieldKg)
+        self.gpsLat = Self.finite(gpsLat)
+        self.gpsLon = Self.finite(gpsLon)
         self.fruitType = fruitType
         self.confidence = confidence
         self.fileSizeBytes = fileSizeBytes
+    }
+
+    private static func nonNegativeFinite(_ value: Float) -> Float {
+        value.isFinite ? max(0, value) : 0
+    }
+
+    private static func finite(_ value: Double) -> Double {
+        value.isFinite ? value : 0
     }
 }
