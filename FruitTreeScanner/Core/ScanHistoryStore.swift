@@ -158,8 +158,8 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
         self.scanDate = scanDate
         self.fruitCount = max(0, fruitCount)
         self.yieldKg = Self.nonNegativeFinite(yieldKg)
-        self.gpsLat = Self.finite(gpsLat)
-        self.gpsLon = Self.finite(gpsLon)
+        self.gpsLat = Self.latitude(gpsLat)
+        self.gpsLon = Self.longitude(gpsLon)
         self.fruitType = fruitType
         self.confidence = confidence
         self.fileSizeBytes = fileSizeBytes
@@ -169,7 +169,13 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
         value.isFinite ? max(0, value) : 0
     }
 
-    private static func finite(_ value: Double) -> Double {
-        value.isFinite ? value : 0
+    private static func latitude(_ value: Double) -> Double {
+        guard value.isFinite, (-90...90).contains(value) else { return 0 }
+        return value
+    }
+
+    private static func longitude(_ value: Double) -> Double {
+        guard value.isFinite, (-180...180).contains(value) else { return 0 }
+        return value
     }
 }

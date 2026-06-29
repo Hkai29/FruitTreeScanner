@@ -437,6 +437,18 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(nonFiniteRecord.yieldKg, 0)
         XCTAssertEqual(nonFiniteRecord.gpsLat, 0)
         XCTAssertEqual(nonFiniteRecord.gpsLon, 0)
+
+        let outOfRangeRecord = ScanFileRecord(
+            id: "out-of-range-record.ply",
+            treeID: "T-out-of-range",
+            fileURL: URL(fileURLWithPath: "/tmp/out-of-range-record.ply"),
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 90.1,
+            gpsLon: -180.1
+        )
+
+        XCTAssertEqual(outOfRangeRecord.gpsLat, 0)
+        XCTAssertEqual(outOfRangeRecord.gpsLon, 0)
     }
 
     func testScanFileRecordPreservesValidNegativeGPSCoordinates() {
@@ -455,6 +467,18 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(record.yieldKg, 1.25, accuracy: 0.0001)
         XCTAssertEqual(record.gpsLat, -33.8688, accuracy: 0.000001)
         XCTAssertEqual(record.gpsLon, -70.6693, accuracy: 0.000001)
+
+        let boundaryRecord = ScanFileRecord(
+            id: "gps-boundary.ply",
+            treeID: "T-boundary",
+            fileURL: URL(fileURLWithPath: "/tmp/gps-boundary.ply"),
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 90,
+            gpsLon: 180
+        )
+
+        XCTAssertEqual(boundaryRecord.gpsLat, 90, accuracy: 0.000001)
+        XCTAssertEqual(boundaryRecord.gpsLon, 180, accuracy: 0.000001)
     }
 
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering
