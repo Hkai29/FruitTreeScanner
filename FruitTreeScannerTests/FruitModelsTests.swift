@@ -268,6 +268,35 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(jsonParsed.yieldKg, 0)
     }
 
+    func testPLYParserRejectsNegativeCompanionCountAndYield() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let csvPLYURL = tempDir.appendingPathComponent("CSVNegativeYield_20250601_120000_lat25.0_lon121.0.ply")
+        let csvURL = csvPLYURL.deletingPathExtension().appendingPathExtension("csv")
+        try Data().write(to: csvPLYURL)
+        try """
+        树编号,水果类型,扫描日期,果实数量,产量(kg)
+        CSVNegativeYield,apple,2025-06-01 12:00:00,-12,-3.5
+        """.write(to: csvURL, atomically: true, encoding: .utf8)
+
+        let csvParsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: csvPLYURL))
+        XCTAssertEqual(csvParsed.fruitCount, 0)
+        XCTAssertEqual(csvParsed.yieldKg, 0)
+
+        let jsonPLYURL = tempDir.appendingPathComponent("JSONNegativeYield_20250601_120000_lat25.0_lon121.0.ply")
+        let jsonURL = tempDir.appendingPathComponent("JSONNegativeYield_20250601_120000_lat25.0_lon121.0_result.json")
+        try Data().write(to: jsonPLYURL)
+        try """
+        {"fruitCount": -25, "yieldKg": -8.0, "fruitType": "orange", "confidence": "medium"}
+        """.write(to: jsonURL, atomically: true, encoding: .utf8)
+
+        let jsonParsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: jsonPLYURL))
+        XCTAssertEqual(jsonParsed.fruitCount, 0)
+        XCTAssertEqual(jsonParsed.yieldKg, 0)
+    }
+
     func testPLYParserFallbackMetadataFromURL() throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)

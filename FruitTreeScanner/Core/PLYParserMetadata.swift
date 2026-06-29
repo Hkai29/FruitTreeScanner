@@ -147,8 +147,8 @@ extension PLYParserHelper {
         else { return nil }
 
         return (
-            fruitCount: intValue(payload["fruitCount"]),
-            yieldKg: floatValue(payload["yieldKg"]),
+            fruitCount: nonNegativeIntValue(payload["fruitCount"]),
+            yieldKg: nonNegativeFloatValue(payload["yieldKg"]),
             fruitType: payload["fruitType"] as? String ?? "apple",
             confidence: payload["confidence"] as? String ?? "low"
         )
@@ -173,13 +173,13 @@ extension PLYParserHelper {
             let values = parseCSVLine(dataLine)
             guard !values.isEmpty else { return (0, 0, "apple", "low") }
             return (
-                fruitCount: intValue(csvValue(
+                fruitCount: nonNegativeIntValue(csvValue(
                     in: values,
                     header: header,
                     named: ["果实数量", "fruitCount", "fruit_count"],
                     fallbackIndex: 3
                 )),
-                yieldKg: floatValue(csvValue(
+                yieldKg: nonNegativeFloatValue(csvValue(
                     in: values,
                     header: header,
                     named: ["产量(kg)", "yieldKg", "yield_kg"],
@@ -232,6 +232,14 @@ extension PLYParserHelper {
     static func nonEmptyCSVValue(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func nonNegativeIntValue(_ value: Any?) -> Int {
+        max(0, intValue(value))
+    }
+
+    static func nonNegativeFloatValue(_ value: Any?) -> Float {
+        max(0, floatValue(value))
     }
 
     static func intValue(_ value: Any?) -> Int {
