@@ -318,6 +318,28 @@ final class YieldEstimatorTests: XCTestCase {
         XCTAssertTrue(csv.contains("-12.5000"))
     }
 
+    func testResearchCSVOmitsInvalidGroundTruthValues() {
+        let negativeID = UUID()
+        let zeroID = UUID()
+        let negativeEstimate = makeMassEstimate(id: negativeID)
+        let zeroEstimate = makeMassEstimate(id: zeroID)
+
+        let csv = ResearchCSVExporter.makeCSV(
+            estimates: [negativeEstimate, zeroEstimate],
+            groundTruthByID: [
+                negativeID: FruitMassEstimateGroundTruth(trueWeightG: -1, trueVolumeCm3: -.infinity),
+                zeroID: FruitMassEstimateGroundTruth(trueWeightG: 0, trueVolumeCm3: 0)
+            ]
+        )
+        let rows = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
+
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertTrue(rows[1].hasSuffix(",,"))
+        XCTAssertTrue(rows[2].hasSuffix(",0.0000,0.0000"))
+        XCTAssertFalse(csv.contains("-1.0000"))
+        XCTAssertFalse(csv.lowercased().contains("inf"))
+    }
+
     func testConfidenceScoreIsClampedToUnitRange() {
         let estimate = SimpleFruitGeometryEstimator.estimate(
             points: cuboidPoints(lengthM: 0.08, widthM: 0.08, heightM: 0.08),
@@ -364,6 +386,29 @@ final class YieldEstimatorTests: XCTestCase {
             position: SIMD3<Float>(0, 0, 0),
             confidence: confidence,
             source: source
+        )
+    }
+
+    private func makeMassEstimate(id: UUID = UUID()) -> FruitMassEstimate {
+        FruitMassEstimate(
+            id: id,
+            fruitCategory: "apple",
+            lengthCm: 1,
+            widthCm: 2,
+            heightCm: 3,
+            equivalentDiameterCm: 2,
+            sphereVolumeCm3: 4,
+            ellipsoidVolumeCm3: 5,
+            selectedVolumeCm3: 5,
+            densityGPerCm3: 1,
+            estimatedWeightG: 12.5,
+            confidenceScore: 0.5,
+            pointCount: 12,
+            highConfidenceRatio: 0.8,
+            validDepthRatio: 0.9,
+            shapeModelUsed: .sphere,
+            warningFlags: [.usingSphereBaseline],
+            createdAt: Date(timeIntervalSince1970: 0)
         )
     }
 

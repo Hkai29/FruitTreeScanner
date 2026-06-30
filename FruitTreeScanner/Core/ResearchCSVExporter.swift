@@ -66,8 +66,8 @@ enum ResearchCSVExporter {
             SpreadsheetTextSafety.neutralizingFormula(estimate.shapeModelUsed.rawValue),
             SpreadsheetTextSafety.neutralizingFormula(estimate.warningFlags.map(\.rawValue).joined(separator: ";")),
             ISO8601DateFormatter().string(from: estimate.createdAt),
-            groundTruth?.trueWeightG.map(format) ?? "",
-            groundTruth?.trueVolumeCm3.map(format) ?? "",
+            groundTruth?.trueWeightG.map(formatGroundTruth) ?? "",
+            groundTruth?.trueVolumeCm3.map(formatGroundTruth) ?? "",
         ]
     }
 
@@ -85,6 +85,11 @@ enum ResearchCSVExporter {
 
     private static func format(_ value: Float) -> String {
         guard value.isFinite else { return "" }
+        return String(format: "%.4f", value)
+    }
+
+    private static func formatGroundTruth(_ value: Float) -> String {
+        guard value.isFinite, value >= 0 else { return "" }
         return String(format: "%.4f", value)
     }
 }
