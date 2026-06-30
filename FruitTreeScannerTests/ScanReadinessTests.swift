@@ -6,6 +6,7 @@ final class ScanReadinessTests: XCTestCase {
         XCTAssertFalse(ScanReadiness.ready.blocksScanning)
         XCTAssertTrue(ScanReadiness.checking.blocksScanning)
         XCTAssertTrue(ScanReadiness.arUnsupported.blocksScanning)
+        XCTAssertTrue(ScanReadiness.metalUnavailable.blocksScanning)
         XCTAssertTrue(ScanReadiness.cameraDenied.blocksScanning)
         XCTAssertTrue(ScanReadiness.cameraRestricted.blocksScanning)
     }
@@ -15,6 +16,14 @@ final class ScanReadinessTests: XCTestCase {
         XCTAssertEqual(
             ScanReadiness.cameraDenied.message,
             "扫描需要相机画面和 LiDAR 深度帧。请在系统设置中允许相机权限。"
+        )
+    }
+
+    func testMetalUnavailableTextStaysStable() {
+        XCTAssertEqual(ScanReadiness.metalUnavailable.title, "图形渲染不可用")
+        XCTAssertEqual(
+            ScanReadiness.metalUnavailable.message,
+            "扫描画面需要 Metal 图形渲染支持。请重启 App，或换用支持 Metal 的设备后再试。"
         )
     }
 
