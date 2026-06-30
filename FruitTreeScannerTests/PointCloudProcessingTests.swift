@@ -170,6 +170,33 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(result[0].color, SIMD3<Float>(0, 1, 0), "Higher-confidence particle's color should be kept")
     }
 
+    func testMetalBufferAllowsEmptyCount() throws {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            try XCTSkipIf(true, "Metal device not available")
+            return
+        }
+
+        let buffer = MetalBuffer<ParticleUniforms>(device: device, count: 0, index: 0)
+
+        XCTAssertEqual(buffer.count, 0)
+        XCTAssertNotNil(buffer.metalBuffer)
+        XCTAssertGreaterThanOrEqual(buffer.metalBuffer?.length ?? 0, 1)
+    }
+
+    func testMetalBufferAllowsEmptyArray() throws {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            try XCTSkipIf(true, "Metal device not available")
+            return
+        }
+
+        let buffer = MetalBuffer<ParticleUniforms>(device: device, array: [], index: 0)
+        buffer.assign(with: [])
+
+        XCTAssertEqual(buffer.count, 0)
+        XCTAssertNotNil(buffer.metalBuffer)
+        XCTAssertGreaterThanOrEqual(buffer.metalBuffer?.length ?? 0, 1)
+    }
+
     // MARK: - Color clamping
 
     func testClampColor_ClampsOutOfRangeRGB() {
