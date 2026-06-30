@@ -94,8 +94,8 @@ final class ScanResultExportService: @unchecked Sendable {
             SpreadsheetTextSafety.neutralizingFormula(request.treeID),
             SpreadsheetTextSafety.neutralizingFormula(request.fruitType),
             formatter.string(from: request.scanDate),
-            "\(result.nLidar)",
-            format(result.yieldFinalKg, precision: 2),
+            "\(nonNegative(result.nLidar))",
+            formatNonNegative(result.yieldFinalKg, precision: 2),
             format(request.gpsLat, precision: 6),
             format(request.gpsLon, precision: 6),
             format(result.clusterEps, precision: 3),
@@ -119,8 +119,8 @@ final class ScanResultExportService: @unchecked Sendable {
         let payload: [String: Any] = [
             "treeID": request.treeID,
             "fruitType": request.fruitType,
-            "fruitCount": result.nLidar,
-            "yieldKg": finite(result.yieldFinalKg),
+            "fruitCount": nonNegative(result.nLidar),
+            "yieldKg": nonNegativeFinite(result.yieldFinalKg),
             "confidence": result.confidence,
             "methodUsed": result.methodUsed,
             "note": result.note,
@@ -153,8 +153,20 @@ final class ScanResultExportService: @unchecked Sendable {
         value.isFinite ? value : 0
     }
 
+    private func nonNegative(_ value: Int) -> Int {
+        max(0, value)
+    }
+
+    private func nonNegativeFinite(_ value: Float) -> Float {
+        value.isFinite ? max(0, value) : 0
+    }
+
     private func format(_ value: Float, precision: Int) -> String {
         String(format: "%.\(precision)f", finite(value))
+    }
+
+    private func formatNonNegative(_ value: Float, precision: Int) -> String {
+        String(format: "%.\(precision)f", nonNegativeFinite(value))
     }
 
     private func format(_ value: Double, precision: Int) -> String {

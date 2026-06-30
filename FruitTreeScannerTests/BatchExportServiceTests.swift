@@ -589,6 +589,41 @@ final class BatchExportServiceTests: XCTestCase {
         }
     }
 
+    func testScanResultExportRejectsNegativePrimaryTotals() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-negative",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: -9, yieldKg: -2.5),
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains(",0,0.00,"))
+        XCTAssertFalse(csv.contains("-9"))
+        XCTAssertFalse(csv.contains("-2.50"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["fruitCount"] as? Int, 0)
+        let yieldKg = try XCTUnwrap(payload["yieldKg"] as? NSNumber)
+        XCTAssertEqual(yieldKg.doubleValue, 0, accuracy: 0.000001)
+    }
+
     func testScanResultExportPreservesExistingCSVAndRefreshesMetadata() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
         let firstRequest = ScanResultExportService.ExportRequest(
