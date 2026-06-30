@@ -589,6 +589,42 @@ final class BatchExportServiceTests: XCTestCase {
         }
     }
 
+    func testScanResultExportBoundsGPSCoordinates() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-bad-gps",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 90.1,
+            gpsLon: -180.1,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(),
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains(",0.000000,0.000000,"))
+        XCTAssertFalse(csv.contains("90.100000"))
+        XCTAssertFalse(csv.contains("-180.100000"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let gpsLat = try XCTUnwrap(payload["gpsLat"] as? NSNumber)
+        let gpsLon = try XCTUnwrap(payload["gpsLon"] as? NSNumber)
+        XCTAssertEqual(gpsLat.doubleValue, 0, accuracy: 0.000001)
+        XCTAssertEqual(gpsLon.doubleValue, 0, accuracy: 0.000001)
+    }
+
     func testScanResultExportRejectsNegativePrimaryTotals() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
         let request = ScanResultExportService.ExportRequest(

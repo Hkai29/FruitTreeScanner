@@ -96,8 +96,8 @@ final class ScanResultExportService: @unchecked Sendable {
             formatter.string(from: request.scanDate),
             "\(nonNegative(result.nLidar))",
             formatNonNegative(result.yieldFinalKg, precision: 2),
-            format(request.gpsLat, precision: 6),
-            format(request.gpsLon, precision: 6),
+            formatLatitude(request.gpsLat),
+            formatLongitude(request.gpsLon),
             format(result.clusterEps, precision: 3),
             "\(result.clusterMinPoints)",
             SpreadsheetTextSafety.neutralizingFormula(
@@ -135,8 +135,8 @@ final class ScanResultExportService: @unchecked Sendable {
             "correctionK": finite(result.correctionK),
             "yieldBVisibleKg": finite(result.yieldBVisibleKg),
             "yieldBCorrectedKg": finite(result.yieldBCorrectedKg),
-            "gpsLat": finite(request.gpsLat),
-            "gpsLon": finite(request.gpsLon),
+            "gpsLat": latitude(request.gpsLat),
+            "gpsLon": longitude(request.gpsLon),
             "timestamp": ISO8601DateFormatter().string(from: request.scanDate)
         ]
 
@@ -146,10 +146,6 @@ final class ScanResultExportService: @unchecked Sendable {
     }
 
     private func finite(_ value: Float) -> Float {
-        value.isFinite ? value : 0
-    }
-
-    private func finite(_ value: Double) -> Double {
         value.isFinite ? value : 0
     }
 
@@ -169,8 +165,22 @@ final class ScanResultExportService: @unchecked Sendable {
         String(format: "%.\(precision)f", nonNegativeFinite(value))
     }
 
-    private func format(_ value: Double, precision: Int) -> String {
-        String(format: "%.\(precision)f", finite(value))
+    private func latitude(_ value: Double) -> Double {
+        guard value.isFinite, (-90...90).contains(value) else { return 0 }
+        return value
+    }
+
+    private func longitude(_ value: Double) -> Double {
+        guard value.isFinite, (-180...180).contains(value) else { return 0 }
+        return value
+    }
+
+    private func formatLatitude(_ value: Double) -> String {
+        String(format: "%.6f", latitude(value))
+    }
+
+    private func formatLongitude(_ value: Double) -> String {
+        String(format: "%.6f", longitude(value))
     }
 
     private func csvLine(_ fields: [String]) -> String {
