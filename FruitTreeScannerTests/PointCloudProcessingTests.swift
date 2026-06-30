@@ -438,6 +438,32 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertTrue(gpsLines.contains("comment gps_lon 123.123457"))
     }
 
+    func testMakeDataSanitizesInvalidGPSMetadata() {
+        let samples = [
+            RendererPointSample(position: SIMD3<Float>(1, 2, 3), color: SIMD3<Float>(0.1, 0.2, 0.3), confidence: 1)
+        ]
+        let nonFiniteData = RendererPLYDataBuilder.makeData(
+            samples: samples, treeID: "T001", scanDate: "2025-01-01",
+            gpsLat: .nan, gpsLon: .infinity
+        )
+        let outOfRangeData = RendererPLYDataBuilder.makeData(
+            samples: samples, treeID: "T001", scanDate: "2025-01-01",
+            gpsLat: 90.1, gpsLon: -180.1
+        )
+
+        let nonFiniteContents = String(decoding: nonFiniteData, as: UTF8.self)
+        XCTAssertTrue(nonFiniteContents.contains("comment gps_lat 0.000000"))
+        XCTAssertTrue(nonFiniteContents.contains("comment gps_lon 0.000000"))
+        XCTAssertFalse(nonFiniteContents.lowercased().contains("nan"))
+        XCTAssertFalse(nonFiniteContents.lowercased().contains("inf"))
+
+        let outOfRangeContents = String(decoding: outOfRangeData, as: UTF8.self)
+        XCTAssertTrue(outOfRangeContents.contains("comment gps_lat 0.000000"))
+        XCTAssertTrue(outOfRangeContents.contains("comment gps_lon 0.000000"))
+        XCTAssertFalse(outOfRangeContents.contains("90.100000"))
+        XCTAssertFalse(outOfRangeContents.contains("-180.100000"))
+    }
+
     func testMakeData_VertexCountMatchesSamples() {
         let samples: [RendererPointSample] = [
             RendererPointSample(position: SIMD3<Float>(0, 0, 0), color: SIMD3<Float>(0, 0, 0), confidence: 1),

@@ -138,13 +138,15 @@ enum RendererPLYDataBuilder {
         gpsLon: Double
     ) -> Data {
         let safeTreeID = TreeIdentifierPolicy.safePLYCommentValue(treeID)
+        let safeGPSLat = latitude(gpsLat)
+        let safeGPSLon = longitude(gpsLon)
         let headers = [
             "ply",
             "format ascii 1.0",
             "comment tree_id \(safeTreeID)",
             "comment scan_date \(scanDate)",
-            "comment gps_lat \(String(format: "%.6f", gpsLat))",
-            "comment gps_lon \(String(format: "%.6f", gpsLon))",
+            "comment gps_lat \(String(format: "%.6f", safeGPSLat))",
+            "comment gps_lon \(String(format: "%.6f", safeGPSLon))",
             "element vertex \(samples.count)",
             "property float x",
             "property float y",
@@ -174,6 +176,16 @@ enum RendererPLYDataBuilder {
         }
 
         return data
+    }
+
+    private static func latitude(_ value: Double) -> Double {
+        guard value.isFinite, (-90...90).contains(value) else { return 0 }
+        return value
+    }
+
+    private static func longitude(_ value: Double) -> Double {
+        guard value.isFinite, (-180...180).contains(value) else { return 0 }
+        return value
     }
 }
 
