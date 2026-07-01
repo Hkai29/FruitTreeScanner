@@ -8,6 +8,7 @@ enum ScanReadiness: Equatable {
     case ready
     case arUnsupported
     case metalUnavailable
+    case lidarUnavailable
     case cameraDenied
     case cameraRestricted
 
@@ -21,6 +22,7 @@ enum ScanReadiness: Equatable {
         case .ready: return ""
         case .arUnsupported: return "当前设备不支持 AR 扫描"
         case .metalUnavailable: return "图形渲染不可用"
+        case .lidarUnavailable: return "当前设备没有 LiDAR 深度"
         case .cameraDenied: return "相机权限未开启"
         case .cameraRestricted: return "相机权限受限"
         }
@@ -36,6 +38,8 @@ enum ScanReadiness: Equatable {
             return "FruitTreeScanner 需要 ARKit 才能采集点云。请使用支持 ARKit 的 iPhone 或 iPad。"
         case .metalUnavailable:
             return "扫描画面需要 Metal 图形渲染支持。请重启 App，或换用支持 Metal 的设备后再试。"
+        case .lidarUnavailable:
+            return "扫描需要 LiDAR sceneDepth 才能生成有效点云。请使用支持 LiDAR 的 iPhone 或 iPad。"
         case .cameraDenied:
             return "扫描需要相机画面和 LiDAR 深度帧。请在系统设置中允许相机权限。"
         case .cameraRestricted:
@@ -52,6 +56,10 @@ extension ScanReadiness {
 
         guard MTLCreateSystemDefaultDevice() != nil else {
             return .metalUnavailable
+        }
+
+        guard ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) else {
+            return .lidarUnavailable
         }
 
         switch AVCaptureDevice.authorizationStatus(for: .video) {
