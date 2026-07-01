@@ -271,6 +271,7 @@ struct ScanCoverageCompleteToast: View {
 struct ScanReadinessOverlay: View {
     let scanReadiness: ScanReadiness
     let onOpenSettings: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
         if scanReadiness.blocksScanning {
@@ -298,6 +299,18 @@ struct ScanReadinessOverlay: View {
                     .padding(.vertical, 9)
                     .background(Capsule().fill(Design.Colors.harvest))
                 }
+
+                Button("返回") {
+                    onDismiss()
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white.opacity(0.86))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                )
             }
             .padding(18)
             .frame(maxWidth: 320)

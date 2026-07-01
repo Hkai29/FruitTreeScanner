@@ -255,7 +255,11 @@ struct ScanView: View {
 
     @ViewBuilder
     private var readinessLayer: some View {
-        ScanReadinessOverlay(scanReadiness: scanReadiness, onOpenSettings: openAppSettings)
+        ScanReadinessOverlay(
+            scanReadiness: scanReadiness,
+            onOpenSettings: openAppSettings,
+            onDismiss: requestCancelScan
+        )
     }
 
     @ViewBuilder
