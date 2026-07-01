@@ -389,13 +389,13 @@ struct ScanView: View {
 
             self.coordinator.runMultiModalYieldEstimate(season: season) { result, _ in
                 Task { @MainActor in
+                    guard self.isViewActive else { return }
                     let didPersist = await self.persistScanResult(result: result, filename: filename)
                     if !didPersist {
                         ScanHistoryStore.shared.notifyRecordsUpdated()
                         self.showTemporaryNotice("结果文件保存失败，请保留点云后重试导出")
                     }
 
-                    guard self.isViewActive else { return }
                     self.isEstimating = false
                     self.yieldResult = result
                     withAnimation(.easeInOut(duration: 0.3)) { self.showResult = true }
