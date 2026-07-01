@@ -13,6 +13,7 @@ struct ScanView: View {
     @StateObject private var qualityMonitor = ScanQualityMonitor()
     @StateObject private var measurementController = MetalMeasurementController()
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var isRecording = false
     @State private var showGuide = true
@@ -32,6 +33,7 @@ struct ScanView: View {
     @State private var scanNotice: String?
     @State private var isViewActive = false
     @State private var scanReadiness: ScanReadiness = .checking
+    @State private var isCheckingScanReadiness = false
     @State private var showCancelConfirmation = false
 
     var body: some View {
@@ -61,6 +63,9 @@ struct ScanView: View {
             measurementController.deactivate()
             measurementController.renderer = nil
             coordinator.teardown()
+        }
+        .onChange(of: scenePhase) { phase in
+            refreshScanReadinessWhenActive(phase)
         }
         #if DEBUG
             .sheet(isPresented: $showDebugView) {
@@ -428,10 +433,13 @@ struct ScanView: View {
     }
 
     private func refreshScanReadiness() {
+        guard !isCheckingScanReadiness else { return }
+        isCheckingScanReadiness = true
         scanReadiness = .checking
         Task {
             let next = await ScanReadiness.determine()
             await MainActor.run {
+                isCheckingScanReadiness = false
                 guard isViewActive else { return }
                 scanReadiness = next
                 if next != .ready {
@@ -440,6 +448,12 @@ struct ScanView: View {
                 }
             }
         }
+    }
+
+    private func refreshScanReadinessWhenActive(_ phase: ScenePhase) {
+        guard phase == .active else { return }
+        guard scanReadiness.blocksScanning || !isRecording else { return }
+        refreshScanReadiness()
     }
 
     private func openAppSettings() {
