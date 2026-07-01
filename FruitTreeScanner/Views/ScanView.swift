@@ -466,6 +466,7 @@ struct ScanView: View {
 
     private func refreshScanReadinessWhenActive(_ phase: ScenePhase) {
         guard phase == .active else { return }
+        guard !isEstimating && !showResult else { return }
         guard scanReadiness.blocksScanning || !isRecording else { return }
         refreshScanReadiness()
     }
