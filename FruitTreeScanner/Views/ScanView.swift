@@ -60,7 +60,7 @@ struct ScanView: View {
         .onDisappear {
             isViewActive = false
             isEstimating = false
-            measurementController.deactivate()
+            clearMeasurementState()
             measurementController.renderer = nil
             coordinator.teardown()
         }
@@ -160,7 +160,7 @@ struct ScanView: View {
                 controller: measurementController,
                 measuredDistance: $measuredDistance,
                 onClose: {
-                    measurementController.deactivate()
+                    clearMeasurementState()
                 }
             )
         }
@@ -290,10 +290,15 @@ struct ScanView: View {
             return
         }
         if measurementController.isActive {
-            measurementController.deactivate()
+            clearMeasurementState()
         } else {
             measurementController.activate()
         }
+    }
+
+    private func clearMeasurementState() {
+        measurementController.deactivate()
+        measuredDistance = nil
     }
 
     #if DEBUG
@@ -317,6 +322,7 @@ struct ScanView: View {
             showTemporaryNotice(scanReadiness.title)
             return
         }
+        clearMeasurementState()
         createDirectory(folder: "scans")
         coordinator.startRecording()
         isRecording = true
@@ -332,6 +338,7 @@ struct ScanView: View {
             startRecording()
             return
         }
+        clearMeasurementState()
         createDirectory(folder: "scans")
         coordinator.resumeRecordingPreservingCapture()
         isRecording = true
@@ -356,7 +363,7 @@ struct ScanView: View {
         if isRecording {
             stopRecording()
         }
-        measurementController.deactivate()
+        clearMeasurementState()
         coordinator.teardown()
         dismiss()
     }
@@ -449,7 +456,7 @@ struct ScanView: View {
                 scanReadiness = next
                 if next != .ready {
                     isRecording = false
-                    measurementController.deactivate()
+                    clearMeasurementState()
                     measurementController.renderer = nil
                     coordinator.teardown()
                 }
