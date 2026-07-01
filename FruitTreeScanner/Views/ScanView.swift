@@ -37,17 +37,7 @@ struct ScanView: View {
     var body: some View {
         ZStack {
             renderLayer
-            #if DEBUG
-            detectionDebugOverlayLayer
-            #endif
-            statusLayer
-            guidanceLayer
-            measurementLayer
-            controlLayer
-            guideLayer
-            resultLayer
-            estimatingLayer
-            coverageCompleteLayer
+            scannerInterfaceLayer
             readinessLayer
             noticeLayer
         }
@@ -88,6 +78,23 @@ struct ScanView: View {
             } message: {
                 Text("已采集的点云不会保存。若要保留本次采集，请点击完成。")
             }
+    }
+
+    @ViewBuilder
+    private var scannerInterfaceLayer: some View {
+        if !scanReadiness.blocksScanning {
+            #if DEBUG
+            detectionDebugOverlayLayer
+            #endif
+            statusLayer
+            guidanceLayer
+            measurementLayer
+            controlLayer
+            guideLayer
+            resultLayer
+            estimatingLayer
+            coverageCompleteLayer
+        }
     }
 
     @ViewBuilder
