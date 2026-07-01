@@ -448,6 +448,8 @@ struct ScanView: View {
                 scanReadiness = next
                 if next != .ready {
                     isRecording = false
+                    measurementController.deactivate()
+                    measurementController.renderer = nil
                     coordinator.teardown()
                 }
             }
