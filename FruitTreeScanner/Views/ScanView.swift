@@ -389,6 +389,7 @@ struct ScanView: View {
             return
         }
 
+        clearMeasurementState()
         withAnimation(.easeInOut(duration: 0.2)) { isEstimating = true }
         coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
             guard self.isViewActive else { return }
