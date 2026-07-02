@@ -285,6 +285,7 @@ struct ScanView: View {
     }
 
     private func toggleMeasurement() {
+        guard !isEstimating else { return }
         if hudState.pointCount == 0 && !measurementController.isActive {
             showTemporaryNotice(L10n.Scan.noPointCloud)
             return
@@ -310,6 +311,7 @@ struct ScanView: View {
 
     // MARK: - 录制切换
     private func toggleRecording() {
+        guard !isEstimating else { return }
         if isRecording {
             stopRecording()
         } else {
@@ -318,6 +320,7 @@ struct ScanView: View {
     }
 
     private func startRecording() {
+        guard !isEstimating else { return }
         guard scanReadiness == .ready else {
             showTemporaryNotice(scanReadiness.title)
             return
@@ -330,6 +333,7 @@ struct ScanView: View {
     }
 
     private func resumeRecording() {
+        guard !isEstimating else { return }
         guard scanReadiness == .ready else {
             showTemporaryNotice(scanReadiness.title)
             return
@@ -351,6 +355,7 @@ struct ScanView: View {
     }
 
     private func requestCancelScan() {
+        guard !isEstimating else { return }
         if isRecording || coordinator.pointCount > 0 || hudState.pointCount > 0 {
             showCancelConfirmation = true
         } else {
