@@ -85,11 +85,11 @@ enum ResearchCSVExporter {
 
     private static func format(_ value: Float) -> String {
         guard value.isFinite else { return "" }
-        return String(format: "%.4f", value)
+        return StableDataFormatting.decimal(value, precision: 4)
     }
 
     private static func formatGroundTruth(_ value: Float) -> String {
         guard value.isFinite, value >= 0 else { return "" }
-        return String(format: "%.4f", value)
+        return StableDataFormatting.decimal(value, precision: 4)
     }
 }

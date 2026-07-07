@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21701" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21678"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <scene sceneID="EHf-IW-A2E">
+            <objects>
+                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <view key="view" clipsSubviews="YES" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <view userInteractionEnabled="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="d2V-fh-a0G">
+                                <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                                <color key="backgroundColor" red="0.062745098039215685" green="0.10196078431372549" blue="0.062745098039215685" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                            </view>
+                            <view userInteractionEnabled="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="top-band-11A">
+                                <rect key="frame" x="0.0" y="0.0" width="393" height="74"/>
+                                <color key="backgroundColor" red="0.043137254901960784" green="0.14509803921568629" blue="0.062745098039215685" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                            </view>
+                            <view userInteractionEnabled="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="bottom-band-11A">
+                                <rect key="frame" x="0.0" y="778" width="393" height="74"/>
+                                <color key="backgroundColor" red="0.043137254901960784" green="0.14509803921568629" blue="0.062745098039215685" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                            </view>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchIcon" translatesAutoresizingMaskIntoConstraints="NO" id="V6n-pA-X3h">
+                                <rect key="frame" x="141" y="315" width="112" height="112"/>
+                            </imageView>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Fruit Tree Scanner" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.58000000000000007" translatesAutoresizingMaskIntoConstraints="NO" id="ngA-hd-7UW">
+                                <rect key="frame" x="51" y="445" width="291" height="37"/>
+                                <fontDescription key="fontDescription" name="AvenirNext-DemiBoldItalic" family="Avenir Next" pointSize="34"/>
+                                <color key="textColor" red="0.82745098039215681" green="0.63137254901960782" blue="0.35294117647058826" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
+                        <color key="backgroundColor" red="0.062745098039215685" green="0.10196078431372549" blue="0.062745098039215685" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="d2V-fh-a0G" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="IbS-KZ-Yp5"/>
+                            <constraint firstItem="d2V-fh-a0G" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="Ji6-qh-8k8"/>
+                            <constraint firstItem="top-band-11A" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="top-band-11A-top"/>
+                            <constraint firstItem="top-band-11A" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="top-band-11A-leading"/>
+                            <constraint firstAttribute="trailing" secondItem="top-band-11A" secondAttribute="trailing" id="top-band-11A-trailing"/>
+                            <constraint firstItem="top-band-11A" firstAttribute="height" secondItem="Ze5-6b-2t3" secondAttribute="height" multiplier="0.087" id="top-band-11A-height"/>
+                            <constraint firstItem="bottom-band-11A" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="bottom-band-11A-leading"/>
+                            <constraint firstAttribute="trailing" secondItem="bottom-band-11A" secondAttribute="trailing" id="bottom-band-11A-trailing"/>
+                            <constraint firstAttribute="bottom" secondItem="bottom-band-11A" secondAttribute="bottom" id="bottom-band-11A-bottom"/>
+                            <constraint firstItem="bottom-band-11A" firstAttribute="height" secondItem="top-band-11A" secondAttribute="height" id="bottom-band-11A-height"/>
+                            <constraint firstItem="ngA-hd-7UW" firstAttribute="top" secondItem="V6n-pA-X3h" secondAttribute="bottom" constant="18" id="OAb-hn-ve9"/>
+                            <constraint firstItem="ngA-hd-7UW" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="W5D-h7-rt9"/>
+                            <constraint firstItem="ngA-hd-7UW" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="Ze5-6b-2t3" secondAttribute="leading" constant="32" id="ZYh-64-e95"/>
+                            <constraint firstItem="V6n-pA-X3h" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" constant="-42" id="aZL-Xn-R1L"/>
+                            <constraint firstItem="V6n-pA-X3h" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="b5x-H3-BzR"/>
+                            <constraint firstAttribute="trailing" secondItem="d2V-fh-a0G" secondAttribute="trailing" id="bse-Tx-aCM"/>
+                            <constraint firstAttribute="bottom" secondItem="d2V-fh-a0G" secondAttribute="bottom" id="j2v-BQ-iIA"/>
+                            <constraint firstItem="V6n-pA-X3h" firstAttribute="width" secondItem="Ze5-6b-2t3" secondAttribute="height" multiplier="0.23" priority="750" id="iconSizeTarget"/>
+                            <constraint firstItem="V6n-pA-X3h" firstAttribute="width" relation="greaterThanOrEqual" constant="104" id="iconMinSize"/>
+                            <constraint firstItem="V6n-pA-X3h" firstAttribute="width" relation="lessThanOrEqual" constant="150" id="iconMaxSize"/>
+                            <constraint firstItem="V6n-pA-X3h" firstAttribute="width" relation="lessThanOrEqual" secondItem="Ze5-6b-2t3" secondAttribute="width" multiplier="0.27" priority="751" id="iconMaxWidth"/>
+                            <constraint firstItem="V6n-pA-X3h" firstAttribute="height" secondItem="V6n-pA-X3h" secondAttribute="width" id="iconEqualWH"/>
+                            <constraint firstAttribute="trailing" relation="greaterThanOrEqual" secondItem="ngA-hd-7UW" secondAttribute="trailing" constant="32" id="ynx-vv-VIs"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchIcon" width="1024" height="1024"/>
+    </resources>
+</document>

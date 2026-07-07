@@ -79,13 +79,14 @@ extension Renderer {
     }
 
     func makeAnalysisPoints() -> [ColoredPoint] {
-        let signature = currentSnapshotSignature()
+        let analysisVoxelSize = Renderer.analysisVoxelSizeMeters
+        let signature = currentSnapshotSignature(voxelSize: analysisVoxelSize)
         if let cachedPoints = cachedAnalysisPoints(for: signature) {
             return cachedPoints
         }
 
         let samples = makeFilteredPointSamples(
-            voxelSize: snapshotVoxelSize,
+            voxelSize: analysisVoxelSize,
             inputSampleLimit: analysisInputSampleLimit
         )
         let denoised = PointCloudDenoiser.statisticalOutlierRemoval(samples: samples)
@@ -123,12 +124,12 @@ extension Renderer {
         return snapshotPoints
     }
 
-    func currentSnapshotSignature() -> RendererSnapshotSignature {
+    func currentSnapshotSignature(voxelSize: Float? = nil) -> RendererSnapshotSignature {
         let pointBuffer = pointBufferSnapshot()
         return RendererPointCloudSnapshot.makeSignature(
             pointCount: pointBuffer.count,
             pointIndex: pointBuffer.index,
-            voxelSize: snapshotVoxelSize,
+            voxelSize: voxelSize ?? snapshotVoxelSize,
             confidenceThreshold: confidenceThreshold
         )
     }

@@ -73,6 +73,7 @@ final class ScanHistoryStore: ObservableObject {
                 }
                 .sorted { $0.scanDate > $1.scanDate }
         } catch {
+            Log.general.error("Failed to read scan history directory: \(error.localizedDescription)")
             return []
         }
     }

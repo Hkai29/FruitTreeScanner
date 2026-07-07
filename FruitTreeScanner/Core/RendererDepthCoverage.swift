@@ -16,6 +16,160 @@ enum RendererDepthCoverage {
         confidenceThreshold >= 2 ? 0.22 : 0.30
     }
 
+    static func estimateHorizontalAngleCoverage(
+        from voxels: Set<RendererVoxelKey>,
+        binCount: Int = 36
+    ) -> Float {
+        guard let bins = horizontalAngleBins(from: voxels, binCount: binCount) else { return 0 }
+        let occupied = bins.occupancy.map { $0 >= bins.minimumBinSupport }
+        guard occupied.contains(true) else { return 0 }
+
+        var longestEmptyRun = 0
+        var currentEmptyRun = 0
+        for index in 0..<(binCount * 2) {
+            if occupied[index % binCount] {
+                currentEmptyRun = 0
+            } else {
+                currentEmptyRun += 1
+                longestEmptyRun = min(max(longestEmptyRun, currentEmptyRun), binCount)
+            }
+        }
+
+        let coverage = 1.0 - Double(longestEmptyRun) / Double(binCount)
+        return Float(min(max(coverage, 0), 1))
+    }
+
+    static func estimateHorizontalAngleUniformity(
+        from voxels: Set<RendererVoxelKey>,
+        binCount: Int = 36
+    ) -> Float {
+        guard let bins = horizontalAngleBins(from: voxels, binCount: binCount) else { return 0 }
+        let supportedCounts = bins.occupancy.map { $0 >= bins.minimumBinSupport ? $0 : 0 }
+        let supportedTotal = supportedCounts.reduce(0, +)
+        guard supportedTotal > 0 else { return 0 }
+
+        var entropy = 0.0
+        for count in supportedCounts where count > 0 {
+            let p = Double(count) / Double(supportedTotal)
+            entropy -= p * log(p)
+        }
+
+        let normalizedEntropy = entropy / log(Double(binCount))
+        return Float(min(max(normalizedEntropy, 0), 1))
+    }
+
+    static func estimateOppositeSideCoverage(
+        from regions: Set<RendererCameraRegionKey>,
+        binCount: Int = 36
+    ) -> Float {
+        guard regions.count > 2, binCount > 3 else { return 0 }
+
+        var binOccupancy = [Int](repeating: 0, count: binCount)
+        for region in regions {
+            let forwardX = Float(region.forwardX)
+            let forwardZ = Float(region.forwardZ)
+            guard hypot(forwardX, forwardZ) >= 1 else { continue }
+
+            var normalizedAngle = (atan2(forwardZ, forwardX) + Float.pi) / (2 * Float.pi)
+            if normalizedAngle >= 1 {
+                normalizedAngle = 0
+            }
+            let bin = min(max(Int(floor(normalizedAngle * Float(binCount))), 0), binCount - 1)
+            binOccupancy[bin] += 1
+        }
+
+        let minimumBinSupport = max(1, Int(ceil(Float(regions.count) * 0.01)))
+        let occupied = binOccupancy.map { $0 >= minimumBinSupport }
+        let occupiedCount = occupied.filter { $0 }.count
+        guard occupiedCount > 0 else { return 0 }
+
+        let halfTurn = max(binCount / 2, 1)
+        let tolerance = max(1, binCount / 36)
+        var matchedCount = 0
+
+        for index in occupied.indices where occupied[index] {
+            let oppositeCenter = (index + halfTurn) % binCount
+            let hasOppositeSupport = (-tolerance...tolerance).contains { offset in
+                let oppositeIndex = (oppositeCenter + offset + binCount) % binCount
+                return occupied[oppositeIndex]
+            }
+            if hasOppositeSupport {
+                matchedCount += 1
+            }
+        }
+
+        return min(max(Float(matchedCount) / Float(occupiedCount), 0), 1)
+    }
+
+    static func estimateVerticalCoverage(
+        from voxels: Set<RendererVoxelKey>,
+        binCount: Int = 6
+    ) -> Float {
+        guard voxels.count > 20, binCount > 2 else { return 0 }
+
+        let sortedY = voxels.map { Int($0.y) }.sorted()
+        let lowerIndex = max(Int(Float(sortedY.count - 1) * 0.05), 0)
+        let upperIndex = min(Int(ceil(Float(sortedY.count - 1) * 0.95)), sortedY.count - 1)
+        let lowerY = sortedY[lowerIndex]
+        let upperY = sortedY[upperIndex]
+        guard upperY > lowerY else { return 0 }
+
+        var occupancy = [Int](repeating: 0, count: binCount)
+        let span = max(upperY - lowerY + 1, 1)
+        for voxel in voxels {
+            guard voxel.y >= lowerY, voxel.y <= upperY else { continue }
+            let normalized = Float(Int(voxel.y) - lowerY) / Float(span)
+            let bin = min(max(Int(floor(normalized * Float(binCount))), 0), binCount - 1)
+            occupancy[bin] += 1
+        }
+
+        let minimumBinSupport = max(2, Int(ceil(Double(voxels.count) * 0.01)))
+        let supportedBinCount = occupancy.filter { $0 >= minimumBinSupport }.count
+        return min(max(Float(supportedBinCount) / Float(binCount), 0), 1)
+    }
+
+    private static func horizontalAngleBins(
+        from voxels: Set<RendererVoxelKey>,
+        binCount: Int
+    ) -> (occupancy: [Int], minimumBinSupport: Int)? {
+        guard voxels.count > 20, binCount > 3 else { return nil }
+
+        var sumX: Double = 0
+        var sumZ: Double = 0
+        for voxel in voxels {
+            sumX += Double(voxel.x)
+            sumZ += Double(voxel.z)
+        }
+
+        let centerX = sumX / Double(voxels.count)
+        let centerZ = sumZ / Double(voxels.count)
+        var radialDistances: [Double] = []
+        radialDistances.reserveCapacity(voxels.count)
+        for voxel in voxels {
+            radialDistances.append(hypot(Double(voxel.x) - centerX, Double(voxel.z) - centerZ))
+        }
+        radialDistances.sort()
+        let medianRadius = radialDistances[radialDistances.count / 2]
+        let minimumUsableRadius = max(medianRadius * 0.20, 1.0)
+
+        var binOccupancy = [Int](repeating: 0, count: binCount)
+        for voxel in voxels {
+            let dx = Double(voxel.x) - centerX
+            let dz = Double(voxel.z) - centerZ
+            guard hypot(dx, dz) >= minimumUsableRadius else { continue }
+
+            var normalizedAngle = (atan2(dz, dx) + Double.pi) / (2 * Double.pi)
+            if normalizedAngle >= 1 {
+                normalizedAngle = 0
+            }
+            let bin = min(max(Int(floor(normalizedAngle * Double(binCount))), 0), binCount - 1)
+            binOccupancy[bin] += 1
+        }
+
+        let minimumBinSupport = max(2, Int(ceil(Double(voxels.count) * 0.005)))
+        return (binOccupancy, minimumBinSupport)
+    }
+
     static func makeCameraRegionKey(frame: ARFrame) -> RendererCameraRegionKey {
         let pos = frame.camera.transform.columns.3
         let forward = -frame.camera.transform.columns.2

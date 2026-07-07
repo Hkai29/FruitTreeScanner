@@ -125,6 +125,7 @@ struct SceneKitPointCloudView: UIViewRepresentable {
         cameraNode.camera?.fieldOfView = 44
         cameraNode.position = SCNVector3(x: 0, y: 0, z: 5)
         scene.rootNode.addChildNode(cameraNode)
+        sceneView.pointOfView = cameraNode
 
         let ambientLight = SCNNode()
         ambientLight.light = SCNLight()

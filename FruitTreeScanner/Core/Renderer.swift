@@ -9,7 +9,7 @@ import CoreVideo
 
 final class Renderer: NSObject {
     // MARK: - 公开属性
-    private var shouldResetPointCloudOnRecordingStart = true
+    var shouldResetPointCloudOnRecordingStart = true
 
     public var isRecording = false {
         didSet {
@@ -26,23 +26,6 @@ final class Renderer: NSObject {
         }
     }
     public var currentFolder = ""
-
-    public func resumeRecordingPreservingPointCloud() {
-        shouldResetPointCloudOnRecordingStart = false
-        isRecording = true
-    }
-
-    private func resetPointCloudCapture() {
-        scannedRegions.removeAll()
-        do {
-            pointBufferLock.lock()
-            defer { pointBufferLock.unlock() }
-            currentPointIndex = 0
-            currentPointCount = 0
-        }
-        coverageVoxels.removeAll()
-        scanProgress.reset()
-    }
 
     // MARK: - 扫描时长和完成度追踪
     var scanProgress = RendererScanProgress()
@@ -67,8 +50,13 @@ final class Renderer: NSObject {
     let numGridPoints = 1_000
     private let particleSize: Float = 10
     var orientation = UIInterfaceOrientation.portrait
-    let cameraRotationThreshold = cos(2 * Float.degreesToRadian)
-    let cameraTranslationThreshold: Float = pow(0.02, 2)
+    static let cameraRotationThresholdDegrees: Float = 2
+    static let cameraTranslationThresholdMeters: Float = 0.05
+    static let cameraTranslationThresholdSquared: Float =
+        cameraTranslationThresholdMeters * cameraTranslationThresholdMeters
+    static let analysisVoxelSizeMeters: Float = 0.005
+    let cameraRotationThreshold = cos(Renderer.cameraRotationThresholdDegrees * Float.degreesToRadian)
+    let cameraTranslationThreshold: Float = Renderer.cameraTranslationThresholdSquared
     let maxInFlightBuffers = 3
 
     let session: ARSession
@@ -206,68 +194,6 @@ final class Renderer: NSObject {
         inFlightSemaphore = DispatchSemaphore(value: maxInFlightBuffers)
         super.init()
         computePipeline = MetalComputePipeline(device: device)
-    }
-
-    func drawRectResized(size: CGSize) {
-        guard size.width > 0, size.height > 0 else { return }
-        viewportSize = size
-        updateOrientation()
-        rgbUniforms.viewRatio = Float(size.width / max(size.height, 1))
-    }
-
-    // MARK: - 当前点数（供 UI 显示）
-    var currentPointCountPublic: Int {
-        pointBufferSnapshot().count
-    }
-
-    func pointBufferSnapshot() -> (count: Int, index: Int) {
-        pointBufferLock.lock()
-        defer { pointBufferLock.unlock() }
-        return (currentPointCount, currentPointIndex)
-    }
-
-    /// Wait until every submitted render command buffer has completed. Call
-    /// after recording is stopped and before CPU-side export reads the shared
-    /// particle buffer, otherwise the last in-flight GPU write can race the
-    /// snapshot.
-    @discardableResult
-    func waitForPointCloudWritesToComplete(timeout: TimeInterval = 5) -> Bool {
-        let deadline = DispatchTime.now() + .milliseconds(Int(timeout * 1_000))
-        var acquiredPermits = 0
-
-        for _ in 0..<maxInFlightBuffers {
-            guard inFlightSemaphore.wait(timeout: deadline) == .success else {
-                for _ in 0..<acquiredPermits {
-                    inFlightSemaphore.signal()
-                }
-                return false
-            }
-            acquiredPermits += 1
-        }
-
-        for _ in 0..<acquiredPermits {
-            inFlightSemaphore.signal()
-        }
-        return true
-    }
-
-    var scannedRegionCountPublic: Int { scannedRegions.count }
-    var coverageVoxelCount: Int { coverageVoxels.count }
-    var voxelDiscoveryTrendPublic: VoxelDiscoveryTrend { scanProgress.voxelDiscoveryTrend }
-    var voxelDiscoveryRatePublic: Float { scanProgress.voxelDiscoveryRate }
-
-    struct CameraMatrices {
-        let projectionMatrix: simd_float4x4
-        let viewMatrix: simd_float4x4
-        let viewportSize: CGSize
-    }
-
-    func getCameraMatrices() -> CameraMatrices? {
-        guard let frame = session.currentFrame else { return nil }
-        updateOrientation()
-        let projMatrix = frame.camera.projectionMatrix(for: orientation, viewportSize: viewportSize, zNear: 0.001, zFar: 0)
-        let viewMatrix = frame.camera.viewMatrix(for: orientation)
-        return CameraMatrices(projectionMatrix: projMatrix, viewMatrix: viewMatrix, viewportSize: viewportSize)
     }
 
 }

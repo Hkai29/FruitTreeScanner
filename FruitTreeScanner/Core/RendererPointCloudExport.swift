@@ -145,8 +145,8 @@ enum RendererPLYDataBuilder {
             "format ascii 1.0",
             "comment tree_id \(safeTreeID)",
             "comment scan_date \(scanDate)",
-            "comment gps_lat \(String(format: "%.6f", safeGPSLat))",
-            "comment gps_lon \(String(format: "%.6f", safeGPSLon))",
+            "comment gps_lat \(StableDataFormatting.decimal(safeGPSLat, precision: 6))",
+            "comment gps_lon \(StableDataFormatting.decimal(safeGPSLon, precision: 6))",
             "element vertex \(samples.count)",
             "property float x",
             "property float y",
@@ -170,8 +170,14 @@ enum RendererPLYDataBuilder {
             let r = Int(color.x * 255.0)
             let g = Int(color.y * 255.0)
             let b = Int(color.z * 255.0)
-            let line = String(format: "%.4f %.4f %.4f %d %d %d\r\n",
-                              position.x, position.y, position.z, r, g, b)
+            let line = [
+                StableDataFormatting.decimal(position.x, precision: 4),
+                StableDataFormatting.decimal(position.y, precision: 4),
+                StableDataFormatting.decimal(position.z, precision: 4),
+                "\(r)",
+                "\(g)",
+                "\(b)"
+            ].joined(separator: " ") + "\r\n"
             data.append(contentsOf: line.utf8)
         }
 

@@ -23,6 +23,7 @@ struct DetectionDeduplicator {
         let sorted = detections.sorted { $0.confidence > $1.confidence }
         var kept: [DetectedFruit] = []
         var suppressed = Set<Int>()
+        var projectedPositions: [UUID: SIMD3<Float>] = [:]
 
         for i in sorted.indices {
             if suppressed.contains(i) { continue }
@@ -37,7 +38,8 @@ struct DetectionDeduplicator {
                     becauseOf: sorted[i],
                     iouThreshold: iouThreshold,
                     centerDistanceThreshold: centerDistanceThreshold,
-                    timeWindow: timeWindow
+                    timeWindow: timeWindow,
+                    projectedPositions: &projectedPositions
                 ) {
                     suppressed.insert(j)
                 }
@@ -62,13 +64,18 @@ struct DetectionDeduplicator {
         becauseOf kept: DetectedFruit,
         iouThreshold: Float,
         centerDistanceThreshold: CGFloat,
-        timeWindow: TimeInterval
+        timeWindow: TimeInterval,
+        projectedPositions: inout [UUID: SIMD3<Float>]
     ) -> Bool {
         let timeDelta = abs(candidate.timestamp - kept.timestamp)
         // Normalized image coordinates are only comparable while the camera is
         // observing nearly the same view. Across a whole walk-around scan, two
         // distinct fruits can occupy the same 2D box at different times.
         guard timeDelta <= timeWindow else {
+            return false
+        }
+
+        if areSeparatedIn3D(candidate, kept, projectedPositions: &projectedPositions) {
             return false
         }
 
@@ -87,6 +94,47 @@ struct DetectionDeduplicator {
         }
 
         return areaSimilarity(kept.boundingBox, candidate.boundingBox) >= 0.45
+    }
+
+    private static func areSeparatedIn3D(
+        _ lhs: DetectedFruit,
+        _ rhs: DetectedFruit,
+        projectedPositions: inout [UUID: SIMD3<Float>]
+    ) -> Bool {
+        guard let lhsPosition = projectedWorldPosition(for: lhs, cache: &projectedPositions),
+              let rhsPosition = projectedWorldPosition(for: rhs, cache: &projectedPositions) else {
+            return false
+        }
+
+        let maxExpectedDiameter = max(lhs.category.sizeRange.upperBound, rhs.category.sizeRange.upperBound)
+        let separationThreshold = max(0.06, min(maxExpectedDiameter * 1.2, 0.16))
+        return simd_distance(lhsPosition, rhsPosition) > separationThreshold
+    }
+
+    private static func projectedWorldPosition(
+        for detection: DetectedFruit,
+        cache: inout [UUID: SIMD3<Float>]
+    ) -> SIMD3<Float>? {
+        if let cached = cache[detection.id] {
+            return cached
+        }
+
+        guard let depthMap = detection.depthMap,
+              let cameraIntrinsics = detection.cameraIntrinsics,
+              let cameraTransform = detection.cameraTransform,
+              let imageSize = detection.imageSize else {
+            return nil
+        }
+
+        let position = FusionValidator().projectDetectionTo3D(
+            detection: detection,
+            depthMap: depthMap,
+            cameraIntrinsics: cameraIntrinsics,
+            cameraTransform: cameraTransform,
+            imageSize: imageSize
+        )
+        cache[detection.id] = position
+        return position
     }
 
     private static func normalizedCenterDistance(_ a: CGRect, _ b: CGRect) -> CGFloat {
@@ -136,6 +184,8 @@ extension ValidatedFruit {
         var totalWeight: Float
         var weightedPosition: SIMD3<Float>
         var observationCount: Int
+        var imageObservationCount: Int
+        var accumulatedEvidence: Float
 
         init(seed: ValidatedFruit) {
             let weight = Self.weight(for: seed)
@@ -143,6 +193,8 @@ extension ValidatedFruit {
             totalWeight = weight
             weightedPosition = seed.position * weight
             observationCount = 1
+            imageObservationCount = seed.source.isImageBased ? 1 : 0
+            accumulatedEvidence = Self.evidence(for: seed)
         }
 
         var center: SIMD3<Float> {
@@ -155,6 +207,10 @@ extension ValidatedFruit {
             weightedPosition += fruit.position * weight
             totalWeight += weight
             observationCount += 1
+            if fruit.source.isImageBased {
+                imageObservationCount += 1
+            }
+            accumulatedEvidence = Self.combinedEvidence(accumulatedEvidence, Self.evidence(for: fruit))
 
             if Self.rank(fruit) > Self.rank(representative) ||
                 (Self.rank(fruit) == Self.rank(representative) && fruit.confidence > representative.confidence) {
@@ -167,9 +223,23 @@ extension ValidatedFruit {
                 id: representative.id,
                 category: representative.category,
                 position: center,
-                confidence: min(max(representative.confidence, Float(observationCount) * 0.15), 1.0),
-                source: representative.source
+                confidence: min(max(representative.confidence, accumulatedEvidence), 1.0),
+                source: mergedSource
             )
+        }
+
+        private var mergedSource: ValidationSource {
+            if representative.source == .fused {
+                return .fused
+            }
+            if imageObservationCount >= 2 {
+                return .trackedImage
+            }
+            return representative.source
+        }
+
+        var isUnfusedImageTrack: Bool {
+            imageObservationCount > 0 && representative.source != .fused
         }
 
         static func weight(for fruit: ValidatedFruit) -> Float {
@@ -178,6 +248,14 @@ extension ValidatedFruit {
 
         static func rank(_ fruit: ValidatedFruit) -> Float {
             fruit.source.countWeight * 2 + fruit.confidence
+        }
+
+        static func evidence(for fruit: ValidatedFruit) -> Float {
+            min(max(fruit.confidence, 0), 1) * fruit.source.countWeight
+        }
+
+        static func combinedEvidence(_ lhs: Float, _ rhs: Float) -> Float {
+            1 - (1 - min(max(lhs, 0), 1)) * (1 - min(max(rhs, 0), 1))
         }
     }
 
@@ -193,8 +271,6 @@ extension ValidatedFruit {
         var tracks: [FruitTrack] = []
 
         for fruit in sorted {
-            let threshold = distanceThreshold ?? (fruit.category?.sizeRange.upperBound ?? 0.10) / 2
-
             let compatibleTrackIndices = tracks.indices.filter { index in
                 let category = tracks[index].representative.category
                 return category == nil || fruit.category == nil || category == fruit.category
@@ -205,6 +281,11 @@ extension ValidatedFruit {
             }) {
                 let track = tracks[trackIndex]
                 let distance = simd_distance(track.center, fruit.position)
+                let threshold = associationThreshold(
+                    for: fruit,
+                    with: track,
+                    override: distanceThreshold
+                )
 
                 if distance < threshold {
                     tracks[trackIndex].add(fruit)
@@ -216,5 +297,30 @@ extension ValidatedFruit {
         }
 
         return tracks.map { $0.mergedFruit() }
+    }
+
+    private static func associationThreshold(
+        for fruit: ValidatedFruit,
+        with track: FruitTrack,
+        override: Float?
+    ) -> Float {
+        if let override {
+            return override
+        }
+
+        let category = fruit.category ?? track.representative.category
+        let upperDiameter = category?.sizeRange.upperBound ?? 0.10
+        let baseThreshold = upperDiameter / 2
+
+        guard fruit.source.isImageBased,
+              fruit.source != .fused,
+              track.isUnfusedImageTrack else {
+            return baseThreshold
+        }
+
+        let confidence = min(max(min(fruit.confidence, track.representative.confidence), 0), 1)
+        let confidenceScale = 0.55 + confidence * 0.25
+        let driftTolerance = min(upperDiameter * confidenceScale, 0.085)
+        return max(baseThreshold, driftTolerance)
     }
 }

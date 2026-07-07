@@ -16,6 +16,18 @@
 
 ---
 
+## 本机 iOS 工具链
+
+- 这是 iOS App，不是 macOS App；不要用 My Mac 作为行为验证目标。
+- 默认假设本机已经安装 Xcode 27 beta：`/Users/reece24/Downloads/Xcode-beta.app`。
+- 命令行验证优先用临时环境变量：`DEVELOPER_DIR=/Users/reece24/Downloads/Xcode-beta.app/Contents/Developer`，不要改全局 Xcode 选择。
+- Device Hub 是真实可用的软件，不是抽象流程：`/Users/reece24/Downloads/Xcode-beta.app/Contents/Applications/DeviceHub.app`。
+- 有一个可用的 iOS 27 模拟器，默认用它验证：`FruitTreeScanner-iPhone-17-iOS27`，id `C722B4F0-E16F-4C14-84A1-8C796DB0FE11`。
+- 不要再使用、索要或描述 OpenCode 模拟流程；本项目验证按 Xcode 27 beta + Device Hub + iOS 模拟器/真机来走。
+- 模拟器只覆盖 UI、导航和纯算法逻辑；LiDAR 采集、AR 深度质量和真实扫描精度必须等 Device Hub 中 LiDAR 真机可用后验证。
+
+---
+
 ## 项目架构
 
 ```

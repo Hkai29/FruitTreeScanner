@@ -3,75 +3,6 @@
 // 无第三方依赖，全部跑在 iPad 本地
 
 import Foundation
-import simd
-
-// MARK: - 单果信息
-
-struct FruitInfo {
-    let center: SIMD3<Float>
-    let radiusM: Float
-    let diameterCm: Float
-    let volumeCm3: Float
-    let weightG: Float
-    let pointCount: Int
-    let massEstimate: FruitMassEstimate?
-}
-
-// MARK: - 估算结果
-
-struct YieldResult: Sendable {
-    var nLidar: Int = 0
-    var nVisual: Int? = nil
-    var correctionK: Float = 1.0
-    var yieldBVisibleKg: Float = 0
-    var yieldBCorrectedKg: Float = 0
-    var meanDiameterCm: Float = 0
-    var meanVolumeCm3: Float = 0
-
-    var yieldAKg: Float? = nil
-
-    var yieldFinalKg: Float = 0
-    var confidence: String = "low"
-    var methodUsed: String = ""
-    var note: String = ""
-
-    var treeHeightM: Float = 0
-    var crownVolM3: Float = 0
-
-    var clusterEps: Float = 0
-    var clusterMinPoints: Int = 0
-    var fruitCategory: String = ""
-    var colorFilterDesc: String = ""
-    var occlusionK: Float = 1.0
-    var pointCloudSize: Int = 0
-    var diagnostics: ScanYieldDiagnostics = ScanYieldDiagnostics()
-    var fruitMassEstimates: [FruitMassEstimate] = []
-}
-
-struct ScanYieldDiagnostics: Sendable, Equatable {
-    var pointCloudPointCount: Int = 0
-    var imageDetectionCount: Int = 0
-    var deduplicatedImageDetectionCount: Int = 0
-    var pointCloudCandidateCount: Int = 0
-    var fusedFruitCount: Int = 0
-    var cloudOnlyConservativeMode: Bool = false
-    var depthAvailable: Bool = false
-    var imageFramesProcessed: Int = 0
-    var imageObservationCount: Int = 0
-    var imageConfidenceFilteredCount: Int = 0
-    var imageMappedFruitCount: Int = 0
-    var imageModelStatus: String = "--"
-    var imageModelName: String = "--"
-    var imageFailureReason: String = ""
-    var zeroYieldReasons: [String] = []
-
-    var shortStatus: String {
-        if zeroYieldReasons.isEmpty {
-            return fusedFruitCount > 0 ? "融合有效" : "等待估算"
-        }
-        return zeroYieldReasons.joined(separator: "；")
-    }
-}
 
 // MARK: - 主估算器
 
@@ -263,15 +194,5 @@ class YieldEstimator {
         result.note         = note
 
         return (fruits, result)
-    }
-
-}
-
-enum Season: Sendable {
-    case mature
-    case off
-
-    var supportsYieldEstimation: Bool {
-        self == .mature
     }
 }

@@ -87,6 +87,42 @@ extension ScanCoordinator {
         detectionProcessingLock.unlock()
     }
 
+    @MainActor
+    func startRecording() {
+        detectionTask?.cancel()
+        detectionTask = nil
+        fusionEstimateTask?.cancel()
+        fusionEstimateTask = nil
+        imageDetector.clearQueue()
+        createDirectory(folder: "scans")
+        pointCount = 0
+        scannedRegionCount = 0
+        coveragePercent = 0
+        coverageVoxelCount = 0
+        scanCompletion = ScanCompletion()
+        hudState?.resetForNewScan()
+        publishImageDetectorStatus()
+        hudState?.update(fusionStatus: "扫描中")
+        lastCameraPosition = nil
+        lastCameraSpeedTime = 0
+        smoothedCameraSpeed = 0
+        renderer?.currentFolder = "scans"
+        renderer?.isRecording = true
+    }
+
+    @MainActor
+    func resumeRecordingPreservingCapture() {
+        // This is the same logical scan. Keep the in-flight detection task and
+        // queued frames so stopping briefly does not discard image evidence
+        // that still needs to be fused with the preserved point cloud.
+        fusionEstimateTask?.cancel()
+        fusionEstimateTask = nil
+        publishImageDetectorStatus()
+        hudState?.update(fusionStatus: "补扫中")
+        renderer?.currentFolder = "scans"
+        renderer?.resumeRecordingPreservingPointCloud()
+    }
+
     func stopRecording() {
         Log.scan.info("Stopping recording, flushing detection queue")
         processDetectionQueue()
@@ -139,6 +175,12 @@ extension ScanCoordinator {
 
             let points = self.extractColoredPoints()
             let imageDiagnostics = self.imageDetector.diagnosticsSnapshot()
+            let calibrationRecords = (try? CalibrationRecordPersistence.load()) ?? []
+            let calibrationCorrection = YieldCalibrationCorrector.correction(
+                from: calibrationRecords,
+                fruitCategory: fruitCat,
+                fruitType: fruitType
+            )
             guard !Task.isCancelled else { return }
 
             let savedDetections: [DetectedFruit] = await MainActor.run {
@@ -162,7 +204,8 @@ extension ScanCoordinator {
                     clusterConfig: clusterConfig,
                     fusionConfig: fusionConfig,
                     colorFilter: colorFilter,
-                    season: season
+                    season: season,
+                    calibrationCorrection: calibrationCorrection
                 )
             )
             guard !Task.isCancelled else { return }

@@ -4,6 +4,10 @@ struct ScanCompletion: Equatable {
     var overall: Float = 0
     var timeScore: Float = 0
     var voxelScore: Float = 0
+    var angleCoverageScore: Float = 0
+    var angleUniformityScore: Float = 0
+    var oppositeSideScore: Float = 1
+    var verticalCoverageScore: Float = 0
     var stabilityScore: Float = 0
     var voxelCount: Int = 0
     var scanDuration: TimeInterval = 0
@@ -19,6 +23,23 @@ struct ScanCompletion: Equatable {
     }
 
     var statusHint: String {
+        if angleCoverageScore < 0.35, voxelCount >= 80 {
+            return "补扫树冠另一侧"
+        }
+        if oppositeSideScore < 0.45,
+           angleCoverageScore >= 0.45,
+           voxelCount >= 120 {
+            return "补扫树冠背面"
+        }
+        if verticalCoverageScore < 0.45,
+           angleCoverageScore >= 0.55,
+           voxelCount >= 140 {
+            return "放慢补扫树冠上下层"
+        }
+        if angleUniformityScore < 0.50, angleCoverageScore >= 0.50, voxelCount >= 120 {
+            return "补扫稀疏视角"
+        }
+
         switch discoveryTrend {
         case .collecting:
             return "从主干开始慢速环绕"

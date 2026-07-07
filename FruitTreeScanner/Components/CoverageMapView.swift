@@ -84,6 +84,16 @@ struct CoverageMapView: View {
                 color: Design.Colors.harvest
             )
             ScoreIndicator(
+                label: "视角",
+                value: completion.angleCoverageScore,
+                color: Design.Colors.Dark.info
+            )
+            ScoreIndicator(
+                label: "均衡",
+                value: completion.angleUniformityScore,
+                color: Design.Colors.harvestDark
+            )
+            ScoreIndicator(
                 label: "稳定",
                 value: completion.stabilityScore,
                 color: statusColor

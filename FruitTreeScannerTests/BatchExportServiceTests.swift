@@ -396,6 +396,7 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\ncmd"), "'\ncmd")
         XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\rcmd"), "'\rcmd")
         XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(" =cmd"), "' =cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(" \t=cmd"), "' \t=cmd")
         XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("  @cmd"), "'  @cmd")
     }
 
@@ -495,6 +496,47 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportNeutralizesCSVAndWritesMetadata() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        var result = makeYieldResult()
+        result.diagnostics.detectionDepthCandidateCount = 2
+        result.diagnostics.detectionDepthSupportRatio = 0.75
+        result.diagnostics.pointCloudColorFilteredCount = 180
+        result.diagnostics.pointCloudDenoisedPointCount = 172
+        result.diagnostics.pointCloudOutlierPointCount = 8
+        result.diagnostics.pointCloudOutlierRatio = 8.0 / 180.0
+        result.diagnostics.validatedFruitCount = 4
+        result.diagnostics.fusedValidationCount = 1
+        result.diagnostics.trackedImageFruitCount = 2
+        result.diagnostics.imageOnlyFruitCount = 1
+        result.diagnostics.cloudOnlyFruitCount = 0
+        result.diagnostics.validationSourceReliability = 0.80
+        result.diagnostics.localCalibrationCountFactor = 1.10
+        result.diagnostics.localCalibrationYieldFactor = 0.92
+        result.diagnostics.localCalibrationCountSampleCount = 3
+        result.diagnostics.localCalibrationYieldSampleCount = 2
+        result.treeHeightM = 3.6
+        result.crownVolM3 = 3.05
+        result.diagnostics.canopyPointCount = 101
+        result.diagnostics.canopyPreprocessedPointCount = 93
+        result.diagnostics.canopyGroundFilteredPointCount = 5
+        result.diagnostics.canopyTrunkFilteredPointCount = 3
+        result.diagnostics.canopyNeighborFilteredPointCount = 4
+        result.diagnostics.canopyClusterCount = 2
+        result.diagnostics.canopyRobustPointCount = 91
+        result.diagnostics.canopyHeightM = 3.6
+        result.diagnostics.canopyWidthM = 1.8
+        result.diagnostics.canopyDepthM = 0.9
+        result.diagnostics.canopyOuterVolumeM3 = 3.39
+        result.diagnostics.canopyVolumeM3 = 3.05
+        result.diagnostics.canopyEffectiveVolumeCoefficient = 0.90
+        result.diagnostics.canopyProjectionXYCoefficient = 0.82
+        result.diagnostics.canopyProjectionXZCoefficient = 0.90
+        result.diagnostics.canopyProjectionYZCoefficient = 0.86
+        result.diagnostics.canopyProjectionEffectiveCoefficient = 0.86
+        result.diagnostics.canopyVoxelSizeM = 0.08
+        result.diagnostics.canopyPartitionSizeM = 0.40
+        result.diagnostics.canopyPartitionCount = 9
+        result.diagnostics.cameraAngleCoverage = 0.50
+        result.diagnostics.scanAngleCoverage = 0.50
         let request = ScanResultExportService.ExportRequest(
             treeID: "=FORMULA(1+2)",
             fruitType: "+SUM(A1:A10)",
@@ -502,7 +544,7 @@ final class BatchExportServiceTests: XCTestCase {
             gpsLat: -33.8688,
             gpsLon: 151.2093,
             sourceFilename: sourceFilename,
-            result: makeYieldResult(),
+            result: result,
             includeCSV: true
         )
 
@@ -530,6 +572,47 @@ final class BatchExportServiceTests: XCTestCase {
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(payload["treeID"] as? String, "=FORMULA(1+2)")
         XCTAssertEqual(payload["fruitCount"] as? Int, 12)
+        let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [String: Any])
+        XCTAssertEqual(diagnostics["detectionDepthCandidateCount"] as? Int, 2)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["detectionDepthSupportRatio"] as? NSNumber).doubleValue, 0.75, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["pointCloudColorFilteredCount"] as? Int, 180)
+        XCTAssertEqual(diagnostics["pointCloudDenoisedPointCount"] as? Int, 172)
+        XCTAssertEqual(diagnostics["pointCloudOutlierPointCount"] as? Int, 8)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["pointCloudOutlierRatio"] as? NSNumber).doubleValue, 8.0 / 180.0, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["validatedFruitCount"] as? Int, 4)
+        XCTAssertEqual(diagnostics["fusedValidationCount"] as? Int, 1)
+        XCTAssertEqual(diagnostics["trackedImageFruitCount"] as? Int, 2)
+        XCTAssertEqual(diagnostics["imageOnlyFruitCount"] as? Int, 1)
+        XCTAssertEqual(diagnostics["cloudOnlyFruitCount"] as? Int, 0)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["validationSourceReliability"] as? NSNumber).doubleValue, 0.80, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["localCalibrationCountFactor"] as? NSNumber).doubleValue, 1.10, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["localCalibrationYieldFactor"] as? NSNumber).doubleValue, 0.92, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["localCalibrationCountSampleCount"] as? Int, 3)
+        XCTAssertEqual(diagnostics["localCalibrationYieldSampleCount"] as? Int, 2)
+        XCTAssertEqual(try XCTUnwrap(payload["treeHeightM"] as? NSNumber).doubleValue, 3.6, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(payload["crownVolM3"] as? NSNumber).doubleValue, 3.05, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["canopyPointCount"] as? Int, 101)
+        XCTAssertEqual(diagnostics["canopyPreprocessedPointCount"] as? Int, 93)
+        XCTAssertEqual(diagnostics["canopyGroundFilteredPointCount"] as? Int, 5)
+        XCTAssertEqual(diagnostics["canopyTrunkFilteredPointCount"] as? Int, 3)
+        XCTAssertEqual(diagnostics["canopyNeighborFilteredPointCount"] as? Int, 4)
+        XCTAssertEqual(diagnostics["canopyClusterCount"] as? Int, 2)
+        XCTAssertEqual(diagnostics["canopyRobustPointCount"] as? Int, 91)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyHeightM"] as? NSNumber).doubleValue, 3.6, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyWidthM"] as? NSNumber).doubleValue, 1.8, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyDepthM"] as? NSNumber).doubleValue, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyOuterVolumeM3"] as? NSNumber).doubleValue, 3.39, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyVolumeM3"] as? NSNumber).doubleValue, 3.05, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyEffectiveVolumeCoefficient"] as? NSNumber).doubleValue, 0.90, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionXYCoefficient"] as? NSNumber).doubleValue, 0.82, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionXZCoefficient"] as? NSNumber).doubleValue, 0.90, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionYZCoefficient"] as? NSNumber).doubleValue, 0.86, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionEffectiveCoefficient"] as? NSNumber).doubleValue, 0.86, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyVoxelSizeM"] as? NSNumber).doubleValue, 0.08, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyPartitionSizeM"] as? NSNumber).doubleValue, 0.40, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["canopyPartitionCount"] as? Int, 9)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["cameraAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["scanAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
     }
 
     func testScanResultExportSanitizesNonFiniteNumericValues() throws {

@@ -25,6 +25,9 @@ extension PointCloudCluster {
         guard FruitCategory.isFruitColor(avgColor) else {
             return nil
         }
+        guard isColorConsistent(colors) else {
+            return nil
+        }
 
         guard isShapeRegular(positions, center: center, radius: diameter / 2.0) else {
             return nil
@@ -56,6 +59,41 @@ extension PointCloudCluster {
         let stdDev = sqrt(max(variance, 0))
 
         return stdDev < radius * 0.3
+    }
+
+    func isColorConsistent(_ colors: [SIMD3<Float>]) -> Bool {
+        guard !colors.isEmpty else { return false }
+
+        var fruitColorCount = 0
+        var hueVector = SIMD2<Float>(0, 0)
+        var hueWeightSum: Float = 0
+
+        for color in colors {
+            guard color.x.isFinite, color.y.isFinite, color.z.isFinite else {
+                continue
+            }
+            guard FruitCategory.isFruitColor(color) else {
+                continue
+            }
+
+            fruitColorCount += 1
+            let hsv = FruitCategory.rgbToHSV(color)
+            let radians = hsv.x * Float.pi / 180
+            let weight = max(hsv.y * hsv.z, 0.001)
+            hueVector += SIMD2<Float>(cos(radians), sin(radians)) * weight
+            hueWeightSum += weight
+        }
+
+        let supportRatio = Float(fruitColorCount) / Float(colors.count)
+        guard supportRatio >= 0.60 else {
+            return false
+        }
+        guard hueWeightSum > 0 else {
+            return true
+        }
+
+        let hueConcentration = simd_length(hueVector) / hueWeightSum
+        return hueConcentration >= 0.60
     }
 
     func computeAverageColor(_ colors: [SIMD3<Float>]) -> SIMD3<Float> {
@@ -150,39 +188,48 @@ extension PointCloudCluster {
     }
 
     func computeEigenvalues(_ matrix: simd_float3x3) -> [Float] {
-        var eigenvalues: [Float] = []
-        var eigenvectors: [SIMD3<Float>] = []
+        let a11 = matrix.columns.0.x
+        let a22 = matrix.columns.1.y
+        let a33 = matrix.columns.2.z
+        let a12 = matrix.columns.1.x
+        let a13 = matrix.columns.2.x
+        let a23 = matrix.columns.2.y
 
-        for _ in 0..<3 {
-            var current = SIMD3<Float>(1, 0, 0)
-
-            for v in eigenvectors {
-                current -= simd_dot(current, v) * v
-            }
-            let initNorm = simd_length(current)
-            if initNorm < 1e-6 { break }
-            current /= initNorm
-
-            var prevLambda: Float = 0
-            for iter in 0..<50 {
-                var next: SIMD3<Float> = matrix * current
-                for v in eigenvectors {
-                    next -= simd_dot(next, v) * v
-                }
-                let norm = simd_length(next)
-                if norm < 1e-6 { break }
-                current = next / norm
-
-                let lambda = simd_dot(current, matrix * current)
-                if iter > 0 && abs(lambda - prevLambda) < 1e-4 { break }
-                prevLambda = lambda
-            }
-
-            let lambda = simd_dot(current, matrix * current)
-            eigenvalues.append(lambda)
-            eigenvectors.append(current)
+        let offDiagonalEnergy = a12 * a12 + a13 * a13 + a23 * a23
+        if offDiagonalEnergy < 1e-12 {
+            return [a11, a22, a33].sorted()
         }
 
-        return eigenvalues.sorted()
+        let traceMean = (a11 + a22 + a33) / 3.0
+        let centered11 = a11 - traceMean
+        let centered22 = a22 - traceMean
+        let centered33 = a33 - traceMean
+        let varianceEnergy = centered11 * centered11
+            + centered22 * centered22
+            + centered33 * centered33
+            + 2.0 * offDiagonalEnergy
+        let scale = sqrt(max(varianceEnergy / 6.0, 0))
+        guard scale > 1e-12 else {
+            return [traceMean, traceMean, traceMean]
+        }
+
+        let b11 = centered11 / scale
+        let b22 = centered22 / scale
+        let b33 = centered33 / scale
+        let b12 = a12 / scale
+        let b13 = a13 / scale
+        let b23 = a23 / scale
+        let determinant = b11 * b22 * b33
+            + 2.0 * b12 * b13 * b23
+            - b11 * b23 * b23
+            - b22 * b13 * b13
+            - b33 * b12 * b12
+        let halfDeterminant = min(max(determinant / 2.0, -1.0), 1.0)
+        let angle = acos(halfDeterminant) / 3.0
+
+        let eigen1 = traceMean + 2.0 * scale * cos(angle)
+        let eigen3 = traceMean + 2.0 * scale * cos(angle + 2.0 * Float.pi / 3.0)
+        let eigen2 = 3.0 * traceMean - eigen1 - eigen3
+        return [eigen1, eigen2, eigen3].sorted()
     }
 }

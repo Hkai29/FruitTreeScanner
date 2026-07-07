@@ -1,5 +1,5 @@
 // Theme.swift
-// FruitScanner Design System
+// Fruit Tree Scanner Design System
 // 自然有机风格 — Warm Earth Tones + Forest Green
 // 温暖、专业、可信赖
 
@@ -7,6 +7,11 @@ import SwiftUI
 
 // MARK: - Design Tokens
 struct Design {
+    struct Brand {
+        static let productName = "Fruit Tree Scanner"
+        static let productTagline = "Orchard LiDAR Scanner"
+    }
+
     // MARK: Color Palette - Orchard field-tool theme
     struct Colors {
         // Primary - 低饱和叶绿

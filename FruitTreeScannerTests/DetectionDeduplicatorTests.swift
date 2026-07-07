@@ -1,8 +1,43 @@
 import XCTest
 import CoreML
+import CoreVideo
 @testable import FruitTreeScanner
 
 final class DetectionDeduplicatorTests: XCTestCase {
+
+    private func pinholeIntrinsics(fx: Float, fy: Float, cx: Float, cy: Float) -> simd_float3x3 {
+        simd_float3x3(
+            SIMD3<Float>(fx, 0, 0),
+            SIMD3<Float>(0, fy, 0),
+            SIMD3<Float>(cx, cy, 1)
+        )
+    }
+
+    private func makeDepthMap(width: Int, height: Int, fillValue: Float) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_DepthFloat32,
+            nil,
+            &pixelBuffer
+        )
+        guard status == kCVReturnSuccess, let buffer = pixelBuffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+            let rowFloats = bytesPerRow / MemoryLayout<Float>.size
+            let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
+            for y in 0..<height {
+                for x in 0..<width {
+                    floatBuffer[y * rowFloats + x] = fillValue
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        return buffer
+    }
 
     func testDeduplicate2DEmpty() {
         let result = DetectionDeduplicator.deduplicate2D([])
@@ -54,6 +89,68 @@ final class DetectionDeduplicatorTests: XCTestCase {
             2,
             "跨视角的远时刻检测不能只凭相同 2D 框合并"
         )
+    }
+
+    func testDeduplicate2DKeepsOverlappingAlignedDetectionsWhen3DSeparated() {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let d1 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+            confidence: 0.9,
+            timestamp: 10,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+        let d2 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.34, y: 0.30, width: 0.20, height: 0.20),
+            confidence: 0.7,
+            timestamp: 10.5,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+
+        let result = DetectionDeduplicator.deduplicate2D([d1, d2])
+
+        XCTAssertEqual(result.count, 2, "有对齐深度时，3D 分离的重叠 2D 框不应互相抑制")
+    }
+
+    func testDeduplicate2DMergesOverlappingAlignedDetectionsWhen3DClose() {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let d1 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+            confidence: 0.9,
+            timestamp: 10,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+        let d2 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.305, y: 0.30, width: 0.20, height: 0.20),
+            confidence: 0.7,
+            timestamp: 10.5,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+
+        let result = DetectionDeduplicator.deduplicate2D([d1, d2])
+
+        XCTAssertEqual(result.count, 1, "3D 位置接近时仍应去重重复观测")
     }
 
     func testDeduplicate2DDifferentCategories() {
@@ -164,6 +261,68 @@ final class DetectionDeduplicatorTests: XCTestCase {
 
         XCTAssertEqual(deduplicated.count, 1)
         XCTAssertEqual(deduplicated.first?.source, .fused, "融合验证结果应优先作为轨迹代表")
+    }
+
+    func testDeduplicate3DPromotesRepeatedImageOnlyTrack() throws {
+        let fruits = [
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0, 0, 1), confidence: 0.72, source: .imageOnly),
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0.015, 0.004, 1), confidence: 0.68, source: .imageOnly),
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0.025, -0.003, 1), confidence: 0.64, source: .imageOnly),
+        ]
+
+        let deduplicated = ValidatedFruit.deduplicate3D(fruits, distanceThreshold: 0.05)
+
+        XCTAssertEqual(deduplicated.count, 1)
+        XCTAssertEqual(deduplicated.first?.source, .trackedImage, "多帧稳定图像轨迹应比单帧 imageOnly 更可靠")
+        XCTAssertEqual(try XCTUnwrap(deduplicated.first?.source).countWeight, 0.75, accuracy: 0.001)
+    }
+
+    func testDeduplicate3DKeepsSingleImageOnlySource() {
+        let fruit = ValidatedFruit(
+            category: .apple,
+            position: SIMD3<Float>(0, 0, 1),
+            confidence: 0.8,
+            source: .imageOnly
+        )
+
+        let deduplicated = ValidatedFruit.deduplicate3D([fruit], distanceThreshold: 0.05)
+
+        XCTAssertEqual(deduplicated.count, 1)
+        XCTAssertEqual(deduplicated.first?.source, .imageOnly)
+    }
+
+    func testDeduplicate3DUsesAdaptiveThresholdForImageProjectionDrift() {
+        let fruits = [
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0, 0, 1), confidence: 0.75, source: .imageOnly),
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0.065, 0, 1), confidence: 0.68, source: .imageOnly),
+        ]
+
+        let deduplicated = ValidatedFruit.deduplicate3D(fruits)
+
+        XCTAssertEqual(deduplicated.count, 1, "跨视角 imageOnly 深度投影有小幅漂移时应归为同一轨迹")
+        XCTAssertEqual(deduplicated.first?.source, .trackedImage)
+    }
+
+    func testDeduplicate3DDoesNotMergeNearbyDistinctImageTracks() {
+        let fruits = [
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0, 0, 1), confidence: 0.9, source: .imageOnly),
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0.095, 0, 1), confidence: 0.85, source: .imageOnly),
+        ]
+
+        let deduplicated = ValidatedFruit.deduplicate3D(fruits)
+
+        XCTAssertEqual(deduplicated.count, 2, "自适应漂移阈值不能把相邻果实合并")
+    }
+
+    func testDeduplicate3DKeepsFusedTracksStrictlySeparated() {
+        let fruits = [
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0, 0, 1), confidence: 0.8, source: .fused),
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0.065, 0, 1), confidence: 0.78, source: .fused),
+        ]
+
+        let deduplicated = ValidatedFruit.deduplicate3D(fruits)
+
+        XCTAssertEqual(deduplicated.count, 2, "fused 轨迹位置更可信，应保持原来的保守 3D 合并阈值")
     }
 
     func testParseYOLOMultiArrayProducesFruitDetectionAndAppliesNMS() throws {

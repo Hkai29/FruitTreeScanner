@@ -20,18 +20,16 @@ struct AddCalibrationRecordView: View {
                 Design.Colors.Dark.bgDeep
                     .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: Design.Space.lg) {
-                        if !historyStore.scanFiles.isEmpty {
-                            recentScanImportSection
-                        }
-
-                        basicInfoSection
-                        estimateSection
-                        actualDataSection
-                    }
-                    .padding(Design.Space.lg)
-                }
+                AddCalibrationRecordForm(
+                    recentRecords: historyStore.scanFiles,
+                    treeID: $treeID,
+                    estimatedFruitCount: $estimatedFruitCount,
+                    estimatedYieldKg: $estimatedYieldKg,
+                    manualFruitCount: $manualFruitCount,
+                    actualYieldKg: $actualYieldKg,
+                    selectedFruitCategory: $selectedFruitCategory,
+                    onSelectRecentScan: applyScanRecord
+                )
             }
             .navigationTitle("添加校准记录")
             .navigationBarTitleDisplayMode(.inline)
@@ -62,127 +60,6 @@ struct AddCalibrationRecordView: View {
             && CalibrationRecordInputParser.isOptionalNonNegativeIntValid(manualFruitCount)
             && CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid(actualYieldKg)
     }
-
-    private var recentScanImportSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("从扫描记录带入")
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Menu {
-                ForEach(historyStore.scanFiles.prefix(12)) { record in
-                    Button {
-                        applyScanRecord(record)
-                    } label: {
-                        Text("\(record.treeID) · \(record.fruitCount) 个 · \(String(format: "%.1f kg", record.yieldKg))")
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "clock.arrow.circlepath")
-                    Text("选择最近扫描")
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, Design.Space.md)
-                .frame(height: 46)
-                .background(Design.Colors.Dark.bgElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
-            Text("会自动填入树编号、估算果数、估算产量和扫描日期。")
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-    }
-
-    private var basicInfoSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("基本信息")
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            TextField("树木编号 (如 T001)", text: $treeID)
-                .calibrationTextField()
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled(true)
-
-            Picker("水果类型", selection: $selectedFruitCategory) {
-                ForEach(FruitCategory.allCases, id: \.self) { category in
-                    Text(category.displayName).tag(category)
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(Design.Colors.harvest)
-        }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-    }
-
-    private var estimateSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("算法估算结果")
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            HStack {
-                TextField("果实数量", text: $estimatedFruitCount)
-                    .calibrationTextField()
-                    .keyboardType(.numberPad)
-
-                Text("个")
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            HStack {
-                TextField("估算产量", text: $estimatedYieldKg)
-                    .calibrationTextField()
-                    .keyboardType(.decimalPad)
-
-                Text("kg")
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-        }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-    }
-
-    private var actualDataSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("实际数据（可选）")
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Text("录入实际数据后，系统会自动计算误差")
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            HStack {
-                TextField("人工计数", text: $manualFruitCount)
-                    .calibrationTextField()
-                    .keyboardType(.numberPad)
-
-                Text("个")
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            HStack {
-                TextField("实际产量", text: $actualYieldKg)
-                    .calibrationTextField()
-                    .keyboardType(.decimalPad)
-
-                Text("kg")
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-        }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-    }
-
 
     private func applyScanRecord(_ record: ScanFileRecord) {
         treeID = record.treeID
@@ -216,72 +93,5 @@ struct AddCalibrationRecordView: View {
         )
         onSave(record)
         dismiss()
-    }
-}
-
-enum CalibrationRecordInputParser {
-    static func requiredNonNegativeInt(_ value: String) -> Int? {
-        let normalized = normalizedNumberText(value)
-        guard !normalized.isEmpty,
-              let parsed = Int(normalized),
-              parsed >= 0
-        else { return nil }
-        return parsed
-    }
-
-    static func optionalNonNegativeInt(_ value: String) -> Int? {
-        let normalized = normalizedNumberText(value)
-        guard !normalized.isEmpty else { return nil }
-        guard let parsed = Int(normalized),
-              parsed >= 0
-        else { return nil }
-        return parsed
-    }
-
-    static func optionalNonNegativeDouble(_ value: String) -> Double? {
-        let normalized = normalizedNumberText(value)
-        guard !normalized.isEmpty else { return nil }
-        guard let parsed = Double(normalized),
-              parsed.isFinite,
-              parsed >= 0
-        else { return nil }
-        return parsed
-    }
-
-    static func estimatedYieldKgOrZero(_ value: String) -> Double? {
-        let normalized = normalizedNumberText(value)
-        guard !normalized.isEmpty else { return 0 }
-        guard let parsed = optionalNonNegativeDouble(normalized) else { return nil }
-        return parsed
-    }
-
-    static func isOptionalNonNegativeIntValid(_ value: String) -> Bool {
-        let normalized = normalizedNumberText(value)
-        return normalized.isEmpty || optionalNonNegativeInt(normalized) != nil
-    }
-
-    static func isOptionalNonNegativeDoubleValid(_ value: String) -> Bool {
-        let normalized = normalizedNumberText(value)
-        return normalized.isEmpty || optionalNonNegativeDouble(normalized) != nil
-    }
-
-    private static func normalizedNumberText(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-}
-
-private extension View {
-    func calibrationTextField() -> some View {
-        self
-            .font(.system(size: 15, weight: .medium))
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .padding(.horizontal, 14)
-            .frame(height: 46)
-            .background(Design.Colors.Dark.bgElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
-            )
     }
 }

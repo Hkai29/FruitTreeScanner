@@ -81,88 +81,17 @@ extension Renderer {
         rgbUniforms.viewRatio = Float(viewportSize.width / max(viewportSize.height, 1))
     }
 
-    func updateOrientation() {
-        let sceneOrientation = renderDestination.window?.windowScene?.interfaceOrientation
-        let nextOrientation: UIInterfaceOrientation
-
-        if let sceneOrientation, sceneOrientation != .unknown {
-            nextOrientation = sceneOrientation
-        } else if viewportSize.width > viewportSize.height {
-            nextOrientation = .landscapeRight
-        } else {
-            nextOrientation = .portrait
-        }
-
-        orientation = nextOrientation
-    }
-
-    func updateCameraResolutionIfNeeded(frame: ARFrame) {
-        let nextResolution = Float2(
-            Float(frame.camera.imageResolution.width),
-            Float(frame.camera.imageResolution.height)
-        )
-
-        guard abs(nextResolution.x - cameraResolution.x) > 0.5 ||
-              abs(nextResolution.y - cameraResolution.y) > 0.5 else {
-            return
-        }
-
-        cameraResolution = nextResolution
-        pointCloudUniforms.cameraResolution = cameraResolution
-        gridPointsBuffer = MetalBuffer<Float2>(
-            device: device,
-            array: RendererMetalHelpers.makeGridPoints(
-                cameraResolution: cameraResolution,
-                numGridPoints: numGridPoints
-            ),
-            index: kGridPoints.rawValue,
-            options: []
-        )
-    }
-
-    func updateCapturedImageTextures(frame: ARFrame) {
-        let pb = frame.capturedImage
-        guard CVPixelBufferGetPlaneCount(pb) >= 2 else { return }
-        capturedImageTextureY = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: pb,
-            pixelFormat: .r8Unorm,
-            planeIndex: 0,
-            textureCache: textureCache
-        )
-        capturedImageTextureCbCr = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: pb,
-            pixelFormat: .rg8Unorm,
-            planeIndex: 1,
-            textureCache: textureCache
-        )
-    }
-
-    func updateDepthTextures(frame: ARFrame) -> Bool {
-        let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
-        guard let depthMap = depthData?.depthMap,
-              let confidenceMap = depthData?.confidenceMap else { return false }
-        depthTexture = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: depthMap,
-            pixelFormat: .r32Float,
-            planeIndex: 0,
-            textureCache: textureCache
-        )
-        confidenceTexture = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: confidenceMap,
-            pixelFormat: .r8Uint,
-            planeIndex: 0,
-            textureCache: textureCache
-        )
-        return true
-    }
-
     func shouldAccumulate(frame: ARFrame, pointCount currentCount: Int) -> Bool {
         guard isRecording else { return false }
         let ct = frame.camera.transform
 
-        let cameraMoved = currentCount == 0
-            || dot(ct.columns.2, lastCameraTransform.columns.2) <= cameraRotationThreshold
-            || distance_squared(ct.columns.3, lastCameraTransform.columns.3) >= cameraTranslationThreshold
+        let cameraMoved = Self.shouldAccumulateCameraMotion(
+            currentTransform: ct,
+            lastTransform: lastCameraTransform,
+            currentPointCount: currentCount,
+            rotationCosineThreshold: cameraRotationThreshold,
+            translationSquaredThreshold: cameraTranslationThreshold
+        )
 
         guard cameraMoved else { return false }
 
@@ -189,6 +118,18 @@ extension Renderer {
         scannedRegions.insert(cameraRegion)
 
         return true
+    }
+
+    static func shouldAccumulateCameraMotion(
+        currentTransform: simd_float4x4,
+        lastTransform: simd_float4x4,
+        currentPointCount: Int,
+        rotationCosineThreshold: Float,
+        translationSquaredThreshold: Float
+    ) -> Bool {
+        currentPointCount == 0
+            || dot(currentTransform.columns.2, lastTransform.columns.2) <= rotationCosineThreshold
+            || distance_squared(currentTransform.columns.3, lastTransform.columns.3) >= translationSquaredThreshold
     }
 
     func accumulatePoints(frame: ARFrame, commandBuffer: MTLCommandBuffer, renderEncoder: MTLRenderCommandEncoder, pointIndex: Int) {
@@ -218,54 +159,4 @@ extension Renderer {
         updateCoverageVoxels(frame: frame)
     }
 
-    func updateCoverageVoxels(frame: ARFrame) {
-        let newVoxels = RendererDepthCoverage.makeCoverageVoxels(
-            frame: frame,
-            orientation: orientation,
-            viewportSize: viewportSize,
-            minDepth: minDepth,
-            maxDepth: maxDepth,
-            confidenceThreshold: confidenceThreshold,
-            voxelSize: coverageVoxelSize
-        )
-        guard !newVoxels.isEmpty else { return }
-
-        if coverageVoxels.isEmpty {
-            coverageVoxels = newVoxels
-        } else {
-            coverageVoxels.formUnion(newVoxels)
-        }
-
-        scanProgress.recordVoxelCount(coverageVoxels.count)
-    }
-
-    func makeViewToCameraMatrix(frame: ARFrame) -> matrix_float3x3 {
-        let t = frame.displayTransform(for: orientation, viewportSize: viewportSize).inverted()
-        let a = Float(t.a)
-        let b = Float(t.b)
-        let c = Float(t.c)
-        let d = Float(t.d)
-        let tx = Float(t.tx)
-        let ty = Float(t.ty)
-        var result = matrix_float3x3()
-        result[0] = simd_float3(a, b, 0)
-        result[1] = simd_float3(c, d, 0)
-        result[2] = simd_float3(tx, ty, 1)
-        return result
-    }
-
-    static func cameraToDisplayRotation(orientation: UIInterfaceOrientation) -> Int {
-        switch orientation {
-        case .landscapeLeft: return 180
-        case .portrait: return 90
-        case .portraitUpsideDown: return -90
-        default: return 0
-        }
-    }
-
-    static func makeRotateToARCameraMatrix(orientation: UIInterfaceOrientation) -> matrix_float4x4 {
-        let flipYZ = matrix_float4x4([1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1])
-        let angle = Float(cameraToDisplayRotation(orientation: orientation)) * Float.degreesToRadian
-        return flipYZ * matrix_float4x4(simd_quaternion(angle, Float3(0, 0, 1)))
-    }
 }

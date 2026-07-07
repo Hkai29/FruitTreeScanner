@@ -35,6 +35,50 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(filter.matches(r: 0.6, g: 0.5, b: 0.2), "g 太高不应匹配")
     }
 
+    func testRGBToLabSeparatesRedFruitFromGreenLeaf() {
+        let redAppleLab = FruitCategory.rgbToLab(SIMD3<Float>(0.85, 0.20, 0.08))
+        let leafLab = FruitCategory.rgbToLab(SIMD3<Float>(0.32, 0.45, 0.18))
+
+        XCTAssertGreaterThan(redAppleLab.y, 0, "红果在 Lab a 通道应偏红")
+        XCTAssertLessThan(leafLab.y, 0, "绿叶在 Lab a 通道应偏绿")
+        XCTAssertGreaterThan(redAppleLab.y - leafLab.y, 50, "Lab 色度应能明显拉开红果与绿叶")
+    }
+
+    func testDefaultAppleColorFilterUsesLabGuardToRejectLeafGreen() {
+        let legacyRGBOnly = ColorFilter(rMin: 0.25, gMin: 0.22, bMax: 0.42)
+
+        XCTAssertTrue(
+            legacyRGBOnly.matches(r: 0.32, g: 0.45, b: 0.18),
+            "旧 RGB 盒子会把这类绿叶颜色误放进苹果候选"
+        )
+        XCTAssertFalse(
+            FruitCategory.apple.colorFilter.matches(r: 0.32, g: 0.45, b: 0.18),
+            "默认苹果过滤应通过 Lab 色度护栏拒绝绿叶"
+        )
+        XCTAssertTrue(
+            FruitCategory.apple.colorFilter.matches(r: 0.85, g: 0.25, b: 0.08),
+            "默认苹果过滤仍应保留成熟红果"
+        )
+        XCTAssertTrue(
+            FruitCategory.apple.colorFilter.description.contains("Lab"),
+            "结果诊断应能说明本次启用了 Lab 色度过滤"
+        )
+    }
+
+    func testSettingsHSVNormalizationClampsRanges() {
+        XCTAssertEqual(SettingsStore.normalizedHue(-20, fallback: 330), 0)
+        XCTAssertEqual(SettingsStore.normalizedHue(420, fallback: 330), 360)
+        XCTAssertEqual(SettingsStore.normalizedUnit(-0.5, fallback: 0.3), 0)
+        XCTAssertEqual(SettingsStore.normalizedUnit(1.5, fallback: 0.3), 1)
+    }
+
+    func testSettingsHSVNormalizationRejectsNonFiniteValues() {
+        XCTAssertEqual(SettingsStore.normalizedHue(.nan, fallback: 330), 330)
+        XCTAssertEqual(SettingsStore.normalizedHue(.infinity, fallback: 25), 25)
+        XCTAssertEqual(SettingsStore.normalizedUnit(.nan, fallback: 0.3), 0.3)
+        XCTAssertEqual(SettingsStore.normalizedUnit(-.infinity, fallback: 0.4), 0.4)
+    }
+
     func testIsFruitColor() {
         let redApple = SIMD3<Float>(0.85, 0.2, 0.1)
         XCTAssertTrue(FruitCategory.isFruitColor(redApple), "红色应被识别为果实颜色")
@@ -63,7 +107,31 @@ final class FruitModelsTests: XCTestCase {
 
         XCTAssertEqual(result.fruitCounts["apple"], 1, "两个 imageOnly 应按权重折算为 1 个")
         XCTAssertEqual(result.totalCount, 1, "totalCount 应与加权后的分类总数一致")
-        XCTAssertEqual(counter.weightedTotal(fruits), 1.0, accuracy: 0.001)
+        XCTAssertEqual(counter.weightedTotal(fruits), 0.85, accuracy: 0.001)
+    }
+
+    func testWeightedFruitTotalUsesConfidenceEvidence() {
+        let counter = FruitCounter()
+        let fruits = [
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0, 0, 0), confidence: 0.55, source: .fused),
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0.1, 0, 0), confidence: 0.8, source: .trackedImage),
+        ]
+
+        XCTAssertEqual(counter.weightedTotal(fruits), 1.15, accuracy: 0.001)
+    }
+
+    func testFruitCountUsesConfidenceEvidenceWeights() {
+        let counter = FruitCounter()
+        let fruits = [
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0, 0, 0), confidence: 0.4, source: .imageOnly),
+            ValidatedFruit(category: .orange, position: SIMD3<Float>(0.1, 0, 0), confidence: 0.95, source: .fused),
+        ]
+
+        let result = counter.count(fruits)
+
+        XCTAssertEqual(result.fruitCounts["apple"], 0, "低置信单帧视觉证据不应被整数计数抬成 1")
+        XCTAssertEqual(result.fruitCounts["orange"], 1, "高置信 fused 证据仍应计入整数数量")
+        XCTAssertEqual(result.totalCount, 1)
     }
 
     func testPLYParserHeaderMetadataFallback() throws {
@@ -479,6 +547,22 @@ final class FruitModelsTests: XCTestCase {
 
         XCTAssertEqual(boundaryRecord.gpsLat, 90, accuracy: 0.000001)
         XCTAssertEqual(boundaryRecord.gpsLon, 180, accuracy: 0.000001)
+    }
+
+    func testImportFileErrorClassifierRecognizesUserCancellation() {
+        let cocoaCancellation = NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError)
+        let urlCancellation = NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
+
+        XCTAssertTrue(ImportFileErrorClassifier.isUserCancellation(cocoaCancellation))
+        XCTAssertTrue(ImportFileErrorClassifier.isUserCancellation(urlCancellation))
+    }
+
+    func testImportFileErrorClassifierDoesNotHideRealErrors() {
+        let parseError = PLYImportService.ImportError.invalidPLY
+        let fileError = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileNoSuchFile.rawValue)
+
+        XCTAssertFalse(ImportFileErrorClassifier.isUserCancellation(parseError))
+        XCTAssertFalse(ImportFileErrorClassifier.isUserCancellation(fileError))
     }
 
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering

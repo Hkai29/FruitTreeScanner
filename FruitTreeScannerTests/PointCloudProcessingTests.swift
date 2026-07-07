@@ -56,6 +56,438 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertTrue(first.hasSuffix("_lat35.1000_lon139.2000.ply"))
     }
 
+    func testStableDataFormattingUsesPOSIXDecimalSeparator() {
+        XCTAssertEqual(StableDataFormatting.decimal(35.1, precision: 4), "35.1000")
+        XCTAssertEqual(StableDataFormatting.decimal(-45.987654321, precision: 6), "-45.987654")
+    }
+
+    func testStableDataFormattingUsesGregorianDateOutput() {
+        let date = Date(timeIntervalSince1970: 1_750_000_000)
+        let formatter = StableDataFormatting.dateFormatter(
+            dateFormat: "yyyyMMdd_HHmmss",
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+
+        XCTAssertEqual(formatter.string(from: date), "20250615_150640")
+    }
+
+    func testHorizontalAngleCoverageDistinguishesSingleSideFromFullRing() {
+        var singleSide = Set<RendererVoxelKey>()
+        var fullRing = Set<RendererVoxelKey>()
+        for i in 0..<120 {
+            let narrowAngle = (-Float.pi / 8) + Float(i) / 119.0 * (Float.pi / 4)
+            singleSide.insert(voxelKey(angle: narrowAngle, radius: 20))
+
+            let fullAngle = Float(i) / 120.0 * 2 * Float.pi
+            fullRing.insert(voxelKey(angle: fullAngle, radius: 20))
+        }
+
+        let singleSideCoverage = RendererDepthCoverage.estimateHorizontalAngleCoverage(from: singleSide)
+        let fullRingCoverage = RendererDepthCoverage.estimateHorizontalAngleCoverage(from: fullRing)
+
+        XCTAssertLessThan(singleSideCoverage, 0.35)
+        XCTAssertGreaterThan(fullRingCoverage, 0.85)
+    }
+
+    func testHorizontalAngleUniformityPenalizesSkewedFullRing() {
+        var uniformRing = Set<RendererVoxelKey>()
+        var skewedRing = Set<RendererVoxelKey>()
+
+        for bin in 0..<36 {
+            let angle = Float(bin) / 36.0 * 2 * Float.pi
+            for y in 0..<4 {
+                uniformRing.insert(voxelKey(angle: angle, radius: 24, y: Int32(y)))
+            }
+            for y in 0..<2 {
+                skewedRing.insert(voxelKey(angle: angle, radius: 24, y: Int32(y)))
+            }
+        }
+
+        for y in 2..<82 {
+            skewedRing.insert(voxelKey(angle: 0, radius: 24, y: Int32(y)))
+            skewedRing.insert(voxelKey(angle: Float.pi, radius: 24, y: Int32(y)))
+        }
+
+        let uniformity = RendererDepthCoverage.estimateHorizontalAngleUniformity(from: uniformRing)
+        let skewedUniformity = RendererDepthCoverage.estimateHorizontalAngleUniformity(from: skewedRing)
+
+        XCTAssertGreaterThan(uniformity, 0.95)
+        XCTAssertLessThan(skewedUniformity, uniformity)
+        XCTAssertLessThan(skewedUniformity, 0.75)
+        XCTAssertGreaterThan(
+            RendererDepthCoverage.estimateHorizontalAngleCoverage(from: skewedRing),
+            0.85,
+            "该指标应补充覆盖范围，避免全角度有点但分布高度不均时误判完成"
+        )
+    }
+
+    func testOppositeSideCoverageUsesCameraFacingDirection() {
+        var singleSide = Set<RendererCameraRegionKey>()
+        var pairedSides = Set<RendererCameraRegionKey>()
+
+        for x in 0..<8 {
+            singleSide.insert(cameraRegion(x: x, forwardX: 10, forwardZ: 0))
+            pairedSides.insert(cameraRegion(x: x, forwardX: 10, forwardZ: 0))
+        }
+        for x in 8..<16 {
+            pairedSides.insert(cameraRegion(x: x, forwardX: -10, forwardZ: 0))
+        }
+
+        let singleSideScore = RendererDepthCoverage.estimateOppositeSideCoverage(from: singleSide)
+        let pairedSideScore = RendererDepthCoverage.estimateOppositeSideCoverage(from: pairedSides)
+
+        XCTAssertLessThan(singleSideScore, 0.20)
+        XCTAssertGreaterThan(pairedSideScore, 0.85)
+    }
+
+    func testVerticalCoverageDistinguishesSingleLayerFromFullCanopyHeight() {
+        var singleLayer = Set<RendererVoxelKey>()
+        var fullHeight = Set<RendererVoxelKey>()
+
+        for x in -4...4 {
+            for z in -4...4 {
+                singleLayer.insert(RendererVoxelKey(x: Int32(x), y: 4, z: Int32(z)))
+                for y in 0...11 {
+                    fullHeight.insert(RendererVoxelKey(x: Int32(x), y: Int32(y), z: Int32(z)))
+                }
+            }
+        }
+
+        let singleLayerCoverage = RendererDepthCoverage.estimateVerticalCoverage(from: singleLayer)
+        let fullHeightCoverage = RendererDepthCoverage.estimateVerticalCoverage(from: fullHeight)
+
+        XCTAssertLessThan(singleLayerCoverage, 0.25)
+        XCTAssertGreaterThan(fullHeightCoverage, 0.85)
+    }
+
+    func testRendererMotionGateUsesPaperFiveCentimeterTranslationThreshold() {
+        let base = matrix_identity_float4x4
+        var belowThreshold = base
+        belowThreshold.columns.3.x = Renderer.cameraTranslationThresholdMeters * 0.98
+        var atThreshold = base
+        atThreshold.columns.3.x = Renderer.cameraTranslationThresholdMeters
+
+        XCTAssertEqual(Renderer.cameraTranslationThresholdMeters, 0.05, accuracy: 0.0001)
+        XCTAssertFalse(
+            Renderer.shouldAccumulateCameraMotion(
+                currentTransform: belowThreshold,
+                lastTransform: base,
+                currentPointCount: 10_000,
+                rotationCosineThreshold: cos(Renderer.cameraRotationThresholdDegrees * Float.degreesToRadian),
+                translationSquaredThreshold: Renderer.cameraTranslationThresholdSquared
+            ),
+            "小于 5cm 的平移帧应被视为冗余，不再累积点云"
+        )
+        XCTAssertTrue(
+            Renderer.shouldAccumulateCameraMotion(
+                currentTransform: atThreshold,
+                lastTransform: base,
+                currentPointCount: 10_000,
+                rotationCosineThreshold: cos(Renderer.cameraRotationThresholdDegrees * Float.degreesToRadian),
+                translationSquaredThreshold: Renderer.cameraTranslationThresholdSquared
+            ),
+            "达到 5cm 平移时应允许累积新视角点云"
+        )
+        XCTAssertTrue(
+            Renderer.shouldAccumulateCameraMotion(
+                currentTransform: belowThreshold,
+                lastTransform: base,
+                currentPointCount: 0,
+                rotationCosineThreshold: cos(Renderer.cameraRotationThresholdDegrees * Float.degreesToRadian),
+                translationSquaredThreshold: Renderer.cameraTranslationThresholdSquared
+            ),
+            "首帧没有历史点云时仍应允许累积"
+        )
+    }
+
+    func testCanopyGeometryEstimatorReportsOuterVolumeAndPorosityAdjustedVolume() throws {
+        let positions: [SIMD3<Float>] = (0...100).map { index in
+            let fraction = Float(index) / 100.0
+            return SIMD3<Float>(
+                -1.0 + 2.0 * fraction,
+                4.0 * fraction,
+                -0.5 + fraction
+            )
+        }
+
+        let estimate = try XCTUnwrap(CanopyGeometryEstimator.estimate(positions: positions))
+
+        XCTAssertEqual(estimate.crownWidthM, 1.8, accuracy: 0.001)
+        XCTAssertEqual(estimate.treeHeightM, 3.6, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownDepthM, 0.9, accuracy: 0.001)
+        XCTAssertEqual(
+            estimate.outerCrownVolumeM3,
+            Float.pi / 6 * 1.8 * 3.6 * 0.9,
+            accuracy: 0.001
+        )
+        XCTAssertGreaterThan(estimate.voxelSizeM, 0)
+        XCTAssertEqual(estimate.partitionSizeM, 5 * estimate.voxelSizeM, accuracy: 0.01)
+        XCTAssertGreaterThan(estimate.partitionCount, 1)
+        XCTAssertLessThan(estimate.effectiveVolumeCoefficient, 0.05)
+        XCTAssertLessThan(estimate.projectionEffectiveCoefficient, 0.10)
+        XCTAssertLessThan(estimate.crownVolumeM3, estimate.outerCrownVolumeM3)
+        XCTAssertEqual(estimate.pointCount, 101)
+        XCTAssertEqual(estimate.preprocessedPointCount, 101)
+        XCTAssertEqual(estimate.groundFilteredPointCount, 0)
+        XCTAssertEqual(estimate.trunkFilteredPointCount, 0)
+        XCTAssertEqual(estimate.neighborFilteredPointCount, 0)
+        XCTAssertEqual(estimate.canopyClusterCount, 1)
+        XCTAssertEqual(estimate.robustPointCount, 91)
+    }
+
+    func testCanopyGeometryEstimatorKeepsDenseCanopyNearOuterVolume() throws {
+        var positions: [SIMD3<Float>] = []
+        for xi in 0...10 {
+            for yi in 0...10 {
+                for zi in 0...10 {
+                    positions.append(SIMD3<Float>(
+                        -1 + Float(xi) * 0.2,
+                        Float(yi) * 0.2,
+                        -1 + Float(zi) * 0.2
+                    ))
+                }
+            }
+        }
+
+        let estimate = try XCTUnwrap(CanopyGeometryEstimator.estimate(positions: positions))
+
+        XCTAssertEqual(estimate.crownWidthM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.treeHeightM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownDepthM, 2, accuracy: 0.001)
+        XCTAssertGreaterThan(estimate.effectiveVolumeCoefficient, 0.95)
+        XCTAssertGreaterThan(estimate.projectionXYCoefficient, 0.95)
+        XCTAssertGreaterThan(estimate.projectionXZCoefficient, 0.95)
+        XCTAssertGreaterThan(estimate.projectionYZCoefficient, 0.95)
+        XCTAssertGreaterThan(estimate.projectionEffectiveCoefficient, 0.95)
+        XCTAssertEqual(estimate.crownVolumeM3, estimate.outerCrownVolumeM3, accuracy: 0.001)
+        XCTAssertEqual(estimate.voxelSizeM, 0.2, accuracy: 0.001)
+        XCTAssertEqual(estimate.partitionSizeM, 1.0, accuracy: 0.001)
+        XCTAssertEqual(estimate.partitionCount, 2)
+        XCTAssertEqual(estimate.neighborFilteredPointCount, 0)
+        XCTAssertEqual(estimate.canopyClusterCount, 1)
+    }
+
+    func testCanopyGeometryEstimatorRemovesGroundBandBeforeHeightAndVolume() throws {
+        var positions = makeDenseCanopyPositions(yBase: 1, yStep: 0.2)
+        for xi in 0...20 {
+            for zi in 0...20 {
+                positions.append(SIMD3<Float>(
+                    -1 + Float(xi) * 0.1,
+                    0,
+                    -1 + Float(zi) * 0.1
+                ))
+            }
+        }
+
+        let estimate = try XCTUnwrap(CanopyGeometryEstimator.estimate(positions: positions))
+
+        XCTAssertEqual(estimate.treeHeightM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownWidthM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownDepthM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.pointCount, positions.count)
+        XCTAssertGreaterThan(estimate.groundFilteredPointCount, 0)
+        XCTAssertEqual(estimate.trunkFilteredPointCount, 0)
+        XCTAssertEqual(estimate.neighborFilteredPointCount, 0)
+        XCTAssertEqual(estimate.canopyClusterCount, 1)
+        XCTAssertEqual(
+            estimate.preprocessedPointCount,
+            estimate.pointCount - estimate.groundFilteredPointCount
+        )
+    }
+
+    func testCanopyGeometryEstimatorRemovesLowCentralTrunkBeforeCrownVolume() throws {
+        var positions = makeDenseCanopyPositions(yBase: 1, yStep: 0.2)
+        for yi in 0...14 {
+            let y = Float(yi) * 0.1
+            for angleIndex in 0..<10 {
+                let angle = 2 * Float.pi * Float(angleIndex) / 10
+                let radius: Float = angleIndex.isMultiple(of: 2) ? 0.03 : 0.05
+                positions.append(SIMD3<Float>(
+                    cos(angle) * radius,
+                    y,
+                    sin(angle) * radius
+                ))
+            }
+        }
+
+        let estimate = try XCTUnwrap(CanopyGeometryEstimator.estimate(positions: positions))
+
+        XCTAssertEqual(estimate.treeHeightM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownWidthM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownDepthM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.pointCount, positions.count)
+        XCTAssertEqual(estimate.groundFilteredPointCount, 0)
+        XCTAssertGreaterThan(estimate.trunkFilteredPointCount, 0)
+        XCTAssertEqual(estimate.neighborFilteredPointCount, 0)
+        XCTAssertEqual(estimate.canopyClusterCount, 1)
+        XCTAssertEqual(
+            estimate.preprocessedPointCount,
+            estimate.pointCount - estimate.trunkFilteredPointCount
+        )
+    }
+
+    func testCanopyGeometryEstimatorUsesThreeProjectionCoefficientToPenalizeVerticalVoids() throws {
+        var positions: [SIMD3<Float>] = []
+        for xi in 0...20 {
+            for zi in 0...20 {
+                positions.append(SIMD3<Float>(
+                    -1 + Float(xi) * 0.1,
+                    0,
+                    -1 + Float(zi) * 0.1
+                ))
+            }
+        }
+        for y in [Float(1), Float(3)] {
+            for xi in 0...10 {
+                for zi in 0...10 {
+                    positions.append(SIMD3<Float>(
+                        -1 + Float(xi) * 0.2,
+                        y,
+                        -1 + Float(zi) * 0.2
+                    ))
+                }
+            }
+        }
+
+        let estimate = try XCTUnwrap(CanopyGeometryEstimator.estimate(positions: positions))
+
+        XCTAssertEqual(estimate.treeHeightM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownWidthM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownDepthM, 2, accuracy: 0.001)
+        XCTAssertGreaterThan(estimate.groundFilteredPointCount, 0)
+        XCTAssertGreaterThan(estimate.projectionXZCoefficient, 0.95)
+        XCTAssertLessThan(estimate.projectionXYCoefficient, 0.35)
+        XCTAssertLessThan(estimate.projectionYZCoefficient, 0.35)
+        XCTAssertLessThan(estimate.projectionEffectiveCoefficient, 0.50)
+        XCTAssertEqual(
+            estimate.effectiveVolumeCoefficient,
+            estimate.projectionEffectiveCoefficient,
+            accuracy: 0.001
+        )
+        XCTAssertLessThan(estimate.crownVolumeM3, estimate.outerCrownVolumeM3 * 0.50)
+    }
+
+    func testCanopyGeometryEstimatorKeepsDominantTargetClusterWhenNeighborCanopyIsSeparated() throws {
+        var positions = makeDenseCanopyPositions(yBase: 1, yStep: 0.2)
+        positions += makeSparseCanopyPositions(xOffset: 3.4, yBase: 1, zOffset: 0)
+
+        let estimate = try XCTUnwrap(CanopyGeometryEstimator.estimate(positions: positions))
+
+        XCTAssertEqual(estimate.crownWidthM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.treeHeightM, 2, accuracy: 0.001)
+        XCTAssertEqual(estimate.crownDepthM, 2, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(estimate.canopyClusterCount, 2)
+        XCTAssertGreaterThan(estimate.neighborFilteredPointCount, 0)
+        XCTAssertEqual(estimate.groundFilteredPointCount, 0)
+        XCTAssertEqual(estimate.trunkFilteredPointCount, 0)
+        XCTAssertEqual(
+            estimate.preprocessedPointCount,
+            estimate.pointCount - estimate.neighborFilteredPointCount
+        )
+    }
+
+    func testCanopyGeometryEstimatorKeepsAmbiguousSeparatedCanopiesForManualRescan() throws {
+        var positions = makeDenseCanopyPositions(yBase: 1, yStep: 0.2)
+        positions += makeDenseCanopyPositions(xOffset: 3.4, yBase: 1, yStep: 0.2, zOffset: 0)
+
+        let estimate = try XCTUnwrap(CanopyGeometryEstimator.estimate(positions: positions))
+
+        XCTAssertGreaterThanOrEqual(estimate.canopyClusterCount, 2)
+        XCTAssertEqual(estimate.neighborFilteredPointCount, 0)
+        XCTAssertGreaterThan(estimate.crownWidthM, 4.0)
+    }
+
+    func testCanopyGeometryEstimatorRejectsSparsePointCloud() {
+        let positions: [SIMD3<Float>] = (0..<10).map { index in
+            SIMD3<Float>(Float(index) * 0.01, 0, 0)
+        }
+
+        XCTAssertNil(CanopyGeometryEstimator.estimate(positions: positions))
+    }
+
+    private func makeDenseCanopyPositions(
+        xOffset: Float = 0,
+        yBase: Float,
+        yStep: Float,
+        zOffset: Float = 0
+    ) -> [SIMD3<Float>] {
+        var positions: [SIMD3<Float>] = []
+        for xi in 0...10 {
+            for yi in 0...10 {
+                for zi in 0...10 {
+                    positions.append(SIMD3<Float>(
+                        xOffset - 1 + Float(xi) * 0.2,
+                        yBase + Float(yi) * yStep,
+                        zOffset - 1 + Float(zi) * 0.2
+                    ))
+                }
+            }
+        }
+        return positions
+    }
+
+    private func makeSparseCanopyPositions(
+        xOffset: Float,
+        yBase: Float,
+        zOffset: Float
+    ) -> [SIMD3<Float>] {
+        var positions: [SIMD3<Float>] = []
+        for xi in 0...5 {
+            for yi in 0...5 {
+                for zi in 0...5 {
+                    positions.append(SIMD3<Float>(
+                        xOffset - 0.5 + Float(xi) * 0.2,
+                        yBase + Float(yi) * 0.4,
+                        zOffset - 0.5 + Float(zi) * 0.2
+                    ))
+                }
+            }
+        }
+        return positions
+    }
+
+    private func voxelKey(angle: Float, radius: Float, y: Int32 = 0) -> RendererVoxelKey {
+        RendererVoxelKey(
+            x: Int32((cos(angle) * radius).rounded()),
+            y: y,
+            z: Int32((sin(angle) * radius).rounded())
+        )
+    }
+
+    private func cameraRegion(x: Int, forwardX: Int, forwardZ: Int) -> RendererCameraRegionKey {
+        RendererCameraRegionKey(
+            x: x,
+            y: 0,
+            z: 0,
+            forwardX: forwardX,
+            forwardY: 0,
+            forwardZ: forwardZ
+        )
+    }
+
+    func testSaveFileCreatesTargetFolder() async throws {
+        let folder = "save-file-\(UUID().uuidString)"
+        let filename = "pointcloud.bin"
+        let directory = getDocumentsDirectory().appendingPathComponent(folder, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try await saveFile(data: Data("ok".utf8), filename: filename, folder: folder)
+
+        let url = directory.appendingPathComponent(filename)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "ok")
+    }
+
+    func testSaveFileRejectsUnsafeFolderName() async {
+        do {
+            try await saveFile(data: Data(), filename: "pointcloud.bin", folder: "../escape")
+            XCTFail("Expected unsafe folder name to be rejected")
+        } catch LocalFileStorageError.invalidFolder {
+        } catch {
+            XCTFail("Expected invalidFolder, got \(error)")
+        }
+    }
+
     // MARK: - PointCloudDenoiser.statisticalOutlierRemoval
 
     func testSOR_ReturnsOriginalForSmallInput() {
@@ -93,9 +525,19 @@ final class PointCloudProcessingTests: XCTestCase {
         )
         samples.append(outlier)
 
-        let result = PointCloudDenoiser.statisticalOutlierRemoval(samples: samples, k: 5, stdMultiplier: 1.5)
+        let detailed = PointCloudDenoiser.statisticalOutlierRemovalDetailed(
+            samples: samples,
+            k: 5,
+            stdMultiplier: 1.5
+        )
+        let result = detailed.samples
 
         XCTAssertEqual(result.count, clusterCount, "Outlier should be removed, inliers preserved")
+        XCTAssertEqual(detailed.stats.originalCount, clusterCount + 1)
+        XCTAssertEqual(detailed.stats.retainedCount, clusterCount)
+        XCTAssertEqual(detailed.stats.removedCount, 1)
+        XCTAssertEqual(detailed.stats.removalRatio, 1.0 / Float(clusterCount + 1), accuracy: 0.001)
+        XCTAssertGreaterThan(detailed.stats.threshold, 0)
 
         let hasOutlier = result.contains { $0.position.x > 10 }
         XCTAssertFalse(hasOutlier, "Far outlier must be removed")
@@ -168,6 +610,48 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(result.count, 1, "Two particles in same voxel should deduplicate to one")
         XCTAssertEqual(result[0].confidence, 90, "Higher-confidence particle should be kept")
         XCTAssertEqual(result[0].color, SIMD3<Float>(0, 1, 0), "Higher-confidence particle's color should be kept")
+    }
+
+    func testAnalysisVoxelSizeUsesPaperFiveMillimeterSpatialHash() throws {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            try XCTSkipIf(true, "Metal device not available")
+            return
+        }
+
+        let particles: [ParticleUniforms] = [
+            ParticleUniforms(
+                position: SIMD3<Float>(0.001, 0, 1),
+                color: SIMD3<Float>(1, 0, 0),
+                confidence: 90
+            ),
+            ParticleUniforms(
+                position: SIMD3<Float>(0.009, 0, 1),
+                color: SIMD3<Float>(0, 1, 0),
+                confidence: 80
+            ),
+        ]
+        let buffer = MetalBuffer<ParticleUniforms>(device: device, array: particles, index: 0)
+
+        let coarseSnapshotSamples = RendererPointCloudSnapshot.makeFilteredSamples(
+            particlesBuffer: buffer,
+            currentPointCount: 2,
+            currentPointIndex: 2,
+            maxPoints: 2,
+            voxelSize: 0.015,
+            confidenceThreshold: 10
+        )
+        let analysisSamples = RendererPointCloudSnapshot.makeFilteredSamples(
+            particlesBuffer: buffer,
+            currentPointCount: 2,
+            currentPointIndex: 2,
+            maxPoints: 2,
+            voxelSize: Renderer.analysisVoxelSizeMeters,
+            confidenceThreshold: 10
+        )
+
+        XCTAssertEqual(Renderer.analysisVoxelSizeMeters, 0.005, accuracy: 0.0001)
+        XCTAssertEqual(coarseSnapshotSamples.count, 1)
+        XCTAssertEqual(analysisSamples.count, 2)
     }
 
     func testMetalBufferAllowsEmptyCount() throws {

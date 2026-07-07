@@ -19,8 +19,13 @@ class FruitCounter {
 
     func weightedTotal(_ validatedFruits: [ValidatedFruit]) -> Float {
         validatedFruits.reduce(0) { total, fruit in
-            total + fruit.source.countWeight
+            total + Self.evidenceWeight(for: fruit)
         }
+    }
+
+    static func evidenceWeight(for fruit: ValidatedFruit) -> Float {
+        let confidence = min(max(fruit.confidence, 0), 1)
+        return fruit.source.countWeight * confidence
     }
 
     func countByCategory(_ validatedFruits: [ValidatedFruit], defaultCategory: FruitCategory = .apple) -> [FruitCategory: Int] {
@@ -32,7 +37,7 @@ class FruitCounter {
 
         for fruit in validatedFruits {
             let category = fruit.category ?? defaultCategory
-            let weight = Double(fruit.source.countWeight)
+            let weight = Double(Self.evidenceWeight(for: fruit))
             counts[category, default: 0] += weight
         }
 

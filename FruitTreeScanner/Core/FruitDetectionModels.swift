@@ -58,6 +58,8 @@ struct FruitCandidate: Identifiable, Sendable {
     let pointCount: Int
     let averageColor: SIMD3<Float>
     let points: [SIMD3<Float>]
+    let sourceCategory: FruitCategory?
+    let depthSupportRatio: Float?
 
     init(
         position: SIMD3<Float>,
@@ -65,7 +67,9 @@ struct FruitCandidate: Identifiable, Sendable {
         sphericity: Float,
         pointCount: Int,
         averageColor: SIMD3<Float>,
-        points: [SIMD3<Float>] = []
+        points: [SIMD3<Float>] = [],
+        sourceCategory: FruitCategory? = nil,
+        depthSupportRatio: Float? = nil
     ) {
         self.id = UUID()
         self.position = position
@@ -74,11 +78,17 @@ struct FruitCandidate: Identifiable, Sendable {
         self.pointCount = pointCount
         self.averageColor = averageColor
         self.points = points
+        self.sourceCategory = sourceCategory
+        self.depthSupportRatio = depthSupportRatio
     }
 
     func isValidFruit(expectedCategory: FruitCategory? = nil) -> Bool {
+        if let expectedCategory, let sourceCategory, sourceCategory != expectedCategory {
+            return false
+        }
         let threshold = expectedCategory?.sphericityThreshold ?? 0.5
-        return sphericity > threshold && pointCount >= 5
+        let minimumPointCount = sourceCategory != nil && depthSupportRatio != nil ? 3 : 5
+        return sphericity > threshold && pointCount >= minimumPointCount
     }
 
     func hasFruitColor() -> Bool {
@@ -105,6 +115,7 @@ struct ValidatedFruit: Identifiable, Sendable {
 
 enum ValidationSource: String, Sendable {
     case imageOnly = "image_only"
+    case trackedImage = "tracked_image"
     case cloudOnly = "cloud_only"
     case fused = "fused"
 
@@ -114,8 +125,19 @@ enum ValidationSource: String, Sendable {
             return 1.0
         case .imageOnly:
             return 0.5
+        case .trackedImage:
+            return 0.75
         case .cloudOnly:
             return 0.3
+        }
+    }
+
+    var isImageBased: Bool {
+        switch self {
+        case .imageOnly, .trackedImage, .fused:
+            return true
+        case .cloudOnly:
+            return false
         }
     }
 }
