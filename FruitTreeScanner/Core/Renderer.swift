@@ -163,7 +163,7 @@ final class Renderer: NSObject {
     var confidenceThreshold = 1 {
         didSet { pointCloudUniforms.confidenceThreshold = Int32(confidenceThreshold) }
     }
-    var rgbRadius: Float = 0 {
+    var rgbRadius: Float = 3 {
         didSet { rgbUniforms.radius = rgbRadius }
     }
 

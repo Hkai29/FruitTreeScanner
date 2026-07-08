@@ -37,38 +37,28 @@ struct ScanBottomControlBar: View {
 
     var body: some View {
         VStack(spacing: Design.Space.sm) {
-            HStack(spacing: Design.Space.sm) {
-                ScanUtilityControlButton(
-                    title: "引导",
-                    icon: "questionmark.circle",
-                    isActive: false,
-                    action: onToggleGuide,
-                    height: utilityHeight,
-                    fontSize: utilityFontSize,
-                    accessibilityIdentifier: "scan.guide"
-                )
+            if !isRecording {
+                HStack(spacing: Design.Space.sm) {
+                    ScanUtilityControlButton(
+                        title: "引导",
+                        icon: "questionmark.circle",
+                        isActive: false,
+                        action: onToggleGuide,
+                        height: utilityHeight,
+                        fontSize: utilityFontSize,
+                        accessibilityIdentifier: "scan.guide"
+                    )
 
-                ScanUtilityControlButton(
-                    title: "测量",
-                    icon: "ruler",
-                    isActive: measurementController.isActive,
-                    action: onToggleMeasurement,
-                    height: utilityHeight,
-                    fontSize: utilityFontSize,
-                    accessibilityIdentifier: "scan.measure"
-                )
-
-            #if DEBUG
-                ScanUtilityControlButton(
-                    title: "调试",
-                    icon: "wrench.and.screwdriver",
-                    isActive: false,
-                    action: onDebug,
-                    height: utilityHeight,
-                    fontSize: utilityFontSize,
-                    accessibilityIdentifier: "scan.debug"
-                )
-            #endif
+                    ScanUtilityControlButton(
+                        title: "测量",
+                        icon: "ruler",
+                        isActive: measurementController.isActive,
+                        action: onToggleMeasurement,
+                        height: utilityHeight,
+                        fontSize: utilityFontSize,
+                        accessibilityIdentifier: "scan.measure"
+                    )
+                }
             }
 
             HStack(spacing: Design.Space.sm) {

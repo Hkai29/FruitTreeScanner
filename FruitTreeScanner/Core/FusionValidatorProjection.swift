@@ -137,6 +137,41 @@ extension FusionValidator {
         cameraTransform: simd_float4x4,
         imageSize: CGSize
     ) -> SIMD3<Float> {
+        projectDetectionTo3D(
+            detection: detection,
+            depthMap: depthMap,
+            cameraIntrinsics: cameraIntrinsics,
+            cameraTransform: cameraTransform,
+            imageSize: imageSize,
+            fallbackDepth: 2.0
+        ) ?? SIMD3<Float>(0, 0, 2)
+    }
+
+    func projectDetectionTo3DWithValidDepth(
+        detection: DetectedFruit,
+        depthMap: CVPixelBuffer?,
+        cameraIntrinsics: matrix_float3x3,
+        cameraTransform: simd_float4x4,
+        imageSize: CGSize
+    ) -> SIMD3<Float>? {
+        projectDetectionTo3D(
+            detection: detection,
+            depthMap: depthMap,
+            cameraIntrinsics: cameraIntrinsics,
+            cameraTransform: cameraTransform,
+            imageSize: imageSize,
+            fallbackDepth: nil
+        )
+    }
+
+    private func projectDetectionTo3D(
+        detection: DetectedFruit,
+        depthMap: CVPixelBuffer?,
+        cameraIntrinsics: matrix_float3x3,
+        cameraTransform: simd_float4x4,
+        imageSize: CGSize,
+        fallbackDepth: Float?
+    ) -> SIMD3<Float>? {
         let box = detection.boundingBox
 
         // A 9x9 grid plus foreground-cluster selection follows the same idea as
@@ -169,8 +204,10 @@ extension FusionValidator {
         let depth: Float
         if let robustDepth = Self.robustDepth(from: validDepths) {
             depth = robustDepth
+        } else if let fallbackDepth {
+            depth = fallbackDepth
         } else {
-            depth = 2.0
+            return nil
         }
 
         let normCenterX = box.origin.x + box.size.width / 2

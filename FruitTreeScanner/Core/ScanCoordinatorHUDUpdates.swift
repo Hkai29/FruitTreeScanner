@@ -42,6 +42,8 @@ extension ScanCoordinator {
         }
 
         let imageDiagnostics = imageDetector.diagnosticsSnapshot()
+        let detectorConfig = imageDetector.configSnapshot()
+        let stableFruitCount = confirmedLiveFruitCount(detectorConfig: detectorConfig)
         #if DEBUG
         onDetectionDebugStateChange?(imageDetector.detectionDebugSnapshot())
         #endif
@@ -50,10 +52,37 @@ extension ScanCoordinator {
             coveragePercent: hudCoveragePercent,
             exportablePointStatus: (renderer?.exportablePointCountPublic ?? 0) > 0 ? "Ready" : "NoCloud",
             processedImageFrames: imageDiagnostics.processedFrameCount,
-            detectedFruitCount: max(detectedFruits.count, imageDiagnostics.mappedFruitCount)
+            detectedFruitCount: stableFruitCount
         )
 
         updateScanCompletion()
+    }
+
+    func confirmedLiveFruitCount(detectorConfig: FruitScanConfig) -> Int {
+        let stableEvidenceDetections = DetectionDeduplicator.stableEvidenceDetections(
+            detectedFruits.filter(\.hasAlignedDepthContext),
+            minimumObservations: max(detectorConfig.minimumStableDetectionsForYield, 2),
+            minimumConfidence: max(detectorConfig.minConfidence, 0.85),
+            timeWindow: detectorConfig.stableDetectionTimeWindow,
+            recentOnly: true
+        )
+        guard !stableEvidenceDetections.isEmpty else { return 0 }
+
+        let fruitCategory = FruitCategory(rawValue: settings.fruitType) ?? .apple
+        let clusterConfig = settings.clusterConfig(for: FruitVarietyParams(category: fruitCategory))
+        let depthCandidates = DetectionDepthCandidateBuilder.makeCandidates(
+            from: stableEvidenceDetections,
+            clusterConfig: clusterConfig
+        )
+        guard !depthCandidates.isEmpty else { return 0 }
+
+        let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(stableEvidenceDetections)
+        let validatedFruits = FusionValidator(config: detectorConfig).validate(
+            detections: deduplicatedDetections,
+            candidates: depthCandidates
+        )
+        let fusedFruits = validatedFruits.filter { $0.source == ValidationSource.fused }
+        return ValidatedFruit.deduplicate3D(fusedFruits).count
     }
 
     @MainActor

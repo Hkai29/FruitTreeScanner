@@ -7,9 +7,14 @@ class SceneKitPointCloudViewCoordinator: NSObject, ObservableObject {
     private var bounds: PointCloudBounds?
     private var currentViewMode: PointCloudViewMode = .orbit
     private var zoomScale: Float = 1
+    private var orbitYaw: Float = 0.62
+    private var orbitPitch: Float = 0.36
+    private let defaultOrbitYaw: Float = 0.62
+    private let defaultOrbitPitch: Float = 0.36
 
     func resetCamera() {
         zoomScale = 1
+        resetOrbitAngles()
         applyCamera(animated: true)
     }
 
@@ -22,6 +27,9 @@ class SceneKitPointCloudViewCoordinator: NSObject, ObservableObject {
     func setViewMode(_ viewMode: PointCloudViewMode) {
         currentViewMode = viewMode
         zoomScale = 1
+        if viewMode == .orbit {
+            resetOrbitAngles()
+        }
         applyCamera(animated: true)
     }
 
@@ -33,6 +41,19 @@ class SceneKitPointCloudViewCoordinator: NSObject, ObservableObject {
     func zoomOut() {
         zoomScale = min(zoomScale * 1.32, 4.5)
         applyCamera(animated: true)
+    }
+
+    func adjustZoom(by magnification: CGFloat) {
+        guard magnification.isFinite, magnification > 0 else { return }
+        zoomScale = min(max(zoomScale / Float(magnification), 0.22), 4.5)
+        applyCamera(animated: false)
+    }
+
+    func rotateOrbit(delta: CGPoint) {
+        guard currentViewMode == .orbit else { return }
+        orbitYaw -= Float(delta.x) * 0.006
+        orbitPitch = min(max(orbitPitch + Float(delta.y) * 0.006, -1.05), 1.05)
+        applyCamera(animated: false)
     }
 
     private func applyCamera(animated: Bool) {
@@ -47,7 +68,12 @@ class SceneKitPointCloudViewCoordinator: NSObject, ObservableObject {
         let position: SCNVector3
         switch currentViewMode {
         case .orbit:
-            position = SCNVector3(distance * 0.72, distance * 0.46, distance)
+            let horizontal = cos(orbitPitch)
+            position = SCNVector3(
+                distance * sin(orbitYaw) * horizontal,
+                distance * sin(orbitPitch),
+                distance * cos(orbitYaw) * horizontal
+            )
         case .front:
             position = SCNVector3(0, 0, distance)
         case .top:
@@ -66,6 +92,11 @@ class SceneKitPointCloudViewCoordinator: NSObject, ObservableObject {
         cameraNode.position = position
         cameraNode.look(at: target)
         SCNTransaction.commit()
+    }
+
+    private func resetOrbitAngles() {
+        orbitYaw = defaultOrbitYaw
+        orbitPitch = defaultOrbitPitch
     }
 
     private func orthographicScale(for mode: PointCloudViewMode, size: SCNVector3) -> Float {
@@ -107,14 +138,9 @@ struct SceneKitPointCloudView: UIViewRepresentable {
     func makeUIView(context: Context) -> SCNView {
         let sceneView = SCNView()
         sceneView.backgroundColor = UIColor(Color(hex: "1C1C1E"))
-        sceneView.allowsCameraControl = true
+        sceneView.allowsCameraControl = false
         sceneView.autoenablesDefaultLighting = false
-        sceneView.defaultCameraController.interactionMode = .orbitTurntable
-        sceneView.pointOfView?.name = "camera"
-
-        sceneView.addGestureRecognizer(
-            UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-        )
+        sceneView.isUserInteractionEnabled = true
 
         let scene = SCNScene()
         sceneView.scene = scene
@@ -133,16 +159,15 @@ struct SceneKitPointCloudView: UIViewRepresentable {
         ambientLight.light?.intensity = 500
         scene.rootNode.addChildNode(ambientLight)
 
-        reloadPointCloud(in: sceneView, context: context)
-
-        // Store reference for camera control
         cameraCoordinator.sceneView = sceneView
         measurementController?.sceneView = sceneView
+        context.coordinator.attachGestures(to: sceneView)
+        reloadPointCloud(in: sceneView, context: context)
 
         return sceneView
     }
 
-    class Coordinator: NSObject {
+    class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: SceneKitPointCloudView
         var loadedContentID: String?
         var appliedColorMode: PointCloudColorMode?
@@ -152,14 +177,51 @@ struct SceneKitPointCloudView: UIViewRepresentable {
             self.parent = parent
         }
 
+        func attachGestures(to sceneView: SCNView) {
+            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+            tap.delegate = self
+            sceneView.addGestureRecognizer(tap)
+
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+            pinch.delegate = self
+            sceneView.addGestureRecognizer(pinch)
+
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            pan.maximumNumberOfTouches = 1
+            pan.delegate = self
+            sceneView.addGestureRecognizer(pan)
+        }
+
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
             let location = gesture.location(in: gesture.view)
             parent.measurementController?.handleTap(at: location)
+        }
+
+        @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+            guard gesture.state == .began || gesture.state == .changed else { return }
+            parent.cameraCoordinator.adjustZoom(by: gesture.scale)
+            gesture.scale = 1
+        }
+
+        @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+            guard gesture.state == .began || gesture.state == .changed else { return }
+            let translation = gesture.translation(in: gesture.view)
+            parent.cameraCoordinator.rotateOrbit(delta: translation)
+            gesture.setTranslation(.zero, in: gesture.view)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
         }
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {
         context.coordinator.parent = self
+        cameraCoordinator.sceneView = uiView
+        measurementController?.sceneView = uiView
         if context.coordinator.loadedContentID != contentID {
             reloadPointCloud(in: uiView, context: context)
         }

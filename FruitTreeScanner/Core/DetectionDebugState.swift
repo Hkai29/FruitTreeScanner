@@ -80,11 +80,11 @@ struct DetectionFailureSample: Identifiable, Sendable, Equatable, Codable {
 }
 
 enum DetectionDebugConfiguration {
-    static let defaultThreshold: Float = 0.25
+    static let defaultThreshold: Float = 0.85
 
     static func effectiveThreshold(for configuredThreshold: Float, debugEnabled: Bool = isBuildDebug) -> Float {
-        let clampedThreshold = clamped(configuredThreshold)
-        return debugEnabled ? min(clampedThreshold, defaultThreshold) : clampedThreshold
+        _ = debugEnabled
+        return clamped(configuredThreshold)
     }
 
     private static var isBuildDebug: Bool {

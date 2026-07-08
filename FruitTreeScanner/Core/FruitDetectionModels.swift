@@ -198,6 +198,8 @@ struct FruitScanConfig: Sendable {
     var minConfidence: Float = 0.5
     var sizeTolerance: Float = 0.35
     var sphericityThreshold: Float = 0.5
+    var minimumStableDetectionsForYield: Int = 1
+    var stableDetectionTimeWindow: TimeInterval = 3.5
 
     static let `default` = FruitScanConfig()
 }

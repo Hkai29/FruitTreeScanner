@@ -3,11 +3,174 @@
 
 import Foundation
 import CoreGraphics
+@preconcurrency import CoreVideo
 import simd
 
 // MARK: - 2D IoU 去重
 
 struct DetectionDeduplicator {
+    private enum DetectionSpatialRelationship {
+        case unavailable
+        case associated
+        case separated
+    }
+
+    private struct StableDetectionTrack {
+        var representative: DetectedFruit
+        var observations: [DetectedFruit]
+        var observationCount: Int
+        var firstTimestamp: TimeInterval
+        var lastTimestamp: TimeInterval
+
+        init(seed: DetectedFruit) {
+            representative = seed
+            observations = [seed]
+            observationCount = 1
+            firstTimestamp = seed.timestamp
+            lastTimestamp = seed.timestamp
+        }
+
+        mutating func add(_ detection: DetectedFruit) {
+            observations.append(detection)
+            observationCount += 1
+            firstTimestamp = min(firstTimestamp, detection.timestamp)
+            lastTimestamp = max(lastTimestamp, detection.timestamp)
+            if detection.confidence > representative.confidence {
+                representative = detection
+            }
+        }
+
+        var duration: TimeInterval {
+            lastTimestamp - firstTimestamp
+        }
+
+        func canAccept(
+            _ detection: DetectedFruit,
+            maxGap: TimeInterval,
+            centerDistanceThreshold: CGFloat,
+            projectedPositions: inout [UUID: SIMD3<Float>]
+        ) -> Bool {
+            guard representative.category == detection.category else { return false }
+            guard abs(detection.timestamp - lastTimestamp) <= maxGap else { return false }
+            switch DetectionDeduplicator.spatialRelationshipIn3D(
+                representative,
+                detection,
+                projectedPositions: &projectedPositions
+            ) {
+            case .separated:
+                return false
+            case .associated:
+                return true
+            case .unavailable:
+                break
+            }
+            return normalizedCenterDistance(representative.boundingBox, detection.boundingBox) <= centerDistanceThreshold &&
+                areaSimilarity(representative.boundingBox, detection.boundingBox) >= 0.45
+        }
+    }
+
+    static func stableDetections(
+        _ detections: [DetectedFruit],
+        minimumObservations: Int = 2,
+        minimumConfidence: Float = 0.85,
+        timeWindow: TimeInterval = 3.5,
+        centerDistanceThreshold: CGFloat = 0.16,
+        minimumDuration: TimeInterval = 0.35
+    ) -> [DetectedFruit] {
+        stableTracks(
+            detections,
+            minimumObservations: minimumObservations,
+            minimumConfidence: minimumConfidence,
+            timeWindow: timeWindow,
+            centerDistanceThreshold: centerDistanceThreshold,
+            minimumDuration: minimumDuration,
+            recentOnly: false
+        ).map(\.representative)
+    }
+
+    static func stableEvidenceDetections(
+        _ detections: [DetectedFruit],
+        minimumObservations: Int = 2,
+        minimumConfidence: Float = 0.85,
+        timeWindow: TimeInterval = 3.5,
+        centerDistanceThreshold: CGFloat = 0.16,
+        minimumDuration: TimeInterval = 0.35,
+        recentOnly: Bool = false
+    ) -> [DetectedFruit] {
+        stableTracks(
+            detections,
+            minimumObservations: minimumObservations,
+            minimumConfidence: minimumConfidence,
+            timeWindow: timeWindow,
+            centerDistanceThreshold: centerDistanceThreshold,
+            minimumDuration: minimumDuration,
+            recentOnly: recentOnly
+        ).flatMap(\.observations)
+    }
+
+    private static func stableTracks(
+        _ detections: [DetectedFruit],
+        minimumObservations: Int,
+        minimumConfidence: Float,
+        timeWindow: TimeInterval,
+        centerDistanceThreshold: CGFloat,
+        minimumDuration: TimeInterval,
+        recentOnly: Bool
+    ) -> [StableDetectionTrack] {
+        guard !detections.isEmpty else { return [] }
+        let requiredObservations = max(minimumObservations, 1)
+        let latestTimestamp = detections.map(\.timestamp).max() ?? 0
+        let recentDetections = detections
+            .filter { detection in
+                detection.confidence >= minimumConfidence && (
+                    !recentOnly || latestTimestamp - detection.timestamp <= timeWindow
+                )
+            }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        if requiredObservations == 1 {
+            return recentDetections.map(StableDetectionTrack.init(seed:))
+        }
+
+        var tracks: [StableDetectionTrack] = []
+        var projectedPositions: [UUID: SIMD3<Float>] = [:]
+        for detection in recentDetections {
+            if let trackIndex = tracks.firstIndex(where: { track in
+                track.canAccept(
+                    detection,
+                    maxGap: timeWindow,
+                    centerDistanceThreshold: centerDistanceThreshold,
+                    projectedPositions: &projectedPositions
+                )
+            }) {
+                tracks[trackIndex].add(detection)
+            } else {
+                tracks.append(StableDetectionTrack(seed: detection))
+            }
+        }
+
+        return tracks.filter { track in
+            track.observationCount >= requiredObservations &&
+                track.duration >= minimumDuration
+        }
+    }
+
+    static func stableTrackCount(
+        _ detections: [DetectedFruit],
+        minimumObservations: Int = 2,
+        minimumConfidence: Float = 0.85,
+        timeWindow: TimeInterval = 3.5
+    ) -> Int {
+        stableTracks(
+            detections,
+            minimumObservations: minimumObservations,
+            minimumConfidence: minimumConfidence,
+            timeWindow: timeWindow,
+            centerDistanceThreshold: 0.16,
+            minimumDuration: 0.35,
+            recentOnly: true
+        ).count
+    }
 
     /// 基于 2D 边界框 IoU 去重
     /// 同一果实在连续帧中会被反复检测，边界框高度重叠 → 保留高置信度
@@ -75,8 +238,13 @@ struct DetectionDeduplicator {
             return false
         }
 
-        if areSeparatedIn3D(candidate, kept, projectedPositions: &projectedPositions) {
+        switch spatialRelationshipIn3D(candidate, kept, projectedPositions: &projectedPositions) {
+        case .separated:
             return false
+        case .associated:
+            return true
+        case .unavailable:
+            break
         }
 
         let iou = computeIoU(kept.boundingBox, candidate.boundingBox)
@@ -96,19 +264,28 @@ struct DetectionDeduplicator {
         return areaSimilarity(kept.boundingBox, candidate.boundingBox) >= 0.45
     }
 
-    private static func areSeparatedIn3D(
+    private static func spatialRelationshipIn3D(
         _ lhs: DetectedFruit,
         _ rhs: DetectedFruit,
         projectedPositions: inout [UUID: SIMD3<Float>]
-    ) -> Bool {
+    ) -> DetectionSpatialRelationship {
         guard let lhsPosition = projectedWorldPosition(for: lhs, cache: &projectedPositions),
               let rhsPosition = projectedWorldPosition(for: rhs, cache: &projectedPositions) else {
-            return false
+            return .unavailable
         }
 
         let maxExpectedDiameter = max(lhs.category.sizeRange.upperBound, rhs.category.sizeRange.upperBound)
+        let distance = simd_distance(lhsPosition, rhsPosition)
+        let associationThreshold = max(0.04, min(maxExpectedDiameter * 0.75, 0.085))
+        if distance <= associationThreshold {
+            return .associated
+        }
+
         let separationThreshold = max(0.06, min(maxExpectedDiameter * 1.2, 0.16))
-        return simd_distance(lhsPosition, rhsPosition) > separationThreshold
+        if distance > separationThreshold {
+            return .separated
+        }
+        return .unavailable
     }
 
     private static func projectedWorldPosition(
@@ -126,15 +303,68 @@ struct DetectionDeduplicator {
             return nil
         }
 
-        let position = FusionValidator().projectDetectionTo3D(
-            detection: detection,
+        guard let depth = robustDetectionDepth(
+            for: detection,
             depthMap: depthMap,
-            cameraIntrinsics: cameraIntrinsics,
-            cameraTransform: cameraTransform,
             imageSize: imageSize
-        )
+        ) else {
+            return nil
+        }
+
+        let normCenterX = detection.boundingBox.midX
+        let normCenterY = detection.boundingBox.midY
+        let centerX = normCenterX * imageSize.width
+        let centerY = (1 - normCenterY) * imageSize.height
+        let imagePoint = SIMD3<Float>(Float(centerX), Float(centerY), 1.0)
+        guard let cameraPoint = FusionValidator.cameraPointFromImagePoint(
+            imagePoint,
+            depth: depth,
+            cameraIntrinsics: cameraIntrinsics
+        ) else {
+            return nil
+        }
+
+        let worldPoint = cameraTransform * SIMD4<Float>(cameraPoint.x, cameraPoint.y, cameraPoint.z, 1.0)
+        let position = SIMD3<Float>(worldPoint.x, worldPoint.y, worldPoint.z)
+        guard position.x.isFinite, position.y.isFinite, position.z.isFinite else {
+            return nil
+        }
         cache[detection.id] = position
         return position
+    }
+
+    private static func robustDetectionDepth(
+        for detection: DetectedFruit,
+        depthMap: CVPixelBuffer,
+        imageSize: CGSize
+    ) -> Float? {
+        guard imageSize.width > 0,
+              imageSize.height > 0,
+              let depthSampler = DetectionDepthSampler(depthMap: depthMap) else {
+            return nil
+        }
+
+        let sampleGrid = 9
+        var validDepths: [Float] = []
+        validDepths.reserveCapacity(sampleGrid * sampleGrid)
+        for row in 0..<sampleGrid {
+            for col in 0..<sampleGrid {
+                let normalizedPoint = CGPoint(
+                    x: detection.boundingBox.origin.x + detection.boundingBox.width * (CGFloat(col) + 0.5) / CGFloat(sampleGrid),
+                    y: detection.boundingBox.origin.y + detection.boundingBox.height * (CGFloat(row) + 0.5) / CGFloat(sampleGrid)
+                )
+                let depthPoint = FusionValidator.depthSamplePoint(
+                    normalizedPoint: normalizedPoint,
+                    imageSize: imageSize,
+                    depthSize: CGSize(width: depthSampler.width, height: depthSampler.height)
+                )
+                if let depth = depthSampler.depth(x: Int(depthPoint.x), y: Int(depthPoint.y)) {
+                    validDepths.append(depth)
+                }
+            }
+        }
+
+        return FusionValidator.robustDepth(from: validDepths)
     }
 
     private static func normalizedCenterDistance(_ a: CGRect, _ b: CGRect) -> CGFloat {
@@ -151,6 +381,66 @@ struct DetectionDeduplicator {
         let larger = max(areaA, areaB)
         guard larger > 0 else { return 0 }
         return min(areaA, areaB) / larger
+    }
+
+    private final class DetectionDepthSampler {
+        let width: Int
+        let height: Int
+
+        private let depthMap: CVPixelBuffer
+        private let baseAddress: UnsafeMutableRawPointer
+        private let pixelFormat: FourCharCode
+
+        init?(depthMap: CVPixelBuffer) {
+            CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+            guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
+                CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
+                return nil
+            }
+
+            self.depthMap = depthMap
+            self.baseAddress = baseAddress
+            self.width = CVPixelBufferGetWidth(depthMap)
+            self.height = CVPixelBufferGetHeight(depthMap)
+            self.pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
+        }
+
+        deinit {
+            CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
+        }
+
+        func depth(x: Int, y: Int) -> Float? {
+            guard width > 0, height > 0 else { return nil }
+
+            let clampedX = max(0, min(x, width - 1))
+            let clampedY = max(0, min(y, height - 1))
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+            let fp32: FourCharCode = 0x66703233
+            let up16: FourCharCode = 0x75703136
+            let depth: Float
+
+            if pixelFormat == fp32 ||
+                pixelFormat == kCVPixelFormatType_DepthFloat32 ||
+                pixelFormat == kCVPixelFormatType_OneComponent32Float {
+                let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
+                let rowFloats = bytesPerRow / MemoryLayout<Float>.size
+                depth = floatBuffer[clampedY * rowFloats + clampedX]
+            } else if pixelFormat == kCVPixelFormatType_DepthFloat16 ||
+                pixelFormat == kCVPixelFormatType_OneComponent16Half {
+                let halfBuffer = baseAddress.assumingMemoryBound(to: UInt16.self)
+                let rowHalfs = bytesPerRow / MemoryLayout<UInt16>.size
+                depth = Float(Float16(bitPattern: halfBuffer[clampedY * rowHalfs + clampedX]))
+            } else if pixelFormat == up16 {
+                let shortBuffer = baseAddress.assumingMemoryBound(to: UInt16.self)
+                let rowShorts = bytesPerRow / MemoryLayout<UInt16>.size
+                depth = Float(shortBuffer[clampedY * rowShorts + clampedX]) / 1000.0
+            } else {
+                return nil
+            }
+
+            guard depth > 0.1, depth < 10.0 else { return nil }
+            return depth
+        }
     }
 }
 

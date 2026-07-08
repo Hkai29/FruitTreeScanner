@@ -54,6 +54,247 @@ final class DetectionDeduplicatorTests: XCTestCase {
         XCTAssertEqual(result.count, 1)
     }
 
+    func testStableTrackCountIgnoresSingleHighConfidenceDetection() {
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.2, height: 0.2),
+            confidence: 0.95,
+            timestamp: 10
+        )
+
+        let count = DetectionDeduplicator.stableTrackCount([detection])
+
+        XCTAssertEqual(count, 0, "单帧高置信度检测不能直接显示为果数")
+    }
+
+    func testStableTrackCountAcceptsRepeatedStableDetections() {
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.92,
+                timestamp: 10
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.315, y: 0.305, width: 0.19, height: 0.21),
+                confidence: 0.91,
+                timestamp: 10.6
+            )
+        ]
+
+        let count = DetectionDeduplicator.stableTrackCount(detections)
+
+        XCTAssertEqual(count, 1, "连续帧中位置和尺寸稳定的检测才计入实时果数")
+    }
+
+    func testStableDetectionsKeepsEarlierTracksAcrossFullScan() {
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.20, y: 0.20, width: 0.18, height: 0.18),
+                confidence: 0.92,
+                timestamp: 10
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.21, y: 0.20, width: 0.18, height: 0.18),
+                confidence: 0.91,
+                timestamp: 10.7
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.62, y: 0.48, width: 0.16, height: 0.16),
+                confidence: 0.93,
+                timestamp: 30
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.63, y: 0.48, width: 0.16, height: 0.16),
+                confidence: 0.90,
+                timestamp: 30.7
+            )
+        ]
+
+        let stableDetections = DetectionDeduplicator.stableDetections(detections)
+
+        XCTAssertEqual(stableDetections.count, 2, "最终融合不能只保留扫描最后几秒的稳定果实")
+    }
+
+    func testStableEvidenceDetectionsReturnsAllObservationsInStableTrack() {
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.92,
+                timestamp: 10
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.31, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.91,
+                timestamp: 10.7
+            )
+        ]
+
+        let evidence = DetectionDeduplicator.stableEvidenceDetections(detections)
+
+        XCTAssertEqual(evidence.count, 2, "融合和遮挡估计需要稳定轨迹中的多帧证据")
+    }
+
+    func testStableEvidenceDetectionsDoesNotMerge3DSeparatedObservations() {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.95,
+                timestamp: 10,
+                cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.34, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.93,
+                timestamp: 10.6,
+                cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap
+            )
+        ]
+
+        let evidence = DetectionDeduplicator.stableEvidenceDetections(detections)
+
+        XCTAssertTrue(
+            evidence.isEmpty,
+            "2D 重叠但 3D 空间已分离的果实不能互相凑成稳定轨迹"
+        )
+    }
+
+    func testStableEvidenceDetectionsAccepts3DAssociatedObservationsAcrossViewShift() {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        var shiftedCameraTransform = matrix_identity_float4x4
+        shiftedCameraTransform.columns.3.x = -2.304
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.95,
+                timestamp: 10,
+                cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.60, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.93,
+                timestamp: 10.6,
+                cameraTransform: shiftedCameraTransform,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap
+            )
+        ]
+
+        let evidence = DetectionDeduplicator.stableEvidenceDetections(detections)
+
+        XCTAssertEqual(
+            evidence.count,
+            2,
+            "同一世界位置的果实跨视角移动到画面不同区域时，仍应形成稳定轨迹"
+        )
+    }
+
+    func testDeduplicate2DMerges3DAssociatedDetectionsAcrossViewShift() {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        var shiftedCameraTransform = matrix_identity_float4x4
+        shiftedCameraTransform.columns.3.x = -2.304
+        let d1 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+            confidence: 0.95,
+            timestamp: 10,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+        let d2 = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.60, y: 0.30, width: 0.20, height: 0.20),
+            confidence: 0.93,
+            timestamp: 10.6,
+            cameraTransform: shiftedCameraTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+
+        let result = DetectionDeduplicator.deduplicate2D([d1, d2])
+
+        XCTAssertEqual(
+            result.count,
+            1,
+            "3D 空间已确认是同一果实时，即使 2D 框相距较远也应去重"
+        )
+    }
+
+    func testInvalidDepthDoesNotCreate3DAssociationFromFallbackProjection() {
+        let invalidDepthMap = makeDepthMap(width: 256, height: 192, fillValue: 0.0)
+        XCTAssertNotNil(invalidDepthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        var shiftedCameraTransform = matrix_identity_float4x4
+        shiftedCameraTransform.columns.3.x = -2.304
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.95,
+                timestamp: 10,
+                cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: invalidDepthMap
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.60, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.93,
+                timestamp: 10.6,
+                cameraTransform: shiftedCameraTransform,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: invalidDepthMap
+            )
+        ]
+
+        XCTAssertTrue(
+            DetectionDeduplicator.stableEvidenceDetections(detections).isEmpty,
+            "无有效 ROI 深度时不能借默认投影确认稳定果实"
+        )
+        XCTAssertEqual(
+            DetectionDeduplicator.deduplicate2D(detections).count,
+            2,
+            "无有效 ROI 深度时不能借默认投影把远距离 2D 观测合并"
+        )
+    }
+
     func testDeduplicate2DOverlapping() {
         let d1 = DetectedFruit(
             category: .apple,

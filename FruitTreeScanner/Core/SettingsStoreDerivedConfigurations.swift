@@ -11,13 +11,13 @@ extension SettingsStore {
         let (presetConfidence, presetSphericity): (Float, Float)
         switch qualityPreset {
         case "高":
-            presetConfidence = max(baseConfidence, 0.7)
+            presetConfidence = max(baseConfidence, 0.85)
             presetSphericity = max(baseSphericity, 0.6)
         case "中":
-            presetConfidence = baseConfidence
+            presetConfidence = max(baseConfidence, 0.7)
             presetSphericity = baseSphericity
         case "低":
-            presetConfidence = min(baseConfidence, 0.3)
+            presetConfidence = max(min(baseConfidence, 0.55), 0.5)
             presetSphericity = min(baseSphericity, 0.4)
         default:
             presetConfidence = baseConfidence
@@ -35,7 +35,9 @@ extension SettingsStore {
             imageDetectionInterval: detectionIntervalFromFps,
             minConfidence: presetConfidence,
             sizeTolerance: 0.2,
-            sphericityThreshold: presetSphericity
+            sphericityThreshold: presetSphericity,
+            minimumStableDetectionsForYield: 2,
+            stableDetectionTimeWindow: 4.0
         )
     }
 

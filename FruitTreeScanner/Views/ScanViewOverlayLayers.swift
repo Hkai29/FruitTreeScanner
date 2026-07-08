@@ -48,11 +48,6 @@ struct ScanControlLayer: View {
         VStack {
             Spacer()
 
-            if isRecording {
-                ScanCoverageHintBar(hudState: hudState)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
             if shouldShowPostCapturePanel {
                 ScanPostCapturePanel(
                     pointCount: hudState.pointCount,

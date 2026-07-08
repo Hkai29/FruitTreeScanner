@@ -11,29 +11,36 @@ struct ResultDiagnosticsSection: View {
         DiagnosticRecommendation.recommendations(for: diagnostics.zeroYieldReasons)
     }
 
-    private var imageModelStatusText: String {
-        switch diagnostics.imageModelStatus {
-        case "CoreML": return "本机模型"
-        case "Fallback": return "备用模式"
-        case "--": return "未知"
-        default: return diagnostics.imageModelStatus
+    private var pointDepthText: String {
+        let depthText = diagnostics.depthAvailable ? "深度可用" : "深度不可用"
+        return "\(diagnostics.pointCloudPointCount) 点 · \(depthText)"
+    }
+
+    private var imageFrameText: String {
+        diagnostics.imageFramesProcessed > 0
+            ? "\(diagnostics.imageFramesProcessed) 帧"
+            : "未处理"
+    }
+
+    private var fusionEvidenceText: String {
+        if diagnostics.fusedValidationCount > 0 {
+            return "\(diagnostics.fusedValidationCount) 个 RGB+LiDAR"
         }
+        if diagnostics.trackedImageFruitCount > 0 {
+            return "\(diagnostics.trackedImageFruitCount) 个多帧视觉"
+        }
+        if diagnostics.detectionDepthCandidateCount > 0 {
+            return "\(diagnostics.detectionDepthCandidateCount) 个深度候选"
+        }
+        if diagnostics.pointCloudClusterCandidateCount > 0 {
+            return "\(diagnostics.pointCloudClusterCandidateCount) 个点云候选"
+        }
+        return "不足"
     }
 
-    private var canopyPreprocessingText: String {
-        let retained = diagnostics.canopyPreprocessedPointCount
-        let ground = diagnostics.canopyGroundFilteredPointCount
-        let trunk = diagnostics.canopyTrunkFilteredPointCount
-        let neighbor = diagnostics.canopyNeighborFilteredPointCount
-        let clusters = max(diagnostics.canopyClusterCount, 0)
-        return "保留 \(retained)，去地面 \(ground) / 树干 \(trunk) / 邻树 \(neighbor)，簇 \(clusters)"
-    }
-
-    private var canopyProjectionText: String {
-        let xy = percent(diagnostics.canopyProjectionXYCoefficient)
-        let xz = percent(diagnostics.canopyProjectionXZCoefficient)
-        let yz = percent(diagnostics.canopyProjectionYZCoefficient)
-        return "XY \(xy) / XZ \(xz) / YZ \(yz)"
+    private var scanCoverageText: String {
+        let coverage = max(diagnostics.pointCloudAngleCoverage, diagnostics.cameraAngleCoverage)
+        return coverage > 0 ? percent(coverage) : "不足"
     }
 
     private func percent(_ value: Float) -> String {
@@ -41,17 +48,9 @@ struct ResultDiagnosticsSection: View {
         return String(format: "%.0f%%", min(max(value, 0), 1) * 100)
     }
 
-    private func meters(_ value: Float) -> String {
-        String(format: "%.2f m", max(value.isFinite ? value : 0, 0))
-    }
-
-    private func cubicMeters(_ value: Float) -> String {
-        String(format: "%.2f m³", max(value.isFinite ? value : 0, 0))
-    }
-
     var body: some View {
         ResultSectionCard(
-            title: "0kg / 低置信度诊断",
+            title: "结果复核",
             icon: "stethoscope",
             color: Design.Colors.warning
         ) {
@@ -74,7 +73,7 @@ struct ResultDiagnosticsSection: View {
                         .foregroundColor(Design.Colors.harvest)
                         .padding(.bottom, 4)
 
-                    ForEach(recommendations, id: \.self) { rec in
+                    ForEach(Array(recommendations.prefix(2)), id: \.self) { rec in
                         DiagnosticRecommendationRow(recommendation: rec)
                     }
                 }
@@ -82,57 +81,16 @@ struct ResultDiagnosticsSection: View {
 
             Divider().background(Design.Colors.Dark.glassBorder)
 
-            ResultInfoRow(label: "图像识别", value: imageModelStatusText)
-            ResultInfoRow(label: "识别模型", value: diagnostics.imageModelName == "--" ? "未知" : diagnostics.imageModelName)
-            if !diagnostics.imageFailureReason.isEmpty {
-                ResultInfoRow(label: "图像检测失败", value: diagnostics.imageFailureReason)
-            }
-            ResultInfoRow(label: "点云点数", value: "\(diagnostics.pointCloudPointCount)")
-            ResultInfoRow(label: "果色过滤后点数", value: "\(diagnostics.pointCloudColorFilteredCount)")
-            ResultInfoRow(label: "统计去噪后点数", value: "\(diagnostics.pointCloudDenoisedPointCount)")
-            ResultInfoRow(label: "统计离群点", value: "\(diagnostics.pointCloudOutlierPointCount) / \(percent(diagnostics.pointCloudOutlierRatio))")
-            if diagnostics.canopyVolumeM3 > 0 {
-                ResultInfoRow(label: "冠层有效体积", value: cubicMeters(diagnostics.canopyVolumeM3))
-                ResultInfoRow(label: "冠层外形体积", value: cubicMeters(diagnostics.canopyOuterVolumeM3))
-                ResultInfoRow(label: "有效体积系数", value: percent(diagnostics.canopyEffectiveVolumeCoefficient))
-                ResultInfoRow(label: "三投影系数", value: canopyProjectionText)
-                ResultInfoRow(label: "冠层体素大小", value: meters(diagnostics.canopyVoxelSizeM))
-                ResultInfoRow(label: "冠层分层", value: "\(diagnostics.canopyPartitionCount) × \(meters(diagnostics.canopyPartitionSizeM))")
-                ResultInfoRow(label: "冠层预处理", value: canopyPreprocessingText)
-                ResultInfoRow(label: "冠层树高", value: meters(diagnostics.canopyHeightM))
-                ResultInfoRow(
-                    label: "冠幅/深度",
-                    value: "\(meters(diagnostics.canopyWidthM)) × \(meters(diagnostics.canopyDepthM))"
-                )
-            }
-            ResultInfoRow(label: "LiDAR 深度", value: diagnostics.depthAvailable ? "可用" : "不可用")
-            ResultInfoRow(label: "图像处理帧", value: "\(diagnostics.imageFramesProcessed)")
-            ResultInfoRow(label: "Observation 候选", value: "\(diagnostics.imageObservationCount)")
-            ResultInfoRow(label: "置信度过滤", value: "\(diagnostics.imageConfidenceFilteredCount)")
-            ResultInfoRow(label: "图像检测果实", value: "\(diagnostics.imageDetectionCount)")
-            ResultInfoRow(label: "2D 去重后", value: "\(diagnostics.deduplicatedImageDetectionCount)")
-            ResultInfoRow(label: "融合候选总数", value: "\(diagnostics.pointCloudCandidateCount)")
-            ResultInfoRow(label: "点云聚类候选", value: "\(diagnostics.pointCloudClusterCandidateCount)")
-            ResultInfoRow(label: "ROI 深度候选", value: "\(diagnostics.detectionDepthCandidateCount)")
-            ResultInfoRow(label: "ROI 深度支持", value: percent(diagnostics.detectionDepthSupportRatio))
-            ResultInfoRow(label: "有效果实总数", value: "\(diagnostics.validatedFruitCount)")
-            ResultInfoRow(label: "RGB+LiDAR 融合", value: "\(diagnostics.fusedValidationCount)")
-            ResultInfoRow(label: "多帧视觉轨迹", value: "\(diagnostics.trackedImageFruitCount)")
-            ResultInfoRow(label: "单帧视觉估计", value: "\(diagnostics.imageOnlyFruitCount)")
-            ResultInfoRow(label: "点云保守估计", value: "\(diagnostics.cloudOnlyFruitCount)")
-            ResultInfoRow(label: "来源可靠性", value: percent(diagnostics.validationSourceReliability))
-            ResultInfoRow(
-                label: "本地计数校准",
-                value: String(format: "×%.2f (%d)", diagnostics.localCalibrationCountFactor, diagnostics.localCalibrationCountSampleCount)
-            )
-            ResultInfoRow(
-                label: "本地产量校准",
-                value: String(format: "×%.2f (%d)", diagnostics.localCalibrationYieldFactor, diagnostics.localCalibrationYieldSampleCount)
-            )
-            ResultInfoRow(label: "点云角覆盖", value: percent(diagnostics.pointCloudAngleCoverage))
-            ResultInfoRow(label: "相机角覆盖", value: percent(diagnostics.cameraAngleCoverage))
-            ResultInfoRow(label: "遮挡采用覆盖", value: percent(diagnostics.scanAngleCoverage))
-            ResultInfoRow(label: "cloudOnly 保守模式", value: diagnostics.cloudOnlyConservativeMode ? "已进入" : "未进入")
+            Text("关键质量")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Design.Colors.harvest)
+                .padding(.bottom, 4)
+
+            ResultInfoRow(label: "果数确认", value: "\(diagnostics.validatedFruitCount)", highlight: diagnostics.validatedFruitCount > 0)
+            ResultInfoRow(label: "点云 / 深度", value: pointDepthText)
+            ResultInfoRow(label: "图像帧", value: imageFrameText)
+            ResultInfoRow(label: "融合证据", value: fusionEvidenceText)
+            ResultInfoRow(label: "扫描覆盖", value: scanCoverageText)
         }
     }
 }

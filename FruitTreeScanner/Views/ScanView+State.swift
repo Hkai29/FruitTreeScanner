@@ -6,11 +6,7 @@ extension ScanView {
     }
 
     var currentDetectionDebugState: DetectionDebugState? {
-        #if DEBUG
-        return detectionDebugState
-        #else
         return nil
-        #endif
     }
 
     var exportBlockedReason: String {

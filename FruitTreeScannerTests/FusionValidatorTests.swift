@@ -137,6 +137,36 @@ final class FusionValidatorTests: XCTestCase {
         XCTAssertEqual(result.first?.source, ValidationSource.imageOnly, "候选距离太远应退化为 imageOnly")
     }
 
+    func testValidateDoesNotFuseCandidateUsingFallbackDepthWhenROIDepthInvalid() {
+        let validator = FusionValidator(config: .default)
+        let invalidDepthMap = makeDepthMap(width: 256, height: 192, fillValue: 0)
+        XCTAssertNotNil(invalidDepthMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: invalidDepthMap
+        )
+        let fallbackPositionCandidate = appleCandidate(at: SIMD3<Float>(0, 0, 2))
+
+        let result = validator.validate(
+            detections: [detection],
+            candidates: [fallbackPositionCandidate]
+        )
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(
+            result.first?.source,
+            .imageOnly,
+            "无有效 ROI 深度时不能用默认 2m 投影把候选提升为 fused"
+        )
+    }
+
     // MARK: - B.2 fused match (candidate at projected position)
 
     func testValidateFusedWhenCandidateWithinTolerance() {

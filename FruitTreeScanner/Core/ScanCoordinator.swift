@@ -32,6 +32,7 @@ class ScanCoordinator: NSObject {
     var scanCompletion: ScanCompletion = ScanCompletion()
 
     var detectedFruits: [DetectedFruit] = []
+    var archivedFusionEvidenceDetections: [DetectedFruit] = []
 
     var onMeasurementReady: ((Renderer) -> Void)?
     var onQualitySampleUpdate: ((ScanQualitySample) -> Void)?
@@ -81,13 +82,12 @@ class ScanCoordinator: NSObject {
     lazy var imageDetector: ImageDetector = {
         var config = FruitScanConfig(
             imageDetectionInterval: 10,
-            minConfidence: 0.5,
+            minConfidence: 0.85,
             sizeTolerance: 0.2,
-            sphericityThreshold: 0.5
+            sphericityThreshold: 0.5,
+            minimumStableDetectionsForYield: 2,
+            stableDetectionTimeWindow: 4.0
         )
-        #if DEBUG
-        config.minConfidence = DetectionDebugConfiguration.effectiveThreshold(for: config.minConfidence)
-        #endif
         let detector = ImageDetector(config: config)
         return detector
     }()
@@ -207,6 +207,7 @@ class ScanCoordinator: NSObject {
         onDetectionDebugStateChange = nil
         #endif
         detectedFruits.removeAll()
+        archivedFusionEvidenceDetections.removeAll()
     }
 
     // MARK: - 图像检测定时器

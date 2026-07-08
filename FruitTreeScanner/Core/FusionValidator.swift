@@ -89,17 +89,26 @@ final class FusionValidator: Sendable {
                 cameraTransform: context.cameraTransform,
                 imageSize: context.imageSize
             )
-
-            // Find nearest candidate within tolerance
-            let availableCandidates = candidates.filter { !usedCandidateIDs.contains($0.id) }
-            let matchedCandidate = findNearestCandidate(
-                position: projectedPosition,
-                candidates: availableCandidates,
+            let depthProjectedPosition = projectDetectionTo3DWithValidDepth(
                 detection: detection,
+                depthMap: context.depthMap,
                 cameraIntrinsics: context.cameraIntrinsics,
                 cameraTransform: context.cameraTransform,
                 imageSize: context.imageSize
             )
+
+            // Find nearest candidate within tolerance
+            let availableCandidates = candidates.filter { !usedCandidateIDs.contains($0.id) }
+            let matchedCandidate = depthProjectedPosition.flatMap { position in
+                findNearestCandidate(
+                    position: position,
+                    candidates: availableCandidates,
+                    detection: detection,
+                    cameraIntrinsics: context.cameraIntrinsics,
+                    cameraTransform: context.cameraTransform,
+                    imageSize: context.imageSize
+                )
+            }
 
             if let candidate = matchedCandidate {
                 usedCandidateIDs.insert(candidate.id)
@@ -113,14 +122,15 @@ final class FusionValidator: Sendable {
                 )
                 validatedFruits.append(validatedFruit)
             } else {
-                if hasRejectedDetectionDepthCandidate(
-                    near: projectedPosition,
-                    candidates: availableCandidates,
-                    detection: detection,
-                    cameraIntrinsics: context.cameraIntrinsics,
-                    cameraTransform: context.cameraTransform,
-                    imageSize: context.imageSize
-                ) {
+                if let depthProjectedPosition,
+                   hasRejectedDetectionDepthCandidate(
+                       near: depthProjectedPosition,
+                       candidates: availableCandidates,
+                       detection: detection,
+                       cameraIntrinsics: context.cameraIntrinsics,
+                       cameraTransform: context.cameraTransform,
+                       imageSize: context.imageSize
+                   ) {
                     continue
                 }
                 // Image only: no matching candidate found

@@ -23,11 +23,15 @@ final class PointCloudMeasurementController: NSObject, ObservableObject {
             SCNHitTestOption.boundingBoxOnly: false
         ])
 
-        guard let hit = hitResults.first(where: { $0.node.name == "pointCloud" || $0.node.parent?.name == "pointCloud" }) else {
+        let worldPosition: SCNVector3
+        if let hit = hitResults.first(where: { $0.node.name == "pointCloud" || $0.node.parent?.name == "pointCloud" }) {
+            worldPosition = hit.worldCoordinates
+        } else if let nearestPoint = nearestProjectedPoint(to: viewPoint, in: sceneView) {
+            worldPosition = nearestPoint
+        } else {
             return
         }
 
-        let worldPosition = hit.worldCoordinates
         if point1World == nil {
             point1World = worldPosition
             addMarker(at: worldPosition, isFirst: true)
@@ -39,6 +43,69 @@ final class PointCloudMeasurementController: NSObject, ObservableObject {
             clearMeasurements()
             point1World = worldPosition
             addMarker(at: worldPosition, isFirst: true)
+        }
+    }
+
+    private func nearestProjectedPoint(to viewPoint: CGPoint, in sceneView: SCNView) -> SCNVector3? {
+        guard let node = sceneView.scene?.rootNode.childNode(withName: "pointCloud", recursively: true),
+              let geometry = node.geometry,
+              let vertexSource = geometry.sources(for: .vertex).first
+        else { return nil }
+
+        let positions = pointPositions(from: vertexSource)
+        guard !positions.isEmpty else { return nil }
+
+        let maxSamples = 80_000
+        let step = max((positions.count + maxSamples - 1) / maxSamples, 1)
+        let hitRadiusSquared: CGFloat = 28 * 28
+        var bestWorldPosition: SCNVector3?
+        var bestDistanceSquared = hitRadiusSquared
+        var bestDepth = CGFloat.greatestFiniteMagnitude
+
+        var index = 0
+        while index < positions.count {
+            let worldPosition = node.convertPosition(positions[index], to: nil)
+            let projected = sceneView.projectPoint(worldPosition)
+            let projectedDepth = CGFloat(projected.z)
+            defer { index += step }
+
+            guard projectedDepth >= 0, projectedDepth <= 1 else { continue }
+
+            let dx = CGFloat(projected.x) - viewPoint.x
+            let dy = CGFloat(projected.y) - viewPoint.y
+            let distanceSquared = dx * dx + dy * dy
+
+            if distanceSquared < bestDistanceSquared ||
+                (abs(distanceSquared - bestDistanceSquared) < 0.1 && projectedDepth < bestDepth) {
+                bestDistanceSquared = distanceSquared
+                bestDepth = projectedDepth
+                bestWorldPosition = worldPosition
+            }
+        }
+
+        return bestWorldPosition
+    }
+
+    private func pointPositions(from source: SCNGeometrySource) -> [SCNVector3] {
+        guard source.usesFloatComponents,
+              source.componentsPerVector >= 3,
+              source.bytesPerComponent == MemoryLayout<Float>.size
+        else { return [] }
+
+        return source.data.withUnsafeBytes { rawBuffer -> [SCNVector3] in
+            var positions: [SCNVector3] = []
+            positions.reserveCapacity(source.vectorCount)
+
+            for index in 0..<source.vectorCount {
+                let offset = source.dataOffset + index * source.dataStride
+                guard offset + MemoryLayout<Float>.size * 3 <= rawBuffer.count else { break }
+                let x = rawBuffer.loadUnaligned(fromByteOffset: offset, as: Float.self)
+                let y = rawBuffer.loadUnaligned(fromByteOffset: offset + MemoryLayout<Float>.size, as: Float.self)
+                let z = rawBuffer.loadUnaligned(fromByteOffset: offset + MemoryLayout<Float>.size * 2, as: Float.self)
+                positions.append(SCNVector3(x, y, z))
+            }
+
+            return positions
         }
     }
 

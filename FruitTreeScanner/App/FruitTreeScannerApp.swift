@@ -20,6 +20,7 @@ struct FruitTreeScannerApp: App {
                 switch currentScreen {
                 case .launch:
                     LaunchScreen()
+                        .ignoresSafeArea()
                         .onAppear {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                                 withAnimation {
@@ -32,6 +33,7 @@ struct FruitTreeScannerApp: App {
                         .transition(.opacity)
                 }
             }
+            .background(Color(hex: "101A10").ignoresSafeArea())
             .animation(.easeInOut(duration: 0.5), value: currentScreen)
             .onOpenURL { url in
                 guard let navigation = AppNavigation(url: url) else { return }

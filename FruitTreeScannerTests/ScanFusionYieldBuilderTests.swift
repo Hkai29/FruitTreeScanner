@@ -407,18 +407,30 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         XCTAssertGreaterThan(yield.diagnostics.pointCloudOutlierRatio, 0)
         XCTAssertLessThan(yield.diagnostics.pointCloudOutlierRatio, 0.2)
         XCTAssertEqual(yield.diagnostics.pointCloudClusterCandidateCount, 1)
-        XCTAssertEqual(yield.diagnostics.cloudOnlyFruitCount, 1)
+        XCTAssertEqual(yield.diagnostics.cloudOnlyFruitCount, 0)
     }
 
     func testBuildAppliesLocalCalibrationCorrectionToYieldAndCount() async {
         let points = makeAppleSphere(center: SIMD3<Float>(0, 0, 2))
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540),
+            imageSize: CGSize(width: 1920, height: 1080),
+            depthMap: depthMap
+        )
 
         func makeInput(
             calibrationCorrection: YieldCalibrationCorrection = .neutral
         ) -> ScanFusionYieldBuilder.Input {
             ScanFusionYieldBuilder.Input(
                 points: points,
-                savedDetections: [],
+                savedDetections: [detection],
                 imageDiagnostics: emptyImageDiagnostics(),
                 fruitType: "苹果",
                 fruitCategory: .apple,
@@ -596,6 +608,60 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             "有对齐检测深度时不应进入保守模式"
         )
         XCTAssertGreaterThanOrEqual(countResult.totalCount, 1)
+    }
+
+    func testBuildRequiresStableRepeatedDetectionForYieldWhenConfigured() async {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.95,
+            timestamp: 10,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540),
+            imageSize: CGSize(width: 1920, height: 1080),
+            depthMap: depthMap
+        )
+
+        let input = ScanFusionYieldBuilder.Input(
+            points: makeAppleSphere(center: SIMD3<Float>(0, 0, 2)),
+            savedDetections: [detection],
+            imageDiagnostics: emptyImageDiagnostics(),
+            fruitType: "苹果",
+            fruitCategory: .apple,
+            paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+            defaultParams: appleParams(),
+            clusterConfig: ClusterConfig(
+                minPoints: 3,
+                minDiameter: 0.015,
+                maxDiameter: 0.20,
+                baseEps: 0.1,
+                sphericityThreshold: 0.5
+            ),
+            fusionConfig: FruitScanConfig(
+                imageDetectionInterval: 10,
+                minConfidence: 0.5,
+                sizeTolerance: 0.35,
+                sphericityThreshold: 0.5,
+                minimumStableDetectionsForYield: 2
+            ),
+            colorFilter: nil
+        )
+
+        let (yield, countResult) = await ScanFusionYieldBuilder.build(from: input)
+
+        XCTAssertEqual(yield.diagnostics.imageDetectionCount, 1)
+        XCTAssertGreaterThan(yield.diagnostics.detectionDepthCandidateCount, 0)
+        XCTAssertEqual(yield.diagnostics.deduplicatedImageDetectionCount, 0)
+        XCTAssertEqual(yield.diagnostics.fusedFruitCount, 0)
+        XCTAssertEqual(countResult.totalCount, 0)
+        XCTAssertEqual(yield.yieldFinalKg, 0, accuracy: 0.001)
+        XCTAssertTrue(
+            yield.diagnostics.cloudOnlyConservativeMode,
+            "配置要求多帧稳定观测时，单帧高置信深度检测不能直接产生产量"
+        )
     }
 
     func testBuildUsesDetectionDepthROICandidateWhenGlobalCloudHasNoCluster() async {
@@ -1210,7 +1276,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         XCTAssertGreaterThan(yield.diagnostics.fusedFruitCount, 0)
     }
 
-    func testBuildReportsTrackedImageValidationSourceCounts() async {
+    func testBuildDoesNotCountTrackedImageWithoutFusedDepthCandidate() async {
         let depthMap = makeDepthMap(width: 90, height: 90, fillValue: 3.0)
         XCTAssertNotNil(depthMap)
         guard let depthMap else { return }
@@ -1280,16 +1346,21 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         XCTAssertEqual(yield.diagnostics.imageDetectionCount, 2)
         XCTAssertEqual(yield.diagnostics.deduplicatedImageDetectionCount, 2)
         XCTAssertEqual(yield.diagnostics.detectionDepthCandidateCount, 0)
-        XCTAssertEqual(yield.diagnostics.validatedFruitCount, 1)
-        XCTAssertEqual(yield.diagnostics.fusedFruitCount, 1)
+        XCTAssertEqual(yield.diagnostics.validatedFruitCount, 0)
+        XCTAssertEqual(yield.diagnostics.fusedFruitCount, 0)
         XCTAssertEqual(yield.diagnostics.fusedValidationCount, 0)
-        XCTAssertEqual(yield.diagnostics.trackedImageFruitCount, 1)
+        XCTAssertEqual(yield.diagnostics.trackedImageFruitCount, 0)
         XCTAssertEqual(yield.diagnostics.imageOnlyFruitCount, 0)
         XCTAssertEqual(yield.diagnostics.cloudOnlyFruitCount, 0)
-        XCTAssertEqual(countResult.validatedFruits.first?.source, ValidationSource.trackedImage.rawValue)
+        XCTAssertEqual(countResult.totalCount, 0)
+        XCTAssertTrue(
+            yield.diagnostics.cloudOnlyConservativeMode,
+            "未融合到有效深度候选的重复图像轨迹不能进入产量估计"
+        )
+        XCTAssertEqual(yield.yieldFinalKg, 0, accuracy: 0.001)
     }
 
-    func testTrackedImageEvidenceDownWeightsCameraAngleCoverageForOcclusion() async throws {
+    func testTrackedImageEvidenceDoesNotExpandCameraAngleCoverageForOcclusion() async {
         let depthMap = makeDepthMap(width: 90, height: 90, fillValue: 3.0)
         XCTAssertNotNil(depthMap)
         guard let depthMap else { return }
@@ -1352,17 +1423,17 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         )
 
         let (yield, countResult) = await ScanFusionYieldBuilder.build(from: input)
-        XCTAssertEqual(yield.diagnostics.trackedImageFruitCount, 1)
-        let trackConfidence = try XCTUnwrap(countResult.validatedFruits.first?.confidence)
-        let expectedReliability = ValidationSource.trackedImage.countWeight * trackConfidence
-        XCTAssertEqual(yield.diagnostics.validationSourceReliability, expectedReliability, accuracy: 0.001)
-        XCTAssertGreaterThan(yield.diagnostics.cameraAngleCoverage, yield.diagnostics.pointCloudAngleCoverage)
-        XCTAssertLessThan(yield.diagnostics.scanAngleCoverage, yield.diagnostics.cameraAngleCoverage)
+
+        XCTAssertEqual(yield.diagnostics.trackedImageFruitCount, 0)
+        XCTAssertEqual(yield.diagnostics.validationSourceReliability, 0, accuracy: 0.001)
+        XCTAssertEqual(yield.diagnostics.cameraAngleCoverage, 0, accuracy: 0.001)
         XCTAssertEqual(
             yield.diagnostics.scanAngleCoverage,
-            max(yield.diagnostics.pointCloudAngleCoverage, yield.diagnostics.cameraAngleCoverage * expectedReliability),
+            yield.diagnostics.pointCloudAngleCoverage,
             accuracy: 0.001
         )
+        XCTAssertEqual(countResult.totalCount, 0)
+        XCTAssertEqual(yield.yieldFinalKg, 0, accuracy: 0.001)
     }
 
     func testLowConfidenceFusedEvidenceReducesValidationReliability() async throws {
@@ -1458,15 +1529,16 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             0,
             "未携带深度的检测不应产生伪融合结果"
         )
-        XCTAssertGreaterThan(
+        XCTAssertEqual(
             yield.diagnostics.cloudOnlyFruitCount,
             0,
-            "LiDAR 点云候选可用时应保守回退到 cloud-only 估计"
+            "无对齐深度的检测不应凭点云候选产生水果计数"
         )
-        XCTAssertGreaterThan(
+        XCTAssertEqual(
             yield.yieldFinalKg,
             0,
-            "无对齐深度 RGB 不应阻断高质量点云候选的保守产量估计"
+            accuracy: 0.001,
+            "无图像+深度融合证据时不应产生产量估计"
         )
     }
 

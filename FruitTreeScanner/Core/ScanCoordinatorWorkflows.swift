@@ -12,9 +12,7 @@ extension ScanCoordinator {
     @MainActor
     func loadSettings() {
         var detectorConfig = settings.fruitScanConfig
-        #if DEBUG
         detectorConfig.minConfidence = DetectionDebugConfiguration.effectiveThreshold(for: detectorConfig.minConfidence)
-        #endif
         imageDetector.updateConfig(detectorConfig)
         publishImageDetectorStatus()
         renderer?.applyScanQualitySettings()
@@ -25,13 +23,15 @@ extension ScanCoordinator {
         let status = modelStatus.hudLabel
         let detail = modelStatus.hudDetail
         let diagnostics = imageDetector.diagnosticsSnapshot()
+        let detectorConfig = imageDetector.configSnapshot()
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.isTornDown else { return }
+            let stableFruitCount = self.confirmedLiveFruitCount(detectorConfig: detectorConfig)
             self.hudState?.update(
                 visionModelStatus: status,
                 visionModelDetail: detail,
                 processedImageFrames: diagnostics.processedFrameCount,
-                detectedFruitCount: max(self.detectedFruits.count, diagnostics.mappedFruitCount)
+                detectedFruitCount: stableFruitCount
             )
         }
     }
@@ -65,12 +65,41 @@ extension ScanCoordinator {
 
     func appendDetectedFruits(_ detected: [DetectedFruit]) async {
         guard !detected.isEmpty else { return }
+        let detectorConfig = imageDetector.configSnapshot()
 
         await MainActor.run {
             guard !self.isTornDown else { return }
             self.detectedFruits.append(contentsOf: detected)
+            self.archiveStableFusionEvidence(detectorConfig: detectorConfig)
             self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
         }
+    }
+
+    func archiveStableFusionEvidence(detectorConfig: FruitScanConfig) {
+        let stableEvidence = DetectionDeduplicator.stableEvidenceDetections(
+            detectedFruits.filter(\.hasAlignedDepthContext),
+            minimumObservations: max(detectorConfig.minimumStableDetectionsForYield, 2),
+            minimumConfidence: max(detectorConfig.minConfidence, 0.85),
+            timeWindow: detectorConfig.stableDetectionTimeWindow
+        )
+        guard !stableEvidence.isEmpty else { return }
+
+        var archivedIDs = Set(archivedFusionEvidenceDetections.map(\.id))
+        for detection in stableEvidence where archivedIDs.insert(detection.id).inserted {
+            archivedFusionEvidenceDetections.append(detection)
+        }
+    }
+
+    func fusionEstimateDetectionsSnapshot() -> [DetectedFruit] {
+        var seenIDs = Set<UUID>()
+        var snapshot: [DetectedFruit] = []
+        snapshot.reserveCapacity(archivedFusionEvidenceDetections.count + detectedFruits.count)
+
+        for detection in archivedFusionEvidenceDetections + detectedFruits
+            where seenIDs.insert(detection.id).inserted {
+            snapshot.append(detection)
+        }
+        return snapshot
     }
 
     func beginDetectionProcessing() -> Bool {
@@ -100,6 +129,8 @@ extension ScanCoordinator {
         coveragePercent = 0
         coverageVoxelCount = 0
         scanCompletion = ScanCompletion()
+        detectedFruits.removeAll()
+        archivedFusionEvidenceDetections.removeAll()
         hudState?.resetForNewScan()
         publishImageDetectorStatus()
         hudState?.update(fusionStatus: "扫描中")
@@ -185,8 +216,10 @@ extension ScanCoordinator {
 
             let savedDetections: [DetectedFruit] = await MainActor.run {
                 guard !self.isTornDown else { return [] as [DetectedFruit] }
-                let saved = self.detectedFruits
+                self.archiveStableFusionEvidence(detectorConfig: fusionConfig)
+                let saved = self.fusionEstimateDetectionsSnapshot()
                 self.detectedFruits.removeAll()
+                self.archivedFusionEvidenceDetections.removeAll()
                 return saved
             }
             guard !Task.isCancelled else { return }

@@ -20,6 +20,7 @@ struct LaunchScreen: View {
                 contentOpacity = 1
             }
         }
+        .ignoresSafeArea()
     }
 
     private func launchBackground(size: CGSize) -> some View {

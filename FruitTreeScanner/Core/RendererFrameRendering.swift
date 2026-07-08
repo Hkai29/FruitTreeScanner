@@ -9,6 +9,7 @@ import UIKit
 
 extension Renderer {
     func renderFrame() {
+        guard viewportSize.width > 0, viewportSize.height > 0 else { return }
         guard let currentFrame = session.currentFrame,
               let renderDescriptor = renderDestination.currentRenderPassDescriptor,
               let drawable = renderDestination.currentDrawable
@@ -37,13 +38,16 @@ extension Renderer {
         update(frame: currentFrame)
         updateCapturedImageTextures(frame: currentFrame)
         currentBufferIndex = (currentBufferIndex + 1) % maxInFlightBuffers
-        pointCloudUniformsBuffers[currentBufferIndex][0] = pointCloudUniforms
 
         if shouldAccumulate(frame: currentFrame, pointCount: framePointBuffer.count), updateDepthTextures(frame: currentFrame) {
+            pointCloudUniforms.pointCloudCurrentIndex = Int32(framePointBuffer.index)
+            pointCloudUniformsBuffers[currentBufferIndex][0] = pointCloudUniforms
             accumulatePoints(frame: currentFrame, commandBuffer: commandBuffer, renderEncoder: renderEncoder, pointIndex: framePointBuffer.index)
+        } else {
+            pointCloudUniformsBuffers[currentBufferIndex][0] = pointCloudUniforms
         }
 
-        if rgbUniforms.radius > 0, let texY = capturedImageTextureY, let texCbCr = capturedImageTextureCbCr {
+        if let texY = capturedImageTextureY, let texCbCr = capturedImageTextureCbCr {
             var retaining = [capturedImageTextureY, capturedImageTextureCbCr]
             commandBuffer.addCompletedHandler { _ in retaining.removeAll() }
             rgbUniformsBuffers[currentBufferIndex][0] = rgbUniforms

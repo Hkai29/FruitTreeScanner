@@ -254,9 +254,19 @@ enum ScanFusionYieldBuilder {
             guard !alignedDetections.isEmpty else {
                 diagnostics.cloudOnlyConservativeMode = true
                 Log.fusion.warning("Skipping \(detections.count) image detections because none carried aligned depth context")
-                return (makeCloudOnlyFruits(from: candidates), 0, [])
+                return ([], 0, [])
             }
-            let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(alignedDetections)
+            let stableEvidenceDetections = DetectionDeduplicator.stableEvidenceDetections(
+                alignedDetections,
+                minimumObservations: fusionConfig.minimumStableDetectionsForYield,
+                minimumConfidence: fusionConfig.minConfidence,
+                timeWindow: fusionConfig.stableDetectionTimeWindow
+            )
+            guard !stableEvidenceDetections.isEmpty else {
+                diagnostics.cloudOnlyConservativeMode = true
+                return ([], 0, [])
+            }
+            let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(stableEvidenceDetections)
             let fusionValidator = FusionValidator(config: fusionConfig)
             let fusedFruits = fusionValidator.validate(
                 detections: deduplicatedDetections,
@@ -264,35 +274,24 @@ enum ScanFusionYieldBuilder {
             )
             if fusedFruits.isEmpty {
                 diagnostics.cloudOnlyConservativeMode = true
-                return (makeCloudOnlyFruits(from: candidates), deduplicatedDetections.count, [])
+                return ([], deduplicatedDetections.count, [])
+            }
+            let deduplicatedFruits = ValidatedFruit.deduplicate3D(fusedFruits)
+            let reliableFruits = deduplicatedFruits.filter { $0.source == .fused }
+            guard !reliableFruits.isEmpty else {
+                diagnostics.cloudOnlyConservativeMode = true
+                return ([], deduplicatedDetections.count, stableEvidenceDetections)
             }
             return (
-                ValidatedFruit.deduplicate3D(fusedFruits),
+                reliableFruits,
                 deduplicatedDetections.count,
-                deduplicatedDetections
+                stableEvidenceDetections
             )
         }
 
         diagnostics.cloudOnlyConservativeMode = true
 
-        return (makeCloudOnlyFruits(from: candidates), 0, [])
-    }
-
-    private static func makeCloudOnlyFruits(from candidates: [FruitCandidate]) -> [ValidatedFruit] {
-        candidates.compactMap { candidate -> ValidatedFruit? in
-            guard candidate.sourceCategory == nil,
-                  candidate.depthSupportRatio == nil,
-                  candidate.sphericity > 0.7,
-                  candidate.hasFruitColor() else {
-                return nil
-            }
-            return ValidatedFruit(
-                category: nil,
-                position: candidate.position,
-                confidence: candidate.sphericity * 0.5,
-                source: .cloudOnly
-            )
-        }
+        return ([], 0, [])
     }
 
     private static func applyValidationSourceDiagnostics(
