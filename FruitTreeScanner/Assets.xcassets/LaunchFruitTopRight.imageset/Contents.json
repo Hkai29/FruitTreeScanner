@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "launch-fruit-top-right.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

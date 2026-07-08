@@ -12,6 +12,7 @@ enum AppScreen {
 @main
 struct FruitTreeScannerApp: App {
     @State private var currentScreen: AppScreen = .launch
+    @StateObject private var navigationRouter = NavigationRouter()
 
     var body: some Scene {
         WindowGroup {
@@ -19,6 +20,7 @@ struct FruitTreeScannerApp: App {
                 switch currentScreen {
                 case .launch:
                     LaunchScreen()
+                        .ignoresSafeArea()
                         .onAppear {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                                 withAnimation {
@@ -27,11 +29,16 @@ struct FruitTreeScannerApp: App {
                             }
                         }
                 case .main:
-                    DashboardView()
+                    DashboardView(router: navigationRouter)
                         .transition(.opacity)
                 }
             }
+            .background(Color(hex: "101A10").ignoresSafeArea())
             .animation(.easeInOut(duration: 0.5), value: currentScreen)
+            .onOpenURL { url in
+                guard let navigation = AppNavigation(url: url) else { return }
+                navigationRouter.handle(navigation)
+            }
         }
     }
 }

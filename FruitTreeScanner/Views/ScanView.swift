@@ -6,68 +6,83 @@ import SwiftUI
 struct ScanView: View {
     let treeID: String
     @ObservedObject var gps: GPSRecorder
+    let season: Season
 
-    @State private var coordinator = ScanCoordinator()
-    @StateObject private var hudState = ScanHUDState()
-    @StateObject private var qualityMonitor = ScanQualityMonitor()
-    @StateObject private var measurementController = MetalMeasurementController()
+    @State var coordinator = ScanCoordinator()
+    @StateObject var hudState = ScanHUDState()
+    @StateObject var qualityMonitor = ScanQualityMonitor()
+    @StateObject var measurementController = MetalMeasurementController()
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
-    @State private var isRecording = false
-    @State private var showGuide = true
-    @State private var savedFilename = ""
-    @State private var yieldResult: YieldResult? = nil
-    @State private var showResult = false
-    @State private var isEstimating = false
-    @State private var showCoverageComplete = false
-    @State private var hasShownCoverageComplete = false
+    @State var isRecording = false
+    @State var showGuide = true
+    @State var savedFilename = ""
+    @State var yieldResult: YieldResult? = nil
+    @State var showResult = false
+    @State var isEstimating = false
+    @State var showCoverageComplete = false
+    @State var hasShownCoverageComplete = false
     #if DEBUG
-    @State private var showDebugView = false
-    @State private var debugDetectedFruits: [DetectedFruit] = []
+    @State var showDebugView = false
+    @State var detectionDebugState = DetectionDebugState(
+        currentThreshold: DetectionDebugConfiguration.defaultThreshold
+    )
     #endif
-    @State private var measuredDistance: Float?
-    @State private var scanNotice: String?
-    @State private var isViewActive = false
-    @State private var autoExportTask: Task<Void, Never>?
-    @State private var scanReadiness: ScanReadiness = .checking
-    @State private var showCancelConfirmation = false
+    @State var measuredDistance: Float?
+    @State var scanNotice: String?
+    @State var isViewActive = false
+    @State var scanReadiness: ScanReadiness = .checking
+    @State var isCheckingScanReadiness = false
+    @State var showCancelConfirmation = false
 
     var body: some View {
         ZStack {
-            renderLayer
-            guideLayer
-            statusLayer
-            guidanceLayer
-            measurementLayer
-            controlLayer
-            resultLayer
-            estimatingLayer
-            coverageCompleteLayer
-            readinessLayer
-            noticeLayer
-        }
-        .onAppear {
-            isViewActive = true
-            refreshScanReadiness()
-            coordinator.hudState = hudState
-            coordinator.onCoveragePercentChange = handleCoveragePercentChange
-            coordinator.onMeasurementReady = { renderer in
-                measurementController.renderer = renderer
+            ScanRenderLayer(
+                scanReadiness: scanReadiness,
+                coordinator: coordinator,
+                qualityMonitor: qualityMonitor
+            )
+
+            ScanScannerInterfaceLayer(
+                treeID: treeID,
+                scanReadiness: scanReadiness,
+                isRecording: isRecording,
+                isEstimating: isEstimating,
+                canExportScan: canExportScan,
+                shouldShowPostCapturePanel: shouldShowPostCapturePanel,
+                showGuide: showGuide,
+                showResult: showResult,
+                showCoverageComplete: showCoverageComplete,
+                yieldResult: yieldResult,
+                detectionDebugState: currentDetectionDebugState,
+                hudState: hudState,
+                qualityMonitor: qualityMonitor,
+                measurementController: measurementController,
+                measuredDistance: $measuredDistance,
+                actions: scannerInterfaceActions
+            )
+
+            ScanReadinessOverlay(
+                scanReadiness: scanReadiness,
+                onOpenSettings: openAppSettings,
+                onDismiss: requestCancelScan
+            )
+
+            if let scanNotice {
+                ScanNoticeToast(message: scanNotice)
             }
         }
-        .onDisappear {
-            isViewActive = false
-            isEstimating = false
-            autoExportTask?.cancel()
-            autoExportTask = nil
-            measurementController.deactivate()
-            measurementController.renderer = nil
-            coordinator.teardown()
+        .onAppear(perform: handleAppear)
+        .onDisappear(perform: handleDisappear)
+        .onChange(of: scenePhase) { phase in
+            handleScenePhaseChange(phase)
         }
         #if DEBUG
             .sheet(isPresented: $showDebugView) {
-                FruitDetectionDebugView(
-                    detectedFruits: debugDetectedFruits
+                DetectionDebugView(
+                    state: detectionDebugState,
+                    onExport: { try coordinator.imageDetector.exportFailureSamplesFile() }
                 )
             }
         #endif
@@ -81,346 +96,4 @@ struct ScanView: View {
             }
     }
 
-    @ViewBuilder
-    private var renderLayer: some View {
-        if scanReadiness == .ready {
-            MetalView(coordinator: coordinator)
-                .ignoresSafeArea()
-                .onAppear {
-                    coordinator.onQualitySampleUpdate = { sample in
-                        DispatchQueue.main.async {
-                            qualityMonitor.update(with: sample)
-                        }
-                    }
-                }
-        } else {
-            Color.black.ignoresSafeArea()
-        }
-    }
-
-    @ViewBuilder
-    private var guideLayer: some View {
-        if showGuide {
-            VStack {
-                HStack {
-                    Button(L10n.Scan.skipGuide) { showGuide = false }
-                        .padding()
-                    Spacer()
-                }
-                Spacer()
-            }
-        }
-    }
-
-    private var statusLayer: some View {
-        VStack {
-            ScanStatusBar(
-                treeID: treeID,
-                isRecording: isRecording,
-                hudState: hudState,
-                qualityMonitor: qualityMonitor
-            )
-            Spacer()
-        }
-    }
-
-    private var guidanceLayer: some View {
-        ScanGuidanceOverlay(hudState: hudState, isRecording: isRecording)
-    }
-
-    @ViewBuilder
-    private var measurementLayer: some View {
-        if measurementController.isActive {
-            MetalMeasurementOverlay(
-                controller: measurementController,
-                measuredDistance: $measuredDistance,
-                onClose: {
-                    measurementController.deactivate()
-                }
-            )
-        }
-    }
-
-    private var controlLayer: some View {
-        VStack {
-            Spacer()
-            if isRecording {
-                ScanCoverageHintBar(hudState: hudState)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            #if DEBUG
-                ScanBottomControlBar(
-                    isRecording: isRecording,
-                    isEstimating: isEstimating,
-                    hudState: hudState,
-                    measurementController: measurementController,
-                    onToggleGuide: { showGuide.toggle() },
-                    onToggleRecording: toggleRecording,
-                    onToggleMeasurement: toggleMeasurement,
-                    onCancel: requestCancelScan,
-                    onFinish: finishScan,
-                    onDebug: showDebugSnapshot
-                )
-            #else
-                ScanBottomControlBar(
-                    isRecording: isRecording,
-                    isEstimating: isEstimating,
-                    hudState: hudState,
-                    measurementController: measurementController,
-                    onToggleGuide: { showGuide.toggle() },
-                    onToggleRecording: toggleRecording,
-                    onToggleMeasurement: toggleMeasurement,
-                    onCancel: requestCancelScan,
-                    onFinish: finishScan
-                )
-            #endif
-        }
-    }
-
-    @ViewBuilder
-    private var resultLayer: some View {
-        if showResult, let result = yieldResult {
-            ResultView(treeID: treeID, result: result) {
-                withAnimation(.easeInOut(duration: 0.25)) { showResult = false }
-            } onDismissToHome: {
-                showResult = false
-                dismiss()
-            }
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-    }
-
-    @ViewBuilder
-    private var estimatingLayer: some View {
-        if isEstimating {
-            Color.black.opacity(0.5)
-                .transition(.opacity)
-            VStack(spacing: 16) {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(Design.Colors.harvest)
-                Text(L10n.Scan.estimating)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
-        }
-    }
-
-    @ViewBuilder
-    private var coverageCompleteLayer: some View {
-        if showCoverageComplete {
-            ScanCoverageCompleteToast()
-            .animation(.easeInOut(duration: 0.3), value: showCoverageComplete)
-        }
-    }
-
-    @ViewBuilder
-    private var readinessLayer: some View {
-        ScanReadinessOverlay(scanReadiness: scanReadiness, onOpenSettings: openAppSettings)
-    }
-
-    @ViewBuilder
-    private var noticeLayer: some View {
-        if let scanNotice {
-            ScanNoticeToast(message: scanNotice)
-        }
-    }
-
-    private func handleCoveragePercentChange(_ newValue: Int) {
-        if newValue >= 85 && !hasShownCoverageComplete && isRecording {
-            showCoverageComplete = true
-            hasShownCoverageComplete = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                guard isViewActive else { return }
-                withAnimation { showCoverageComplete = false }
-            }
-        }
-    }
-
-    private func toggleMeasurement() {
-        if hudState.pointCount == 0 && !measurementController.isActive {
-            showTemporaryNotice(L10n.Scan.noPointCloud)
-            return
-        }
-        if measurementController.isActive {
-            measurementController.deactivate()
-        } else {
-            measurementController.activate()
-        }
-    }
-
-    #if DEBUG
-        private func showDebugSnapshot() {
-            debugDetectedFruits = coordinator.debugSnapshot()
-            showDebugView = true
-        }
-    #endif
-
-    // MARK: - 录制切换
-    private func toggleRecording() {
-        if isRecording {
-            stopRecording()
-        } else {
-            startRecording()
-        }
-    }
-
-    private func startRecording() {
-        guard scanReadiness == .ready else {
-            showTemporaryNotice(scanReadiness.title)
-            return
-        }
-        createDirectory(folder: "scans")
-        coordinator.startRecording()
-        isRecording = true
-        showGuide = false
-    }
-
-    private func stopRecording() {
-        coordinator.stopRecording()
-        isRecording = false
-    }
-
-    private func requestCancelScan() {
-        if isRecording || coordinator.pointCount > 0 || hudState.pointCount > 0 {
-            showCancelConfirmation = true
-        } else {
-            cancelScan()
-        }
-    }
-
-    private func cancelScan() {
-        autoExportTask?.cancel()
-        autoExportTask = nil
-        isEstimating = false
-        if isRecording {
-            stopRecording()
-        }
-        measurementController.deactivate()
-        coordinator.teardown()
-        dismiss()
-    }
-
-    private func finishScan() {
-        guard !isEstimating else { return }
-        if isRecording {
-            stopRecording()
-        }
-        exportAndEstimate()
-    }
-
-    // MARK: - 导出 + 估算
-    private func exportAndEstimate() {
-        guard !isEstimating else { return }
-        guard coordinator.pointCount > 0 else {
-            showTemporaryNotice(exportBlockedReason)
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.2)) { isEstimating = true }
-        coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
-            guard self.isViewActive else { return }
-            self.savedFilename = filename ?? ""
-            guard filename != nil else {
-                self.isEstimating = false
-                self.showTemporaryNotice(L10n.Scan.exportFailed)
-                return
-            }
-
-            ScanHistoryStore.shared.notifyRecordsUpdated()
-
-            self.coordinator.runMultiModalYieldEstimate { result, _ in
-                guard self.isViewActive else { return }
-                self.isEstimating = false
-                self.yieldResult = result
-                withAnimation(.easeInOut(duration: 0.3)) { self.showResult = true }
-
-                if let filename {
-                    self.persistScanResult(result: result, filename: filename)
-                }
-            }
-        }
-    }
-
-    private var exportBlockedReason: String {
-        ScanExportReadiness.blockedReason(
-            scanIsReady: scanReadiness == .ready,
-            scanBlockedTitle: scanReadiness.title,
-            depthRuntimeStatus: hudState.depthRuntimeStatus,
-            pointCount: hudState.pointCount
-        )
-    }
-
-    private func showTemporaryNotice(_ message: String) {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scanNotice = message
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-            guard isViewActive else { return }
-            guard scanNotice == message else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                scanNotice = nil
-            }
-        }
-    }
-
-    private func refreshScanReadiness() {
-        scanReadiness = .checking
-        Task {
-            let next = await ScanReadiness.determine()
-            await MainActor.run {
-                guard isViewActive else { return }
-                scanReadiness = next
-                if next != .ready {
-                    isRecording = false
-                    coordinator.teardown()
-                }
-            }
-        }
-    }
-
-    private func openAppSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-        UIApplication.shared.open(url)
-    }
-
-    private func persistScanResult(result: YieldResult, filename: String) {
-        let includeCSV = SettingsStore.shared.autoExportCSV
-        let scanMetadata = savedScanMetadata(for: filename)
-        let request = ScanResultExportService.ExportRequest(
-            treeID: treeID,
-            fruitType: SettingsStore.shared.fruitType,
-            scanDate: scanMetadata.scanDate,
-            gpsLat: scanMetadata.gpsLat,
-            gpsLon: scanMetadata.gpsLon,
-            sourceFilename: filename,
-            result: result,
-            includeCSV: includeCSV
-        )
-
-        autoExportTask?.cancel()
-        autoExportTask = Task.detached(priority: .utility) {
-            do {
-                let exportedFiles = try ScanResultExportService.shared.exportIfNeeded(request)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    ScanHistoryStore.shared.notifyRecordsUpdated()
-                }
-                _ = exportedFiles
-            } catch {
-                _ = error
-            }
-        }
-    }
-
-    private func savedScanMetadata(for filename: String) -> (scanDate: Date, gpsLat: Double, gpsLon: Double) {
-        let fileURL = getDocumentsDirectory()
-            .appendingPathComponent("scans", isDirectory: true)
-            .appendingPathComponent(filename)
-        guard let parsed = PLYParserHelper.parsePLYFile(at: fileURL) else {
-            return (Date(), gps.latitude, gps.longitude)
-        }
-        return (parsed.scanDate, parsed.gpsLat, parsed.gpsLon)
-    }
 }

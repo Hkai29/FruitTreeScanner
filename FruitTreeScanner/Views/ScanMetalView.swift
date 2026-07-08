@@ -27,8 +27,9 @@ struct MetalView: UIViewRepresentable {
         let mtkView = MTKView()
         mtkView.device = device
         mtkView.backgroundColor = .black
+        mtkView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
         mtkView.depthStencilPixelFormat = .depth32Float
-        mtkView.contentScaleFactor = 1
+        mtkView.preferredFramesPerSecond = 60
 
         let arSession = ARSession()
         let renderer = Renderer(
@@ -37,7 +38,7 @@ struct MetalView: UIViewRepresentable {
             renderDestination: mtkView
         )
 
-        let viewSize = mtkView.bounds.size
+        let viewSize = mtkView.drawableSize
         if viewSize.width > 0 && viewSize.height > 0 {
             renderer.drawRectResized(size: viewSize)
         }
@@ -49,8 +50,8 @@ struct MetalView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: MTKView, context: Context) {
-        if uiView.bounds.size.width > 0 && uiView.bounds.size.height > 0 {
-            context.coordinator.coordinator?.renderer?.drawRectResized(size: uiView.bounds.size)
+        if uiView.drawableSize.width > 0 && uiView.drawableSize.height > 0 {
+            context.coordinator.coordinator?.renderer?.drawRectResized(size: uiView.drawableSize)
         }
     }
 }

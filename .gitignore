@@ -11,6 +11,11 @@ build/
 .tmp-*.png
 .tmp-*.jpg
 
+# Local agent worktrees and external skill repositories
+.claude/worktrees/
+Awesome-Agent-Skills-for-Empirical-Research/
+research-writing-skill/
+
 # Swift Package Manager local state
 .build/
 .swiftpm/

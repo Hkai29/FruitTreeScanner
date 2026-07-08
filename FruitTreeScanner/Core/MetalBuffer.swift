@@ -25,8 +25,11 @@ struct MetalBuffer<Element> {
 
     /// Initializes the buffer with zeros, the buffer is given an appropriate length based on the provided element count.
     init(device: MTLDevice, count: Int, index: UInt32, label: String? = nil, options: MTLResourceOptions = []) {
-        
-        guard let buffer = device.makeBuffer(length: MemoryLayout<Element>.stride * count, options: options) else {
+        precondition(count >= 0, "MetalBuffer count cannot be negative")
+
+        let byteCount = MemoryLayout<Element>.stride * count
+        let allocationLength = max(byteCount, 1)
+        guard let buffer = device.makeBuffer(length: allocationLength, options: options) else {
             fatalError("Failed to create MTLBuffer.")
         }
         self.buffer = buffer
@@ -39,9 +42,14 @@ struct MetalBuffer<Element> {
     init(device: MTLDevice, array: [Element], index: UInt32, options: MTLResourceOptions = []) {
 
         let byteCount = MemoryLayout<Element>.stride * array.count
-        let newBuffer: MTLBuffer? = array.withUnsafeBytes { rawBuffer -> MTLBuffer? in
-            guard let baseAddress = rawBuffer.baseAddress else { return nil }
-            return device.makeBuffer(bytes: baseAddress, length: byteCount, options: options)
+        let newBuffer: MTLBuffer?
+        if array.isEmpty {
+            newBuffer = device.makeBuffer(length: 1, options: options)
+        } else {
+            newBuffer = array.withUnsafeBytes { rawBuffer -> MTLBuffer? in
+                guard let baseAddress = rawBuffer.baseAddress else { return nil }
+                return device.makeBuffer(bytes: baseAddress, length: byteCount, options: options)
+            }
         }
         guard let buffer = newBuffer else {
             fatalError("Failed to create MTLBuffer.")
@@ -63,6 +71,10 @@ struct MetalBuffer<Element> {
     /// Replaces the buffer's memory with the values in the array.
     func assign(with array: [Element]) {
         let byteCount = array.count * stride
+        guard byteCount > 0 else {
+            precondition(count == 0, "Mismatch between the byte count of the array's contents and the MTLBuffer length.")
+            return
+        }
         precondition(byteCount == buffer.length, "Mismatch between the byte count of the array's contents and the MTLBuffer length.")
         array.withUnsafeBytes { rawBuffer in
             guard let baseAddress = rawBuffer.baseAddress else { return }

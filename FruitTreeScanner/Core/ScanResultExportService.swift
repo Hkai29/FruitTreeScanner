@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-final class ScanResultExportService {
+final class ScanResultExportService: @unchecked Sendable {
     static let shared = ScanResultExportService()
 
     struct ExportRequest: Sendable {
@@ -16,11 +16,12 @@ final class ScanResultExportService {
     }
 
     struct ExportedFiles: Sendable {
-        let csvURL: URL
+        let csvURL: URL?
         let metadataURL: URL?
     }
 
     private let fileManager: FileManager
+    private let exportQueue = DispatchQueue(label: "com.fruittreescanner.scan-result-export")
 
     private init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -28,9 +29,24 @@ final class ScanResultExportService {
 
     @discardableResult
     func exportIfNeeded(_ request: ExportRequest) throws -> ExportedFiles? {
+        try exportQueue.sync {
+            try exportIfNeededOnQueue(request)
+        }
+    }
+
+    @discardableResult
+    private func exportIfNeededOnQueue(_ request: ExportRequest) throws -> ExportedFiles? {
         let scansDir = try scansDirectory()
+        guard LocalFileStorage.isSafeLeafFilename(request.sourceFilename) else {
+            throw LocalFileStorageError.invalidFilename
+        }
         let baseName = (request.sourceFilename as NSString).deletingPathExtension
+        guard !baseName.isEmpty else {
+            throw LocalFileStorageError.invalidFilename
+        }
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
+
+        let metadataURL = try writeMetadata(for: request, baseName: baseName, scansDir: scansDir)
 
         if request.includeCSV && !fileManager.fileExists(atPath: csvURL.path) {
             let csvContent = makeCSVContent(for: request)
@@ -38,23 +54,19 @@ final class ScanResultExportService {
             Log.export.info("CSV exported: \(baseName).csv")
         }
 
-        let metadataURL = try writeMetadata(for: request, baseName: baseName, scansDir: scansDir)
         Log.export.info("Export complete for \(request.treeID)")
 
-        return ExportedFiles(csvURL: csvURL, metadataURL: metadataURL)
+        let exportedCSVURL = fileManager.fileExists(atPath: csvURL.path) ? csvURL : nil
+        return ExportedFiles(csvURL: exportedCSVURL, metadataURL: metadataURL)
     }
 
     private func scansDirectory() throws -> URL {
-        let directory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("scans", isDirectory: true)
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory
+        try LocalFileStorage.directoryURL(folder: "scans", fileManager: fileManager)
     }
 
     private func makeCSVContent(for request: ExportRequest) -> String {
         let result = request.result
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let formatter = StableDataFormatting.dateFormatter(dateFormat: "yyyy-MM-dd HH:mm:ss")
 
         let header = [
             "树编号",
@@ -75,21 +87,23 @@ final class ScanResultExportService {
         ]
 
         let row = [
-            request.treeID,
-            request.fruitType,
+            SpreadsheetTextSafety.neutralizingFormula(request.treeID),
+            SpreadsheetTextSafety.neutralizingFormula(request.fruitType),
             formatter.string(from: request.scanDate),
-            "\(result.nLidar)",
-            String(format: "%.2f", result.yieldFinalKg),
-            String(format: "%.6f", request.gpsLat),
-            String(format: "%.6f", request.gpsLon),
-            String(format: "%.3f", result.clusterEps),
+            "\(nonNegative(result.nLidar))",
+            formatNonNegative(result.yieldFinalKg, precision: 2),
+            formatLatitude(request.gpsLat),
+            formatLongitude(request.gpsLon),
+            format(result.clusterEps, precision: 3),
             "\(result.clusterMinPoints)",
-            result.colorFilterDesc.isEmpty ? "N/A" : result.colorFilterDesc,
-            String(format: "%.2f", result.occlusionK),
+            SpreadsheetTextSafety.neutralizingFormula(
+                result.colorFilterDesc.isEmpty ? "N/A" : result.colorFilterDesc
+            ),
+            format(result.occlusionK, precision: 2),
             "\(result.pointCloudSize)",
-            result.confidence,
-            result.methodUsed,
-            result.note
+            SpreadsheetTextSafety.neutralizingFormula(result.confidence),
+            SpreadsheetTextSafety.neutralizingFormula(result.methodUsed),
+            SpreadsheetTextSafety.neutralizingFormula(result.note)
         ]
 
         return csvLine(header) + csvLine(row)
@@ -98,33 +112,123 @@ final class ScanResultExportService {
     private func writeMetadata(for request: ExportRequest, baseName: String, scansDir: URL) throws -> URL {
         let result = request.result
         let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
+        let diagnostics = result.diagnostics
         let payload: [String: Any] = [
             "treeID": request.treeID,
             "fruitType": request.fruitType,
-            "fruitCount": result.nLidar,
-            "yieldKg": result.yieldFinalKg,
+            "fruitCount": nonNegative(result.nLidar),
+            "yieldKg": nonNegativeFinite(result.yieldFinalKg),
             "confidence": result.confidence,
             "methodUsed": result.methodUsed,
             "note": result.note,
-            "clusterEps": result.clusterEps,
+            "clusterEps": finite(result.clusterEps),
             "clusterMinPoints": result.clusterMinPoints,
             "fruitCategory": result.fruitCategory,
             "colorFilterDesc": result.colorFilterDesc,
-            "occlusionK": result.occlusionK,
+            "occlusionK": finite(result.occlusionK),
             "pointCloudSize": result.pointCloudSize,
-            "meanDiameterCm": result.meanDiameterCm,
-            "meanVolumeCm3": result.meanVolumeCm3,
-            "correctionK": result.correctionK,
-            "yieldBVisibleKg": result.yieldBVisibleKg,
-            "yieldBCorrectedKg": result.yieldBCorrectedKg,
-            "gpsLat": request.gpsLat,
-            "gpsLon": request.gpsLon,
+            "meanDiameterCm": finite(result.meanDiameterCm),
+            "meanVolumeCm3": finite(result.meanVolumeCm3),
+            "correctionK": finite(result.correctionK),
+            "yieldBVisibleKg": finite(result.yieldBVisibleKg),
+            "yieldBCorrectedKg": finite(result.yieldBCorrectedKg),
+            "treeHeightM": finite(result.treeHeightM),
+            "crownVolM3": finite(result.crownVolM3),
+            "diagnostics": [
+                "pointCloudPointCount": diagnostics.pointCloudPointCount,
+                "imageDetectionCount": diagnostics.imageDetectionCount,
+                "deduplicatedImageDetectionCount": diagnostics.deduplicatedImageDetectionCount,
+                "pointCloudColorFilteredCount": diagnostics.pointCloudColorFilteredCount,
+                "pointCloudDenoisedPointCount": diagnostics.pointCloudDenoisedPointCount,
+                "pointCloudOutlierPointCount": diagnostics.pointCloudOutlierPointCount,
+                "pointCloudOutlierRatio": finite(diagnostics.pointCloudOutlierRatio),
+                "pointCloudCandidateCount": diagnostics.pointCloudCandidateCount,
+                "pointCloudClusterCandidateCount": diagnostics.pointCloudClusterCandidateCount,
+                "detectionDepthCandidateCount": diagnostics.detectionDepthCandidateCount,
+                "detectionDepthSupportRatio": finite(diagnostics.detectionDepthSupportRatio),
+                "fusedFruitCount": diagnostics.fusedFruitCount,
+                "validatedFruitCount": diagnostics.validatedFruitCount,
+                "fusedValidationCount": diagnostics.fusedValidationCount,
+                "trackedImageFruitCount": diagnostics.trackedImageFruitCount,
+                "imageOnlyFruitCount": diagnostics.imageOnlyFruitCount,
+                "cloudOnlyFruitCount": diagnostics.cloudOnlyFruitCount,
+                "validationSourceReliability": finite(diagnostics.validationSourceReliability),
+                "localCalibrationCountFactor": finite(diagnostics.localCalibrationCountFactor),
+                "localCalibrationYieldFactor": finite(diagnostics.localCalibrationYieldFactor),
+                "localCalibrationCountSampleCount": diagnostics.localCalibrationCountSampleCount,
+                "localCalibrationYieldSampleCount": diagnostics.localCalibrationYieldSampleCount,
+                "canopyPointCount": diagnostics.canopyPointCount,
+                "canopyPreprocessedPointCount": diagnostics.canopyPreprocessedPointCount,
+                "canopyGroundFilteredPointCount": diagnostics.canopyGroundFilteredPointCount,
+                "canopyTrunkFilteredPointCount": diagnostics.canopyTrunkFilteredPointCount,
+                "canopyNeighborFilteredPointCount": diagnostics.canopyNeighborFilteredPointCount,
+                "canopyClusterCount": diagnostics.canopyClusterCount,
+                "canopyRobustPointCount": diagnostics.canopyRobustPointCount,
+                "canopyHeightM": finite(diagnostics.canopyHeightM),
+                "canopyWidthM": finite(diagnostics.canopyWidthM),
+                "canopyDepthM": finite(diagnostics.canopyDepthM),
+                "canopyOuterVolumeM3": finite(diagnostics.canopyOuterVolumeM3),
+                "canopyVolumeM3": finite(diagnostics.canopyVolumeM3),
+                "canopyEffectiveVolumeCoefficient": finite(diagnostics.canopyEffectiveVolumeCoefficient),
+                "canopyProjectionXYCoefficient": finite(diagnostics.canopyProjectionXYCoefficient),
+                "canopyProjectionXZCoefficient": finite(diagnostics.canopyProjectionXZCoefficient),
+                "canopyProjectionYZCoefficient": finite(diagnostics.canopyProjectionYZCoefficient),
+                "canopyProjectionEffectiveCoefficient": finite(diagnostics.canopyProjectionEffectiveCoefficient),
+                "canopyVoxelSizeM": finite(diagnostics.canopyVoxelSizeM),
+                "canopyPartitionSizeM": finite(diagnostics.canopyPartitionSizeM),
+                "canopyPartitionCount": diagnostics.canopyPartitionCount,
+                "pointCloudAngleCoverage": finite(diagnostics.pointCloudAngleCoverage),
+                "cameraAngleCoverage": finite(diagnostics.cameraAngleCoverage),
+                "scanAngleCoverage": finite(diagnostics.scanAngleCoverage),
+                "depthAvailable": diagnostics.depthAvailable,
+                "cloudOnlyConservativeMode": diagnostics.cloudOnlyConservativeMode
+            ],
+            "gpsLat": latitude(request.gpsLat),
+            "gpsLon": longitude(request.gpsLon),
             "timestamp": ISO8601DateFormatter().string(from: request.scanDate)
         ]
 
         let data = try JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
-        try data.write(to: metadataURL)
+        try data.write(to: metadataURL, options: .atomic)
         return metadataURL
+    }
+
+    private func finite(_ value: Float) -> Float {
+        value.isFinite ? value : 0
+    }
+
+    private func nonNegative(_ value: Int) -> Int {
+        max(0, value)
+    }
+
+    private func nonNegativeFinite(_ value: Float) -> Float {
+        value.isFinite ? max(0, value) : 0
+    }
+
+    private func format(_ value: Float, precision: Int) -> String {
+        StableDataFormatting.decimal(finite(value), precision: precision)
+    }
+
+    private func formatNonNegative(_ value: Float, precision: Int) -> String {
+        StableDataFormatting.decimal(nonNegativeFinite(value), precision: precision)
+    }
+
+    private func latitude(_ value: Double) -> Double {
+        guard value.isFinite, (-90...90).contains(value) else { return 0 }
+        return value
+    }
+
+    private func longitude(_ value: Double) -> Double {
+        guard value.isFinite, (-180...180).contains(value) else { return 0 }
+        return value
+    }
+
+    private func formatLatitude(_ value: Double) -> String {
+        StableDataFormatting.decimal(latitude(value), precision: 6)
+    }
+
+    private func formatLongitude(_ value: Double) -> String {
+        StableDataFormatting.decimal(longitude(value), precision: 6)
     }
 
     private func csvLine(_ fields: [String]) -> String {
@@ -133,7 +237,7 @@ final class ScanResultExportService {
 
     private func csvEscape(_ field: String) -> String {
         let escaped = field.replacingOccurrences(of: "\"", with: "\"\"")
-        if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") {
+        if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") || escaped.contains("\r") {
             return "\"\(escaped)\""
         }
         return escaped

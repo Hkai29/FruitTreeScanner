@@ -70,14 +70,12 @@ enum RendererPointCloudSnapshot {
             let bufferIndex = (currentPointIndex - currentPointCount + i + maxPoints) % maxPoints
             let particle = particlesBuffer[bufferIndex]
             defer { i += sampleStep }
-            guard isExportableParticle(particle, confidenceThreshold: confidenceThreshold) else { continue }
+            guard let sample = makeExportableSample(
+                from: particle,
+                confidenceThreshold: confidenceThreshold
+            ) else { continue }
 
-            let key = voxelKey(for: particle.position, size: voxelSize)
-            let sample = RendererPointSample(
-                position: particle.position,
-                color: clampColor(particle.color),
-                confidence: particle.confidence
-            )
+            let key = voxelKey(for: sample.position, size: voxelSize)
             if let existing = bestSamplesByVoxel[key], existing.confidence >= sample.confidence {
                 continue
             }
@@ -97,6 +95,20 @@ enum RendererPointCloudSnapshot {
         guard simd_length_squared(position) > 0.000001 else { return false }
         let color = particle.color
         return color.x.isFinite && color.y.isFinite && color.z.isFinite
+    }
+
+    static func makeExportableSample(
+        from particle: ParticleUniforms,
+        confidenceThreshold: Int
+    ) -> RendererPointSample? {
+        guard isExportableParticle(particle, confidenceThreshold: confidenceThreshold) else {
+            return nil
+        }
+        return RendererPointSample(
+            position: particle.position,
+            color: clampColor(particle.color),
+            confidence: particle.confidence
+        )
     }
 
     private static func voxelKey(for position: SIMD3<Float>, size: Float) -> RendererVoxelKey {
@@ -125,13 +137,16 @@ enum RendererPLYDataBuilder {
         gpsLat: Double,
         gpsLon: Double
     ) -> Data {
+        let safeTreeID = TreeIdentifierPolicy.safePLYCommentValue(treeID)
+        let safeGPSLat = latitude(gpsLat)
+        let safeGPSLon = longitude(gpsLon)
         let headers = [
             "ply",
             "format ascii 1.0",
-            "comment tree_id \(treeID)",
+            "comment tree_id \(safeTreeID)",
             "comment scan_date \(scanDate)",
-            "comment gps_lat \(String(format: "%.6f", gpsLat))",
-            "comment gps_lon \(String(format: "%.6f", gpsLon))",
+            "comment gps_lat \(StableDataFormatting.decimal(safeGPSLat, precision: 6))",
+            "comment gps_lon \(StableDataFormatting.decimal(safeGPSLon, precision: 6))",
             "element vertex \(samples.count)",
             "property float x",
             "property float y",
@@ -155,12 +170,28 @@ enum RendererPLYDataBuilder {
             let r = Int(color.x * 255.0)
             let g = Int(color.y * 255.0)
             let b = Int(color.z * 255.0)
-            let line = String(format: "%.4f %.4f %.4f %d %d %d\r\n",
-                              position.x, position.y, position.z, r, g, b)
+            let line = [
+                StableDataFormatting.decimal(position.x, precision: 4),
+                StableDataFormatting.decimal(position.y, precision: 4),
+                StableDataFormatting.decimal(position.z, precision: 4),
+                "\(r)",
+                "\(g)",
+                "\(b)"
+            ].joined(separator: " ") + "\r\n"
             data.append(contentsOf: line.utf8)
         }
 
         return data
+    }
+
+    private static func latitude(_ value: Double) -> Double {
+        guard value.isFinite, (-90...90).contains(value) else { return 0 }
+        return value
+    }
+
+    private static func longitude(_ value: Double) -> Double {
+        guard value.isFinite, (-180...180).contains(value) else { return 0 }
+        return value
     }
 }
 
@@ -173,7 +204,19 @@ extension Renderer {
     func savePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
                         completion: @escaping (String?) -> Void = { _ in }) {
         Task(priority: .utility) {
-            let rawSamples = makeFilteredPointSamples(voxelSize: snapshotVoxelSize)
+            // `currentPointIndex` advances when work is encoded, not when the
+            // GPU has written the buffer. Drain in-flight rendering first.
+            if !waitForPointCloudWritesToComplete() {
+                Log.pointCloud.error("Timed out waiting for in-flight point cloud writes before export")
+                await MainActor.run {
+                    completion(nil)
+                }
+                return
+            }
+            let rawSamples = makeFilteredPointSamples(
+                voxelSize: snapshotVoxelSize,
+                inputSampleLimit: analysisInputSampleLimit
+            )
             let pointsCopy = PointCloudDenoiser.statisticalOutlierRemoval(samples: rawSamples)
             guard !pointsCopy.isEmpty else {
                 await MainActor.run {

@@ -64,7 +64,7 @@ struct CoverageMapView: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             if completion.voxelCount > 0 {
-                Text("\(completion.voxelCount) 个采样点")
+                Text("\(completion.voxelCount) 个空间采样")
                     .font(.system(size: 10))
                     .foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.7))
             }
@@ -79,9 +79,19 @@ struct CoverageMapView: View {
                 color: Design.Colors.Dark.info
             )
             ScoreIndicator(
-                label: "覆盖",
+                label: "树冠",
                 value: completion.voxelScore,
                 color: Design.Colors.harvest
+            )
+            ScoreIndicator(
+                label: "视角",
+                value: completion.angleCoverageScore,
+                color: Design.Colors.Dark.info
+            )
+            ScoreIndicator(
+                label: "均衡",
+                value: completion.angleUniformityScore,
+                color: Design.Colors.harvestDark
             )
             ScoreIndicator(
                 label: "稳定",

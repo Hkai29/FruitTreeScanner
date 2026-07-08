@@ -66,20 +66,74 @@ struct OcclusionCorrector {
         guard points.count > 50 else { return 0.25 }
         let positions = points.map { $0.pos }
         let centroid = computeCentroid(positions)
+        let boundsCenter = horizontalBoundsCenter(positions)
 
-        let angles = positions.map { atan2($0.z - centroid.z, $0.x - centroid.x) }
-        let sortedAngles = angles.sorted()
+        let centroidCoverage = scanAngleCoverage(positions: positions, center: centroid)
+        let boundsCoverage = scanAngleCoverage(positions: positions, center: boundsCenter)
+        return min(centroidCoverage, boundsCoverage)
+    }
 
-        var maxGap: Float = 0
-        for i in 0..<sortedAngles.count {
-            let next = (i + 1) % sortedAngles.count
-            var gap = sortedAngles[next] - sortedAngles[i]
-            if next == 0 { gap += 2 * Float.pi }
-            maxGap = max(maxGap, gap)
+    private static func scanAngleCoverage(
+        positions: [SIMD3<Float>],
+        center: SIMD3<Float>
+    ) -> Float {
+        let radialDistances = positions.map { point in
+            hypot(point.x - center.x, point.z - center.z)
+        }
+        let sortedRadii = radialDistances.sorted()
+        let medianRadius = sortedRadii[sortedRadii.count / 2]
+        let minimumUsableRadius = max(medianRadius * 0.20, 0.05)
+
+        let binCount = 36
+        var binCounts = [Int](repeating: 0, count: binCount)
+        for point in positions {
+            let dx = point.x - center.x
+            let dz = point.z - center.z
+            guard hypot(dx, dz) >= minimumUsableRadius else { continue }
+
+            var normalizedAngle = (atan2(dz, dx) + Float.pi) / (2 * Float.pi)
+            if normalizedAngle >= 1 {
+                normalizedAngle = 0
+            }
+            let bin = min(max(Int(floor(normalizedAngle * Float(binCount))), 0), binCount - 1)
+            binCounts[bin] += 1
         }
 
-        let coverage = 1.0 - maxGap / (2 * Float.pi)
+        let minimumBinSupport = max(2, Int(ceil(Float(positions.count) * 0.005)))
+        let occupiedBins = binCounts.map { $0 >= minimumBinSupport }
+        guard occupiedBins.contains(true) else { return 0.25 }
+
+        var longestEmptyRun = 0
+        var currentEmptyRun = 0
+        for i in 0..<(binCount * 2) {
+            if occupiedBins[i % binCount] {
+                currentEmptyRun = 0
+            } else {
+                currentEmptyRun += 1
+                longestEmptyRun = min(max(longestEmptyRun, currentEmptyRun), binCount)
+            }
+        }
+
+        let coverage = 1.0 - Float(longestEmptyRun) / Float(binCount)
         return max(min(coverage, 1.0), 0.1)
+    }
+
+    private static func horizontalBoundsCenter(_ positions: [SIMD3<Float>]) -> SIMD3<Float> {
+        guard var minX = positions.first?.x,
+              var maxX = positions.first?.x,
+              var minZ = positions.first?.z,
+              var maxZ = positions.first?.z else {
+            return .zero
+        }
+
+        for point in positions.dropFirst() {
+            minX = min(minX, point.x)
+            maxX = max(maxX, point.x)
+            minZ = min(minZ, point.z)
+            maxZ = max(maxZ, point.z)
+        }
+
+        return SIMD3<Float>((minX + maxX) * 0.5, 0, (minZ + maxZ) * 0.5)
     }
 
     private static func computeCentroid(_ positions: [SIMD3<Float>]) -> SIMD3<Float> {
@@ -109,7 +163,9 @@ struct OcclusionCorrector {
         crownRadiusM: Float = 1.5,
         crownDepthM: Float = 0.4,
         lidarPenetrationM: Float = 0.4,
-        scanAngleCoverage: Float = 0.5
+        scanAngleCoverage: Float = 0.5,
+        visualDetectionCount: Int? = nil,
+        lidarDetectionCount: Int? = nil
     ) -> CorrectionResult {
         guard visibleCount > 0 else {
             return CorrectionResult(k: 1.0, kLow: 1.0, kHigh: 1.0,
@@ -131,11 +187,20 @@ struct OcclusionCorrector {
         let geometricK = 1.0 / max(visibleRatio, 0.1)
         let geometricKClamped = min(max(geometricK, 1.0), 3.0)
         let evidenceReliability = min(Float(visibleCount) / 1000.0, 1.0) * min(max(scanAngleCoverage, 0), 1)
-        let kClamped = 1.0 + (geometricKClamped - 1.0) * (1.0 - evidenceReliability)
+        let geometrySupportedK = 1.0 + (geometricKClamped - 1.0) * (1.0 - evidenceReliability)
+        let ratioSupportedK = visualLidarRatioSupportedK(
+            visualDetectionCount: visualDetectionCount,
+            lidarDetectionCount: lidarDetectionCount,
+            scanAngleCoverage: scanAngleCoverage
+        )
+        let kClamped = min(max(geometrySupportedK, ratioSupportedK), 3.0)
 
         let uncertainty: Float = 0.15 + 0.10 * (1.0 - scanAngleCoverage)
         let kLow = min(max(kClamped * (1.0 - uncertainty), 1.0), 3.0)
         let kHigh = min(kClamped * (1.0 + uncertainty), 3.0)
+        let method = ratioSupportedK > geometrySupportedK
+            ? "density_weighted_shell_visual_lidar_ratio"
+            : "density_weighted_shell"
 
         return CorrectionResult(
             k: kClamped,
@@ -143,8 +208,29 @@ struct OcclusionCorrector {
             kHigh: kHigh,
             visibleRatio: visibleRatio,
             scanAngleCoverage: scanAngleCoverage,
-            method: "density_weighted_shell"
+            method: method
         )
+    }
+
+    private static func visualLidarRatioSupportedK(
+        visualDetectionCount: Int?,
+        lidarDetectionCount: Int?,
+        scanAngleCoverage: Float
+    ) -> Float {
+        guard let visualDetectionCount,
+              let lidarDetectionCount,
+              visualDetectionCount > 0,
+              lidarDetectionCount > 0,
+              visualDetectionCount > lidarDetectionCount else {
+            return 1.0
+        }
+
+        let observedRatio = Float(visualDetectionCount) / Float(lidarDetectionCount)
+        let ratioK = min(max(observedRatio, 1.0), 3.0)
+        let countReliability = min(Float(min(visualDetectionCount, lidarDetectionCount)) / 5.0, 1.0)
+        let angleReliability = min(max(scanAngleCoverage, 0), 1)
+        let reliability = countReliability * angleReliability
+        return 1.0 + (ratioK - 1.0) * reliability
     }
 
     private static func computeDensityWeightedVisibleFraction(

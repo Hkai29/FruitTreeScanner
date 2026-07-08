@@ -8,10 +8,7 @@ struct TagManagementView: View {
     @ObservedObject private var tagStore = TagStore.shared
     var onStartScan: (() -> Void)? = nil
     @State private var selectedTab: Int = 0
-    @State private var showingAddPlot: Bool = false
-    @State private var showingAddTag: Bool = false
-    @State private var editingPlot: Plot?
-    @State private var editingTag: GroupTag?
+    @State private var presentedSheet: TagManagementSheet?
 
     var body: some View {
         NavigationView {
@@ -44,18 +41,18 @@ struct TagManagementView: View {
                         PlotListView(
                             plots: tagStore.plots,
                             treeCount: { tagStore.treeCount(forPlotId: $0) },
-                            onEdit: { editingPlot = $0 },
+                            onEdit: { presentedSheet = .editPlot($0) },
                             onDelete: { tagStore.deletePlot(id: $0) },
-                            onAdd: { showingAddPlot = true }
+                            onAdd: { presentedSheet = .addPlot }
                         )
                         .tag(0)
 
                         TagListView(
                             tags: tagStore.tags,
                             treeCount: { tagStore.treeCount(forTagId: $0) },
-                            onEdit: { editingTag = $0 },
+                            onEdit: { presentedSheet = .editTag($0) },
                             onDelete: { tagStore.deleteTag(id: $0) },
-                            onAdd: { showingAddTag = true }
+                            onAdd: { presentedSheet = .addTag }
                         )
                         .tag(1)
 
@@ -91,24 +88,24 @@ struct TagManagementView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingAddPlot) {
-                PlotEditView { plot in
-                    tagStore.addPlot(name: plot.name, colorHex: plot.colorHex)
-                }
-            }
-            .sheet(item: $editingPlot) { plot in
-                PlotEditView(plot: plot) { updatedPlot in
-                    tagStore.updatePlot(updatedPlot)
-                }
-            }
-            .sheet(isPresented: $showingAddTag) {
-                TagEditView { tag in
-                    tagStore.addTag(name: tag.name, colorHex: tag.colorHex)
-                }
-            }
-            .sheet(item: $editingTag) { tag in
-                TagEditView(tag: tag) { updatedTag in
-                    tagStore.updateTag(updatedTag)
+            .sheet(item: $presentedSheet) { sheet in
+                switch sheet {
+                case .addPlot:
+                    PlotEditView { plot in
+                        tagStore.addPlot(name: plot.name, colorHex: plot.colorHex)
+                    }
+                case .editPlot(let plot):
+                    PlotEditView(plot: plot) { updatedPlot in
+                        tagStore.updatePlot(updatedPlot)
+                    }
+                case .addTag:
+                    TagEditView { tag in
+                        tagStore.addTag(name: tag.name, colorHex: tag.colorHex)
+                    }
+                case .editTag(let tag):
+                    TagEditView(tag: tag) { updatedTag in
+                        tagStore.updateTag(updatedTag)
+                    }
                 }
             }
         }
@@ -116,9 +113,29 @@ struct TagManagementView: View {
 
     private func showAddSheet() {
         if selectedTab == 0 {
-            showingAddPlot = true
+            presentedSheet = .addPlot
         } else if selectedTab == 1 {
-            showingAddTag = true
+            presentedSheet = .addTag
+        }
+    }
+}
+
+private enum TagManagementSheet: Identifiable {
+    case addPlot
+    case editPlot(Plot)
+    case addTag
+    case editTag(GroupTag)
+
+    var id: String {
+        switch self {
+        case .addPlot:
+            return "add-plot"
+        case .editPlot(let plot):
+            return "edit-plot-\(plot.id.uuidString)"
+        case .addTag:
+            return "add-tag"
+        case .editTag(let tag):
+            return "edit-tag-\(tag.id.uuidString)"
         }
     }
 }

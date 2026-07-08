@@ -9,20 +9,7 @@ import Vision
 @preconcurrency import CoreVideo
 
 extension ImageDetector {
-    struct YOLOParsingResult {
-        let fruits: [DetectedFruit]
-        let modelCandidateCount: Int
-        let confidenceFilteredCount: Int
-        let unmappedObservationCount: Int
-    }
-
-    private struct YOLOPrediction {
-        let category: FruitCategory
-        let boundingBox: CGRect
-        let confidence: Float
-    }
-
-    func performDetection(pixelBuffer: CVPixelBuffer, timestamp: TimeInterval) async -> [DetectedFruit] {
+    func performDetection(pixelBuffer: CVPixelBuffer, timestamp: TimeInterval, imageSize: CGSize) async -> [DetectedFruit] {
         let sendablePixelBuffer = SendablePixelBuffer(value: pixelBuffer)
         let config = configSnapshot()
 
@@ -34,10 +21,20 @@ extension ImageDetector {
                 }
 
                 let pixelBuffer = sendablePixelBuffer.value
+                let pixelBufferSize = Self.pixelBufferSize(pixelBuffer)
+                let inferenceStart = Date()
+                self.recordDebugInferenceStarted(
+                    frameSize: imageSize,
+                    pixelBufferSize: pixelBufferSize,
+                    threshold: config.minConfidence
+                )
+
                 if let model = self.coreMLModel {
                     self.performCoreMLDetection(
                         pixelBuffer: pixelBuffer,
                         timestamp: timestamp,
+                        imageSize: imageSize,
+                        inferenceStart: inferenceStart,
                         model: model,
                         config: config,
                         completion: { fruits in
@@ -45,7 +42,13 @@ extension ImageDetector {
                         }
                     )
                 } else {
-                    self.performVisionClassification(pixelBuffer: pixelBuffer, timestamp: timestamp, completion: { fruits in
+                    self.performVisionClassification(
+                        pixelBuffer: pixelBuffer,
+                        timestamp: timestamp,
+                        imageSize: imageSize,
+                        inferenceStart: inferenceStart,
+                        config: config,
+                        completion: { fruits in
                         continuation.resume(returning: fruits)
                     })
                 }
@@ -56,15 +59,32 @@ extension ImageDetector {
     func performCoreMLDetection(
         pixelBuffer: CVPixelBuffer,
         timestamp: TimeInterval,
+        imageSize: CGSize,
+        inferenceStart: Date,
         model: VNCoreMLModel,
         config: FruitScanConfig,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
         let request = VNCoreMLRequest(model: model) { [weak self] request, error in
-            guard let self, error == nil else {
-                let reason = error?.localizedDescription ?? "CoreML 没有返回 observation"
+            guard let self else {
+                completion([])
+                return
+            }
+
+            if let error {
+                let reason = error.localizedDescription
                 Log.detection.error("CoreML detection failed: \(reason)")
-                self?.recordDetectionFailure(reason)
+                self.recordDetectionFailure(reason)
+                self.recordDebugDetectionResult(
+                    startedAt: inferenceStart,
+                    rawObservationCount: 0,
+                    filteredObservationCount: 0,
+                    rawPredictions: [],
+                    filteredPredictions: [],
+                    threshold: config.minConfidence,
+                    errorMessage: reason
+                )
+                self.captureDetectionFailureSample(note: reason)
                 completion([])
                 return
             }
@@ -72,17 +92,30 @@ extension ImageDetector {
             let observations = request.results ?? []
             let objectObservations = observations.compactMap { $0 as? VNRecognizedObjectObservation }
             if !objectObservations.isEmpty {
+                let confidenceFilteredCount = objectObservations.filter { $0.confidence < config.minConfidence }.count
+                let filteredObservationCount = objectObservations.count - confidenceFilteredCount
+                let rawPredictions = objectObservations.compactMap(Self.debugPrediction)
+                let filteredPredictions = objectObservations
+                    .filter { $0.confidence >= config.minConfidence }
+                    .compactMap(Self.debugPrediction)
                 let detectedFruits = self.mapObjectObservationsToFruits(
                     observations: objectObservations,
                     timestamp: timestamp,
                     config: config
                 )
-                let confidenceFilteredCount = objectObservations.filter { $0.confidence < config.minConfidence }.count
                 self.recordCoreMLDetection(
                     observationCount: objectObservations.count,
                     confidenceFilteredCount: confidenceFilteredCount,
                     unmappedObservationCount: max(objectObservations.count - detectedFruits.count - confidenceFilteredCount, 0),
                     mappedFruitCount: detectedFruits.count
+                )
+                self.recordDebugDetectionResult(
+                    startedAt: inferenceStart,
+                    rawObservationCount: objectObservations.count,
+                    filteredObservationCount: filteredObservationCount,
+                    rawPredictions: rawPredictions,
+                    filteredPredictions: filteredPredictions,
+                    threshold: config.minConfidence
                 )
                 completion(detectedFruits)
                 return
@@ -93,6 +126,16 @@ extension ImageDetector {
                 let reason = "CoreML 输出格式不支持：未返回目标框或 YOLO MultiArray"
                 Log.detection.error("\(reason)")
                 self.recordDetectionFailure(reason)
+                self.recordDebugDetectionResult(
+                    startedAt: inferenceStart,
+                    rawObservationCount: 0,
+                    filteredObservationCount: 0,
+                    rawPredictions: [],
+                    filteredPredictions: [],
+                    threshold: config.minConfidence,
+                    errorMessage: reason
+                )
+                self.captureDetectionFailureSample(note: reason)
                 completion([])
                 return
             }
@@ -108,6 +151,14 @@ extension ImageDetector {
                 unmappedObservationCount: parsed.unmappedObservationCount,
                 mappedFruitCount: parsed.fruits.count
             )
+            self.recordDebugDetectionResult(
+                startedAt: inferenceStart,
+                rawObservationCount: parsed.modelCandidateCount,
+                filteredObservationCount: parsed.thresholdPassedCount,
+                rawPredictions: parsed.rawPredictions,
+                filteredPredictions: parsed.filteredPredictions,
+                threshold: config.minConfidence
+            )
             completion(parsed.fruits)
         }
 
@@ -120,6 +171,16 @@ extension ImageDetector {
         } catch {
             Log.detection.error("VNImageRequestHandler failed: \(error.localizedDescription)")
             recordDetectionFailure(error.localizedDescription)
+            recordDebugDetectionResult(
+                startedAt: inferenceStart,
+                rawObservationCount: 0,
+                filteredObservationCount: 0,
+                rawPredictions: [],
+                filteredPredictions: [],
+                threshold: config.minConfidence,
+                errorMessage: error.localizedDescription
+            )
+            captureDetectionFailureSample(note: error.localizedDescription)
             completion([])
         }
     }
@@ -156,222 +217,24 @@ extension ImageDetector {
     func performVisionClassification(
         pixelBuffer: CVPixelBuffer,
         timestamp: TimeInterval,
+        imageSize: CGSize,
+        inferenceStart: Date,
+        config: FruitScanConfig,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
+        let reason = "CoreML model not loaded; fallback has no 2D bounding boxes"
         recordFallbackFrame(reason: modelStatus.hudDetail)
+        recordDebugDetectionResult(
+            startedAt: inferenceStart,
+            rawObservationCount: 0,
+            filteredObservationCount: 0,
+            rawPredictions: [],
+            filteredPredictions: [],
+            threshold: config.minConfidence,
+            errorMessage: reason
+        )
+        captureDetectionFailureSample(note: reason)
         completion([])
     }
 
-    static func parseYOLOMultiArray(
-        _ multiArray: MLMultiArray,
-        timestamp: TimeInterval,
-        config: FruitScanConfig,
-        lowConfidenceFloor: Float = 0.05,
-        nmsThreshold: Float = 0.45
-    ) -> YOLOParsingResult {
-        let dimensions = multiArray.shape.map { $0.intValue }
-        guard dimensions.count == 3 else {
-            return YOLOParsingResult(
-                fruits: [],
-                modelCandidateCount: 0,
-                confidenceFilteredCount: 0,
-                unmappedObservationCount: 0
-            )
-        }
-
-        let channelAxis: Int
-        if dimensions[1] >= 5 {
-            channelAxis = 1
-        } else if dimensions[2] >= 5 {
-            channelAxis = 2
-        } else {
-            return YOLOParsingResult(
-                fruits: [],
-                modelCandidateCount: 0,
-                confidenceFilteredCount: 0,
-                unmappedObservationCount: 0
-            )
-        }
-
-        let anchorAxis = channelAxis == 1 ? 2 : 1
-        let channelCount = dimensions[channelAxis]
-        let anchorCount = dimensions[anchorAxis]
-        let classCount = channelCount - 4
-        guard classCount > 0, anchorCount > 0 else {
-            return YOLOParsingResult(
-                fruits: [],
-                modelCandidateCount: 0,
-                confidenceFilteredCount: 0,
-                unmappedObservationCount: 0
-            )
-        }
-
-        var predictions: [YOLOPrediction] = []
-        predictions.reserveCapacity(64)
-        var modelCandidateCount = 0
-        var confidenceFilteredCount = 0
-        var unmappedObservationCount = 0
-
-        for anchorIndex in 0..<anchorCount {
-            let (classIndex, confidence) = bestClassScore(
-                in: multiArray,
-                classCount: classCount,
-                anchorIndex: anchorIndex,
-                channelAxis: channelAxis
-            )
-
-            guard confidence >= lowConfidenceFloor else { continue }
-            modelCandidateCount += 1
-
-            guard confidence >= config.minConfidence else {
-                confidenceFilteredCount += 1
-                continue
-            }
-
-            guard let category = FruitCategory.fromCustomModel(classIndex) else {
-                unmappedObservationCount += 1
-                continue
-            }
-
-            let centerX = value(in: multiArray, channel: 0, anchor: anchorIndex, channelAxis: channelAxis)
-            let centerY = value(in: multiArray, channel: 1, anchor: anchorIndex, channelAxis: channelAxis)
-            let width = value(in: multiArray, channel: 2, anchor: anchorIndex, channelAxis: channelAxis)
-            let height = value(in: multiArray, channel: 3, anchor: anchorIndex, channelAxis: channelAxis)
-
-            guard let boundingBox = makeVisionBoundingBox(
-                centerX: centerX,
-                centerY: centerY,
-                width: width,
-                height: height
-            ) else {
-                unmappedObservationCount += 1
-                continue
-            }
-
-            predictions.append(YOLOPrediction(
-                category: category,
-                boundingBox: boundingBox,
-                confidence: confidence
-            ))
-        }
-
-        let fruits = nonMaximumSuppression(
-            predictions,
-            threshold: nmsThreshold
-        ).map {
-            DetectedFruit(
-                category: $0.category,
-                boundingBox: $0.boundingBox,
-                confidence: $0.confidence,
-                timestamp: timestamp
-            )
-        }
-
-        return YOLOParsingResult(
-            fruits: fruits,
-            modelCandidateCount: modelCandidateCount,
-            confidenceFilteredCount: confidenceFilteredCount,
-            unmappedObservationCount: unmappedObservationCount
-        )
-    }
-
-    private static func bestClassScore(
-        in multiArray: MLMultiArray,
-        classCount: Int,
-        anchorIndex: Int,
-        channelAxis: Int
-    ) -> (classIndex: Int, confidence: Float) {
-        var bestIndex = 0
-        var bestScore: Float = -.infinity
-        for classIndex in 0..<classCount {
-            let rawScore = value(
-                in: multiArray,
-                channel: classIndex + 4,
-                anchor: anchorIndex,
-                channelAxis: channelAxis
-            )
-            let score = normalizedConfidence(rawScore)
-            if score > bestScore {
-                bestScore = score
-                bestIndex = classIndex
-            }
-        }
-        return (bestIndex, bestScore.isFinite ? bestScore : 0)
-    }
-
-    private static func value(
-        in multiArray: MLMultiArray,
-        channel: Int,
-        anchor: Int,
-        channelAxis: Int
-    ) -> Float {
-        let indices: [NSNumber]
-        if channelAxis == 1 {
-            indices = [NSNumber(value: 0), NSNumber(value: channel), NSNumber(value: anchor)]
-        } else {
-            indices = [NSNumber(value: 0), NSNumber(value: anchor), NSNumber(value: channel)]
-        }
-        return multiArray[indices].floatValue
-    }
-
-    private static func normalizedConfidence(_ rawScore: Float) -> Float {
-        guard rawScore.isFinite else { return 0 }
-        if rawScore >= 0, rawScore <= 1 {
-            return rawScore
-        }
-        return 1 / (1 + exp(-rawScore))
-    }
-
-    private static func makeVisionBoundingBox(
-        centerX: Float,
-        centerY: Float,
-        width: Float,
-        height: Float
-    ) -> CGRect? {
-        guard centerX.isFinite, centerY.isFinite, width.isFinite, height.isFinite,
-              width > 0, height > 0 else { return nil }
-
-        let coordinateScale: Float = max(abs(centerX), abs(centerY), abs(width), abs(height)) > 2 ? 320 : 1
-        let normalizedCenterX = centerX / coordinateScale
-        let normalizedCenterY = centerY / coordinateScale
-        let normalizedWidth = width / coordinateScale
-        let normalizedHeight = height / coordinateScale
-
-        let minX = max(0, min(1, normalizedCenterX - normalizedWidth / 2))
-        let maxX = max(0, min(1, normalizedCenterX + normalizedWidth / 2))
-        let minYTopOrigin = max(0, min(1, normalizedCenterY - normalizedHeight / 2))
-        let maxYTopOrigin = max(0, min(1, normalizedCenterY + normalizedHeight / 2))
-
-        let clampedWidth = maxX - minX
-        let clampedHeight = maxYTopOrigin - minYTopOrigin
-        guard clampedWidth > 0.001, clampedHeight > 0.001 else { return nil }
-
-        return CGRect(
-            x: CGFloat(minX),
-            y: CGFloat(1 - maxYTopOrigin),
-            width: CGFloat(clampedWidth),
-            height: CGFloat(clampedHeight)
-        )
-    }
-
-    private static func nonMaximumSuppression(
-        _ predictions: [YOLOPrediction],
-        threshold: Float
-    ) -> [YOLOPrediction] {
-        let sorted = predictions.sorted { $0.confidence > $1.confidence }
-        var kept: [YOLOPrediction] = []
-        kept.reserveCapacity(min(sorted.count, 64))
-
-        for prediction in sorted {
-            let overlapsExisting = kept.contains { keptPrediction in
-                keptPrediction.category == prediction.category &&
-                DetectionDeduplicator.computeIoU(keptPrediction.boundingBox, prediction.boundingBox) >= threshold
-            }
-            if !overlapsExisting {
-                kept.append(prediction)
-            }
-        }
-
-        return kept
-    }
 }

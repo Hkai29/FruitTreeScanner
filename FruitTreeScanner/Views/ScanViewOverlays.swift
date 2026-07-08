@@ -1,106 +1,126 @@
 import SwiftUI
 
-struct ScanCoverageCompleteToast: View {
-    var body: some View {
-        VStack {
-            Spacer()
-            HStack {
-                Spacer()
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(Design.Colors.forest)
-                    Text("扫描覆盖充足")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("可以点击完成保存结果")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .padding(Design.Space.md)
-                .background(
-                    RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                        .fill(Design.Colors.Dark.hudBackground)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                        .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
-                )
-                Spacer()
-            }
-            .padding(.bottom, 120)
-        }
-        .transition(.opacity)
+struct ScanScannerInterfaceActions {
+    let onCloseGuide: () -> Void
+    let onStartRecording: () -> Void
+    let onToggleGuide: () -> Void
+    let onToggleRecording: () -> Void
+    let onToggleMeasurement: () -> Void
+    let onRequestCancelScan: () -> Void
+    let onResumeRecording: () -> Void
+    let onFinishScan: () -> Void
+    let onClearMeasurement: () -> Void
+    let onDismissResult: () -> Void
+    let onDismissResultToHome: () -> Void
+    let onDebug: (() -> Void)?
+
+    init(
+        onCloseGuide: @escaping () -> Void,
+        onStartRecording: @escaping () -> Void,
+        onToggleGuide: @escaping () -> Void,
+        onToggleRecording: @escaping () -> Void,
+        onToggleMeasurement: @escaping () -> Void,
+        onRequestCancelScan: @escaping () -> Void,
+        onResumeRecording: @escaping () -> Void,
+        onFinishScan: @escaping () -> Void,
+        onClearMeasurement: @escaping () -> Void,
+        onDismissResult: @escaping () -> Void,
+        onDismissResultToHome: @escaping () -> Void,
+        onDebug: (() -> Void)? = nil
+    ) {
+        self.onCloseGuide = onCloseGuide
+        self.onStartRecording = onStartRecording
+        self.onToggleGuide = onToggleGuide
+        self.onToggleRecording = onToggleRecording
+        self.onToggleMeasurement = onToggleMeasurement
+        self.onRequestCancelScan = onRequestCancelScan
+        self.onResumeRecording = onResumeRecording
+        self.onFinishScan = onFinishScan
+        self.onClearMeasurement = onClearMeasurement
+        self.onDismissResult = onDismissResult
+        self.onDismissResultToHome = onDismissResultToHome
+        self.onDebug = onDebug
     }
 }
 
-struct ScanReadinessOverlay: View {
+struct ScanScannerInterfaceLayer: View {
+    let treeID: String
     let scanReadiness: ScanReadiness
-    let onOpenSettings: () -> Void
+    let isRecording: Bool
+    let isEstimating: Bool
+    let canExportScan: Bool
+    let shouldShowPostCapturePanel: Bool
+    let showGuide: Bool
+    let showResult: Bool
+    let showCoverageComplete: Bool
+    let yieldResult: YieldResult?
+    let detectionDebugState: DetectionDebugState?
+
+    @ObservedObject var hudState: ScanHUDState
+    @ObservedObject var qualityMonitor: ScanQualityMonitor
+    @ObservedObject var measurementController: MetalMeasurementController
+    @Binding var measuredDistance: Float?
+
+    let actions: ScanScannerInterfaceActions
 
     var body: some View {
-        if scanReadiness.blocksScanning {
-            VStack(spacing: 14) {
-                ProgressView()
-                    .opacity(scanReadiness == .checking ? 1 : 0)
-
-                Text(scanReadiness.title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.white)
-
-                Text(scanReadiness.message)
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.72))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if scanReadiness == .cameraDenied {
-                    Button("打开设置") {
-                        onOpenSettings()
-                    }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(Capsule().fill(Design.Colors.harvest))
-                }
+        if !scanReadiness.blocksScanning {
+            #if DEBUG
+            if let detectionDebugState {
+                DetectionDebugOverlayView(state: detectionDebugState)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
             }
-            .padding(18)
-            .frame(maxWidth: 320)
-            .background(
-                RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .fill(Design.Colors.Dark.hudBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
-            )
-            .padding(.horizontal, 24)
-        }
-    }
-}
+            #endif
 
-struct ScanNoticeToast: View {
-    let message: String
+            ScanStatusLayer(
+                treeID: treeID,
+                isRecording: isRecording,
+                hudState: hudState,
+                qualityMonitor: qualityMonitor
+            )
 
-    var body: some View {
-        VStack {
-            Spacer()
-            Text(message)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(Design.Colors.Dark.hudBackground)
+            ScanGuidanceOverlay(hudState: hudState, isRecording: isRecording)
+
+            ScanMeasurementLayer(
+                measurementController: measurementController,
+                measuredDistance: $measuredDistance,
+                onClearMeasurement: actions.onClearMeasurement
+            )
+
+            ScanControlLayer(
+                isRecording: isRecording,
+                isEstimating: isEstimating,
+                canExportScan: canExportScan,
+                shouldShowPostCapturePanel: shouldShowPostCapturePanel,
+                hudState: hudState,
+                measurementController: measurementController,
+                actions: actions
+            )
+
+            if showGuide {
+                ScanFieldGuideOverlay(
+                    onClose: actions.onCloseGuide,
+                    onStartScan: actions.onStartRecording
                 )
-                .overlay(
-                    Capsule()
-                        .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
-                )
-                .padding(.bottom, 112)
+            }
+
+            ScanResultLayer(
+                treeID: treeID,
+                showResult: showResult,
+                yieldResult: yieldResult,
+                onDismissResult: actions.onDismissResult,
+                onDismissResultToHome: actions.onDismissResultToHome
+            )
+
+            if isEstimating {
+                ScanEstimatingOverlay()
+            }
+
+            if showCoverageComplete {
+                ScanCoverageCompleteToast()
+                    .animation(.easeInOut(duration: 0.3), value: showCoverageComplete)
+            }
         }
-        .transition(.opacity)
     }
 }

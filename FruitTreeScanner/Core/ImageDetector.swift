@@ -11,10 +11,12 @@ import simd
 
 final class ImageDetector: @unchecked Sendable {
 
-    // pixelBuffer is synchronously copied (duplicatePixelBuffer) inside enqueueFrame
-    // before QueuedFrame is created, so cross-detectionQueue transfer is safe.
+    // RGB and depth buffers are synchronously copied (duplicatePixelBuffer)
+    // inside enqueueFrame before QueuedFrame is created, so transferring the
+    // frame to detectionQueue does not retain ARKit's reusable buffers.
     struct QueuedFrame: @unchecked Sendable {
         let pixelBuffer: CVPixelBuffer
+        let depthMap: CVPixelBuffer?
         let timestamp: TimeInterval
         let cameraTransform: simd_float4x4
         let cameraIntrinsics: simd_float3x3
@@ -42,12 +44,16 @@ final class ImageDetector: @unchecked Sendable {
     var coreMLModel: VNCoreMLModel?
     private(set) var modelStatus: ImageDetectorModelStatus = .fallback(reason: "模型尚未加载")
     var diagnosticsRecorder = ImageDetectionDiagnosticsRecorder()
+    var detectionDebugState = DetectionDebugState()
+    var detectionFailureSamples: [DetectionFailureSample] = []
+    let maxDetectionFailureSamples = 20
     let categoryMapper = FruitCategoryMapper.standard
 
     // MARK: - Initialization
 
     init(config: FruitScanConfig = .default) {
         self.config = config
+        self.detectionDebugState = DetectionDebugState(currentThreshold: config.minConfidence)
         loadCoreMLModel()
     }
 
@@ -55,6 +61,8 @@ final class ImageDetector: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         self.config = newConfig
+        detectionDebugState.currentThreshold = newConfig.minConfidence
+        detectionDebugState.lastUpdatedAt = Date()
     }
 
     func configSnapshot() -> FruitScanConfig {
@@ -75,13 +83,21 @@ final class ImageDetector: @unchecked Sendable {
                 resourceName: loadedModel.resourceName,
                 bundleExtension: loadedModel.bundleExtension
             )
-            Log.detection.info("CoreML model loaded: \(loadedModel.resourceName)")
+            Log.detection.info("CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))")
             updateModelDiagnostics()
+            updateModelDebugStateLoaded(loadedModel)
         } catch {
+            let modelResource = ImageDetectorModelLoader.modelURL(named: "FruitsDetector")
+            let modelName = modelResource.map { "FruitsDetector.\($0.bundleExtension)" } ?? "FruitsDetector"
             coreMLModel = nil
             modelStatus = .fallback(reason: error.localizedDescription)
-            Log.detection.warning("CoreML model not available, using fallback: \(error.localizedDescription)")
+            Log.detection.error("CoreML model not available, using fallback: \(error.localizedDescription)")
             updateModelDiagnostics()
+            updateModelDebugStateFailure(
+                modelName: modelName,
+                modelURLFound: modelResource != nil,
+                errorMessage: error.localizedDescription
+            )
         }
     }
 
@@ -101,6 +117,30 @@ final class ImageDetector: @unchecked Sendable {
         diagnosticsRecorder.apply(modelStatus: modelStatus)
     }
 
+    private func updateModelDebugStateLoaded(_ loadedModel: ImageDetectorLoadedModel) {
+        lock.lock()
+        detectionDebugState.markModelLoaded(
+            modelName: loadedModel.displayName,
+            modelURLFound: true,
+            supportedClasses: loadedModel.supportedClasses
+        )
+        lock.unlock()
+    }
+
+    private func updateModelDebugStateFailure(
+        modelName: String,
+        modelURLFound: Bool,
+        errorMessage: String
+    ) {
+        lock.lock()
+        detectionDebugState.markModelLoadFailure(
+            modelName: modelName,
+            modelURLFound: modelURLFound,
+            errorMessage: errorMessage
+        )
+        lock.unlock()
+    }
+
     // MARK: - Public Methods
 
     /// Process the queued frames and return detected fruits.
@@ -112,7 +152,11 @@ final class ImageDetector: @unchecked Sendable {
         var allDetectedFruits: [DetectedFruit] = []
 
         for frame in framesToProcess {
-            let fruits = await performDetection(pixelBuffer: frame.pixelBuffer, timestamp: frame.timestamp)
+            let fruits = await performDetection(
+                pixelBuffer: frame.pixelBuffer,
+                timestamp: frame.timestamp,
+                imageSize: frame.imageSize
+            )
             let enriched = fruits.map { fruit in
                 DetectedFruit(
                     category: fruit.category,
@@ -121,7 +165,8 @@ final class ImageDetector: @unchecked Sendable {
                     timestamp: fruit.timestamp,
                     cameraTransform: frame.cameraTransform,
                     cameraIntrinsics: frame.cameraIntrinsics,
-                    imageSize: frame.imageSize
+                    imageSize: frame.imageSize,
+                    depthMap: frame.depthMap
                 )
             }
             allDetectedFruits.append(contentsOf: enriched)
@@ -157,4 +202,5 @@ final class ImageDetector: @unchecked Sendable {
         diagnosticsRecorder.recordFallbackFrame(reason: reason)
         lock.unlock()
     }
+
 }

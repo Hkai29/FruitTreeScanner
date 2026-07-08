@@ -100,6 +100,9 @@ struct SettingsView: View {
                                 value: $settings.qualityPreset,
                                 options: SettingsStore.qualityPresetOptions
                             )
+                            SettingsInlineHint(
+                                text: "高质量会提高深度置信度门槛，点云更干净但弱光或快速移动时更容易提示补扫。"
+                            )
 
                             GlassDivider()
 
@@ -116,6 +119,9 @@ struct SettingsView: View {
                                 },
                                 customDisplayValue: "\(Int(maxPointCountDraft) / 10000)万"
                             )
+                            SettingsInlineHint(
+                                text: "更高点数能保留更多细节，也会增加内存、导出文件大小和结果计算时间。"
+                            )
 
                             GlassDivider()
 
@@ -131,6 +137,9 @@ struct SettingsView: View {
                                     }
                                 },
                                 customDisplayValue: String(format: "%.1f cm", scanPrecisionDraft * 100)
+                            )
+                            SettingsInlineHint(
+                                text: "更小精度会减少体素采样间隔，适合细枝和小果，代价是分析更慢。"
                             )
                         }
                     }

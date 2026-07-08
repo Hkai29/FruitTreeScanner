@@ -44,6 +44,9 @@ struct OrchardMapView: View {
         .preferredColorScheme(.dark)
         .navigationBarHidden(true)
         .onAppear(perform: loadAndFrameMap)
+        .onChange(of: historyStore.scanFiles) { _ in
+            updateMapRegion()
+        }
     }
 
     private var mapView: some View {

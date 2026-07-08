@@ -8,15 +8,17 @@ struct HUDPill: View {
     let label: String
     let value: String
     var accentColor: Color = Design.Colors.harvest
+    var labelSize: CGFloat = 10
+    var valueSize: CGFloat = 14
 
     var body: some View {
         HStack(spacing: 6) {
             Text(label)
-                .font(Design.Typography.hudLabel)
+                .font(.system(size: labelSize, weight: .medium, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textMuted)
 
             Text(value)
-                .font(Design.Typography.hudValue)
+                .font(.system(size: valueSize, weight: .bold, design: .monospaced))
                 .foregroundColor(accentColor)
         }
         .padding(.horizontal, 9)
@@ -39,6 +41,8 @@ struct StatusIndicator: View {
     }
 
     let status: Status
+    var iconSize: CGFloat = 10
+    var labelSize: CGFloat = 12
 
     private var color: Color {
         switch status {
@@ -70,11 +74,11 @@ struct StatusIndicator: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(.system(size: iconSize))
                 .foregroundColor(color)
 
             Text(label)
-                .font(Design.Typography.darkCaption)
+                .font(.system(size: labelSize, weight: .regular))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .padding(.horizontal, 10)

@@ -45,6 +45,15 @@ final class PointCloudCluster: Sendable {
         KDTree(points: points).rangeQuery(center: center, radius: radius)
     }
 
+    func debugAdaptiveEps(distance: Float, density: Float) -> Float {
+        adaptiveEps(baseEps: config.baseEps, distance: distance, density: density)
+    }
+
+    func debugLocalSpacingFactors(points: [SIMD3<Float>]) -> [Float] {
+        let clusterPoints = points.map { ClusterPoint(pos: $0, color: .zero) }
+        return computeLocalSpacingFactors(clusterPoints, kdtree: KDTree(points: points))
+    }
+
     // MARK: - DBSCAN Implementation
 
     struct ClusterPoint {
@@ -67,8 +76,9 @@ final class PointCloudCluster: Sendable {
         var clusterId = 0
         var candidates: [FruitCandidate] = []
 
-        // 第二步：计算点云密度，用于自适应 EPS
+        // 第二步：计算全局密度与局部间距，用于自适应 EPS
         let avgPointDensity = computePointDensity(points)
+        let localSpacingFactors = computeLocalSpacingFactors(points, kdtree: kdtree)
 
         for i in 0..<points.count {
             if points[i].visited { continue }
@@ -76,7 +86,12 @@ final class PointCloudCluster: Sendable {
 
             // 自适应 epsilon - 根据距离和点云密度动态调整
             let distance = simd_length(points[i].pos)
-            let eps = adaptiveEps(baseEps: config.baseEps, distance: distance, density: avgPointDensity)
+            let eps = adaptiveEps(
+                baseEps: config.baseEps,
+                distance: distance,
+                density: avgPointDensity,
+                localSpacingFactor: localSpacingFactors[i]
+            )
 
             let neighbors = regionQuery(index: i, points: points, kdtree: kdtree, eps: eps)
 
@@ -84,7 +99,16 @@ final class PointCloudCluster: Sendable {
                 continue
             }
 
-            expandCluster(index: i, neighbors: neighbors, clusterId: clusterId, eps: eps, points: &points, kdtree: kdtree, density: avgPointDensity)
+            expandCluster(
+                index: i,
+                neighbors: neighbors,
+                clusterId: clusterId,
+                eps: eps,
+                points: &points,
+                kdtree: kdtree,
+                density: avgPointDensity,
+                localSpacingFactors: localSpacingFactors
+            )
             clusterId += 1
         }
 
@@ -141,9 +165,20 @@ final class PointCloudCluster: Sendable {
         }
         let globalStd = Float(sqrt(varianceSum / Double(validCount)))
         let threshold = globalMean + 2.0 * globalStd
+        let radialDistances = positions.map { max(simd_length($0), 0.3) }.sorted()
+        let medianDistance = radialDistances[radialDistances.count / 2]
 
         return points.enumerated().compactMap { i, point in
-            meanDistances[i] <= threshold ? point : nil
+            // Consumer LiDAR returns become sparser with range. A single
+            // global kNN threshold can incorrectly remove a coherent distant
+            // fruit cluster before adaptive DBSCAN sees it, so only relax the
+            // threshold for points farther than the scan's median range.
+            let pointDistance = max(simd_length(point.pos), 0.3)
+            let distanceScale = min(
+                max(pointDistance / max(medianDistance, 0.3), 1.0),
+                3.0
+            )
+            return meanDistances[i] <= threshold * distanceScale ? point : nil
         }
     }
 
@@ -173,9 +208,60 @@ final class PointCloudCluster: Sendable {
         return volume > 0 ? Float(points.count) / volume : 100
     }
 
+    private func computeLocalSpacingFactors(_ points: [ClusterPoint], kdtree: KDTree) -> [Float] {
+        guard points.count > 2 else {
+            return Array(repeating: 1.0, count: points.count)
+        }
+
+        let neighborCount = min(max(config.minPoints + 1, 6), points.count)
+        var meanSpacings = [Float](repeating: 0, count: points.count)
+
+        for i in points.indices {
+            let nearest = kdtree.kNearest(center: points[i].pos, k: neighborCount)
+            var distanceSum: Float = 0
+            var validCount = 0
+
+            for neighborIndex in nearest where neighborIndex != i {
+                let distance = simd_distance(points[i].pos, points[neighborIndex].pos)
+                if distance.isFinite, distance > 0 {
+                    distanceSum += distance
+                    validCount += 1
+                }
+            }
+
+            meanSpacings[i] = validCount > 0
+                ? distanceSum / Float(validCount)
+                : Float.nan
+        }
+
+        let validSpacings = meanSpacings
+            .filter { $0.isFinite && $0 > 0 }
+            .sorted()
+        guard !validSpacings.isEmpty else {
+            return Array(repeating: 1.0, count: points.count)
+        }
+
+        let medianSpacing = max(validSpacings[validSpacings.count / 2], 1e-4)
+        return meanSpacings.map { spacing in
+            guard spacing.isFinite, spacing > 0 else { return 1.0 }
+            let relativeSpacing = spacing / medianSpacing
+            let factor = sqrt(max(relativeSpacing, 0))
+            return min(max(factor, 0.85), 1.35)
+        }
+    }
+
     // MARK: - 扩展聚类
 
-    private func expandCluster(index: Int, neighbors: [Int], clusterId: Int, eps: Float, points: inout [ClusterPoint], kdtree: KDTree, density: Float) {
+    private func expandCluster(
+        index: Int,
+        neighbors: [Int],
+        clusterId: Int,
+        eps: Float,
+        points: inout [ClusterPoint],
+        kdtree: KDTree,
+        density: Float,
+        localSpacingFactors: [Float]
+    ) {
         points[index].clusterId = clusterId
         var neighborList = neighbors
         var inCluster = Set(neighbors)
@@ -187,7 +273,15 @@ final class PointCloudCluster: Sendable {
             if !points[neighborIndex].visited {
                 points[neighborIndex].visited = true
                 let neighborDistance = simd_length(points[neighborIndex].pos)
-                let neighborEps = adaptiveEps(baseEps: config.baseEps, distance: neighborDistance, density: density)
+                let localSpacingFactor = neighborIndex < localSpacingFactors.count
+                    ? localSpacingFactors[neighborIndex]
+                    : 1.0
+                let neighborEps = adaptiveEps(
+                    baseEps: config.baseEps,
+                    distance: neighborDistance,
+                    density: density,
+                    localSpacingFactor: localSpacingFactor
+                )
                 let newNeighbors = regionQuery(index: neighborIndex, points: points, kdtree: kdtree, eps: neighborEps)
 
                 if newNeighbors.count >= config.minPoints {
@@ -213,7 +307,12 @@ final class PointCloudCluster: Sendable {
 
     // MARK: - 自适应 EPS 计算
 
-    private func adaptiveEps(baseEps: Float, distance: Float, density: Float) -> Float {
+    private func adaptiveEps(
+        baseEps: Float,
+        distance: Float,
+        density: Float,
+        localSpacingFactor: Float = 1.0
+    ) -> Float {
         // 基础距离缩放：LiDAR点密度 ∝ 1/d²，所以eps应该用sqrt(d)缩放
         let distanceFactor = sqrt(max(distance, 0.3))
 
@@ -225,11 +324,14 @@ final class PointCloudCluster: Sendable {
         }()
 
         // 果实尺寸约束：eps不应超过最大果实半径的一半
-        let scaledEps = baseEps * distanceFactor * densityFactor
+        let boundedLocalSpacingFactor = localSpacingFactor.isFinite
+            ? min(max(localSpacingFactor, 0.85), 1.35)
+            : 1.0
+        let scaledEps = baseEps * distanceFactor * densityFactor * boundedLocalSpacingFactor
 
         // 边界约束
         let minEps = baseEps * 0.5
-        let maxEps = min(baseEps * 2.0, 0.08)
+        let maxEps = min(baseEps * 2.0, max(config.maxDiameter * 0.75, baseEps))
 
         return min(max(scaledEps, minEps), maxEps)
     }

@@ -32,28 +32,58 @@ struct ImageDetectorLoadedModel {
     let model: VNCoreMLModel
     let resourceName: String
     let bundleExtension: String
+    let supportedClasses: [String]
+
+    var displayName: String {
+        "\(resourceName).\(bundleExtension)"
+    }
 }
 
 enum ImageDetectorModelLoader {
+    static func modelURL(named name: String) -> (url: URL, bundleExtension: String)? {
+        for bundleExtension in ["mlmodelc", "mlmodel", "mlpackage"] {
+            if let modelURL = Bundle.main.url(forResource: name, withExtension: bundleExtension) {
+                return (modelURL, bundleExtension)
+            }
+        }
+
+        return nil
+    }
+
     static func loadModel(named name: String) throws -> ImageDetectorLoadedModel {
         if let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodelc") {
             let mlModel = try MLModel(contentsOf: modelURL)
             let model = try VNCoreMLModel(for: mlModel)
-            return ImageDetectorLoadedModel(model: model, resourceName: name, bundleExtension: "mlmodelc")
+            return ImageDetectorLoadedModel(
+                model: model,
+                resourceName: name,
+                bundleExtension: "mlmodelc",
+                supportedClasses: supportedClasses(from: mlModel)
+            )
         }
 
         if let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodel") {
             let compiledURL = try MLModel.compileModel(at: modelURL)
             let mlModel = try MLModel(contentsOf: compiledURL)
             let model = try VNCoreMLModel(for: mlModel)
-            return ImageDetectorLoadedModel(model: model, resourceName: name, bundleExtension: "mlmodel")
+            return ImageDetectorLoadedModel(
+                model: model,
+                resourceName: name,
+                bundleExtension: "mlmodel",
+                supportedClasses: supportedClasses(from: mlModel)
+            )
         }
 
         if let modelURL = Bundle.main.url(forResource: name, withExtension: "mlpackage") {
             let compiledURL = try MLModel.compileModel(at: modelURL)
             let mlModel = try MLModel(contentsOf: compiledURL)
             let model = try VNCoreMLModel(for: mlModel)
-            return ImageDetectorLoadedModel(model: model, resourceName: name, bundleExtension: "mlpackage")
+            return ImageDetectorLoadedModel(
+                model: model,
+                resourceName: name,
+                bundleExtension: "mlpackage",
+                supportedClasses: supportedClasses(from: mlModel)
+            )
         }
 
         throw NSError(
@@ -61,5 +91,14 @@ enum ImageDetectorModelLoader {
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "Model file not found: \(name)"]
         )
+    }
+
+    private static func supportedClasses(from mlModel: MLModel) -> [String] {
+        if let labels = mlModel.modelDescription.classLabels, !labels.isEmpty {
+            return labels.map { "\($0)" }
+        }
+
+        // TODO: Read a bundled labels file when the model exporter includes one.
+        return []
     }
 }

@@ -18,6 +18,7 @@
 		SCANCOORD001 /* ScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORD002 /* ScanCoordinator.swift */; };
 		SCANCOORDAR001 /* ScanCoordinatorARSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORDAR002 /* ScanCoordinatorARSession.swift */; };
 		SCANCOORDWF001 /* ScanCoordinatorWorkflows.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORDWF002 /* ScanCoordinatorWorkflows.swift */; };
+		SCANCOORDHUD001 /* ScanCoordinatorHUDUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */; };
 		SCANCONF001 /* ScanSessionConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCONF002 /* ScanSessionConfiguration.swift */; };
 		SCANQUALSAMP001 /* ScanQualitySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANQUALSAMP002 /* ScanQualitySampler.swift */; };
 		SCANGUIDHELP001 /* ScanGuidanceHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANGUIDHELP002 /* ScanGuidanceHelper.swift */; };
@@ -26,38 +27,86 @@
 		SCANDIAG001 /* ScanDiagnosticsBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANDIAG002 /* ScanDiagnosticsBuilder.swift */; };
 		SCANFUSYLD001 /* ScanFusionYieldBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */; };
 		SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANRESULTEXP002 /* ScanResultExportService.swift */; };
+		CANOPYGEOM001 /* CanopyGeometryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CANOPYGEOM002 /* CanopyGeometryEstimator.swift */; };
+		FRUITMASS001 /* FruitMassEstimate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITMASS002 /* FruitMassEstimate.swift */; };
+		FRUITGEOM001 /* SimpleFruitGeometryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITGEOM002 /* SimpleFruitGeometryEstimator.swift */; };
+		FRUITGEOMCAT001 /* SimpleFruitGeometryCategories.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITGEOMCAT002 /* SimpleFruitGeometryCategories.swift */; };
+		FRUITGEOMMET001 /* SimpleFruitGeometryMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITGEOMMET002 /* SimpleFruitGeometryMetrics.swift */; };
+		FRUITQUAL001 /* FruitEstimationQualityScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITQUAL002 /* FruitEstimationQualityScorer.swift */; };
+		RESEARCHCSV001 /* ResearchCSVExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESEARCHCSV002 /* ResearchCSVExporter.swift */; };
 		23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115AA07F0ADF20776A78BADD /* ResultView.swift */; };
-		RESULTSECT001 /* ResultSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTSECT002 /* ResultSections.swift */; };
+		RESULTFRUIT001 /* FruitVolumeResultSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTFRUIT002 /* FruitVolumeResultSection.swift */; };
+		RESULTDIAG001 /* ResultDiagnosticsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTDIAG002 /* ResultDiagnosticsSection.swift */; };
+		RESULTWORK001 /* ResultPostScanWorkflowSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTWORK002 /* ResultPostScanWorkflowSection.swift */; };
+		RESULTCROWN001 /* CrownVolumeResultSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTCROWN002 /* CrownVolumeResultSection.swift */; };
+		RESULTALGO001 /* AlgorithmParametersResultSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTALGO002 /* AlgorithmParametersResultSection.swift */; };
 		RESULTTAG001 /* ResultTaggingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTTAG002 /* ResultTaggingView.swift */; };
-		RESULTCOMP001 /* ResultComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTCOMP002 /* ResultComponents.swift */; };
-		373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158ABA23ED3CD7468A81CFFE /* ScanView.swift */; };
-		SCANOVERLAY001 /* ScanViewOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANOVERLAY002 /* ScanViewOverlays.swift */; };
+		RESULTACT001 /* ResultActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTACT002 /* ResultActionButtons.swift */; };
+		RESULTCARD001 /* ResultCardRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTCARD002 /* ResultCardRows.swift */; };
+		RESULTBADGE001 /* ResultBadgesAndPills.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTBADGE002 /* ResultBadgesAndPills.swift */; };
+			RESULTPRES001 /* ResultPresentationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTPRES002 /* ResultPresentationModels.swift */; };
+			RESULTSUMM001 /* ResultSummaryComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = RESULTSUMM002 /* ResultSummaryComponents.swift */; };
+			SCANHISTCONTENT001 /* ScanHistoryContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANHISTCONTENT002 /* ScanHistoryContentView.swift */; };
+			SCANHISTFILTER001 /* ScanHistoryFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANHISTFILTER002 /* ScanHistoryFilterBar.swift */; };
+			SCANHISTEMPTY001 /* ScanHistoryEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANHISTEMPTY002 /* ScanHistoryEmptyState.swift */; };
+			SCANHISTROW001 /* ScanHistoryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANHISTROW002 /* ScanHistoryRow.swift */; };
+			SHARESHEET001 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = SHARESHEET002 /* ShareSheet.swift */; };
+			373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158ABA23ED3CD7468A81CFFE /* ScanView.swift */; };
+		SCANVIEWSTATE001 /* ScanView+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANVIEWSTATE002 /* ScanView+State.swift */; };
+		SCANVIEWLIFE001 /* ScanView+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANVIEWLIFE002 /* ScanView+Lifecycle.swift */; };
+			SCANVIEWACT001 /* ScanView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANVIEWACT002 /* ScanView+Actions.swift */; };
+			SCANVIEWEXP001 /* ScanView+Export.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANVIEWEXP002 /* ScanView+Export.swift */; };
+			SCANOVERLAY001 /* ScanViewOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANOVERLAY002 /* ScanViewOverlays.swift */; };
+			SCANLAYER001 /* ScanViewOverlayLayers.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANLAYER002 /* ScanViewOverlayLayers.swift */; };
+			SCANFIELD001 /* ScanFieldGuideOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFIELD002 /* ScanFieldGuideOverlay.swift */; };
+		SCANPOSTCAP001 /* ScanPostCaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANPOSTCAP002 /* ScanPostCaptureOverlay.swift */; };
+		SCANRENDER001 /* ScanRenderLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANRENDER002 /* ScanRenderLayer.swift */; };
 		SCANREADY001 /* ScanReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANREADY002 /* ScanReadiness.swift */; };
 		SCANEXPORTREADY001 /* ScanExportReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANEXPORTREADY002 /* ScanExportReadiness.swift */; };
-		SCANHUD001 /* ScanHUDViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANHUD002 /* ScanHUDViews.swift */; };
+		SCANSTATBAR001 /* ScanStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANSTATBAR002 /* ScanStatusBar.swift */; };
+		SCANSTATCONTENT001 /* ScanStatusBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANSTATCONTENT002 /* ScanStatusBarContent.swift */; };
+		SCANSTATPRES001 /* ScanStatusBarPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANSTATPRES002 /* ScanStatusBarPresentation.swift */; };
+		SCANCTRLBAR001 /* ScanControlBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCTRLBAR002 /* ScanControlBar.swift */; };
 		SCANMETAL001 /* ScanMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANMETAL002 /* ScanMetalView.swift */; };
 		3ED2D13CBE172639B6DE54B9 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = D20D286AA15B66451D7E4867 /* Shaders.metal */; };
 		4290FCA9BB47CE697C86A7ED /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688A076C865BB72C1E79F3EA /* StartView.swift */; };
-		STARTFLOW001 /* StartFlowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTFLOW002 /* StartFlowViews.swift */; };
-		STARTCHROME001 /* StartFlowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTCHROME002 /* StartFlowChrome.swift */; };
+		SCANLAUNCH001 /* ScanLaunchRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANLAUNCH002 /* ScanLaunchRequest.swift */; };
+		STARTLAYOUT001 /* StartViewLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTLAYOUT002 /* StartViewLayout.swift */; };
+		STARTACTIONS001 /* StartView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTACTIONS002 /* StartView+Actions.swift */; };
+		STARTPRESENT001 /* StartView+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTPRESENT002 /* StartView+Presentation.swift */; };
+		STARTIDSTEP001 /* StartIDEntryStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTIDSTEP002 /* StartIDEntryStep.swift */; };
+		STARTPLOTSTEP001 /* StartPlotSelectionStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTPLOTSTEP002 /* StartPlotSelectionStep.swift */; };
+		STARTSEASONSTEP001 /* StartSeasonSelectionStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTSEASONSTEP002 /* StartSeasonSelectionStep.swift */; };
+		STARTPROGRESS001 /* StartProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTPROGRESS002 /* StartProgressView.swift */; };
+		STARTSTEPCHROME001 /* StartStepChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTSTEPCHROME002 /* StartStepChrome.swift */; };
+		STARTNAVBAR001 /* StartNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTNAVBAR002 /* StartNavigationBar.swift */; };
 		STARTCONF001 /* StartConfirmationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTCONF002 /* StartConfirmationView.swift */; };
 		STARTTAG001 /* StartTagSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STARTTAG002 /* StartTagSelectionView.swift */; };
 		FLOWLAY001 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FLOWLAY002 /* FlowLayout.swift */; };
 		4822243FDDCB5DFA48275638 /* FruitTreeScannerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD9EBAD864179E14E3FA66D1 /* FruitTreeScannerApp.swift */; };
 		49E97BEF76CC0DFADCDC98B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 916EE162272411D94609DBA3 /* Assets.xcassets */; };
 		51B82507BCDE6D1F33F0D359 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65EF14476A599F346D1770E5 /* Utils.swift */; };
+		TREEFILE001 /* TreeFileNaming.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILE002 /* TreeFileNaming.swift */; };
+		LOCALFILE001 /* LocalFileStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOCALFILE002 /* LocalFileStorage.swift */; };
+		SHEETSAFE001 /* SpreadsheetTextSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = SHEETSAFE002 /* SpreadsheetTextSafety.swift */; };
+		PIXELCOPY001 /* PixelBufferCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = PIXELCOPY002 /* PixelBufferCopy.swift */; };
+		SIMDCOMPAT001 /* SIMDCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIMDCOMPAT002 /* SIMDCompatibility.swift */; };
 		LOG00000001 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOG00000002 /* Log.swift */; };
 		L10N00000001 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10N00000002 /* L10n.swift */; };
 		SCANSETPROV001 /* ScanSettingsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANSETPROV002 /* ScanSettingsProvider.swift */; };
 		LOCALSTR0001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = LOCALSTR0003 /* Localizable.strings */; };
 		582D39EDACD586789724BD9D /* MetalBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */; };
 		60D4C5AFE0DFAE56637E76E4 /* GPSRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */; };
-		67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */; };
-		B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */; };
-		CALREC001 /* CalibrationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALREC002 /* CalibrationRecord.swift */; };
-		BBDDFD016D098E22AE2FB02C /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77242F7C9551310A23D45DBD /* Renderer.swift */; };
-		RENDFRAME001 /* RendererFrameRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDFRAME002 /* RendererFrameRendering.swift */; };
-		RENDHELP001 /* RendererMetalHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDHELP002 /* RendererMetalHelpers.swift */; };
+			67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */; };
+				B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */; };
+				YIELDMODEL001 /* YieldEstimateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = YIELDMODEL002 /* YieldEstimateModels.swift */; };
+				CALREC001 /* CalibrationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALREC002 /* CalibrationRecord.swift */; };
+			CALRECPERSIST001 /* CalibrationRecordPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALRECPERSIST002 /* CalibrationRecordPersistence.swift */; };
+				BBDDFD016D098E22AE2FB02C /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77242F7C9551310A23D45DBD /* Renderer.swift */; };
+			RENDFRAME001 /* RendererFrameRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDFRAME002 /* RendererFrameRendering.swift */; };
+			RENDFRAMESUP001 /* RendererFrameSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDFRAMESUP002 /* RendererFrameSupport.swift */; };
+			RENDSTATE001 /* RendererStateAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDSTATE002 /* RendererStateAccess.swift */; };
+			RENDHELP001 /* RendererMetalHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDHELP002 /* RendererMetalHelpers.swift */; };
 		RENDPCEXP001 /* RendererPointCloudExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDPCEXP002 /* RendererPointCloudExport.swift */; };
 		RENDPCACC001 /* RendererPointCloudAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDPCACC002 /* RendererPointCloudAccess.swift */; };
 		RENDDEPTH001 /* RendererDepthCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDDEPTH002 /* RendererDepthCoverage.swift */; };
@@ -65,19 +114,35 @@
 		RENDSETTINGS001 /* RendererScanSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDSETTINGS002 /* RendererScanSettings.swift */; };
 		BFE751D382AA5DCD78668766 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 869591D63C1E6AC52725B236 /* Theme.swift */; };
 
-		C8C2F4B22F2D81D8B02A7708 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B3BAC8B3BDC2C17A17F80301 /* LaunchScreen.storyboard */; };
-		CALIB279228 /* CalibrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALIB794033 /* CalibrationView.swift */; };
-		CALCOMP001 /* CalibrationComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALCOMP002 /* CalibrationComponents.swift */; };
-		ADDCAL001 /* AddCalibrationRecordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADDCAL002 /* AddCalibrationRecordView.swift */; };
+		LAUNCHV2001 /* LaunchScreenV2.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = LAUNCHV2002 /* LaunchScreenV2.storyboard */; };
+			CALIB279228 /* CalibrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALIB794033 /* CalibrationView.swift */; };
+			CALSTAT001 /* CalibrationStatisticsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALSTAT002 /* CalibrationStatisticsCard.swift */; };
+			CALRECSEC001 /* CalibrationRecordsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALRECSEC002 /* CalibrationRecordsSection.swift */; };
+			CALRECROW001 /* CalibrationRecordRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALRECROW002 /* CalibrationRecordRow.swift */; };
+			CALPARAMCARD001 /* CalibrationParametersCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALPARAMCARD002 /* CalibrationParametersCard.swift */; };
+			ADDCAL001 /* AddCalibrationRecordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADDCAL002 /* AddCalibrationRecordView.swift */; };
+			ADDCALFORM001 /* AddCalibrationRecordForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADDCALFORM002 /* AddCalibrationRecordForm.swift */; };
+			CALINPUT001 /* CalibrationRecordInputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALINPUT002 /* CalibrationRecordInputParser.swift */; };
 		HELP279228 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HELP1122334455 /* HelpView.swift */; };
-		DASH279228 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASH794033 /* DashboardView.swift */; };
+			DASH279228 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASH794033 /* DashboardView.swift */; };
+			DASHDEST001 /* DashboardDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHDEST002 /* DashboardDestination.swift */; };
+		DASHLAYOUT001 /* DashboardHomeLayoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHLAYOUT002 /* DashboardHomeLayoutView.swift */; };
+		DASHROUTE001 /* DashboardView+Routing.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHROUTE002 /* DashboardView+Routing.swift */; };
 		DASHSHEETS001 /* DashboardSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHSHEETS002 /* DashboardSheets.swift */; };
+		DASHEMPTY001 /* DashboardSheetEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHEMPTY002 /* DashboardSheetEmptyState.swift */; };
+		POINTCLOUDSHEET001 /* PointCloudSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCLOUDSHEET002 /* PointCloudSheet.swift */; };
+		POINTCLOUDSELECT001 /* PointCloudFileSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCLOUDSELECT002 /* PointCloudFileSelector.swift */; };
 		DASHANALYTICS001 /* DashboardAnalyticsSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHANALYTICS002 /* DashboardAnalyticsSheets.swift */; };
 		DASHANALYTICSCOMP001 /* DashboardAnalyticsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHANALYTICSCOMP002 /* DashboardAnalyticsComponents.swift */; };
 		DASHHOME001 /* DashboardHomeSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHHOME002 /* DashboardHomeSections.swift */; };
 		DASHCHROME001 /* DashboardChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHCHROME002 /* DashboardChrome.swift */; };
-		DASHQUICK001 /* DashboardQuickActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHQUICK002 /* DashboardQuickActions.swift */; };
-		DASHRECENT001 /* DashboardRecentAndStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHRECENT002 /* DashboardRecentAndStats.swift */; };
+			DASHHERO001 /* DashboardHeroPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHHERO002 /* DashboardHeroPanel.swift */; };
+			DASHSTATUS001 /* DashboardStatusStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHSTATUS002 /* DashboardStatusStrip.swift */; };
+			DASHPRIMARY001 /* DashboardPrimaryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHPRIMARY002 /* DashboardPrimaryActions.swift */; };
+			QUICKGRID001 /* QuickActionsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = QUICKGRID002 /* QuickActionsGrid.swift */; };
+			QUICKMODEL001 /* QuickActionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = QUICKMODEL002 /* QuickActionModels.swift */; };
+			QUICKCARD001 /* QuickActionCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = QUICKCARD002 /* QuickActionCards.swift */; };
+			DASHRECENT001 /* DashboardRecentAndStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHRECENT002 /* DashboardRecentAndStats.swift */; };
 		DASHSHARED001 /* DashboardSharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHSHARED002 /* DashboardSharedComponents.swift */; };
 		DASHSUMMARY001 /* DashboardSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHSUMMARY002 /* DashboardSummary.swift */; };
 		QUICKSCAN001 /* QuickScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = QUICKSCAN002 /* QuickScanView.swift */; };
@@ -92,38 +157,69 @@
 
 		METALCOMP001 /* MetalComputePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = METALCOMP002 /* MetalComputePipeline.swift */; };
 		IMGDET279228 /* ImageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDET987654321 /* ImageDetector.swift */; };
-		IMGDETQUEUE001 /* ImageDetectorQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETQUEUE002 /* ImageDetectorQueue.swift */; };
-		IMGDETINFER001 /* ImageDetectorInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETINFER002 /* ImageDetectorInference.swift */; };
-		IMGDETLOAD001 /* ImageDetectorModelLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETLOAD002 /* ImageDetectorModelLoading.swift */; };
+			IMGDETQUEUE001 /* ImageDetectorQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETQUEUE002 /* ImageDetectorQueue.swift */; };
+			IMGDETINFER001 /* ImageDetectorInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETINFER002 /* ImageDetectorInference.swift */; };
+			IMGDETINFSUP001 /* ImageDetectorInferenceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETINFSUP002 /* ImageDetectorInferenceSupport.swift */; };
+			IMGDETYOLO001 /* ImageDetectorYOLOParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETYOLO002 /* ImageDetectorYOLOParser.swift */; };
+			IMGDETYOLOSUP001 /* ImageDetectorYOLOSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETYOLOSUP002 /* ImageDetectorYOLOSupport.swift */; };
+			IMGDETLOAD001 /* ImageDetectorModelLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETLOAD002 /* ImageDetectorModelLoading.swift */; };
 		IMGDETHELP001 /* ImageDetectionHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETHELP002 /* ImageDetectionHelpers.swift */; };
+		IMGDETDBG001 /* ImageDetectorDebugging.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGDETDBG002 /* ImageDetectorDebugging.swift */; };
+		DETDBGSTATE001 /* DetectionDebugState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DETDBGSTATE002 /* DetectionDebugState.swift */; };
 		FUSIONVAL279228 /* FusionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONVAL987654321 /* FusionValidator.swift */; };
+		FUSIONPROJ001 /* FusionValidatorProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONPROJ002 /* FusionValidatorProjection.swift */; };
+		FUSIONMATCH001 /* FusionValidatorMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONMATCH002 /* FusionValidatorMatching.swift */; };
 		FRUITCNT279228 /* FruitCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCNT987654321 /* FruitCounter.swift */; };
 		SETTINGS279228 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGS987654321 /* SettingsStore.swift */; };
+		SETTINGSSUP001 /* SettingsStoreSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSSUP002 /* SettingsStoreSupport.swift */; };
+		SETTINGSCTRL001 /* SettingsStoreDerivedConfigurations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSCTRL002 /* SettingsStoreDerivedConfigurations.swift */; };
 		MODEL98765432101 /* FruitsDetector.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = MODEL9876543210 /* FruitsDetector.mlpackage */; };
 		HISTCOMP001122 /* HistoricalCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HISTCOMP334455 /* HistoricalCompareView.swift */; };
 		HISTMODELS001 /* HistoricalCompareModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = HISTMODELS002 /* HistoricalCompareModels.swift */; };
 		HISTCOMPONENTS001 /* HistoricalCompareComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = HISTCOMPONENTS002 /* HistoricalCompareComponents.swift */; };
-		SCANPICKER001 /* ScanPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANPICKER002 /* ScanPickerView.swift */; };
-		ORCHARD001122 /* OrchardMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARD334455 /* OrchardMapView.swift */; };
-		ORCHARDMODELS001 /* OrchardMapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARDMODELS002 /* OrchardMapModels.swift */; };
-		ORCHARDCOMP001 /* OrchardMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARDCOMP002 /* OrchardMapComponents.swift */; };
-		ORCHARDPIN001 /* OrchardMapPinsAndStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARDPIN002 /* OrchardMapPinsAndStats.swift */; };
+			SCANPICKER001 /* ScanPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANPICKER002 /* ScanPickerView.swift */; };
+			ORCHARD001122 /* OrchardMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARD334455 /* OrchardMapView.swift */; };
+			ORCHARDMODELS001 /* OrchardMapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARDMODELS002 /* OrchardMapModels.swift */; };
+			ORCHARDEMPTY001 /* OrchardMapEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARDEMPTY002 /* OrchardMapEmptyState.swift */; };
+			ORCHARDCHROME001 /* OrchardMapChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARDCHROME002 /* OrchardMapChrome.swift */; };
+			TREECOUNT001 /* TreeCountCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREECOUNT002 /* TreeCountCard.swift */; };
+			TREEDETAIL001 /* TreeDetailCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEDETAIL002 /* TreeDetailCard.swift */; };
+			ORCHARDPIN001 /* OrchardMapPinsAndStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCHARDPIN002 /* OrchardMapPinsAndStats.swift */; };
 		POINTCLD001122 /* PointCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCLD334455 /* PointCloudView.swift */; };
-		POINTCTRL001 /* PointCloudControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCTRL002 /* PointCloudControls.swift */; };
-		SCENEKITPCL001 /* SceneKitPointCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITPCL002 /* SceneKitPointCloudView.swift */; };
-		SCENEKITRENDER001 /* SceneKitPointCloudRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITRENDER002 /* SceneKitPointCloudRendering.swift */; };
-		SETVIEW001122 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETVIEW334455 /* SettingsView.swift */; };
+			POINTCTRL001 /* PointCloudControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCTRL002 /* PointCloudControls.swift */; };
+			POINTCTRLPRIM001 /* PointCloudControlPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCTRLPRIM002 /* PointCloudControlPrimitives.swift */; };
+			POINTCTRLCOLOR001 /* PointCloudColorControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = POINTCTRLCOLOR002 /* PointCloudColorControls.swift */; };
+			SCENEKITPCL001 /* SceneKitPointCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITPCL002 /* SceneKitPointCloudView.swift */; };
+			SCENEKITRENDER001 /* SceneKitPointCloudRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITRENDER002 /* SceneKitPointCloudRendering.swift */; };
+			SCENEKITCOLOR001 /* SceneKitPointCloudColorRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITCOLOR002 /* SceneKitPointCloudColorRenderer.swift */; };
+			SCENEKITNODE001 /* SceneKitPointCloudNodeFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITNODE002 /* SceneKitPointCloudNodeFactory.swift */; };
+			SCENEKITREF001 /* SceneKitPointCloudReferenceGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITREF002 /* SceneKitPointCloudReferenceGeometry.swift */; };
+			SCENEKITSRC001 /* SceneKitPointCloudGeometrySources.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEKITSRC002 /* SceneKitPointCloudGeometrySources.swift */; };
+			SETVIEW001122 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETVIEW334455 /* SettingsView.swift */; };
 		SETCOMP001 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETCOMP002 /* SettingsComponents.swift */; };
 		D3FED03E2595575AB25CD050 /* PLYParserHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA290049668D55498B3D9885 /* PLYParserHelper.swift */; };
 		PLYMETA001 /* PLYParserMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLYMETA002 /* PLYParserMetadata.swift */; };
-		PLYPOINT001 /* PLYPointCloudParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLYPOINT002 /* PLYPointCloudParser.swift */; };
+			PLYCOMP001 /* PLYCompanionResultReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLYCOMP002 /* PLYCompanionResultReader.swift */; };
+			PLYSCHEMA001 /* PLYPointCloudSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLYSCHEMA002 /* PLYPointCloudSchema.swift */; };
+			PLYPOINT001 /* PLYPointCloudParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLYPOINT002 /* PLYPointCloudParser.swift */; };
+			PLYVERTEX001 /* PLYPointCloudVertexDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLYVERTEX002 /* PLYPointCloudVertexDecoder.swift */; };
+			PLYIMPORT001 /* PLYImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLYIMPORT002 /* PLYImportService.swift */; };
+		TAGMODELS001 /* TagModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGMODELS002 /* TagModels.swift */; };
+		USERCODABLE001 /* UserDefaultsCodableStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = USERCODABLE002 /* UserDefaultsCodableStorage.swift */; };
 		TAGSTORE001122 /* TagStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGSTORE77889900 /* TagStore.swift */; };
 		PLOTEDIT001122 /* PlotEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLOTEDIT778899 /* PlotEditView.swift */; };
 		TAGEDIT001122 /* TagEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGEDIT778899 /* TagEditView.swift */; };
 		TAGENTITYFORM001 /* TagEntityEditForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGENTITYFORM002 /* TagEntityEditForm.swift */; };
 		TAGMGMG001122 /* TagManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGMGMG778899 /* TagManagementView.swift */; };
-		TAGMGCOMP001 /* TagManagementComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGMGCOMP002 /* TagManagementComponents.swift */; };
+		TAGPLOTLIST001 /* TagManagementPlotListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGPLOTLIST002 /* TagManagementPlotListView.swift */; };
+		TAGTAGLIST001 /* TagManagementTagListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGTAGLIST002 /* TagManagementTagListView.swift */; };
+		TAGROWS001 /* TagManagementRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGROWS002 /* TagManagementRows.swift */; };
+		TAGSTATUS001 /* TagManagementStatusOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGSTATUS002 /* TagManagementStatusOverview.swift */; };
+		TAGEMPTY001 /* TagManagementEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAGEMPTY002 /* TagManagementEmptyState.swift */; };
 		TREEFILT001122 /* TreeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILT778899 /* TreeFilterView.swift */; };
+		TREEFILTCNT001 /* TreeFilterContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILTCNT002 /* TreeFilterContentView.swift */; };
+		TREEFILTERBAR001 /* TreeFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILTERBAR002 /* TreeFilterBar.swift */; };
+		TREEFILTLIST001 /* TreeFilterListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TREEFILTLIST002 /* TreeFilterListView.swift */; };
 		FILTERCHIP001122 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FILTERCHIP778899 /* FilterChip.swift */; };
 		GLASSCARD001122G /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = GLASSCARD001122 /* GlassCard.swift */; };
 		COVERAGEMAP001G /* CoverageMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = COVERAGEMAP01122 /* CoverageMapView.swift */; };
@@ -132,9 +228,16 @@
 		OCCLCORR778899B /* OcclusionCorrector.swift in Sources */ = {isa = PBXBuildFile; fileRef = OCCLCORR778899 /* OcclusionCorrector.swift */; };
 		DEDUP001122G /* DetectionDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDUP22334455 /* DetectionDeduplicator.swift */; };
 		IMPORT001122 /* ImportFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORT778899 /* ImportFileView.swift */; };
+		IMPORTACTIONS001 /* ImportFileView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORTACTIONS002 /* ImportFileView+Actions.swift */; };
+		IMPORTCONTENT001 /* ImportFileContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORTCONTENT002 /* ImportFileContentView.swift */; };
+		IMPORTSTATUS001 /* ImportFileStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORTSTATUS002 /* ImportFileStatus.swift */; };
+		IMPORTTYPES001 /* ImportFileTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORTTYPES002 /* ImportFileTypes.swift */; };
 		IMPORTCOMP001 /* ImportFileComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMPORTCOMP002 /* ImportFileComponents.swift */; };
 		SCANQUAL001122 /* ScanQualityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANQUAL778899 /* ScanQualityMonitor.swift */; };
 		DEBUG001122 /* FruitDetectionDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUG778899 /* FruitDetectionDebugView.swift */; };
+		DETDBGVIEW001 /* DetectionDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DETDBGVIEW002 /* DetectionDebugView.swift */; };
+		DETDBGCNT001 /* DetectionDebugContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DETDBGCNT002 /* DetectionDebugContentView.swift */; };
+		DETDBGOVR001 /* DetectionDebugOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DETDBGOVR002 /* DetectionDebugOverlayView.swift */; };
 		FVARIETYPB001122 /* FruitParametersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FVARIETYP001122 /* FruitParametersStore.swift */; };
 		VARIDBB001122 /* VarietyDatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = VARIDB001122 /* VarietyDatabaseView.swift */; };
 		VARIDBCOMP001 /* VarietyDatabaseComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = VARIDBCOMP002 /* VarietyDatabaseComponents.swift */; };
@@ -143,8 +246,19 @@
 		MEASOVR001122 /* MeasurementToolOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEASOVR7799 /* MeasurementToolOverlay.swift */; };
 		METALMEAS001122 /* MetalMeasurementOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = METALMEAS7799 /* MetalMeasurementOverlay.swift */; };
 		BATCH001122 /* BatchExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCH778899 /* BatchExportService.swift */; };
+		BATCHCSV001 /* BatchExportCSVWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHCSV002 /* BatchExportCSVWriter.swift */; };
+		BATCHEXCEL001 /* BatchExportExcelWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHEXCEL002 /* BatchExportExcelWriter.swift */; };
+		BATCHFORMAT001 /* BatchExportFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHFORMAT002 /* BatchExportFormatting.swift */; };
 		BATCHVIEW001122 /* BatchExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHVIEW7799 /* BatchExportView.swift */; };
-		BATCHCOMP001 /* BatchExportComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHCOMP002 /* BatchExportComponents.swift */; };
+		BATCHACTIONS001 /* BatchExportView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHACTIONS002 /* BatchExportView+Actions.swift */; };
+		BATCHCONTENT001 /* BatchExportContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHCONTENT002 /* BatchExportContentView.swift */; };
+		BATCHOPTIONS001 /* BatchExportOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHOPTIONS002 /* BatchExportOptionsView.swift */; };
+		BATCHRECORDS001 /* BatchExportRecordListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHRECORDS002 /* BatchExportRecordListView.swift */; };
+		BATCHHEADER001 /* BatchExportHeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHHEADER002 /* BatchExportHeaderBar.swift */; };
+		BATCHEMPTY001 /* BatchExportEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHEMPTY002 /* BatchExportEmptyState.swift */; };
+		BATCHDONE001 /* BatchExportCompletionPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHDONE002 /* BatchExportCompletionPanel.swift */; };
+		BATCHROW001 /* BatchExportRecordRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHROW002 /* BatchExportRecordRow.swift */; };
+		BATCHCTRL001 /* BatchExportControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHCTRL002 /* BatchExportControls.swift */; };
 		TESTPCCL001122 /* PointCloudClusterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTPCCL778899 /* PointCloudClusterTests.swift */; };
 		TESTOCCL001122 /* OcclusionCorrectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTOCCL778899 /* OcclusionCorrectorTests.swift */; };
 		TESTYIELD001122 /* YieldEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTYIELD778899 /* YieldEstimatorTests.swift */; };
@@ -152,13 +266,17 @@
 		TESTMODEL001122 /* FruitModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTMODEL778899 /* FruitModelsTests.swift */; };
 		TESTSCANDIAG001 /* ScanDiagnosticsBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTSCANDIAG002 /* ScanDiagnosticsBuilderTests.swift */; };
 		TESTSCANEXPORTREADY001 /* ScanExportReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTSCANEXPORTREADY002 /* ScanExportReadinessTests.swift */; };
-		TESTSCANREADY001 /* ScanReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTSCANREADY002 /* ScanReadinessTests.swift */; };
-		TESTRESULTCONF001 /* ResultConfidencePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTRESULTCONF002 /* ResultConfidencePresentationTests.swift */; };
-		TESTFUSVAL001 /* FusionValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTFUSVAL002 /* FusionValidatorTests.swift */; };
+			TESTSCANREADY001 /* ScanReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTSCANREADY002 /* ScanReadinessTests.swift */; };
+			TESTRESULTCONF001 /* ResultConfidencePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTRESULTCONF002 /* ResultConfidencePresentationTests.swift */; };
+			TESTCALPERSIST001 /* CalibrationRecordPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTCALPERSIST002 /* CalibrationRecordPersistenceTests.swift */; };
+			TESTFUSVAL001 /* FusionValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTFUSVAL002 /* FusionValidatorTests.swift */; };
 		TESTFUSYLD001 /* ScanFusionYieldBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTFUSYLD002 /* ScanFusionYieldBuilderTests.swift */; };
 		TESTDASHSUM001 /* DashboardSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDASHSUM002 /* DashboardSummaryTests.swift */; };
 		TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTBATCH778899 /* BatchExportServiceTests.swift */; };
 		TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTPCPR778899 /* PointCloudProcessingTests.swift */; };
+		TESTDETDBG001 /* DetectionDebugStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDETDBG002 /* DetectionDebugStateTests.swift */; };
+		APPSHORTCUTS002 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPSHORTCUTS001 /* AppShortcuts.swift */; };
+		NAVROUTER002 /* NavigationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAVROUTER001 /* NavigationRouter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -183,6 +301,7 @@
 		SCANCOORD002 /* ScanCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinator.swift; sourceTree = "<group>"; };
 		SCANCOORDAR002 /* ScanCoordinatorARSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinatorARSession.swift; sourceTree = "<group>"; };
 		SCANCOORDWF002 /* ScanCoordinatorWorkflows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinatorWorkflows.swift; sourceTree = "<group>"; };
+		SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinatorHUDUpdates.swift; sourceTree = "<group>"; };
 		SCANCONF002 /* ScanSessionConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSessionConfiguration.swift; sourceTree = "<group>"; };
 		SCANQUALSAMP002 /* ScanQualitySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQualitySampler.swift; sourceTree = "<group>"; };
 		SCANGUIDHELP002 /* ScanGuidanceHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanGuidanceHelper.swift; sourceTree = "<group>"; };
@@ -190,45 +309,93 @@
 		SCANDIAG002 /* ScanDiagnosticsBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanDiagnosticsBuilder.swift; sourceTree = "<group>"; };
 		SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFusionYieldBuilder.swift; sourceTree = "<group>"; };
 		SCANRESULTEXP002 /* ScanResultExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultExportService.swift; sourceTree = "<group>"; };
+		CANOPYGEOM002 /* CanopyGeometryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanopyGeometryEstimator.swift; sourceTree = "<group>"; };
+		FRUITMASS002 /* FruitMassEstimate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitMassEstimate.swift; sourceTree = "<group>"; };
+		FRUITGEOM002 /* SimpleFruitGeometryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleFruitGeometryEstimator.swift; sourceTree = "<group>"; };
+		FRUITGEOMCAT002 /* SimpleFruitGeometryCategories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleFruitGeometryCategories.swift; sourceTree = "<group>"; };
+		FRUITGEOMMET002 /* SimpleFruitGeometryMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleFruitGeometryMetrics.swift; sourceTree = "<group>"; };
+		FRUITQUAL002 /* FruitEstimationQualityScorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitEstimationQualityScorer.swift; sourceTree = "<group>"; };
+		RESEARCHCSV002 /* ResearchCSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchCSVExporter.swift; sourceTree = "<group>"; };
 		115AA07F0ADF20776A78BADD /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
-		RESULTSECT002 /* ResultSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSections.swift; sourceTree = "<group>"; };
+		RESULTFRUIT002 /* FruitVolumeResultSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitVolumeResultSection.swift; sourceTree = "<group>"; };
+		RESULTDIAG002 /* ResultDiagnosticsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultDiagnosticsSection.swift; sourceTree = "<group>"; };
+		RESULTWORK002 /* ResultPostScanWorkflowSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPostScanWorkflowSection.swift; sourceTree = "<group>"; };
+		RESULTCROWN002 /* CrownVolumeResultSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrownVolumeResultSection.swift; sourceTree = "<group>"; };
+		RESULTALGO002 /* AlgorithmParametersResultSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlgorithmParametersResultSection.swift; sourceTree = "<group>"; };
 		RESULTTAG002 /* ResultTaggingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultTaggingView.swift; sourceTree = "<group>"; };
-		RESULTCOMP002 /* ResultComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultComponents.swift; sourceTree = "<group>"; };
+		RESULTACT002 /* ResultActionButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultActionButtons.swift; sourceTree = "<group>"; };
+		RESULTCARD002 /* ResultCardRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultCardRows.swift; sourceTree = "<group>"; };
+		RESULTBADGE002 /* ResultBadgesAndPills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultBadgesAndPills.swift; sourceTree = "<group>"; };
+		RESULTPRES002 /* ResultPresentationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPresentationModels.swift; sourceTree = "<group>"; };
+		RESULTSUMM002 /* ResultSummaryComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSummaryComponents.swift; sourceTree = "<group>"; };
 		158ABA23ED3CD7468A81CFFE /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
-		SCANOVERLAY002 /* ScanViewOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanViewOverlays.swift; sourceTree = "<group>"; };
+		SCANVIEWSTATE002 /* ScanView+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScanView+State.swift"; sourceTree = "<group>"; };
+		SCANVIEWLIFE002 /* ScanView+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScanView+Lifecycle.swift"; sourceTree = "<group>"; };
+			SCANVIEWACT002 /* ScanView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScanView+Actions.swift"; sourceTree = "<group>"; };
+			SCANVIEWEXP002 /* ScanView+Export.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScanView+Export.swift"; sourceTree = "<group>"; };
+			SCANOVERLAY002 /* ScanViewOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanViewOverlays.swift; sourceTree = "<group>"; };
+			SCANLAYER002 /* ScanViewOverlayLayers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanViewOverlayLayers.swift; sourceTree = "<group>"; };
+			SCANFIELD002 /* ScanFieldGuideOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFieldGuideOverlay.swift; sourceTree = "<group>"; };
+		SCANPOSTCAP002 /* ScanPostCaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanPostCaptureOverlay.swift; sourceTree = "<group>"; };
+		SCANRENDER002 /* ScanRenderLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRenderLayer.swift; sourceTree = "<group>"; };
 		SCANREADY002 /* ScanReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanReadiness.swift; sourceTree = "<group>"; };
 		SCANEXPORTREADY002 /* ScanExportReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExportReadiness.swift; sourceTree = "<group>"; };
-		SCANHUD002 /* ScanHUDViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHUDViews.swift; sourceTree = "<group>"; };
+		SCANSTATBAR002 /* ScanStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanStatusBar.swift; sourceTree = "<group>"; };
+		SCANSTATCONTENT002 /* ScanStatusBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanStatusBarContent.swift; sourceTree = "<group>"; };
+		SCANSTATPRES002 /* ScanStatusBarPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanStatusBarPresentation.swift; sourceTree = "<group>"; };
+		SCANCTRLBAR002 /* ScanControlBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanControlBar.swift; sourceTree = "<group>"; };
 		SCANGUIDOVER002 /* ScanGuidanceOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanGuidanceOverlay.swift; sourceTree = "<group>"; };
-		SCANMETAL002 /* ScanMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanMetalView.swift; sourceTree = "<group>"; };
-		1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalBuffer.swift; sourceTree = "<group>"; };
-		2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryView.swift; sourceTree = "<group>"; };
-		3211BC7EF92CF0073528A047 /* ShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShaderTypes.h; sourceTree = "<group>"; };
+			SCANMETAL002 /* ScanMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanMetalView.swift; sourceTree = "<group>"; };
+			1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalBuffer.swift; sourceTree = "<group>"; };
+			2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryView.swift; sourceTree = "<group>"; };
+			SCANHISTCONTENT002 /* ScanHistoryContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryContentView.swift; sourceTree = "<group>"; };
+			SCANHISTFILTER002 /* ScanHistoryFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryFilterBar.swift; sourceTree = "<group>"; };
+			SCANHISTEMPTY002 /* ScanHistoryEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryEmptyState.swift; sourceTree = "<group>"; };
+			SCANHISTROW002 /* ScanHistoryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryRow.swift; sourceTree = "<group>"; };
+			SHARESHEET002 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+			3211BC7EF92CF0073528A047 /* ShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShaderTypes.h; sourceTree = "<group>"; };
 		3B98D430D628A279343A437A /* LaunchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreen.swift; sourceTree = "<group>"; };
 		65EF14476A599F346D1770E5 /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
+		TREEFILE002 /* TreeFileNaming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFileNaming.swift; sourceTree = "<group>"; };
+		LOCALFILE002 /* LocalFileStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileStorage.swift; sourceTree = "<group>"; };
+		SHEETSAFE002 /* SpreadsheetTextSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpreadsheetTextSafety.swift; sourceTree = "<group>"; };
+		PIXELCOPY002 /* PixelBufferCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelBufferCopy.swift; sourceTree = "<group>"; };
+		SIMDCOMPAT002 /* SIMDCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDCompatibility.swift; sourceTree = "<group>"; };
 		LOG00000002 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		L10N00000002 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		SCANSETPROV002 /* ScanSettingsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSettingsProvider.swift; sourceTree = "<group>"; };
 		LOCALSTR0004 /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/Localizable.strings; sourceTree = "<group>"; };
 		LOCALSTR0005 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		688A076C865BB72C1E79F3EA /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
-		STARTFLOW002 /* StartFlowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartFlowViews.swift; sourceTree = "<group>"; };
-		STARTCHROME002 /* StartFlowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartFlowChrome.swift; sourceTree = "<group>"; };
+		SCANLAUNCH002 /* ScanLaunchRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLaunchRequest.swift; sourceTree = "<group>"; };
+		STARTLAYOUT002 /* StartViewLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartViewLayout.swift; sourceTree = "<group>"; };
+		STARTACTIONS002 /* StartView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StartView+Actions.swift"; sourceTree = "<group>"; };
+		STARTPRESENT002 /* StartView+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StartView+Presentation.swift"; sourceTree = "<group>"; };
+		STARTIDSTEP002 /* StartIDEntryStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartIDEntryStep.swift; sourceTree = "<group>"; };
+		STARTPLOTSTEP002 /* StartPlotSelectionStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPlotSelectionStep.swift; sourceTree = "<group>"; };
+		STARTSEASONSTEP002 /* StartSeasonSelectionStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartSeasonSelectionStep.swift; sourceTree = "<group>"; };
+		STARTPROGRESS002 /* StartProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartProgressView.swift; sourceTree = "<group>"; };
+		STARTSTEPCHROME002 /* StartStepChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartStepChrome.swift; sourceTree = "<group>"; };
+		STARTNAVBAR002 /* StartNavigationBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartNavigationBar.swift; sourceTree = "<group>"; };
 		STARTCONF002 /* StartConfirmationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartConfirmationView.swift; sourceTree = "<group>"; };
 		STARTTAG002 /* StartTagSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartTagSelectionView.swift; sourceTree = "<group>"; };
 		FLOWLAY002 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
-		77242F7C9551310A23D45DBD /* Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderer.swift; sourceTree = "<group>"; };
-		RENDFRAME002 /* RendererFrameRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererFrameRendering.swift; sourceTree = "<group>"; };
-		869591D63C1E6AC52725B236 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+			77242F7C9551310A23D45DBD /* Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderer.swift; sourceTree = "<group>"; };
+			RENDFRAME002 /* RendererFrameRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererFrameRendering.swift; sourceTree = "<group>"; };
+			RENDFRAMESUP002 /* RendererFrameSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererFrameSupport.swift; sourceTree = "<group>"; };
+			RENDSTATE002 /* RendererStateAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererStateAccess.swift; sourceTree = "<group>"; };
+			869591D63C1E6AC52725B236 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		8A975936189FC1CB68D4EF5B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		916EE162272411D94609DBA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FruitTreeScanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		TESTAPP001122 /* FruitTreeScannerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FruitTreeScannerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB1927876412930FC1078524 /* Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Bridging-Header.h"; sourceTree = "<group>"; };
-		B3BAC8B3BDC2C17A17F80301 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		LAUNCHV2002 /* LaunchScreenV2.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreenV2.storyboard; sourceTree = "<group>"; };
 		CD9EBAD864179E14E3FA66D1 /* FruitTreeScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitTreeScannerApp.swift; sourceTree = "<group>"; };
-		CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimator.swift; sourceTree = "<group>"; };
-		CALREC002 /* CalibrationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecord.swift; sourceTree = "<group>"; };
+				CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimator.swift; sourceTree = "<group>"; };
+				YIELDMODEL002 /* YieldEstimateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimateModels.swift; sourceTree = "<group>"; };
+				CALREC002 /* CalibrationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecord.swift; sourceTree = "<group>"; };
+			CALRECPERSIST002 /* CalibrationRecordPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecordPersistence.swift; sourceTree = "<group>"; };
 		RENDHELP002 /* RendererMetalHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererMetalHelpers.swift; sourceTree = "<group>"; };
 		RENDPCEXP002 /* RendererPointCloudExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererPointCloudExport.swift; sourceTree = "<group>"; };
 		RENDPCACC002 /* RendererPointCloudAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererPointCloudAccess.swift; sourceTree = "<group>"; };
@@ -237,18 +404,34 @@
 		RENDSETTINGS002 /* RendererScanSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererScanSettings.swift; sourceTree = "<group>"; };
 		D20D286AA15B66451D7E4867 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 
-		CALIB794033 /* CalibrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationView.swift; sourceTree = "<group>"; };
-		CALCOMP002 /* CalibrationComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationComponents.swift; sourceTree = "<group>"; };
-		ADDCAL002 /* AddCalibrationRecordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCalibrationRecordView.swift; sourceTree = "<group>"; };
-		HELP1122334455 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
-		DASH794033 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+			CALIB794033 /* CalibrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationView.swift; sourceTree = "<group>"; };
+			CALSTAT002 /* CalibrationStatisticsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationStatisticsCard.swift; sourceTree = "<group>"; };
+			CALRECSEC002 /* CalibrationRecordsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecordsSection.swift; sourceTree = "<group>"; };
+			CALRECROW002 /* CalibrationRecordRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecordRow.swift; sourceTree = "<group>"; };
+			CALPARAMCARD002 /* CalibrationParametersCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationParametersCard.swift; sourceTree = "<group>"; };
+			ADDCAL002 /* AddCalibrationRecordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCalibrationRecordView.swift; sourceTree = "<group>"; };
+			ADDCALFORM002 /* AddCalibrationRecordForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCalibrationRecordForm.swift; sourceTree = "<group>"; };
+			CALINPUT002 /* CalibrationRecordInputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecordInputParser.swift; sourceTree = "<group>"; };
+			HELP1122334455 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+			DASH794033 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+			DASHDEST002 /* DashboardDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDestination.swift; sourceTree = "<group>"; };
+		DASHLAYOUT002 /* DashboardHomeLayoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardHomeLayoutView.swift; sourceTree = "<group>"; };
+		DASHROUTE002 /* DashboardView+Routing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardView+Routing.swift"; sourceTree = "<group>"; };
 		DASHSHEETS002 /* DashboardSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSheets.swift; sourceTree = "<group>"; };
+		DASHEMPTY002 /* DashboardSheetEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSheetEmptyState.swift; sourceTree = "<group>"; };
+		POINTCLOUDSHEET002 /* PointCloudSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudSheet.swift; sourceTree = "<group>"; };
+		POINTCLOUDSELECT002 /* PointCloudFileSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudFileSelector.swift; sourceTree = "<group>"; };
 		DASHANALYTICS002 /* DashboardAnalyticsSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsSheets.swift; sourceTree = "<group>"; };
 		DASHANALYTICSCOMP002 /* DashboardAnalyticsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsComponents.swift; sourceTree = "<group>"; };
 		DASHHOME002 /* DashboardHomeSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardHomeSections.swift; sourceTree = "<group>"; };
 		DASHCHROME002 /* DashboardChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardChrome.swift; sourceTree = "<group>"; };
-		DASHQUICK002 /* DashboardQuickActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardQuickActions.swift; sourceTree = "<group>"; };
-		DASHRECENT002 /* DashboardRecentAndStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardRecentAndStats.swift; sourceTree = "<group>"; };
+			DASHHERO002 /* DashboardHeroPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardHeroPanel.swift; sourceTree = "<group>"; };
+			DASHSTATUS002 /* DashboardStatusStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardStatusStrip.swift; sourceTree = "<group>"; };
+			DASHPRIMARY002 /* DashboardPrimaryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPrimaryActions.swift; sourceTree = "<group>"; };
+			QUICKGRID002 /* QuickActionsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsGrid.swift; sourceTree = "<group>"; };
+			QUICKMODEL002 /* QuickActionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionModels.swift; sourceTree = "<group>"; };
+			QUICKCARD002 /* QuickActionCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionCards.swift; sourceTree = "<group>"; };
+			DASHRECENT002 /* DashboardRecentAndStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardRecentAndStats.swift; sourceTree = "<group>"; };
 		DASHSHARED002 /* DashboardSharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSharedComponents.swift; sourceTree = "<group>"; };
 		DASHSUMMARY002 /* DashboardSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSummary.swift; sourceTree = "<group>"; };
 		QUICKSCAN002 /* QuickScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickScanView.swift; sourceTree = "<group>"; };
@@ -263,38 +446,69 @@
 
 		METALCOMP002 /* MetalComputePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalComputePipeline.swift; sourceTree = "<group>"; };
 		IMGDET987654321 /* ImageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetector.swift; sourceTree = "<group>"; };
-		IMGDETQUEUE002 /* ImageDetectorQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorQueue.swift; sourceTree = "<group>"; };
-		IMGDETINFER002 /* ImageDetectorInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorInference.swift; sourceTree = "<group>"; };
-		IMGDETLOAD002 /* ImageDetectorModelLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorModelLoading.swift; sourceTree = "<group>"; };
+			IMGDETQUEUE002 /* ImageDetectorQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorQueue.swift; sourceTree = "<group>"; };
+			IMGDETINFER002 /* ImageDetectorInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorInference.swift; sourceTree = "<group>"; };
+			IMGDETINFSUP002 /* ImageDetectorInferenceSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorInferenceSupport.swift; sourceTree = "<group>"; };
+			IMGDETYOLO002 /* ImageDetectorYOLOParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorYOLOParser.swift; sourceTree = "<group>"; };
+			IMGDETYOLOSUP002 /* ImageDetectorYOLOSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorYOLOSupport.swift; sourceTree = "<group>"; };
+			IMGDETLOAD002 /* ImageDetectorModelLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorModelLoading.swift; sourceTree = "<group>"; };
 		IMGDETHELP002 /* ImageDetectionHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectionHelpers.swift; sourceTree = "<group>"; };
+		IMGDETDBG002 /* ImageDetectorDebugging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetectorDebugging.swift; sourceTree = "<group>"; };
+		DETDBGSTATE002 /* DetectionDebugState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugState.swift; sourceTree = "<group>"; };
 		FUSIONVAL987654321 /* FusionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidator.swift; sourceTree = "<group>"; };
+		FUSIONPROJ002 /* FusionValidatorProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorProjection.swift; sourceTree = "<group>"; };
+		FUSIONMATCH002 /* FusionValidatorMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorMatching.swift; sourceTree = "<group>"; };
 		FRUITCNT987654321 /* FruitCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCounter.swift; sourceTree = "<group>"; };
 		SETTINGS987654321 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		SETTINGSSUP002 /* SettingsStoreSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreSupport.swift; sourceTree = "<group>"; };
+		SETTINGSCTRL002 /* SettingsStoreDerivedConfigurations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreDerivedConfigurations.swift; sourceTree = "<group>"; };
 		MODEL9876543210 /* FruitsDetector.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper.mlmodel; path = FruitsDetector.mlpackage; sourceTree = "<group>"; };
 		HISTCOMP334455 /* HistoricalCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalCompareView.swift; sourceTree = "<group>"; };
 		HISTMODELS002 /* HistoricalCompareModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalCompareModels.swift; sourceTree = "<group>"; };
 		HISTCOMPONENTS002 /* HistoricalCompareComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalCompareComponents.swift; sourceTree = "<group>"; };
-		SCANPICKER002 /* ScanPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanPickerView.swift; sourceTree = "<group>"; };
-		ORCHARD334455 /* OrchardMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapView.swift; sourceTree = "<group>"; };
-		ORCHARDMODELS002 /* OrchardMapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapModels.swift; sourceTree = "<group>"; };
-		ORCHARDCOMP002 /* OrchardMapComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapComponents.swift; sourceTree = "<group>"; };
-		ORCHARDPIN002 /* OrchardMapPinsAndStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapPinsAndStats.swift; sourceTree = "<group>"; };
+			SCANPICKER002 /* ScanPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanPickerView.swift; sourceTree = "<group>"; };
+			ORCHARD334455 /* OrchardMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapView.swift; sourceTree = "<group>"; };
+			ORCHARDMODELS002 /* OrchardMapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapModels.swift; sourceTree = "<group>"; };
+			ORCHARDEMPTY002 /* OrchardMapEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapEmptyState.swift; sourceTree = "<group>"; };
+			ORCHARDCHROME002 /* OrchardMapChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapChrome.swift; sourceTree = "<group>"; };
+			TREECOUNT002 /* TreeCountCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeCountCard.swift; sourceTree = "<group>"; };
+			TREEDETAIL002 /* TreeDetailCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeDetailCard.swift; sourceTree = "<group>"; };
+			ORCHARDPIN002 /* OrchardMapPinsAndStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardMapPinsAndStats.swift; sourceTree = "<group>"; };
 		POINTCLD334455 /* PointCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudView.swift; sourceTree = "<group>"; };
-		POINTCTRL002 /* PointCloudControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudControls.swift; sourceTree = "<group>"; };
-		SCENEKITPCL002 /* SceneKitPointCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudView.swift; sourceTree = "<group>"; };
-		SCENEKITRENDER002 /* SceneKitPointCloudRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudRendering.swift; sourceTree = "<group>"; };
-		SETVIEW334455 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+			POINTCTRL002 /* PointCloudControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudControls.swift; sourceTree = "<group>"; };
+			POINTCTRLPRIM002 /* PointCloudControlPrimitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudControlPrimitives.swift; sourceTree = "<group>"; };
+			POINTCTRLCOLOR002 /* PointCloudColorControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudColorControls.swift; sourceTree = "<group>"; };
+			SCENEKITPCL002 /* SceneKitPointCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudView.swift; sourceTree = "<group>"; };
+			SCENEKITRENDER002 /* SceneKitPointCloudRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudRendering.swift; sourceTree = "<group>"; };
+			SCENEKITCOLOR002 /* SceneKitPointCloudColorRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudColorRenderer.swift; sourceTree = "<group>"; };
+			SCENEKITNODE002 /* SceneKitPointCloudNodeFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudNodeFactory.swift; sourceTree = "<group>"; };
+			SCENEKITREF002 /* SceneKitPointCloudReferenceGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudReferenceGeometry.swift; sourceTree = "<group>"; };
+			SCENEKITSRC002 /* SceneKitPointCloudGeometrySources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitPointCloudGeometrySources.swift; sourceTree = "<group>"; };
+			SETVIEW334455 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		SETCOMP002 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		FA290049668D55498B3D9885 /* PLYParserHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYParserHelper.swift; sourceTree = "<group>"; };
 		PLYMETA002 /* PLYParserMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYParserMetadata.swift; sourceTree = "<group>"; };
-		PLYPOINT002 /* PLYPointCloudParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYPointCloudParser.swift; sourceTree = "<group>"; };
+			PLYCOMP002 /* PLYCompanionResultReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYCompanionResultReader.swift; sourceTree = "<group>"; };
+			PLYSCHEMA002 /* PLYPointCloudSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYPointCloudSchema.swift; sourceTree = "<group>"; };
+			PLYPOINT002 /* PLYPointCloudParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYPointCloudParser.swift; sourceTree = "<group>"; };
+			PLYVERTEX002 /* PLYPointCloudVertexDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYPointCloudVertexDecoder.swift; sourceTree = "<group>"; };
+			PLYIMPORT002 /* PLYImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYImportService.swift; sourceTree = "<group>"; };
+		TAGMODELS002 /* TagModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagModels.swift; sourceTree = "<group>"; };
+		USERCODABLE002 /* UserDefaultsCodableStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultsCodableStorage.swift; sourceTree = "<group>"; };
 		TAGSTORE77889900 /* TagStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagStore.swift; sourceTree = "<group>"; };
 		PLOTEDIT778899 /* PlotEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlotEditView.swift; sourceTree = "<group>"; };
 		TAGEDIT778899 /* TagEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagEditView.swift; sourceTree = "<group>"; };
 		TAGENTITYFORM002 /* TagEntityEditForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagEntityEditForm.swift; sourceTree = "<group>"; };
 		TAGMGMG778899 /* TagManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementView.swift; sourceTree = "<group>"; };
-		TAGMGCOMP002 /* TagManagementComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementComponents.swift; sourceTree = "<group>"; };
+		TAGPLOTLIST002 /* TagManagementPlotListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementPlotListView.swift; sourceTree = "<group>"; };
+		TAGTAGLIST002 /* TagManagementTagListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementTagListView.swift; sourceTree = "<group>"; };
+		TAGROWS002 /* TagManagementRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementRows.swift; sourceTree = "<group>"; };
+		TAGSTATUS002 /* TagManagementStatusOverview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementStatusOverview.swift; sourceTree = "<group>"; };
+		TAGEMPTY002 /* TagManagementEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManagementEmptyState.swift; sourceTree = "<group>"; };
 		TREEFILT778899 /* TreeFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterView.swift; sourceTree = "<group>"; };
+		TREEFILTCNT002 /* TreeFilterContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterContentView.swift; sourceTree = "<group>"; };
+		TREEFILTERBAR002 /* TreeFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterBar.swift; sourceTree = "<group>"; };
+		TREEFILTLIST002 /* TreeFilterListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeFilterListView.swift; sourceTree = "<group>"; };
 		FILTERCHIP778899 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
 		GLASSCARD001122 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
 		COVERAGEMAP01122 /* CoverageMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverageMapView.swift; sourceTree = "<group>"; };
@@ -303,9 +517,16 @@
 		DEDUP22334455 /* DetectionDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDeduplicator.swift; sourceTree = "<group>"; };
 		OCCLCORR778899 /* OcclusionCorrector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OcclusionCorrector.swift; sourceTree = "<group>"; };
 		IMPORT778899 /* ImportFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFileView.swift; sourceTree = "<group>"; };
+		IMPORTACTIONS002 /* ImportFileView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ImportFileView+Actions.swift"; sourceTree = "<group>"; };
+		IMPORTCONTENT002 /* ImportFileContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFileContentView.swift; sourceTree = "<group>"; };
+		IMPORTSTATUS002 /* ImportFileStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFileStatus.swift; sourceTree = "<group>"; };
+		IMPORTTYPES002 /* ImportFileTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFileTypes.swift; sourceTree = "<group>"; };
 		IMPORTCOMP002 /* ImportFileComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFileComponents.swift; sourceTree = "<group>"; };
 		SCANQUAL778899 /* ScanQualityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQualityMonitor.swift; sourceTree = "<group>"; };
 		DEBUG778899 /* FruitDetectionDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitDetectionDebugView.swift; sourceTree = "<group>"; };
+		DETDBGVIEW002 /* DetectionDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugView.swift; sourceTree = "<group>"; };
+		DETDBGCNT002 /* DetectionDebugContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugContentView.swift; sourceTree = "<group>"; };
+		DETDBGOVR002 /* DetectionDebugOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugOverlayView.swift; sourceTree = "<group>"; };
 		FVARIETYP001122 /* FruitParametersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitParametersStore.swift; sourceTree = "<group>"; };
 		VARIDB001122 /* VarietyDatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VarietyDatabaseView.swift; sourceTree = "<group>"; };
 		VARIDBCOMP002 /* VarietyDatabaseComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VarietyDatabaseComponents.swift; sourceTree = "<group>"; };
@@ -314,22 +535,37 @@
 		MEASOVR7799 /* MeasurementToolOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementToolOverlay.swift; sourceTree = "<group>"; };
 		METALMEAS7799 /* MetalMeasurementOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalMeasurementOverlay.swift; sourceTree = "<group>"; };
 		BATCH778899 /* BatchExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportService.swift; sourceTree = "<group>"; };
+		BATCHCSV002 /* BatchExportCSVWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportCSVWriter.swift; sourceTree = "<group>"; };
+		BATCHEXCEL002 /* BatchExportExcelWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportExcelWriter.swift; sourceTree = "<group>"; };
+		BATCHFORMAT002 /* BatchExportFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportFormatting.swift; sourceTree = "<group>"; };
 		BATCHVIEW7799 /* BatchExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportView.swift; sourceTree = "<group>"; };
-		BATCHCOMP002 /* BatchExportComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportComponents.swift; sourceTree = "<group>"; };
+		BATCHACTIONS002 /* BatchExportView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchExportView+Actions.swift"; sourceTree = "<group>"; };
+		BATCHCONTENT002 /* BatchExportContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportContentView.swift; sourceTree = "<group>"; };
+		BATCHOPTIONS002 /* BatchExportOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportOptionsView.swift; sourceTree = "<group>"; };
+		BATCHRECORDS002 /* BatchExportRecordListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportRecordListView.swift; sourceTree = "<group>"; };
+		BATCHHEADER002 /* BatchExportHeaderBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportHeaderBar.swift; sourceTree = "<group>"; };
+		BATCHEMPTY002 /* BatchExportEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportEmptyState.swift; sourceTree = "<group>"; };
+		BATCHDONE002 /* BatchExportCompletionPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportCompletionPanel.swift; sourceTree = "<group>"; };
+		BATCHROW002 /* BatchExportRecordRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportRecordRow.swift; sourceTree = "<group>"; };
+		BATCHCTRL002 /* BatchExportControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportControls.swift; sourceTree = "<group>"; };
 		TESTPCCL778899 /* PointCloudClusterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudClusterTests.swift; sourceTree = "<group>"; };
 		TESTOCCL778899 /* OcclusionCorrectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OcclusionCorrectorTests.swift; sourceTree = "<group>"; };
 		TESTYIELD778899 /* YieldEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimatorTests.swift; sourceTree = "<group>"; };
 		TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDeduplicatorTests.swift; sourceTree = "<group>"; };
 		TESTMODEL778899 /* FruitModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitModelsTests.swift; sourceTree = "<group>"; };
 		TESTSCANDIAG002 /* ScanDiagnosticsBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanDiagnosticsBuilderTests.swift; sourceTree = "<group>"; };
-		TESTSCANEXPORTREADY002 /* ScanExportReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExportReadinessTests.swift; sourceTree = "<group>"; };
-		TESTSCANREADY002 /* ScanReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanReadinessTests.swift; sourceTree = "<group>"; };
-		TESTRESULTCONF002 /* ResultConfidencePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultConfidencePresentationTests.swift; sourceTree = "<group>"; };
-		TESTFUSVAL002 /* FusionValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorTests.swift; sourceTree = "<group>"; };
+			TESTSCANEXPORTREADY002 /* ScanExportReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExportReadinessTests.swift; sourceTree = "<group>"; };
+			TESTSCANREADY002 /* ScanReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanReadinessTests.swift; sourceTree = "<group>"; };
+			TESTRESULTCONF002 /* ResultConfidencePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultConfidencePresentationTests.swift; sourceTree = "<group>"; };
+			TESTCALPERSIST002 /* CalibrationRecordPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecordPersistenceTests.swift; sourceTree = "<group>"; };
+			TESTFUSVAL002 /* FusionValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorTests.swift; sourceTree = "<group>"; };
 		TESTFUSYLD002 /* ScanFusionYieldBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFusionYieldBuilderTests.swift; sourceTree = "<group>"; };
 		TESTDASHSUM002 /* DashboardSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSummaryTests.swift; sourceTree = "<group>"; };
 		TESTBATCH778899 /* BatchExportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportServiceTests.swift; sourceTree = "<group>"; };
 		TESTPCPR778899 /* PointCloudProcessingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudProcessingTests.swift; sourceTree = "<group>"; };
+		TESTDETDBG002 /* DetectionDebugStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugStateTests.swift; sourceTree = "<group>"; };
+		APPSHORTCUTS001 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
+		NAVROUTER001 /* NavigationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRouter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXVariantGroup section */
@@ -348,15 +584,16 @@
 		080EE612D73BEFA8302D230F /* FruitTreeScanner */ = {
 			isa = PBXGroup;
 			children = (
-				916EE162272411D94609DBA3 /* Assets.xcassets */,
-				8A975936189FC1CB68D4EF5B /* Info.plist */,
-				B3BAC8B3BDC2C17A17F80301 /* LaunchScreen.storyboard */,
-				LOCALSTR0003 /* Localizable.strings */,
+					916EE162272411D94609DBA3 /* Assets.xcassets */,
+					8A975936189FC1CB68D4EF5B /* Info.plist */,
+					LAUNCHV2002 /* LaunchScreenV2.storyboard */,
+					LOCALSTR0003 /* Localizable.strings */,
 				A6914CF85AB6C624A347CE78 /* App */,
 				BF8DCD53FFDD11E7060F4A69 /* Core */,
 				DD98D30826CA1066D0905621 /* Design */,
 				COMPONENTS001122 /* Components */,
 				898DE573025C3A364767ABC3 /* GPS */,
+				SYSTEMINTEGRATION001 /* SystemIntegration */,
 				77FCC2F2178481AB923AC132 /* Views */,
 			);
 			path = FruitTreeScanner;
@@ -379,15 +616,17 @@
 				TESTYIELD778899 /* YieldEstimatorTests.swift */,
 				TESTSCANDIAG002 /* ScanDiagnosticsBuilderTests.swift */,
 				TESTSCANEXPORTREADY002 /* ScanExportReadinessTests.swift */,
-				TESTSCANREADY002 /* ScanReadinessTests.swift */,
-				TESTRESULTCONF002 /* ResultConfidencePresentationTests.swift */,
-				TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */,
+					TESTSCANREADY002 /* ScanReadinessTests.swift */,
+					TESTRESULTCONF002 /* ResultConfidencePresentationTests.swift */,
+					TESTCALPERSIST002 /* CalibrationRecordPersistenceTests.swift */,
+					TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */,
 				TESTMODEL778899 /* FruitModelsTests.swift */,
 				TESTFUSVAL002 /* FusionValidatorTests.swift */,
 				TESTFUSYLD002 /* ScanFusionYieldBuilderTests.swift */,
 				TESTDASHSUM002 /* DashboardSummaryTests.swift */,
 				TESTBATCH778899 /* BatchExportServiceTests.swift */,
 				TESTPCPR778899 /* PointCloudProcessingTests.swift */,
+				TESTDETDBG002 /* DetectionDebugStateTests.swift */,
 			);
 			path = FruitTreeScannerTests;
 			sourceTree = "<group>";
@@ -397,35 +636,82 @@
 			children = (
 				3B98D430D628A279343A437A /* LaunchScreen.swift */,
 				115AA07F0ADF20776A78BADD /* ResultView.swift */,
-				RESULTSECT002 /* ResultSections.swift */,
+				RESULTFRUIT002 /* FruitVolumeResultSection.swift */,
+				RESULTDIAG002 /* ResultDiagnosticsSection.swift */,
+				RESULTWORK002 /* ResultPostScanWorkflowSection.swift */,
+				RESULTCROWN002 /* CrownVolumeResultSection.swift */,
+				RESULTALGO002 /* AlgorithmParametersResultSection.swift */,
 				RESULTTAG002 /* ResultTaggingView.swift */,
-				RESULTCOMP002 /* ResultComponents.swift */,
-				2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */,
-				158ABA23ED3CD7468A81CFFE /* ScanView.swift */,
-				SCANOVERLAY002 /* ScanViewOverlays.swift */,
+				RESULTACT002 /* ResultActionButtons.swift */,
+				RESULTCARD002 /* ResultCardRows.swift */,
+				RESULTBADGE002 /* ResultBadgesAndPills.swift */,
+					RESULTPRES002 /* ResultPresentationModels.swift */,
+					RESULTSUMM002 /* ResultSummaryComponents.swift */,
+					2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */,
+					SCANHISTCONTENT002 /* ScanHistoryContentView.swift */,
+					SCANHISTFILTER002 /* ScanHistoryFilterBar.swift */,
+					SCANHISTEMPTY002 /* ScanHistoryEmptyState.swift */,
+					SCANHISTROW002 /* ScanHistoryRow.swift */,
+					SHARESHEET002 /* ShareSheet.swift */,
+					158ABA23ED3CD7468A81CFFE /* ScanView.swift */,
+				SCANVIEWSTATE002 /* ScanView+State.swift */,
+				SCANVIEWLIFE002 /* ScanView+Lifecycle.swift */,
+					SCANVIEWACT002 /* ScanView+Actions.swift */,
+					SCANVIEWEXP002 /* ScanView+Export.swift */,
+					SCANOVERLAY002 /* ScanViewOverlays.swift */,
+					SCANLAYER002 /* ScanViewOverlayLayers.swift */,
+					SCANFIELD002 /* ScanFieldGuideOverlay.swift */,
+				SCANPOSTCAP002 /* ScanPostCaptureOverlay.swift */,
+				SCANRENDER002 /* ScanRenderLayer.swift */,
 				SCANREADY002 /* ScanReadiness.swift */,
 				SCANEXPORTREADY002 /* ScanExportReadiness.swift */,
-				SCANHUD002 /* ScanHUDViews.swift */,
+				SCANSTATBAR002 /* ScanStatusBar.swift */,
+				SCANSTATCONTENT002 /* ScanStatusBarContent.swift */,
+				SCANSTATPRES002 /* ScanStatusBarPresentation.swift */,
+				SCANCTRLBAR002 /* ScanControlBar.swift */,
 				SCANGUIDOVER002 /* ScanGuidanceOverlay.swift */,
 				SCANMETAL002 /* ScanMetalView.swift */,
 				688A076C865BB72C1E79F3EA /* StartView.swift */,
-				STARTFLOW002 /* StartFlowViews.swift */,
-				STARTCHROME002 /* StartFlowChrome.swift */,
+				SCANLAUNCH002 /* ScanLaunchRequest.swift */,
+				STARTLAYOUT002 /* StartViewLayout.swift */,
+				STARTACTIONS002 /* StartView+Actions.swift */,
+				STARTPRESENT002 /* StartView+Presentation.swift */,
+				STARTIDSTEP002 /* StartIDEntryStep.swift */,
+				STARTPLOTSTEP002 /* StartPlotSelectionStep.swift */,
+				STARTSEASONSTEP002 /* StartSeasonSelectionStep.swift */,
+				STARTPROGRESS002 /* StartProgressView.swift */,
+				STARTSTEPCHROME002 /* StartStepChrome.swift */,
+				STARTNAVBAR002 /* StartNavigationBar.swift */,
 				STARTCONF002 /* StartConfirmationView.swift */,
 				STARTTAG002 /* StartTagSelectionView.swift */,
 				FLOWLAY002 /* FlowLayout.swift */,
-				CALIB794033 /* CalibrationView.swift */,
-				CALCOMP002 /* CalibrationComponents.swift */,
-				ADDCAL002 /* AddCalibrationRecordView.swift */,
-				HELP1122334455 /* HelpView.swift */,
-				DASH794033 /* DashboardView.swift */,
-				DASHSHEETS002 /* DashboardSheets.swift */,
-				DASHANALYTICS002 /* DashboardAnalyticsSheets.swift */,
+					CALIB794033 /* CalibrationView.swift */,
+					CALSTAT002 /* CalibrationStatisticsCard.swift */,
+					CALRECSEC002 /* CalibrationRecordsSection.swift */,
+					CALRECROW002 /* CalibrationRecordRow.swift */,
+					CALPARAMCARD002 /* CalibrationParametersCard.swift */,
+					ADDCAL002 /* AddCalibrationRecordView.swift */,
+					ADDCALFORM002 /* AddCalibrationRecordForm.swift */,
+					HELP1122334455 /* HelpView.swift */,
+					DASH794033 /* DashboardView.swift */,
+					DASHDEST002 /* DashboardDestination.swift */,
+					DASHLAYOUT002 /* DashboardHomeLayoutView.swift */,
+					DASHROUTE002 /* DashboardView+Routing.swift */,
+					DASHSHEETS002 /* DashboardSheets.swift */,
+					DASHEMPTY002 /* DashboardSheetEmptyState.swift */,
+					POINTCLOUDSHEET002 /* PointCloudSheet.swift */,
+					POINTCLOUDSELECT002 /* PointCloudFileSelector.swift */,
+					DASHANALYTICS002 /* DashboardAnalyticsSheets.swift */,
 				DASHANALYTICSCOMP002 /* DashboardAnalyticsComponents.swift */,
 				DASHHOME002 /* DashboardHomeSections.swift */,
 				DASHCHROME002 /* DashboardChrome.swift */,
-				DASHQUICK002 /* DashboardQuickActions.swift */,
-				DASHRECENT002 /* DashboardRecentAndStats.swift */,
+					DASHHERO002 /* DashboardHeroPanel.swift */,
+					DASHSTATUS002 /* DashboardStatusStrip.swift */,
+					DASHPRIMARY002 /* DashboardPrimaryActions.swift */,
+					QUICKGRID002 /* QuickActionsGrid.swift */,
+					QUICKMODEL002 /* QuickActionModels.swift */,
+					QUICKCARD002 /* QuickActionCards.swift */,
+					DASHRECENT002 /* DashboardRecentAndStats.swift */,
 				DASHSHARED002 /* DashboardSharedComponents.swift */,
 				DASHSUMMARY002 /* DashboardSummary.swift */,
 				QUICKSCAN002 /* QuickScanView.swift */,
@@ -435,29 +721,60 @@
 				SCANPICKER002 /* ScanPickerView.swift */,
 				ORCHARD334455 /* OrchardMapView.swift */,
 				ORCHARDMODELS002 /* OrchardMapModels.swift */,
-				ORCHARDCOMP002 /* OrchardMapComponents.swift */,
+				ORCHARDEMPTY002 /* OrchardMapEmptyState.swift */,
+				ORCHARDCHROME002 /* OrchardMapChrome.swift */,
+				TREECOUNT002 /* TreeCountCard.swift */,
+				TREEDETAIL002 /* TreeDetailCard.swift */,
 				ORCHARDPIN002 /* OrchardMapPinsAndStats.swift */,
 				POINTCLD334455 /* PointCloudView.swift */,
 				POINTCTRL002 /* PointCloudControls.swift */,
+				POINTCTRLPRIM002 /* PointCloudControlPrimitives.swift */,
+				POINTCTRLCOLOR002 /* PointCloudColorControls.swift */,
 				SCENEKITPCL002 /* SceneKitPointCloudView.swift */,
 				SCENEKITRENDER002 /* SceneKitPointCloudRendering.swift */,
+				SCENEKITCOLOR002 /* SceneKitPointCloudColorRenderer.swift */,
+				SCENEKITNODE002 /* SceneKitPointCloudNodeFactory.swift */,
+				SCENEKITREF002 /* SceneKitPointCloudReferenceGeometry.swift */,
+				SCENEKITSRC002 /* SceneKitPointCloudGeometrySources.swift */,
 				SETVIEW334455 /* SettingsView.swift */,
 				SETCOMP002 /* SettingsComponents.swift */,
 				PLOTEDIT778899 /* PlotEditView.swift */,
-				TAGEDIT778899 /* TagEditView.swift */,
-				TAGENTITYFORM002 /* TagEntityEditForm.swift */,
-				TAGMGMG778899 /* TagManagementView.swift */,
-				TAGMGCOMP002 /* TagManagementComponents.swift */,
-				TREEFILT778899 /* TreeFilterView.swift */,
+					TAGEDIT778899 /* TagEditView.swift */,
+					TAGENTITYFORM002 /* TagEntityEditForm.swift */,
+					TAGMGMG778899 /* TagManagementView.swift */,
+					TAGPLOTLIST002 /* TagManagementPlotListView.swift */,
+					TAGTAGLIST002 /* TagManagementTagListView.swift */,
+					TAGROWS002 /* TagManagementRows.swift */,
+					TAGSTATUS002 /* TagManagementStatusOverview.swift */,
+					TAGEMPTY002 /* TagManagementEmptyState.swift */,
+					TREEFILT778899 /* TreeFilterView.swift */,
+				TREEFILTCNT002 /* TreeFilterContentView.swift */,
+				TREEFILTERBAR002 /* TreeFilterBar.swift */,
+				TREEFILTLIST002 /* TreeFilterListView.swift */,
 				FILTERCHIP778899 /* FilterChip.swift */,
 				IMPORT778899 /* ImportFileView.swift */,
+				IMPORTACTIONS002 /* ImportFileView+Actions.swift */,
+				IMPORTCONTENT002 /* ImportFileContentView.swift */,
+				IMPORTSTATUS002 /* ImportFileStatus.swift */,
+				IMPORTTYPES002 /* ImportFileTypes.swift */,
 				IMPORTCOMP002 /* ImportFileComponents.swift */,
 				DEBUG778899 /* FruitDetectionDebugView.swift */,
+				DETDBGVIEW002 /* DetectionDebugView.swift */,
+				DETDBGCNT002 /* DetectionDebugContentView.swift */,
+				DETDBGOVR002 /* DetectionDebugOverlayView.swift */,
 				VARIDB001122 /* VarietyDatabaseView.swift */,
 				VARIDBCOMP002 /* VarietyDatabaseComponents.swift */,
 				VARIEDIT002 /* VarietyEditView.swift */,
 				BATCHVIEW7799 /* BatchExportView.swift */,
-				BATCHCOMP002 /* BatchExportComponents.swift */,
+				BATCHACTIONS002 /* BatchExportView+Actions.swift */,
+				BATCHCONTENT002 /* BatchExportContentView.swift */,
+				BATCHOPTIONS002 /* BatchExportOptionsView.swift */,
+				BATCHRECORDS002 /* BatchExportRecordListView.swift */,
+				BATCHHEADER002 /* BatchExportHeaderBar.swift */,
+				BATCHEMPTY002 /* BatchExportEmptyState.swift */,
+				BATCHDONE002 /* BatchExportCompletionPanel.swift */,
+				BATCHROW002 /* BatchExportRecordRow.swift */,
+				BATCHCTRL002 /* BatchExportControls.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -491,10 +808,12 @@
 			isa = PBXGroup;
 			children = (
 				AB1927876412930FC1078524 /* Bridging-Header.h */,
-				1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */,
-				77242F7C9551310A23D45DBD /* Renderer.swift */,
-				RENDFRAME002 /* RendererFrameRendering.swift */,
-				RENDHELP002 /* RendererMetalHelpers.swift */,
+					1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */,
+					77242F7C9551310A23D45DBD /* Renderer.swift */,
+					RENDFRAME002 /* RendererFrameRendering.swift */,
+					RENDFRAMESUP002 /* RendererFrameSupport.swift */,
+					RENDSTATE002 /* RendererStateAccess.swift */,
+					RENDHELP002 /* RendererMetalHelpers.swift */,
 				RENDPCEXP002 /* RendererPointCloudExport.swift */,
 				RENDPCACC002 /* RendererPointCloudAccess.swift */,
 				RENDDEPTH002 /* RendererDepthCoverage.swift */,
@@ -506,9 +825,17 @@
 				LOG00000002 /* Log.swift */,
 				SCANSETPROV002 /* ScanSettingsProvider.swift */,
 				65EF14476A599F346D1770E5 /* Utils.swift */,
-				CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */,
-				CALREC002 /* CalibrationRecord.swift */,
-				PCDISPLAY002 /* PointCloudDisplayModels.swift */,
+				TREEFILE002 /* TreeFileNaming.swift */,
+				LOCALFILE002 /* LocalFileStorage.swift */,
+				SHEETSAFE002 /* SpreadsheetTextSafety.swift */,
+				PIXELCOPY002 /* PixelBufferCopy.swift */,
+					SIMDCOMPAT002 /* SIMDCompatibility.swift */,
+						CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */,
+						YIELDMODEL002 /* YieldEstimateModels.swift */,
+						CALREC002 /* CalibrationRecord.swift */,
+					CALRECPERSIST002 /* CalibrationRecordPersistence.swift */,
+					CALINPUT002 /* CalibrationRecordInputParser.swift */,
+					PCDISPLAY002 /* PointCloudDisplayModels.swift */,
 				MODEL987654321 /* FruitModels.swift */,
 				FRUITDETMODEL002 /* FruitDetectionModels.swift */,
 				FRUITCOLOR002 /* FruitColorModels.swift */,
@@ -521,6 +848,7 @@
 				SCANCOORD002 /* ScanCoordinator.swift */,
 				SCANCOORDAR002 /* ScanCoordinatorARSession.swift */,
 				SCANCOORDWF002 /* ScanCoordinatorWorkflows.swift */,
+				SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */,
 				SCANCONF002 /* ScanSessionConfiguration.swift */,
 				SCANQUALSAMP002 /* ScanQualitySampler.swift */,
 				SCANGUIDHELP002 /* ScanGuidanceHelper.swift */,
@@ -528,6 +856,13 @@
 				SCANDIAG002 /* ScanDiagnosticsBuilder.swift */,
 				SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */,
 				SCANRESULTEXP002 /* ScanResultExportService.swift */,
+				CANOPYGEOM002 /* CanopyGeometryEstimator.swift */,
+				FRUITMASS002 /* FruitMassEstimate.swift */,
+				FRUITGEOM002 /* SimpleFruitGeometryEstimator.swift */,
+				FRUITGEOMCAT002 /* SimpleFruitGeometryCategories.swift */,
+				FRUITGEOMMET002 /* SimpleFruitGeometryMetrics.swift */,
+				FRUITQUAL002 /* FruitEstimationQualityScorer.swift */,
+				RESEARCHCSV002 /* ResearchCSVExporter.swift */,
 				CLUSTER987654321 /* PointCloudCluster.swift */,
 				CLUSTANALYSIS002 /* PointCloudClusterAnalysis.swift */,
 				KDTREE002 /* KDTree.swift */,
@@ -535,23 +870,41 @@
 
 				METALCOMP002 /* MetalComputePipeline.swift */,
 				IMGDET987654321 /* ImageDetector.swift */,
-				IMGDETQUEUE002 /* ImageDetectorQueue.swift */,
-				IMGDETINFER002 /* ImageDetectorInference.swift */,
-				IMGDETLOAD002 /* ImageDetectorModelLoading.swift */,
+					IMGDETQUEUE002 /* ImageDetectorQueue.swift */,
+					IMGDETINFER002 /* ImageDetectorInference.swift */,
+					IMGDETINFSUP002 /* ImageDetectorInferenceSupport.swift */,
+					IMGDETYOLO002 /* ImageDetectorYOLOParser.swift */,
+					IMGDETYOLOSUP002 /* ImageDetectorYOLOSupport.swift */,
+					IMGDETLOAD002 /* ImageDetectorModelLoading.swift */,
 				IMGDETHELP002 /* ImageDetectionHelpers.swift */,
+				IMGDETDBG002 /* ImageDetectorDebugging.swift */,
+				DETDBGSTATE002 /* DetectionDebugState.swift */,
 				FUSIONVAL987654321 /* FusionValidator.swift */,
+				FUSIONPROJ002 /* FusionValidatorProjection.swift */,
+				FUSIONMATCH002 /* FusionValidatorMatching.swift */,
 				FRUITCNT987654321 /* FruitCounter.swift */,
 				SETTINGS987654321 /* SettingsStore.swift */,
+				SETTINGSSUP002 /* SettingsStoreSupport.swift */,
+				SETTINGSCTRL002 /* SettingsStoreDerivedConfigurations.swift */,
 				MODEL9876543210 /* FruitsDetector.mlpackage */,
 				FA290049668D55498B3D9885 /* PLYParserHelper.swift */,
 				PLYMETA002 /* PLYParserMetadata.swift */,
+				PLYCOMP002 /* PLYCompanionResultReader.swift */,
+				PLYSCHEMA002 /* PLYPointCloudSchema.swift */,
 				PLYPOINT002 /* PLYPointCloudParser.swift */,
+				PLYVERTEX002 /* PLYPointCloudVertexDecoder.swift */,
+				PLYIMPORT002 /* PLYImportService.swift */,
+				TAGMODELS002 /* TagModels.swift */,
+				USERCODABLE002 /* UserDefaultsCodableStorage.swift */,
 				TAGSTORE77889900 /* TagStore.swift */,
 				DEDUP22334455 /* DetectionDeduplicator.swift */,
 				OCCLCORR778899 /* OcclusionCorrector.swift */,
 				SCANQUAL778899 /* ScanQualityMonitor.swift */,
 				FVARIETYP001122 /* FruitParametersStore.swift */,
 				BATCH778899 /* BatchExportService.swift */,
+				BATCHCSV002 /* BatchExportCSVWriter.swift */,
+				BATCHEXCEL002 /* BatchExportExcelWriter.swift */,
+				BATCHFORMAT002 /* BatchExportFormatting.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -576,6 +929,15 @@
 				METALMEAS7799 /* MetalMeasurementOverlay.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		SYSTEMINTEGRATION001 /* SystemIntegration */ = {
+			isa = PBXGroup;
+			children = (
+				APPSHORTCUTS001 /* AppShortcuts.swift */,
+				NAVROUTER001 /* NavigationRouter.swift */,
+			);
+			path = SystemIntegration;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -661,9 +1023,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				49E97BEF76CC0DFADCDC98B5 /* Assets.xcassets in Resources */,
-				C8C2F4B22F2D81D8B02A7708 /* LaunchScreen.storyboard in Resources */,
-				MODEL98765432101 /* FruitsDetector.mlpackage in Resources */,
+					49E97BEF76CC0DFADCDC98B5 /* Assets.xcassets in Resources */,
+					LAUNCHV2001 /* LaunchScreenV2.storyboard in Resources */,
+					MODEL98765432101 /* FruitsDetector.mlpackage in Resources */,
 				LOCALSTR0001 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -678,24 +1040,58 @@
 				4822243FDDCB5DFA48275638 /* FruitTreeScannerApp.swift in Sources */,
 				60D4C5AFE0DFAE56637E76E4 /* GPSRecorder.swift in Sources */,
 				1E134CEA8C8FB8B9B701C29A /* LaunchScreen.swift in Sources */,
-				582D39EDACD586789724BD9D /* MetalBuffer.swift in Sources */,
-				BBDDFD016D098E22AE2FB02C /* Renderer.swift in Sources */,
-				RENDFRAME001 /* RendererFrameRendering.swift in Sources */,
-				23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */,
-				RESULTSECT001 /* ResultSections.swift in Sources */,
+					582D39EDACD586789724BD9D /* MetalBuffer.swift in Sources */,
+					BBDDFD016D098E22AE2FB02C /* Renderer.swift in Sources */,
+					RENDFRAME001 /* RendererFrameRendering.swift in Sources */,
+					RENDFRAMESUP001 /* RendererFrameSupport.swift in Sources */,
+					RENDSTATE001 /* RendererStateAccess.swift in Sources */,
+					23593D3CE2CD8FEC8FEFB118 /* ResultView.swift in Sources */,
+				RESULTFRUIT001 /* FruitVolumeResultSection.swift in Sources */,
+				RESULTDIAG001 /* ResultDiagnosticsSection.swift in Sources */,
+				RESULTWORK001 /* ResultPostScanWorkflowSection.swift in Sources */,
+				RESULTCROWN001 /* CrownVolumeResultSection.swift in Sources */,
+				RESULTALGO001 /* AlgorithmParametersResultSection.swift in Sources */,
 				RESULTTAG001 /* ResultTaggingView.swift in Sources */,
-				RESULTCOMP001 /* ResultComponents.swift in Sources */,
-				67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */,
-				373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */,
-				SCANOVERLAY001 /* ScanViewOverlays.swift in Sources */,
+				RESULTACT001 /* ResultActionButtons.swift in Sources */,
+				RESULTCARD001 /* ResultCardRows.swift in Sources */,
+				RESULTBADGE001 /* ResultBadgesAndPills.swift in Sources */,
+					RESULTPRES001 /* ResultPresentationModels.swift in Sources */,
+					RESULTSUMM001 /* ResultSummaryComponents.swift in Sources */,
+					67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */,
+					SCANHISTCONTENT001 /* ScanHistoryContentView.swift in Sources */,
+					SCANHISTFILTER001 /* ScanHistoryFilterBar.swift in Sources */,
+					SCANHISTEMPTY001 /* ScanHistoryEmptyState.swift in Sources */,
+					SCANHISTROW001 /* ScanHistoryRow.swift in Sources */,
+					SHARESHEET001 /* ShareSheet.swift in Sources */,
+					373867C75BB9A001EBE4CD2B /* ScanView.swift in Sources */,
+				SCANVIEWSTATE001 /* ScanView+State.swift in Sources */,
+				SCANVIEWLIFE001 /* ScanView+Lifecycle.swift in Sources */,
+					SCANVIEWACT001 /* ScanView+Actions.swift in Sources */,
+					SCANVIEWEXP001 /* ScanView+Export.swift in Sources */,
+					SCANOVERLAY001 /* ScanViewOverlays.swift in Sources */,
+					SCANLAYER001 /* ScanViewOverlayLayers.swift in Sources */,
+					SCANFIELD001 /* ScanFieldGuideOverlay.swift in Sources */,
+				SCANPOSTCAP001 /* ScanPostCaptureOverlay.swift in Sources */,
+				SCANRENDER001 /* ScanRenderLayer.swift in Sources */,
 				SCANREADY001 /* ScanReadiness.swift in Sources */,
 				SCANEXPORTREADY001 /* ScanExportReadiness.swift in Sources */,
-				SCANHUD001 /* ScanHUDViews.swift in Sources */,
+				SCANSTATBAR001 /* ScanStatusBar.swift in Sources */,
+				SCANSTATCONTENT001 /* ScanStatusBarContent.swift in Sources */,
+				SCANSTATPRES001 /* ScanStatusBarPresentation.swift in Sources */,
+				SCANCTRLBAR001 /* ScanControlBar.swift in Sources */,
 				SCANMETAL001 /* ScanMetalView.swift in Sources */,
 				3ED2D13CBE172639B6DE54B9 /* Shaders.metal in Sources */,
 				4290FCA9BB47CE697C86A7ED /* StartView.swift in Sources */,
-				STARTFLOW001 /* StartFlowViews.swift in Sources */,
-				STARTCHROME001 /* StartFlowChrome.swift in Sources */,
+				SCANLAUNCH001 /* ScanLaunchRequest.swift in Sources */,
+				STARTLAYOUT001 /* StartViewLayout.swift in Sources */,
+				STARTACTIONS001 /* StartView+Actions.swift in Sources */,
+				STARTPRESENT001 /* StartView+Presentation.swift in Sources */,
+				STARTIDSTEP001 /* StartIDEntryStep.swift in Sources */,
+				STARTPLOTSTEP001 /* StartPlotSelectionStep.swift in Sources */,
+				STARTSEASONSTEP001 /* StartSeasonSelectionStep.swift in Sources */,
+				STARTPROGRESS001 /* StartProgressView.swift in Sources */,
+				STARTSTEPCHROME001 /* StartStepChrome.swift in Sources */,
+				STARTNAVBAR001 /* StartNavigationBar.swift in Sources */,
 				STARTCONF001 /* StartConfirmationView.swift in Sources */,
 				STARTTAG001 /* StartTagSelectionView.swift in Sources */,
 				FLOWLAY001 /* FlowLayout.swift in Sources */,
@@ -704,26 +1100,49 @@
 				LOG00000001 /* Log.swift in Sources */,
 				SCANSETPROV001 /* ScanSettingsProvider.swift in Sources */,
 				51B82507BCDE6D1F33F0D359 /* Utils.swift in Sources */,
-				B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */,
-				CALREC001 /* CalibrationRecord.swift in Sources */,
-				CALIB279228 /* CalibrationView.swift in Sources */,
-				CALCOMP001 /* CalibrationComponents.swift in Sources */,
-				ADDCAL001 /* AddCalibrationRecordView.swift in Sources */,
+				TREEFILE001 /* TreeFileNaming.swift in Sources */,
+				LOCALFILE001 /* LocalFileStorage.swift in Sources */,
+				SHEETSAFE001 /* SpreadsheetTextSafety.swift in Sources */,
+				PIXELCOPY001 /* PixelBufferCopy.swift in Sources */,
+					SIMDCOMPAT001 /* SIMDCompatibility.swift in Sources */,
+						B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */,
+						YIELDMODEL001 /* YieldEstimateModels.swift in Sources */,
+						CALREC001 /* CalibrationRecord.swift in Sources */,
+					CALRECPERSIST001 /* CalibrationRecordPersistence.swift in Sources */,
+					CALIB279228 /* CalibrationView.swift in Sources */,
+					CALSTAT001 /* CalibrationStatisticsCard.swift in Sources */,
+					CALRECSEC001 /* CalibrationRecordsSection.swift in Sources */,
+					CALRECROW001 /* CalibrationRecordRow.swift in Sources */,
+					CALPARAMCARD001 /* CalibrationParametersCard.swift in Sources */,
+					ADDCAL001 /* AddCalibrationRecordView.swift in Sources */,
+					ADDCALFORM001 /* AddCalibrationRecordForm.swift in Sources */,
+					CALINPUT001 /* CalibrationRecordInputParser.swift in Sources */,
 				RENDHELP001 /* RendererMetalHelpers.swift in Sources */,
 				RENDPCEXP001 /* RendererPointCloudExport.swift in Sources */,
 				RENDPCACC001 /* RendererPointCloudAccess.swift in Sources */,
 				RENDDEPTH001 /* RendererDepthCoverage.swift in Sources */,
 				RENDPROG001 /* RendererScanProgress.swift in Sources */,
-				RENDSETTINGS001 /* RendererScanSettings.swift in Sources */,
-				HELP279228 /* HelpView.swift in Sources */,
-				DASH279228 /* DashboardView.swift in Sources */,
-				DASHSHEETS001 /* DashboardSheets.swift in Sources */,
-				DASHANALYTICS001 /* DashboardAnalyticsSheets.swift in Sources */,
+					RENDSETTINGS001 /* RendererScanSettings.swift in Sources */,
+					HELP279228 /* HelpView.swift in Sources */,
+					DASH279228 /* DashboardView.swift in Sources */,
+					DASHDEST001 /* DashboardDestination.swift in Sources */,
+					DASHLAYOUT001 /* DashboardHomeLayoutView.swift in Sources */,
+					DASHROUTE001 /* DashboardView+Routing.swift in Sources */,
+					DASHSHEETS001 /* DashboardSheets.swift in Sources */,
+					DASHEMPTY001 /* DashboardSheetEmptyState.swift in Sources */,
+					POINTCLOUDSHEET001 /* PointCloudSheet.swift in Sources */,
+					POINTCLOUDSELECT001 /* PointCloudFileSelector.swift in Sources */,
+					DASHANALYTICS001 /* DashboardAnalyticsSheets.swift in Sources */,
 				DASHANALYTICSCOMP001 /* DashboardAnalyticsComponents.swift in Sources */,
 				DASHHOME001 /* DashboardHomeSections.swift in Sources */,
 				DASHCHROME001 /* DashboardChrome.swift in Sources */,
-				DASHQUICK001 /* DashboardQuickActions.swift in Sources */,
-				DASHRECENT001 /* DashboardRecentAndStats.swift in Sources */,
+					DASHHERO001 /* DashboardHeroPanel.swift in Sources */,
+					DASHSTATUS001 /* DashboardStatusStrip.swift in Sources */,
+					DASHPRIMARY001 /* DashboardPrimaryActions.swift in Sources */,
+					QUICKGRID001 /* QuickActionsGrid.swift in Sources */,
+					QUICKMODEL001 /* QuickActionModels.swift in Sources */,
+					QUICKCARD001 /* QuickActionCards.swift in Sources */,
+					DASHRECENT001 /* DashboardRecentAndStats.swift in Sources */,
 				DASHSHARED001 /* DashboardSharedComponents.swift in Sources */,
 				DASHSUMMARY001 /* DashboardSummary.swift in Sources */,
 				QUICKSCAN001 /* QuickScanView.swift in Sources */,
@@ -740,6 +1159,7 @@
 				SCANCOORD001 /* ScanCoordinator.swift in Sources */,
 				SCANCOORDAR001 /* ScanCoordinatorARSession.swift in Sources */,
 				SCANCOORDWF001 /* ScanCoordinatorWorkflows.swift in Sources */,
+				SCANCOORDHUD001 /* ScanCoordinatorHUDUpdates.swift in Sources */,
 				SCANCONF001 /* ScanSessionConfiguration.swift in Sources */,
 				SCANQUALSAMP001 /* ScanQualitySampler.swift in Sources */,
 				SCANGUIDHELP001 /* ScanGuidanceHelper.swift in Sources */,
@@ -748,6 +1168,13 @@
 				SCANDIAG001 /* ScanDiagnosticsBuilder.swift in Sources */,
 				SCANFUSYLD001 /* ScanFusionYieldBuilder.swift in Sources */,
 				SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */,
+				CANOPYGEOM001 /* CanopyGeometryEstimator.swift in Sources */,
+				FRUITMASS001 /* FruitMassEstimate.swift in Sources */,
+				FRUITGEOM001 /* SimpleFruitGeometryEstimator.swift in Sources */,
+				FRUITGEOMCAT001 /* SimpleFruitGeometryCategories.swift in Sources */,
+				FRUITGEOMMET001 /* SimpleFruitGeometryMetrics.swift in Sources */,
+				FRUITQUAL001 /* FruitEstimationQualityScorer.swift in Sources */,
+				RESEARCHCSV001 /* ResearchCSVExporter.swift in Sources */,
 				CLUSTER279228 /* PointCloudCluster.swift in Sources */,
 				CLUSTANALYSIS001 /* PointCloudClusterAnalysis.swift in Sources */,
 				KDTREE001 /* KDTree.swift in Sources */,
@@ -755,37 +1182,68 @@
 
 				METALCOMP001 /* MetalComputePipeline.swift in Sources */,
 				IMGDET279228 /* ImageDetector.swift in Sources */,
-				IMGDETQUEUE001 /* ImageDetectorQueue.swift in Sources */,
-				IMGDETINFER001 /* ImageDetectorInference.swift in Sources */,
-				IMGDETLOAD001 /* ImageDetectorModelLoading.swift in Sources */,
+					IMGDETQUEUE001 /* ImageDetectorQueue.swift in Sources */,
+					IMGDETINFER001 /* ImageDetectorInference.swift in Sources */,
+					IMGDETINFSUP001 /* ImageDetectorInferenceSupport.swift in Sources */,
+					IMGDETYOLO001 /* ImageDetectorYOLOParser.swift in Sources */,
+					IMGDETYOLOSUP001 /* ImageDetectorYOLOSupport.swift in Sources */,
+					IMGDETLOAD001 /* ImageDetectorModelLoading.swift in Sources */,
 				IMGDETHELP001 /* ImageDetectionHelpers.swift in Sources */,
+				IMGDETDBG001 /* ImageDetectorDebugging.swift in Sources */,
+				DETDBGSTATE001 /* DetectionDebugState.swift in Sources */,
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
+				FUSIONPROJ001 /* FusionValidatorProjection.swift in Sources */,
+				FUSIONMATCH001 /* FusionValidatorMatching.swift in Sources */,
 				FRUITCNT279228 /* FruitCounter.swift in Sources */,
 				SETTINGS279228 /* SettingsStore.swift in Sources */,
+				SETTINGSSUP001 /* SettingsStoreSupport.swift in Sources */,
+				SETTINGSCTRL001 /* SettingsStoreDerivedConfigurations.swift in Sources */,
 				HISTCOMP001122 /* HistoricalCompareView.swift in Sources */,
 				HISTMODELS001 /* HistoricalCompareModels.swift in Sources */,
 				HISTCOMPONENTS001 /* HistoricalCompareComponents.swift in Sources */,
 				SCANPICKER001 /* ScanPickerView.swift in Sources */,
 				ORCHARD001122 /* OrchardMapView.swift in Sources */,
 				ORCHARDMODELS001 /* OrchardMapModels.swift in Sources */,
-				ORCHARDCOMP001 /* OrchardMapComponents.swift in Sources */,
+				ORCHARDEMPTY001 /* OrchardMapEmptyState.swift in Sources */,
+				ORCHARDCHROME001 /* OrchardMapChrome.swift in Sources */,
+				TREECOUNT001 /* TreeCountCard.swift in Sources */,
+				TREEDETAIL001 /* TreeDetailCard.swift in Sources */,
 				ORCHARDPIN001 /* OrchardMapPinsAndStats.swift in Sources */,
 				POINTCLD001122 /* PointCloudView.swift in Sources */,
 				POINTCTRL001 /* PointCloudControls.swift in Sources */,
+				POINTCTRLPRIM001 /* PointCloudControlPrimitives.swift in Sources */,
+				POINTCTRLCOLOR001 /* PointCloudColorControls.swift in Sources */,
 				SCENEKITPCL001 /* SceneKitPointCloudView.swift in Sources */,
 				SCENEKITRENDER001 /* SceneKitPointCloudRendering.swift in Sources */,
+				SCENEKITCOLOR001 /* SceneKitPointCloudColorRenderer.swift in Sources */,
+				SCENEKITNODE001 /* SceneKitPointCloudNodeFactory.swift in Sources */,
+				SCENEKITREF001 /* SceneKitPointCloudReferenceGeometry.swift in Sources */,
+				SCENEKITSRC001 /* SceneKitPointCloudGeometrySources.swift in Sources */,
 				D3FED03E2595575AB25CD050 /* PLYParserHelper.swift in Sources */,
 				PLYMETA001 /* PLYParserMetadata.swift in Sources */,
+				PLYCOMP001 /* PLYCompanionResultReader.swift in Sources */,
+				PLYSCHEMA001 /* PLYPointCloudSchema.swift in Sources */,
 				PLYPOINT001 /* PLYPointCloudParser.swift in Sources */,
+				PLYVERTEX001 /* PLYPointCloudVertexDecoder.swift in Sources */,
+				PLYIMPORT001 /* PLYImportService.swift in Sources */,
+				TAGMODELS001 /* TagModels.swift in Sources */,
+				USERCODABLE001 /* UserDefaultsCodableStorage.swift in Sources */,
 				SETVIEW001122 /* SettingsView.swift in Sources */,
 				SETCOMP001 /* SettingsComponents.swift in Sources */,
 				TAGSTORE001122 /* TagStore.swift in Sources */,
 				PLOTEDIT001122 /* PlotEditView.swift in Sources */,
-				TAGEDIT001122 /* TagEditView.swift in Sources */,
-				TAGENTITYFORM001 /* TagEntityEditForm.swift in Sources */,
-				TAGMGMG001122 /* TagManagementView.swift in Sources */,
-				TAGMGCOMP001 /* TagManagementComponents.swift in Sources */,
-				TREEFILT001122 /* TreeFilterView.swift in Sources */,
+					TAGEDIT001122 /* TagEditView.swift in Sources */,
+					TAGENTITYFORM001 /* TagEntityEditForm.swift in Sources */,
+					TAGMGMG001122 /* TagManagementView.swift in Sources */,
+					TAGPLOTLIST001 /* TagManagementPlotListView.swift in Sources */,
+					TAGTAGLIST001 /* TagManagementTagListView.swift in Sources */,
+					TAGROWS001 /* TagManagementRows.swift in Sources */,
+					TAGSTATUS001 /* TagManagementStatusOverview.swift in Sources */,
+					TAGEMPTY001 /* TagManagementEmptyState.swift in Sources */,
+					TREEFILT001122 /* TreeFilterView.swift in Sources */,
+				TREEFILTCNT001 /* TreeFilterContentView.swift in Sources */,
+				TREEFILTERBAR001 /* TreeFilterBar.swift in Sources */,
+				TREEFILTLIST001 /* TreeFilterListView.swift in Sources */,
 				FILTERCHIP001122 /* FilterChip.swift in Sources */,
 				GLASSCARD001122G /* GlassCard.swift in Sources */,
 				COVERAGEMAP001G /* CoverageMapView.swift in Sources */,
@@ -794,9 +1252,16 @@
 				DEDUP001122G /* DetectionDeduplicator.swift in Sources */,
 				OCCLCORR778899B /* OcclusionCorrector.swift in Sources */,
 				IMPORT001122 /* ImportFileView.swift in Sources */,
+				IMPORTACTIONS001 /* ImportFileView+Actions.swift in Sources */,
+				IMPORTCONTENT001 /* ImportFileContentView.swift in Sources */,
+				IMPORTSTATUS001 /* ImportFileStatus.swift in Sources */,
+				IMPORTTYPES001 /* ImportFileTypes.swift in Sources */,
 				IMPORTCOMP001 /* ImportFileComponents.swift in Sources */,
 				SCANQUAL001122 /* ScanQualityMonitor.swift in Sources */,
 				DEBUG001122 /* FruitDetectionDebugView.swift in Sources */,
+				DETDBGVIEW001 /* DetectionDebugView.swift in Sources */,
+				DETDBGCNT001 /* DetectionDebugContentView.swift in Sources */,
+				DETDBGOVR001 /* DetectionDebugOverlayView.swift in Sources */,
 				FVARIETYPB001122 /* FruitParametersStore.swift in Sources */,
 				VARIDBB001122 /* VarietyDatabaseView.swift in Sources */,
 				VARIDBCOMP001 /* VarietyDatabaseComponents.swift in Sources */,
@@ -805,8 +1270,21 @@
 				MEASOVR001122 /* MeasurementToolOverlay.swift in Sources */,
 				METALMEAS001122 /* MetalMeasurementOverlay.swift in Sources */,
 				BATCH001122 /* BatchExportService.swift in Sources */,
+				BATCHCSV001 /* BatchExportCSVWriter.swift in Sources */,
+				BATCHEXCEL001 /* BatchExportExcelWriter.swift in Sources */,
+				BATCHFORMAT001 /* BatchExportFormatting.swift in Sources */,
 				BATCHVIEW001122 /* BatchExportView.swift in Sources */,
-				BATCHCOMP001 /* BatchExportComponents.swift in Sources */,
+				BATCHACTIONS001 /* BatchExportView+Actions.swift in Sources */,
+				BATCHCONTENT001 /* BatchExportContentView.swift in Sources */,
+				BATCHOPTIONS001 /* BatchExportOptionsView.swift in Sources */,
+				BATCHRECORDS001 /* BatchExportRecordListView.swift in Sources */,
+				BATCHHEADER001 /* BatchExportHeaderBar.swift in Sources */,
+				BATCHEMPTY001 /* BatchExportEmptyState.swift in Sources */,
+				BATCHDONE001 /* BatchExportCompletionPanel.swift in Sources */,
+				BATCHROW001 /* BatchExportRecordRow.swift in Sources */,
+				BATCHCTRL001 /* BatchExportControls.swift in Sources */,
+				APPSHORTCUTS002 /* AppShortcuts.swift in Sources */,
+				NAVROUTER002 /* NavigationRouter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -821,13 +1299,15 @@
 				TESTMODEL001122 /* FruitModelsTests.swift in Sources */,
 				TESTSCANDIAG001 /* ScanDiagnosticsBuilderTests.swift in Sources */,
 				TESTSCANEXPORTREADY001 /* ScanExportReadinessTests.swift in Sources */,
-				TESTSCANREADY001 /* ScanReadinessTests.swift in Sources */,
-				TESTRESULTCONF001 /* ResultConfidencePresentationTests.swift in Sources */,
-				TESTFUSVAL001 /* FusionValidatorTests.swift in Sources */,
+					TESTSCANREADY001 /* ScanReadinessTests.swift in Sources */,
+					TESTRESULTCONF001 /* ResultConfidencePresentationTests.swift in Sources */,
+					TESTCALPERSIST001 /* CalibrationRecordPersistenceTests.swift in Sources */,
+					TESTFUSVAL001 /* FusionValidatorTests.swift in Sources */,
 				TESTFUSYLD001 /* ScanFusionYieldBuilderTests.swift in Sources */,
 				TESTDASHSUM001 /* DashboardSummaryTests.swift in Sources */,
 				TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */,
 				TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */,
+				TESTDETDBG001 /* DetectionDebugStateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -884,6 +1364,8 @@
 				ENABLE_BITCODE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
