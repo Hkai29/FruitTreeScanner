@@ -1,0 +1,167 @@
+import SwiftUI
+
+extension ScanView {
+    var scannerInterfaceActions: ScanScannerInterfaceActions {
+        #if DEBUG
+        return ScanScannerInterfaceActions(
+            onCloseGuide: closeGuide,
+            onStartRecording: startRecording,
+            onToggleGuide: toggleGuide,
+            onToggleRecording: toggleRecording,
+            onToggleMeasurement: toggleMeasurement,
+            onRequestCancelScan: requestCancelScan,
+            onResumeRecording: resumeRecording,
+            onFinishScan: finishScan,
+            onClearMeasurement: clearMeasurementState,
+            onDismissResult: dismissResult,
+            onDismissResultToHome: dismissResultToHome,
+            onDebug: showDebugSnapshot
+        )
+        #else
+        return ScanScannerInterfaceActions(
+            onCloseGuide: closeGuide,
+            onStartRecording: startRecording,
+            onToggleGuide: toggleGuide,
+            onToggleRecording: toggleRecording,
+            onToggleMeasurement: toggleMeasurement,
+            onRequestCancelScan: requestCancelScan,
+            onResumeRecording: resumeRecording,
+            onFinishScan: finishScan,
+            onClearMeasurement: clearMeasurementState,
+            onDismissResult: dismissResult,
+            onDismissResultToHome: dismissResultToHome
+        )
+        #endif
+    }
+
+    func closeGuide() {
+        showGuide = false
+    }
+
+    func toggleGuide() {
+        showGuide.toggle()
+    }
+
+    func dismissResult() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            showResult = false
+        }
+    }
+
+    func dismissResultToHome() {
+        showResult = false
+        dismiss()
+    }
+
+    func handleCoveragePercentChange(_ newValue: Int) {
+        if newValue >= 85 && !hasShownCoverageComplete && isRecording {
+            showCoverageComplete = true
+            hasShownCoverageComplete = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                guard isViewActive else { return }
+                withAnimation { showCoverageComplete = false }
+            }
+        }
+    }
+
+    func toggleMeasurement() {
+        guard !isEstimating else { return }
+        if hudState.pointCount == 0 && !measurementController.isActive {
+            showTemporaryNotice(L10n.Scan.noPointCloud)
+            return
+        }
+        if measurementController.isActive {
+            clearMeasurementState()
+        } else {
+            measurementController.activate()
+        }
+    }
+
+    func clearMeasurementState() {
+        measurementController.deactivate()
+        measuredDistance = nil
+    }
+
+    #if DEBUG
+    func showDebugSnapshot() {
+        detectionDebugState = coordinator.detectionDebugSnapshot()
+        showDebugView = true
+    }
+    #endif
+
+    func toggleRecording() {
+        guard !isEstimating else { return }
+        if isRecording {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    func startRecording() {
+        guard !isEstimating else { return }
+        guard scanReadiness == .ready else {
+            showTemporaryNotice(scanReadiness.title)
+            return
+        }
+        clearMeasurementState()
+        createDirectory(folder: "scans")
+        coordinator.startRecording()
+        isRecording = true
+        showGuide = false
+    }
+
+    func resumeRecording() {
+        guard !isEstimating else { return }
+        guard scanReadiness == .ready else {
+            showTemporaryNotice(scanReadiness.title)
+            return
+        }
+        guard coordinator.pointCount > 0 || hudState.pointCount > 0 else {
+            startRecording()
+            return
+        }
+        clearMeasurementState()
+        createDirectory(folder: "scans")
+        coordinator.resumeRecordingPreservingCapture()
+        isRecording = true
+        showGuide = false
+    }
+
+    func stopRecording() {
+        coordinator.stopRecording()
+        isRecording = false
+    }
+
+    func requestCancelScan() {
+        guard !isEstimating else { return }
+        if isRecording || coordinator.pointCount > 0 || hudState.pointCount > 0 {
+            showCancelConfirmation = true
+        } else {
+            cancelScan()
+        }
+    }
+
+    func cancelScan() {
+        isEstimating = false
+        if isRecording {
+            stopRecording()
+        }
+        clearMeasurementState()
+        coordinator.teardown()
+        dismiss()
+    }
+
+    func showTemporaryNotice(_ message: String) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scanNotice = message
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+            guard isViewActive else { return }
+            guard scanNotice == message else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                scanNotice = nil
+            }
+        }
+    }
+}

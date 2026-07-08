@@ -32,6 +32,7 @@ class ScanCoordinator: NSObject {
     var scanCompletion: ScanCompletion = ScanCompletion()
 
     var detectedFruits: [DetectedFruit] = []
+    var archivedFusionEvidenceDetections: [DetectedFruit] = []
 
     var onMeasurementReady: ((Renderer) -> Void)?
     var onQualitySampleUpdate: ((ScanQualitySample) -> Void)?
@@ -56,19 +57,19 @@ class ScanCoordinator: NSObject {
     #endif
 
     private var displayLink: CADisplayLink?
-    private var lastHUDUpdateTime: TimeInterval = 0
-    private var lastCompletionUpdateTime: TimeInterval = 0
+    var lastHUDUpdateTime: TimeInterval = 0
+    var lastCompletionUpdateTime: TimeInterval = 0
     var lastQualitySampleTime: TimeInterval = 0
     var hasPublishedCameraResolution = false
     var requestedSceneDepth = false
     private var depthRuntimeStatus: ScanDepthRuntimeStatus?
     var isTornDown = false
-    private let activeHUDUpdateInterval: TimeInterval = 0.1
-    private let idleHUDUpdateInterval: TimeInterval = 0.25
-    private let activeCompletionUpdateInterval: TimeInterval = 0.25
-    private let idleCompletionUpdateInterval: TimeInterval = 0.5
+    let activeHUDUpdateInterval: TimeInterval = 0.1
+    let idleHUDUpdateInterval: TimeInterval = 0.25
+    let activeCompletionUpdateInterval: TimeInterval = 0.25
+    let idleCompletionUpdateInterval: TimeInterval = 0.5
     let qualitySampleInterval: TimeInterval = 0.25
-    private let completionEvaluator = ScanCompletionEvaluator()
+    let completionEvaluator = ScanCompletionEvaluator()
     let detectionProcessingLock = NSLock()
     var isDetectionProcessing = false
 
@@ -81,13 +82,12 @@ class ScanCoordinator: NSObject {
     lazy var imageDetector: ImageDetector = {
         var config = FruitScanConfig(
             imageDetectionInterval: 10,
-            minConfidence: 0.5,
+            minConfidence: 0.85,
             sizeTolerance: 0.2,
-            sphericityThreshold: 0.5
+            sphericityThreshold: 0.5,
+            minimumStableDetectionsForYield: 2,
+            stableDetectionTimeWindow: 4.0
         )
-        #if DEBUG
-        config.minConfidence = DetectionDebugConfiguration.effectiveThreshold(for: config.minConfidence)
-        #endif
         let detector = ImageDetector(config: config)
         return detector
     }()
@@ -207,6 +207,7 @@ class ScanCoordinator: NSObject {
         onDetectionDebugStateChange = nil
         #endif
         detectedFruits.removeAll()
+        archivedFusionEvidenceDetections.removeAll()
     }
 
     // MARK: - 图像检测定时器
@@ -219,105 +220,6 @@ class ScanCoordinator: NSObject {
             guard let self, !self.isTornDown else { return }
             self.hudState?.update(depthRuntimeStatus: status.rawValue)
         }
-    }
-
-    @MainActor
-    func startRecording() {
-        detectionTask?.cancel()
-        detectionTask = nil
-        fusionEstimateTask?.cancel()
-        fusionEstimateTask = nil
-        imageDetector.clearQueue()
-        createDirectory(folder: "scans")
-        pointCount = 0
-        scannedRegionCount = 0
-        coveragePercent = 0
-        coverageVoxelCount = 0
-        scanCompletion = ScanCompletion()
-        hudState?.resetForNewScan()
-        publishImageDetectorStatus()
-        hudState?.update(fusionStatus: "扫描中")
-        lastCameraPosition = nil
-        lastCameraSpeedTime = 0
-        smoothedCameraSpeed = 0
-        renderer?.currentFolder = "scans"
-        renderer?.isRecording = true
-    }
-
-    @MainActor
-    @objc private func updatePointCount() {
-        let now = CACurrentMediaTime()
-        let hudInterval = renderer?.isRecording == true ? activeHUDUpdateInterval : idleHUDUpdateInterval
-        guard now - lastHUDUpdateTime >= hudInterval else { return }
-        lastHUDUpdateTime = now
-
-        var hudPointCount: Int?
-        var hudCoveragePercent: Int?
-
-        if let renderer {
-            let exportableCount = renderer.exportablePointCountPublic
-            let nextPointCount = exportableCount > 0 ? exportableCount : renderer.currentPointCountPublic
-            if pointCount != nextPointCount {
-                pointCount = nextPointCount
-                hudPointCount = nextPointCount
-            }
-        } else {
-            if pointCount != 0 {
-                pointCount = 0
-                hudPointCount = 0
-            }
-        }
-        let regionCount = renderer?.scannedRegionCountPublic ?? 0
-        if scannedRegionCount != regionCount {
-            scannedRegionCount = regionCount
-        }
-        let maxRegions = 600
-        let nextCoveragePercent = min(Int(Double(regionCount) / Double(maxRegions) * 100), 100)
-        if coveragePercent != nextCoveragePercent {
-            coveragePercent = nextCoveragePercent
-            hudCoveragePercent = nextCoveragePercent
-            onCoveragePercentChange?(nextCoveragePercent)
-        }
-        let nextCoverageVoxelCount = renderer?.coverageVoxelCount ?? 0
-        if coverageVoxelCount != nextCoverageVoxelCount {
-            coverageVoxelCount = nextCoverageVoxelCount
-        }
-
-        let imageDiagnostics = imageDetector.diagnosticsSnapshot()
-        #if DEBUG
-        onDetectionDebugStateChange?(imageDetector.detectionDebugSnapshot())
-        #endif
-        hudState?.update(
-            pointCount: hudPointCount,
-            coveragePercent: hudCoveragePercent,
-            exportablePointStatus: (renderer?.exportablePointCountPublic ?? 0) > 0 ? "Ready" : "NoCloud",
-            processedImageFrames: imageDiagnostics.processedFrameCount,
-            detectedFruitCount: max(detectedFruits.count, imageDiagnostics.mappedFruitCount),
-            fusionStatus: detectedFruits.isEmpty ? "Wait" : "OK"
-        )
-
-        updateScanCompletion()
-    }
-
-    @MainActor
-    private func updateScanCompletion() {
-        guard let renderer = renderer else { return }
-        let now = CACurrentMediaTime()
-        let completionInterval = renderer.isRecording ? activeCompletionUpdateInterval : idleCompletionUpdateInterval
-        guard now - lastCompletionUpdateTime >= completionInterval else { return }
-        lastCompletionUpdateTime = now
-
-        let completion = completionEvaluator.evaluate(
-            .init(
-                voxelCount: renderer.coverageVoxelCount,
-                scanDuration: renderer.scanDuration,
-                discoveryTrend: renderer.voxelDiscoveryTrendPublic,
-                discoveryRate: renderer.voxelDiscoveryRatePublic
-            )
-        )
-
-        scanCompletion = completion
-        hudState?.update(scanCompletion: completion)
     }
 
 }

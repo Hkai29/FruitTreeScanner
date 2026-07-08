@@ -5,9 +5,10 @@ struct RecentScansSection: View {
     var onViewAll: (() -> Void)? = nil
     var onScanTap: ((ScanFileRecord) -> Void)? = nil
     var onStartScan: (() -> Void)? = nil
+    var compactLandscape: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: compactLandscape ? 10 : 16) {
             DashboardSectionHeader(
                 title: "最近扫描",
                 actionTitle: "查看全部",
@@ -17,20 +18,22 @@ struct RecentScansSection: View {
             if scans.isEmpty {
                 emptyRecentScans
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: compactLandscape ? 8 : 12) {
                     ForEach(scans) { record in
                         Button {
                             onScanTap?(record)
                         } label: {
-                            RecentScanCard(record: record)
+                            RecentScanCard(record: record, compactLandscape: compactLandscape)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("查看 \(record.treeID) 点云")
                     }
                 }
             }
+
+            Spacer(minLength: 0)
         }
-        .padding(16)
+        .padding(compactLandscape ? 14 : 16)
         .dashboardSurface(cornerRadius: 12)
     }
 
@@ -84,6 +87,7 @@ struct RecentScansSection: View {
 
 struct RecentScanCard: View {
     let record: ScanFileRecord
+    var compactLandscape: Bool = false
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -96,35 +100,35 @@ struct RecentScanCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: compactLandscape ? 10 : 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 9)
                     .fill(Design.Colors.harvest.opacity(0.14))
-                    .frame(width: 44, height: 44)
+                    .frame(width: compactLandscape ? 34 : 44, height: compactLandscape ? 34 : 44)
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 19))
+                    .font(.system(size: compactLandscape ? 15 : 19))
                     .foregroundColor(Design.Colors.harvestLight)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.treeID)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .font(.system(size: compactLandscape ? 13 : 14, weight: .semibold, design: .monospaced))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
                     .lineLimit(1)
                 Text(dateString)
-                    .font(.system(size: 12))
+                    .font(.system(size: compactLandscape ? 10 : 12))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 Text(String(format: "%.1f kg", record.yieldKg))
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .font(.system(size: compactLandscape ? 12 : 13, weight: .medium, design: .monospaced))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
                 Text("\(record.fruitCount) 个果实")
-                    .font(.system(size: 11))
+                    .font(.system(size: compactLandscape ? 10 : 11))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
         }
-        .padding(12)
+        .padding(compactLandscape ? 9 : 12)
         .background(Design.Colors.Dark.bgElevated.opacity(0.58))
         .cornerRadius(8)
     }
@@ -132,6 +136,7 @@ struct RecentScanCard: View {
 
 struct StatsOverviewSection: View {
     var records: [ScanFileRecord] = []
+    var compactLandscape: Bool = false
 
     private var summary: DashboardDailySummary { DashboardDailySummary(records: records) }
 
@@ -144,15 +149,16 @@ struct StatsOverviewSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: compactLandscape ? 12 : 16) {
             DashboardSectionHeader(title: "今日概览")
-            HStack(spacing: 16) {
-                StatCard(value: "\(summary.scanCount)", label: "扫描数量", icon: "viewfinder", color: Design.Colors.harvest)
-                StatCard(value: String(format: "%.1f", todaysYield), label: "总产量/kg", icon: "scalemass.fill", color: Design.Colors.harvest)
-                StatCard(value: "\(todaysTrees)", label: "树编号", icon: "tree.fill", color: Design.Colors.Dark.info)
+            HStack(spacing: compactLandscape ? 10 : 16) {
+                StatCard(value: "\(summary.scanCount)", label: "扫描数量", icon: "viewfinder", compactLandscape: compactLandscape)
+                StatCard(value: String(format: "%.1f", todaysYield), label: "总产量/kg", icon: "scalemass.fill", compactLandscape: compactLandscape)
+                StatCard(value: "\(todaysTrees)", label: "树编号", icon: "tree.fill", compactLandscape: compactLandscape)
             }
+            .frame(maxHeight: .infinity)
         }
-        .padding(16)
+        .padding(compactLandscape ? 14 : 16)
         .dashboardSurface(cornerRadius: 12)
     }
 }
@@ -161,25 +167,21 @@ struct StatCard: View {
     let value: String
     let label: String
     let icon: String
-    let color: Color
+    var compactLandscape: Bool = false
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(color)
-                .frame(width: 34, height: 34)
-                .background(color.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+        VStack(spacing: compactLandscape ? 8 : 12) {
+            DashboardMiniIcon(icon: icon, size: compactLandscape ? 30 : 34)
             Text(value)
-                .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                .font(.system(size: compactLandscape ? 21 : 24, weight: .semibold, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
             Text(label)
-                .font(.system(size: 11))
+                .font(.system(size: compactLandscape ? 10 : 11))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .frame(maxHeight: .infinity)
+        .padding(.vertical, compactLandscape ? 12 : 20)
         .background(Design.Colors.Dark.bgElevated.opacity(0.58))
         .cornerRadius(8)
     }

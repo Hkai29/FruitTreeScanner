@@ -11,7 +11,8 @@ extension ImageDetector {
         timestamp: TimeInterval,
         cameraTransform: simd_float4x4,
         cameraIntrinsics: simd_float3x3,
-        imageSize: CGSize
+        imageSize: CGSize,
+        depthMap: CVPixelBuffer?
     ) {
         let pixelBufferSize = CGSize(
             width: CGFloat(CVPixelBufferGetWidth(pixelBuffer)),
@@ -48,9 +49,21 @@ extension ImageDetector {
         diagnosticsRecorder.recordQueuedFrame()
         lock.unlock()
 
-        let copiedPixelBuffer = duplicatePixelBuffer(input: pixelBuffer)
+        guard let copiedPixelBuffer = duplicatePixelBuffer(input: pixelBuffer) else {
+            Log.detection.error("Dropping image detection frame: failed to copy RGB pixel buffer")
+            cancelPreparingFrame(generation: generation)
+            return
+        }
+        // ARKit recycles scene-depth buffers. Keep the exact depth image that
+        // accompanied this RGB frame so fusion never projects through a later
+        // frame's depth map.
+        let copiedDepthMap = depthMap.flatMap { duplicatePixelBuffer(input: $0) }
+        if depthMap != nil, copiedDepthMap == nil {
+            Log.detection.warning("Continuing image detection without aligned depth: failed to copy depth pixel buffer")
+        }
         let queuedFrame = QueuedFrame(
             pixelBuffer: copiedPixelBuffer,
+            depthMap: copiedDepthMap,
             timestamp: timestamp,
             cameraTransform: cameraTransform,
             cameraIntrinsics: cameraIntrinsics,
@@ -82,6 +95,14 @@ extension ImageDetector {
         guard generation == queueGeneration else { return }
         guard pendingFrames.isEmpty else { return }
         pendingFrames.append(queuedFrame)
+    }
+
+    func cancelPreparingFrame(generation: Int) {
+        lock.lock()
+        if preparingFrameGeneration == generation {
+            preparingFrameGeneration = nil
+        }
+        lock.unlock()
     }
 
     func drainPendingFrames() async -> [QueuedFrame] {

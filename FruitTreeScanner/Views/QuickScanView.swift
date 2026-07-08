@@ -18,7 +18,7 @@ struct QuickScanView: View {
     }
 
     private var normalizedTreeID: String {
-        treeID.trimmingCharacters(in: .whitespacesAndNewlines)
+        TreeIdentifierPolicy.normalized(treeID)
     }
 
     var body: some View {
@@ -113,7 +113,7 @@ struct QuickScanView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            guard !normalizedTreeID.isEmpty else {
+            guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
                 isLaunchingScan = false
                 return
             }
@@ -142,12 +142,13 @@ private struct QuickScanTreeIDInput: View {
 
     @State private var draftTreeID: String
     @State private var isValid = true
+    @State private var validationErrorMessage: String?
     @State private var syncTask: Task<Void, Never>?
 
     init(initialTreeID: String, onChange: @escaping (String, Bool) -> Void) {
         self.onChange = onChange
         _draftTreeID = State(initialValue: initialTreeID)
-        _isValid = State(initialValue: !initialTreeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        _isValid = State(initialValue: TreeIdentifierPolicy.isValid(initialTreeID))
     }
 
     var body: some View {
@@ -157,7 +158,7 @@ private struct QuickScanTreeIDInput: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                 Spacer()
-                Text(isValid ? "可用" : "必填")
+                Text(isValid ? "可用" : (validationErrorMessage != nil ? "无效" : "必填"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(isValid ? Design.Colors.forest : Design.Colors.harvest)
             }
@@ -174,6 +175,12 @@ private struct QuickScanTreeIDInput: View {
                 .textContentType(.none)
                 .submitLabel(.done)
                 .onSubmit(syncImmediately)
+
+            if let error = validationErrorMessage {
+                Text(error)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Design.Colors.harvest)
+            }
         }
         .padding(16)
         .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
@@ -182,7 +189,17 @@ private struct QuickScanTreeIDInput: View {
             syncTask?.cancel()
         }
         .onChange(of: draftTreeID) { newValue in
-            isValid = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let normalized = TreeIdentifierPolicy.normalized(newValue)
+            if normalized.isEmpty {
+                isValid = false
+                validationErrorMessage = nil
+            } else if let error = TreeIdentifierPolicy.validationError(for: normalized) {
+                isValid = false
+                validationErrorMessage = error
+            } else {
+                isValid = true
+                validationErrorMessage = nil
+            }
             syncTask?.cancel()
             syncTask = Task {
                 try? await Task.sleep(nanoseconds: 140_000_000)
@@ -199,7 +216,7 @@ private struct QuickScanTreeIDInput: View {
     }
 
     private func publish(_ value: String) {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        onChange(normalized, !normalized.isEmpty)
+        let normalized = TreeIdentifierPolicy.normalized(value)
+        onChange(normalized, TreeIdentifierPolicy.isValid(normalized))
     }
 }

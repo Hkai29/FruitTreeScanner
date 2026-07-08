@@ -2,13 +2,16 @@ import Foundation
 
 struct RendererScanProgress {
     private(set) var scanStartTime = Date()
+    private var pausedAt: Date?
+    private var accumulatedPauseDuration: TimeInterval = 0
     private var voxelDiscoveryHistory: [Int] = []
     private var lastVoxelCount = 0
     private var lastDiscoveryCheckTime = Date()
     private let discoveryCheckInterval: TimeInterval = 1.0
 
     var scanDuration: TimeInterval {
-        Date().timeIntervalSince(scanStartTime)
+        let end = pausedAt ?? Date()
+        return max(0, end.timeIntervalSince(scanStartTime) - accumulatedPauseDuration)
     }
 
     var voxelDiscoveryRate: Float {
@@ -34,8 +37,22 @@ struct RendererScanProgress {
 
     mutating func reset(now: Date = Date()) {
         scanStartTime = now
+        pausedAt = nil
+        accumulatedPauseDuration = 0
         voxelDiscoveryHistory.removeAll()
         lastVoxelCount = 0
+        lastDiscoveryCheckTime = now
+    }
+
+    mutating func pause(now: Date = Date()) {
+        guard pausedAt == nil else { return }
+        pausedAt = now
+    }
+
+    mutating func resume(now: Date = Date()) {
+        guard let pausedAt else { return }
+        accumulatedPauseDuration += now.timeIntervalSince(pausedAt)
+        self.pausedAt = nil
         lastDiscoveryCheckTime = now
     }
 

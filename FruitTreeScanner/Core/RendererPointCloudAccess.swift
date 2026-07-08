@@ -79,12 +79,16 @@ extension Renderer {
     }
 
     func makeAnalysisPoints() -> [ColoredPoint] {
-        let signature = currentSnapshotSignature()
+        let analysisVoxelSize = Renderer.analysisVoxelSizeMeters
+        let signature = currentSnapshotSignature(voxelSize: analysisVoxelSize)
         if let cachedPoints = cachedAnalysisPoints(for: signature) {
             return cachedPoints
         }
 
-        let samples = makeFilteredPointSamples(voxelSize: snapshotVoxelSize)
+        let samples = makeFilteredPointSamples(
+            voxelSize: analysisVoxelSize,
+            inputSampleLimit: analysisInputSampleLimit
+        )
         let denoised = PointCloudDenoiser.statisticalOutlierRemoval(samples: samples)
         let pts = RendererPointCloudSnapshot.makeColoredPoints(from: denoised)
         storeSnapshot(points: pts, fullSignature: signature)
@@ -120,12 +124,12 @@ extension Renderer {
         return snapshotPoints
     }
 
-    func currentSnapshotSignature() -> RendererSnapshotSignature {
+    func currentSnapshotSignature(voxelSize: Float? = nil) -> RendererSnapshotSignature {
         let pointBuffer = pointBufferSnapshot()
         return RendererPointCloudSnapshot.makeSignature(
             pointCount: pointBuffer.count,
             pointIndex: pointBuffer.index,
-            voxelSize: snapshotVoxelSize,
+            voxelSize: voxelSize ?? snapshotVoxelSize,
             confidenceThreshold: confidenceThreshold
         )
     }
@@ -175,8 +179,7 @@ extension Renderer {
                 return gpuAssistedFilter(
                     voxelKeys: voxelKeys,
                     count: count,
-                    index: index,
-                    voxelSize: voxelSize
+                    index: index
                 )
             }
         }
@@ -197,8 +200,7 @@ extension Renderer {
     private func gpuAssistedFilter(
         voxelKeys: [UInt32],
         count: Int,
-        index: Int,
-        voxelSize: Float
+        index: Int
     ) -> [RendererPointSample] {
         var bestByVoxel: [UInt32: RendererPointSample] = [:]
         bestByVoxel.reserveCapacity(min(count, 200_000))
@@ -209,11 +211,10 @@ extension Renderer {
 
             let bufferIndex = (index - count + i + maxPoints) % maxPoints
             let particle = particlesBuffer[bufferIndex]
-            let sample = RendererPointSample(
-                position: particle.position,
-                color: RendererPointCloudSnapshot.clampColorPublic(particle.color),
-                confidence: particle.confidence
-            )
+            guard let sample = RendererPointCloudSnapshot.makeExportableSample(
+                from: particle,
+                confidenceThreshold: confidenceThreshold
+            ) else { continue }
             if let existing = bestByVoxel[key], existing.confidence >= sample.confidence {
                 continue
             }

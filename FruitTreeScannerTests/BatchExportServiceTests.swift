@@ -52,6 +52,24 @@ final class BatchExportServiceTests: XCTestCase {
         return try String(contentsOf: result.url, encoding: .utf8)
     }
 
+    private func makeYieldResult(
+        nLidar: Int = 12,
+        yieldKg: Float = 3.45
+    ) -> YieldResult {
+        var result = YieldResult()
+        result.nLidar = nLidar
+        result.yieldFinalKg = yieldKg
+        result.clusterEps = 0.05
+        result.clusterMinPoints = 6
+        result.colorFilterDesc = "@color"
+        result.occlusionK = 1.2
+        result.pointCloudSize = 1234
+        result.confidence = "-low"
+        result.methodUsed = "\tmethod"
+        result.note = "\nmanual review"
+        return result
+    }
+
     // MARK: - Helpers for CSV content inspection
 
     private func stripBOM(_ csv: String) -> String {
@@ -82,6 +100,31 @@ final class BatchExportServiceTests: XCTestCase {
             XCTFail("Expected BatchExportError.noRecords to be thrown")
         } catch let error as BatchExportError {
             XCTAssertEqual(error, .noRecords)
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testExportCancellationPropagatesToBackgroundTask() async {
+        let records = (0..<20_000).map { index in
+            makeRecord(id: "cancel_\(index).ply", treeID: "T-\(index)")
+        }
+
+        let task = Task {
+            try await BatchExportService.shared.export(
+                records: records,
+                format: .csv,
+                options: .init()
+            )
+        }
+        task.cancel()
+
+        do {
+            let result = try await task.value
+            try? FileManager.default.removeItem(at: result.url)
+            XCTFail("Expected cancellation to stop background export")
+        } catch is CancellationError {
+            // Expected: cancellation should reach the detached export worker.
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
@@ -323,6 +366,459 @@ final class BatchExportServiceTests: XCTestCase {
         let xml = try await exportExcelContent(records: [record])
         XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">T-001</Data>"))
         XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">grape</Data>"))
+    }
+
+    func testExcelNeutralizesFormulaPrefixTreeIDAndFruitType() async throws {
+        let record = makeRecord(id: "x.ply", treeID: "=FORMULA(1+2)", fruitType: "+SUM(A1:A10)")
+        let xml = try await exportExcelContent(records: [record])
+        XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">&apos;=FORMULA(1+2)</Data>"))
+        XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">&apos;+SUM(A1:A10)</Data>"))
+    }
+
+    func testExcelNeutralizesFormulaGroupLabel() async throws {
+        let record = makeRecord(id: "x.ply", treeID: "T-001", fruitType: "apple")
+        var options = BatchExportService.ExportOptions()
+        options.groupBy = .plot
+        options.plotNameByTreeID = ["T-001": "@dangerous"]
+        let xml = try await exportExcelContent(records: [record], options: options)
+        XCTAssertTrue(xml.contains("<Data ss:Type=\"String\">&apos;@dangerous</Data>"))
+    }
+
+    // MARK: - SpreadsheetTextSafety direct unit tests
+
+    func testSpreadsheetTextSafetyNeutralizesFormulaPrefixes() {
+        // = + - @ tab LF CR trigger apostrophe prefix
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("=cmd"), "'=cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("+cmd"), "'+cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("-cmd"), "'-cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("@cmd"), "'@cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\tcmd"), "'\tcmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\ncmd"), "'\ncmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("\rcmd"), "'\rcmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(" =cmd"), "' =cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(" \t=cmd"), "' \t=cmd")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("  @cmd"), "'  @cmd")
+    }
+
+    func testSpreadsheetTextSafetyPreservesNormalText() {
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("apple"), "apple")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("T-001"), "T-001")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("123"), "123")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula("三号地块"), "三号地块")
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(" orchard"), " orchard")
+    }
+
+    func testSpreadsheetTextSafetyHandlesEmptyString() {
+        XCTAssertEqual(SpreadsheetTextSafety.neutralizingFormula(""), "")
+    }
+
+    // MARK: - CSV formula neutralization in export
+
+    func testCSVNeutralizesFormulaPrefixTreeID() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "=FORMULA(1+2)", fruitType: "apple")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'=FORMULA(1+2)"))
+    }
+
+    func testCSVNeutralizesFormulaPrefixFruitType() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "T-OK", fruitType: "+SUM(A1:A10)")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'+SUM(A1:A10)"))
+    }
+
+    func testCSVNeutralizesAtPrefixInTreeID() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "@dangerous", fruitType: "pear")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'@dangerous"))
+    }
+
+    func testCSVNeutralizesTabAndCRInTreeID() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "\tTabStart", fruitType: "\rCRStart")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'\tTabStart"))
+        XCTAssertTrue(csv.contains("'\rCRStart"))
+    }
+
+    func testCSVNeutralizesLFInTextFields() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "\nLFStart", fruitType: "apple")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'\nLFStart"))
+    }
+
+    func testCSVPreservesNegativeGPSSinceGPSSkippedNeutralization() async throws {
+        let record = makeRecord(
+            id: "a.ply",
+            treeID: "T-Neg",
+            gpsLat: -33.8688, gpsLon: 151.2093,
+            fruitType: "apple"
+        )
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("-33.868800"))
+        XCTAssertTrue(csv.contains("151.209300"))
+    }
+
+    func testCSVNeutralizesFormulaGroupLabel() async throws {
+        let date = Date(timeIntervalSince1970: 1717200000)
+        let records = [makeRecord(id: "a.ply", treeID: "T-001", scanDate: date, fruitType: "apple")]
+        var options = BatchExportService.ExportOptions()
+        options.groupBy = .plot
+        options.plotNameByTreeID = ["T-001": "=SUM(A1:A2)"]
+        let csv = try await exportCSVContent(records: records, options: options)
+        XCTAssertTrue(csv.contains("'=SUM(A1:A2)"))
+    }
+
+    func testCSVNeutralizesNegativePrefixInFruitType() async throws {
+        let record = makeRecord(id: "a.ply", treeID: "T-OK", fruitType: "-DASH")
+        let csv = try await exportCSVContent(records: [record])
+        XCTAssertTrue(csv.contains("'-DASH"))
+    }
+
+    // MARK: - Single scan CSV/result export safety
+
+    func testScanResultExportRejectsUnsafeSourceFilename() throws {
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-001",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: "../evil.ply",
+            result: makeYieldResult(),
+            includeCSV: true
+        )
+
+        XCTAssertThrowsError(try ScanResultExportService.shared.exportIfNeeded(request)) { error in
+            guard case LocalFileStorageError.invalidFilename = error else {
+                return XCTFail("Expected invalidFilename, got \(error)")
+            }
+        }
+    }
+
+    func testScanResultExportNeutralizesCSVAndWritesMetadata() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        var result = makeYieldResult()
+        result.diagnostics.detectionDepthCandidateCount = 2
+        result.diagnostics.detectionDepthSupportRatio = 0.75
+        result.diagnostics.pointCloudColorFilteredCount = 180
+        result.diagnostics.pointCloudDenoisedPointCount = 172
+        result.diagnostics.pointCloudOutlierPointCount = 8
+        result.diagnostics.pointCloudOutlierRatio = 8.0 / 180.0
+        result.diagnostics.validatedFruitCount = 4
+        result.diagnostics.fusedValidationCount = 1
+        result.diagnostics.trackedImageFruitCount = 2
+        result.diagnostics.imageOnlyFruitCount = 1
+        result.diagnostics.cloudOnlyFruitCount = 0
+        result.diagnostics.validationSourceReliability = 0.80
+        result.diagnostics.localCalibrationCountFactor = 1.10
+        result.diagnostics.localCalibrationYieldFactor = 0.92
+        result.diagnostics.localCalibrationCountSampleCount = 3
+        result.diagnostics.localCalibrationYieldSampleCount = 2
+        result.treeHeightM = 3.6
+        result.crownVolM3 = 3.05
+        result.diagnostics.canopyPointCount = 101
+        result.diagnostics.canopyPreprocessedPointCount = 93
+        result.diagnostics.canopyGroundFilteredPointCount = 5
+        result.diagnostics.canopyTrunkFilteredPointCount = 3
+        result.diagnostics.canopyNeighborFilteredPointCount = 4
+        result.diagnostics.canopyClusterCount = 2
+        result.diagnostics.canopyRobustPointCount = 91
+        result.diagnostics.canopyHeightM = 3.6
+        result.diagnostics.canopyWidthM = 1.8
+        result.diagnostics.canopyDepthM = 0.9
+        result.diagnostics.canopyOuterVolumeM3 = 3.39
+        result.diagnostics.canopyVolumeM3 = 3.05
+        result.diagnostics.canopyEffectiveVolumeCoefficient = 0.90
+        result.diagnostics.canopyProjectionXYCoefficient = 0.82
+        result.diagnostics.canopyProjectionXZCoefficient = 0.90
+        result.diagnostics.canopyProjectionYZCoefficient = 0.86
+        result.diagnostics.canopyProjectionEffectiveCoefficient = 0.86
+        result.diagnostics.canopyVoxelSizeM = 0.08
+        result.diagnostics.canopyPartitionSizeM = 0.40
+        result.diagnostics.canopyPartitionCount = 9
+        result.diagnostics.cameraAngleCoverage = 0.50
+        result.diagnostics.scanAngleCoverage = 0.50
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "=FORMULA(1+2)",
+            fruitType: "+SUM(A1:A10)",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: -33.8688,
+            gpsLon: 151.2093,
+            sourceFilename: sourceFilename,
+            result: result,
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains("'=FORMULA(1+2)"))
+        XCTAssertTrue(csv.contains("'+SUM(A1:A10)"))
+        XCTAssertTrue(csv.contains("'@color"))
+        XCTAssertTrue(csv.contains("'-low"))
+        XCTAssertTrue(csv.contains("'\tmethod"))
+        XCTAssertTrue(csv.contains("'\nmanual review"))
+        XCTAssertTrue(csv.contains("-33.868800"))
+        XCTAssertTrue(csv.contains("151.209300"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["treeID"] as? String, "=FORMULA(1+2)")
+        XCTAssertEqual(payload["fruitCount"] as? Int, 12)
+        let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [String: Any])
+        XCTAssertEqual(diagnostics["detectionDepthCandidateCount"] as? Int, 2)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["detectionDepthSupportRatio"] as? NSNumber).doubleValue, 0.75, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["pointCloudColorFilteredCount"] as? Int, 180)
+        XCTAssertEqual(diagnostics["pointCloudDenoisedPointCount"] as? Int, 172)
+        XCTAssertEqual(diagnostics["pointCloudOutlierPointCount"] as? Int, 8)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["pointCloudOutlierRatio"] as? NSNumber).doubleValue, 8.0 / 180.0, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["validatedFruitCount"] as? Int, 4)
+        XCTAssertEqual(diagnostics["fusedValidationCount"] as? Int, 1)
+        XCTAssertEqual(diagnostics["trackedImageFruitCount"] as? Int, 2)
+        XCTAssertEqual(diagnostics["imageOnlyFruitCount"] as? Int, 1)
+        XCTAssertEqual(diagnostics["cloudOnlyFruitCount"] as? Int, 0)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["validationSourceReliability"] as? NSNumber).doubleValue, 0.80, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["localCalibrationCountFactor"] as? NSNumber).doubleValue, 1.10, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["localCalibrationYieldFactor"] as? NSNumber).doubleValue, 0.92, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["localCalibrationCountSampleCount"] as? Int, 3)
+        XCTAssertEqual(diagnostics["localCalibrationYieldSampleCount"] as? Int, 2)
+        XCTAssertEqual(try XCTUnwrap(payload["treeHeightM"] as? NSNumber).doubleValue, 3.6, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(payload["crownVolM3"] as? NSNumber).doubleValue, 3.05, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["canopyPointCount"] as? Int, 101)
+        XCTAssertEqual(diagnostics["canopyPreprocessedPointCount"] as? Int, 93)
+        XCTAssertEqual(diagnostics["canopyGroundFilteredPointCount"] as? Int, 5)
+        XCTAssertEqual(diagnostics["canopyTrunkFilteredPointCount"] as? Int, 3)
+        XCTAssertEqual(diagnostics["canopyNeighborFilteredPointCount"] as? Int, 4)
+        XCTAssertEqual(diagnostics["canopyClusterCount"] as? Int, 2)
+        XCTAssertEqual(diagnostics["canopyRobustPointCount"] as? Int, 91)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyHeightM"] as? NSNumber).doubleValue, 3.6, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyWidthM"] as? NSNumber).doubleValue, 1.8, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyDepthM"] as? NSNumber).doubleValue, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyOuterVolumeM3"] as? NSNumber).doubleValue, 3.39, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyVolumeM3"] as? NSNumber).doubleValue, 3.05, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyEffectiveVolumeCoefficient"] as? NSNumber).doubleValue, 0.90, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionXYCoefficient"] as? NSNumber).doubleValue, 0.82, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionXZCoefficient"] as? NSNumber).doubleValue, 0.90, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionYZCoefficient"] as? NSNumber).doubleValue, 0.86, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyProjectionEffectiveCoefficient"] as? NSNumber).doubleValue, 0.86, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyVoxelSizeM"] as? NSNumber).doubleValue, 0.08, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["canopyPartitionSizeM"] as? NSNumber).doubleValue, 0.40, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["canopyPartitionCount"] as? Int, 9)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["cameraAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(diagnostics["scanAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
+    }
+
+    func testScanResultExportSanitizesNonFiniteNumericValues() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        var result = makeYieldResult()
+        result.yieldFinalKg = .nan
+        result.clusterEps = .infinity
+        result.occlusionK = -.infinity
+        result.meanDiameterCm = .nan
+        result.meanVolumeCm3 = .infinity
+        result.correctionK = .nan
+        result.yieldBVisibleKg = .infinity
+        result.yieldBCorrectedKg = -.infinity
+
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-clean",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: .nan,
+            gpsLon: .infinity,
+            sourceFilename: sourceFilename,
+            result: result,
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: csvURL, encoding: .utf8).lowercased()
+        XCTAssertFalse(csv.contains("nan"))
+        XCTAssertFalse(csv.contains("inf"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        for key in [
+            "yieldKg",
+            "clusterEps",
+            "occlusionK",
+            "meanDiameterCm",
+            "meanVolumeCm3",
+            "correctionK",
+            "yieldBVisibleKg",
+            "yieldBCorrectedKg",
+            "gpsLat",
+            "gpsLon"
+        ] {
+            let value = try XCTUnwrap(payload[key] as? NSNumber, "Missing numeric key \(key)")
+            XCTAssertEqual(value.doubleValue, 0, accuracy: 0.000001, key)
+        }
+    }
+
+    func testScanResultExportBoundsGPSCoordinates() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-bad-gps",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 90.1,
+            gpsLon: -180.1,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(),
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains(",0.000000,0.000000,"))
+        XCTAssertFalse(csv.contains("90.100000"))
+        XCTAssertFalse(csv.contains("-180.100000"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let gpsLat = try XCTUnwrap(payload["gpsLat"] as? NSNumber)
+        let gpsLon = try XCTUnwrap(payload["gpsLon"] as? NSNumber)
+        XCTAssertEqual(gpsLat.doubleValue, 0, accuracy: 0.000001)
+        XCTAssertEqual(gpsLon.doubleValue, 0, accuracy: 0.000001)
+    }
+
+    func testScanResultExportRejectsNegativePrimaryTotals() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-negative",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: -9, yieldKg: -2.5),
+            includeCSV: true
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(exported.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: csvURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains(",0,0.00,"))
+        XCTAssertFalse(csv.contains("-9"))
+        XCTAssertFalse(csv.contains("-2.50"))
+
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["fruitCount"] as? Int, 0)
+        let yieldKg = try XCTUnwrap(payload["yieldKg"] as? NSNumber)
+        XCTAssertEqual(yieldKg.doubleValue, 0, accuracy: 0.000001)
+    }
+
+    func testScanResultExportPreservesExistingCSVAndRefreshesMetadata() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let firstRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-first",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25),
+            includeCSV: true
+        )
+        let secondRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-second",
+            fruitType: "orange",
+            scanDate: Date(timeIntervalSince1970: 1717203600),
+            gpsLat: 36.0,
+            gpsLon: 140.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 21, yieldKg: 4.5),
+            includeCSV: true
+        )
+
+        let firstExport = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(firstRequest))
+        let secondExport = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(secondRequest))
+        let firstCSVURL = try XCTUnwrap(firstExport.csvURL)
+        let secondCSVURL = try XCTUnwrap(secondExport.csvURL)
+        defer {
+            try? FileManager.default.removeItem(at: firstCSVURL)
+            if let metadataURL = firstExport.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        XCTAssertEqual(firstCSVURL, secondCSVURL)
+
+        let csv = try String(contentsOf: firstCSVURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains("T-first"))
+        XCTAssertFalse(csv.contains("T-second"))
+
+        let metadataURL = try XCTUnwrap(secondExport.metadataURL)
+        let data = try Data(contentsOf: metadataURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["treeID"] as? String, "T-second")
+        XCTAssertEqual(payload["fruitCount"] as? Int, 21)
+    }
+
+    func testScanResultExportSkipsCSVWhenDisabledButWritesMetadata() throws {
+        let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let baseName = (sourceFilename as NSString).deletingPathExtension
+        let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("scans", isDirectory: true)
+        let expectedCSVURL = scansDir.appendingPathComponent("\(baseName).csv")
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-no-csv",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 35.0,
+            gpsLon: 139.0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(),
+            includeCSV: false
+        )
+
+        let exported = try XCTUnwrap(ScanResultExportService.shared.exportIfNeeded(request))
+        defer {
+            try? FileManager.default.removeItem(at: expectedCSVURL)
+            if let metadataURL = exported.metadataURL {
+                try? FileManager.default.removeItem(at: metadataURL)
+            }
+        }
+
+        XCTAssertNil(exported.csvURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: expectedCSVURL.path))
+        let metadataURL = try XCTUnwrap(exported.metadataURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: metadataURL.path))
     }
 
     func testExcelExcludedColumnsOmitCells() async throws {

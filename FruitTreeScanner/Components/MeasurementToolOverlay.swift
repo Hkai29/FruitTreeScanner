@@ -15,6 +15,11 @@ struct MeasurementToolOverlay: View {
                     distanceDisplay(distance: distance)
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { location in
+                controller.handleTap(at: location)
+                measuredDistance = controller.measuredDistance
+            }
         }
         .onAppear {
             measuredDistance = controller.measuredDistance

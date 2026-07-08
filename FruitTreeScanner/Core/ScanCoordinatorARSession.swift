@@ -28,7 +28,8 @@ extension ScanCoordinator: ARSessionDelegate {
             timestamp: frame.timestamp,
             cameraTransform: frame.camera.transform,
             cameraIntrinsics: frame.camera.intrinsics,
-            imageSize: imageSize
+            imageSize: imageSize,
+            depthMap: (frame.smoothedSceneDepth ?? frame.sceneDepth)?.depthMap
         )
     }
 

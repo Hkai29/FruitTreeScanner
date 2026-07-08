@@ -24,8 +24,8 @@ extension PLYParserHelper {
         return ParsedPLYMetadata(
             treeID: treeID.isEmpty ? filename : treeID,
             scanDate: parseScanDate(from: parts, fallbackURL: url),
-            gpsLat: Double(latStr.dropFirst(3)) ?? 0,
-            gpsLon: Double(lonStr.dropFirst(3)) ?? 0
+            gpsLat: finiteDouble(String(latStr.dropFirst(3))) ?? 0,
+            gpsLon: finiteDouble(String(lonStr.dropFirst(3))) ?? 0
         )
     }
 
@@ -36,22 +36,24 @@ extension PLYParserHelper {
         var gpsLat: Double?
         var gpsLon: Double?
 
-        for line in header.split(separator: "\n") {
+        for line in header.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
             if let value = commentValue(in: trimmed, key: "tree_id") {
                 treeID = value
             } else if let value = commentValue(in: trimmed, key: "scan_date") {
                 scanDate = parseHeaderDate(value)
             } else if let value = commentValue(in: trimmed, key: "gps_lat") {
-                gpsLat = Double(value)
+                gpsLat = finiteDouble(value)
             } else if let value = commentValue(in: trimmed, key: "gps_lon") {
-                gpsLon = Double(value)
+                gpsLon = finiteDouble(value)
             }
         }
 
         guard treeID != nil || scanDate != nil || gpsLat != nil || gpsLon != nil else { return nil }
+        let safeTreeID = treeID.map(TreeIdentifierPolicy.safePLYCommentValue)
         return ParsedPLYMetadata(
-            treeID: treeID?.isEmpty == false ? treeID! : url.deletingPathExtension().lastPathComponent,
+            treeID: safeTreeID?.isEmpty == false ? safeTreeID! : url.deletingPathExtension().lastPathComponent,
             scanDate: scanDate ?? fallbackDate(for: url),
             gpsLat: gpsLat ?? 0,
             gpsLon: gpsLon ?? 0
@@ -94,7 +96,7 @@ extension PLYParserHelper {
     static func readPLYHeader(from url: URL) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
-        let data = handle.readData(ofLength: 16_384)
+        let data = handle.readData(ofLength: PLYParserHelper.maximumHeaderSize)
         guard let prefix = String(data: data, encoding: .utf8) else { return nil }
         if let endRange = prefix.range(of: "end_header") {
             return String(prefix[..<endRange.upperBound])
@@ -125,93 +127,9 @@ extension PLYParserHelper {
         return nil
     }
 
-    static func readCompanionResult(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String) {
-        if let metadata = readCompanionMetadata(for: plyURL) {
-            return metadata
-        }
-        return readCompanionCSV(for: plyURL)
+    static func finiteDouble(_ value: String) -> Double? {
+        guard let number = Double(value), number.isFinite else { return nil }
+        return number
     }
 
-    static func readCompanionMetadata(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String)? {
-        let baseName = plyURL.deletingPathExtension().lastPathComponent
-        let metadataURL = plyURL.deletingLastPathComponent().appendingPathComponent("\(baseName)_result.json")
-        guard let data = try? Data(contentsOf: metadataURL),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-
-        return (
-            fruitCount: intValue(payload["fruitCount"]),
-            yieldKg: floatValue(payload["yieldKg"]),
-            fruitType: payload["fruitType"] as? String ?? "apple"
-        )
-    }
-
-    static func readCompanionCSV(for plyURL: URL) -> (fruitCount: Int, yieldKg: Float, fruitType: String) {
-        let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
-        guard FileManager.default.fileExists(atPath: csvURL.path) else {
-            return (0, 0, "apple")
-        }
-
-        do {
-            let csvContent = try String(contentsOf: csvURL, encoding: .utf8)
-            let lines = csvContent.split(separator: "\n")
-            guard lines.count >= 2, let dataLine = lines.dropFirst().first else {
-                return (0, 0, "apple")
-            }
-            let values = parseCSVLine(String(dataLine))
-            guard values.count >= 7 else { return (0, 0, "apple") }
-            return (
-                fruitCount: Int(values[3]) ?? 0,
-                yieldKg: Float(values[4]) ?? 0,
-                fruitType: values[1]
-            )
-        } catch {
-            return (0, 0, "apple")
-        }
-    }
-
-    static func intValue(_ value: Any?) -> Int {
-        if let int = value as? Int { return int }
-        if let double = value as? Double { return Int(double) }
-        if let number = value as? NSNumber { return number.intValue }
-        if let string = value as? String { return Int(string) ?? 0 }
-        return 0
-    }
-
-    static func floatValue(_ value: Any?) -> Float {
-        if let float = value as? Float { return float }
-        if let double = value as? Double { return Float(double) }
-        if let number = value as? NSNumber { return number.floatValue }
-        if let string = value as? String { return Float(string) ?? 0 }
-        return 0
-    }
-
-    static func parseCSVLine(_ line: String) -> [String] {
-        var fields: [String] = []
-        var current = ""
-        var isQuoted = false
-        var index = line.startIndex
-
-        while index < line.endIndex {
-            let char = line[index]
-            if char == "\"" {
-                let next = line.index(after: index)
-                if isQuoted, next < line.endIndex, line[next] == "\"" {
-                    current.append("\"")
-                    index = next
-                } else {
-                    isQuoted.toggle()
-                }
-            } else if char == "," && !isQuoted {
-                fields.append(current)
-                current = ""
-            } else {
-                current.append(char)
-            }
-            index = line.index(after: index)
-        }
-
-        fields.append(current)
-        return fields
-    }
 }

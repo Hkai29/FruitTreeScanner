@@ -3,10 +3,16 @@
 
 import CoreGraphics
 import Foundation
+@preconcurrency import CoreVideo
 import simd
 
 // MARK: - 图像检测结果
-struct DetectedFruit: Identifiable, Sendable {
+/// A detection and the AR frame data required to place it in world space.
+///
+/// `depthMap` is a private, copied depth buffer captured with the RGB frame.
+/// Core Video buffers are not formally `Sendable`, but this value never shares
+/// ARKit's reusable buffer pool across queues.
+struct DetectedFruit: Identifiable, @unchecked Sendable {
     let id: UUID
     let category: FruitCategory
     let boundingBox: CGRect
@@ -15,8 +21,22 @@ struct DetectedFruit: Identifiable, Sendable {
     let cameraTransform: simd_float4x4?
     let cameraIntrinsics: simd_float3x3?
     let imageSize: CGSize?
+    let depthMap: CVPixelBuffer?
 
-    init(category: FruitCategory, boundingBox: CGRect, confidence: Float, timestamp: TimeInterval = Date().timeIntervalSince1970, cameraTransform: simd_float4x4? = nil, cameraIntrinsics: simd_float3x3? = nil, imageSize: CGSize? = nil) {
+    var hasAlignedDepthContext: Bool {
+        depthMap != nil && cameraTransform != nil && cameraIntrinsics != nil && imageSize != nil
+    }
+
+    init(
+        category: FruitCategory,
+        boundingBox: CGRect,
+        confidence: Float,
+        timestamp: TimeInterval = Date().timeIntervalSince1970,
+        cameraTransform: simd_float4x4? = nil,
+        cameraIntrinsics: simd_float3x3? = nil,
+        imageSize: CGSize? = nil,
+        depthMap: CVPixelBuffer? = nil
+    ) {
         self.id = UUID()
         self.category = category
         self.boundingBox = boundingBox
@@ -25,6 +45,7 @@ struct DetectedFruit: Identifiable, Sendable {
         self.cameraTransform = cameraTransform
         self.cameraIntrinsics = cameraIntrinsics
         self.imageSize = imageSize
+        self.depthMap = depthMap
     }
 }
 
@@ -36,19 +57,38 @@ struct FruitCandidate: Identifiable, Sendable {
     let sphericity: Float
     let pointCount: Int
     let averageColor: SIMD3<Float>
+    let points: [SIMD3<Float>]
+    let sourceCategory: FruitCategory?
+    let depthSupportRatio: Float?
 
-    init(position: SIMD3<Float>, diameter: Float, sphericity: Float, pointCount: Int, averageColor: SIMD3<Float>) {
+    init(
+        position: SIMD3<Float>,
+        diameter: Float,
+        sphericity: Float,
+        pointCount: Int,
+        averageColor: SIMD3<Float>,
+        points: [SIMD3<Float>] = [],
+        sourceCategory: FruitCategory? = nil,
+        depthSupportRatio: Float? = nil
+    ) {
         self.id = UUID()
         self.position = position
         self.diameter = diameter
         self.sphericity = sphericity
         self.pointCount = pointCount
         self.averageColor = averageColor
+        self.points = points
+        self.sourceCategory = sourceCategory
+        self.depthSupportRatio = depthSupportRatio
     }
 
     func isValidFruit(expectedCategory: FruitCategory? = nil) -> Bool {
+        if let expectedCategory, let sourceCategory, sourceCategory != expectedCategory {
+            return false
+        }
         let threshold = expectedCategory?.sphericityThreshold ?? 0.5
-        return sphericity > threshold && pointCount >= 5
+        let minimumPointCount = sourceCategory != nil && depthSupportRatio != nil ? 3 : 5
+        return sphericity > threshold && pointCount >= minimumPointCount
     }
 
     func hasFruitColor() -> Bool {
@@ -75,6 +115,7 @@ struct ValidatedFruit: Identifiable, Sendable {
 
 enum ValidationSource: String, Sendable {
     case imageOnly = "image_only"
+    case trackedImage = "tracked_image"
     case cloudOnly = "cloud_only"
     case fused = "fused"
 
@@ -84,8 +125,19 @@ enum ValidationSource: String, Sendable {
             return 1.0
         case .imageOnly:
             return 0.5
+        case .trackedImage:
+            return 0.75
         case .cloudOnly:
             return 0.3
+        }
+    }
+
+    var isImageBased: Bool {
+        switch self {
+        case .imageOnly, .trackedImage, .fused:
+            return true
+        case .cloudOnly:
+            return false
         }
     }
 }
@@ -146,6 +198,8 @@ struct FruitScanConfig: Sendable {
     var minConfidence: Float = 0.5
     var sizeTolerance: Float = 0.35
     var sphericityThreshold: Float = 0.5
+    var minimumStableDetectionsForYield: Int = 1
+    var stableDetectionTimeWindow: TimeInterval = 3.5
 
     static let `default` = FruitScanConfig()
 }

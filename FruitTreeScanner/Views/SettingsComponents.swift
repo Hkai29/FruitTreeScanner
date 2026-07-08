@@ -163,3 +163,18 @@ struct SettingsMenuRow: View {
         )
     }
 }
+
+struct SettingsInlineHint: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(Design.Typography.darkCaption)
+            .foregroundColor(Design.Colors.Dark.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Design.Space.md)
+            .padding(.top, Design.Space.xs)
+            .padding(.bottom, Design.Space.sm)
+    }
+}

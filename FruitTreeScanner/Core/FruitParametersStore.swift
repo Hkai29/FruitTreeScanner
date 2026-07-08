@@ -57,6 +57,7 @@ final class FruitParametersStore: ObservableObject {
         do {
             params = try JSONDecoder().decode([FruitVarietyParams].self, from: data)
         } catch {
+            Log.settings.error("Failed to read fruit variety parameters: \(error.localizedDescription)")
         }
     }
 
@@ -73,7 +74,10 @@ final class FruitParametersStore: ObservableObject {
                 UserDefaults.standard.set(encoded, forKey: Self.userDefaultsKey)
                 await self?.finishSaving(generation: generation)
             } catch is CancellationError {
+                await self?.finishSaving(generation: generation)
             } catch {
+                Log.settings.error("Failed to save fruit variety parameters: \(error.localizedDescription)")
+                await self?.finishSaving(generation: generation)
             }
         }
     }

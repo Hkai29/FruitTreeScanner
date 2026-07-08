@@ -11,10 +11,12 @@ import simd
 
 final class ImageDetector: @unchecked Sendable {
 
-    // pixelBuffer is synchronously copied (duplicatePixelBuffer) inside enqueueFrame
-    // before QueuedFrame is created, so cross-detectionQueue transfer is safe.
+    // RGB and depth buffers are synchronously copied (duplicatePixelBuffer)
+    // inside enqueueFrame before QueuedFrame is created, so transferring the
+    // frame to detectionQueue does not retain ARKit's reusable buffers.
     struct QueuedFrame: @unchecked Sendable {
         let pixelBuffer: CVPixelBuffer
+        let depthMap: CVPixelBuffer?
         let timestamp: TimeInterval
         let cameraTransform: simd_float4x4
         let cameraIntrinsics: simd_float3x3
@@ -163,7 +165,8 @@ final class ImageDetector: @unchecked Sendable {
                     timestamp: fruit.timestamp,
                     cameraTransform: frame.cameraTransform,
                     cameraIntrinsics: frame.cameraIntrinsics,
-                    imageSize: frame.imageSize
+                    imageSize: frame.imageSize,
+                    depthMap: frame.depthMap
                 )
             }
             allDetectedFruits.append(contentsOf: enriched)
@@ -200,75 +203,4 @@ final class ImageDetector: @unchecked Sendable {
         lock.unlock()
     }
 
-    func detectionDebugSnapshot() -> DetectionDebugState {
-        lock.lock()
-        defer { lock.unlock() }
-        return detectionDebugState
-    }
-
-    func detectionFailureSamplesSnapshot() -> [DetectionFailureSample] {
-        lock.lock()
-        defer { lock.unlock() }
-        return detectionFailureSamples
-    }
-
-    func recordDebugInferenceStarted(
-        frameSize: CGSize,
-        pixelBufferSize: CGSize,
-        threshold: Float
-    ) {
-        lock.lock()
-        detectionDebugState.markInferenceStarted(
-            frameSize: frameSize,
-            pixelBufferSize: pixelBufferSize,
-            threshold: threshold
-        )
-        lock.unlock()
-    }
-
-    func recordDebugInferenceCompleted(
-        elapsedMs: Double,
-        rawObservationCount: Int,
-        filteredObservationCount: Int,
-        rawPredictions: [DetectionPredictionDebug],
-        filteredPredictions: [DetectionPredictionDebug],
-        threshold: Float,
-        errorMessage: String? = nil
-    ) {
-        lock.lock()
-        detectionDebugState.markInferenceCompleted(
-            elapsedMs: elapsedMs,
-            rawObservationCount: rawObservationCount,
-            filteredObservationCount: filteredObservationCount,
-            rawPredictions: rawPredictions,
-            filteredPredictions: filteredPredictions,
-            threshold: threshold,
-            errorMessage: errorMessage
-        )
-        lock.unlock()
-    }
-
-    func captureDetectionFailureSample(
-        note: String? = nil,
-        fruitCategoryExpected: String? = nil
-    ) {
-        lock.lock()
-        let sample = DetectionFailureSample(
-            timestamp: Date(),
-            modelName: detectionDebugState.modelName,
-            threshold: detectionDebugState.currentThreshold,
-            topPredictions: detectionDebugState.topPredictions,
-            rawObservationCount: detectionDebugState.rawObservationCount,
-            filteredObservationCount: detectionDebugState.filteredObservationCount,
-            note: note,
-            fruitCategoryExpected: fruitCategoryExpected
-        )
-        detectionFailureSamples.append(sample)
-        if detectionFailureSamples.count > maxDetectionFailureSamples {
-            detectionFailureSamples.removeFirst(detectionFailureSamples.count - maxDetectionFailureSamples)
-        }
-        lock.unlock()
-
-        Log.detection.info("Detection failure sample captured: model=\(sample.modelName), raw=\(sample.rawObservationCount), filtered=\(sample.filteredObservationCount), threshold=\(sample.threshold)")
-    }
 }

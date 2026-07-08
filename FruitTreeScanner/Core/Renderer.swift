@@ -9,19 +9,20 @@ import CoreVideo
 
 final class Renderer: NSObject {
     // MARK: - 公开属性
+    var shouldResetPointCloudOnRecordingStart = true
+
     public var isRecording = false {
         didSet {
-            if isRecording {
-                scannedRegions.removeAll()
-                do {
-                    pointBufferLock.lock()
-                    defer { pointBufferLock.unlock() }
-                    currentPointIndex = 0
-                    currentPointCount = 0
-                }
-                coverageVoxels.removeAll()
-                scanProgress.reset()
+            guard isRecording else {
+                scanProgress.pause()
+                return
             }
+            if shouldResetPointCloudOnRecordingStart {
+                resetPointCloudCapture()
+            } else {
+                scanProgress.resume()
+            }
+            shouldResetPointCloudOnRecordingStart = true
         }
     }
     public var currentFolder = ""
@@ -49,8 +50,13 @@ final class Renderer: NSObject {
     let numGridPoints = 1_000
     private let particleSize: Float = 10
     var orientation = UIInterfaceOrientation.portrait
-    let cameraRotationThreshold = cos(2 * Float.degreesToRadian)
-    let cameraTranslationThreshold: Float = pow(0.02, 2)
+    static let cameraRotationThresholdDegrees: Float = 2
+    static let cameraTranslationThresholdMeters: Float = 0.05
+    static let cameraTranslationThresholdSquared: Float =
+        cameraTranslationThresholdMeters * cameraTranslationThresholdMeters
+    static let analysisVoxelSizeMeters: Float = 0.005
+    let cameraRotationThreshold = cos(Renderer.cameraRotationThresholdDegrees * Float.degreesToRadian)
+    let cameraTranslationThreshold: Float = Renderer.cameraTranslationThresholdSquared
     let maxInFlightBuffers = 3
 
     let session: ARSession
@@ -125,6 +131,10 @@ final class Renderer: NSObject {
     var lastSnapshotUpdateTime = Date.distantPast
     let baseSnapshotUpdateInterval: TimeInterval = 0.9
     let liveSnapshotInputSampleLimit = 240_000
+    /// The final estimation path performs CPU KNN denoising and DBSCAN. Keep
+    /// its input bounded on mobile hardware even when capture retains millions
+    /// of raw points for display quality.
+    let analysisInputSampleLimit = 120_000
 
     // MARK: - 体素网格去重（避免重复扫描）
     var scannedRegions: Set<RendererCameraRegionKey> = []  // 已扫描的区域（相机位置离散化）
@@ -153,7 +163,7 @@ final class Renderer: NSObject {
     var confidenceThreshold = 1 {
         didSet { pointCloudUniforms.confidenceThreshold = Int32(confidenceThreshold) }
     }
-    var rgbRadius: Float = 0 {
+    var rgbRadius: Float = 3 {
         didSet { rgbUniforms.radius = rgbRadius }
     }
 
@@ -184,43 +194,6 @@ final class Renderer: NSObject {
         inFlightSemaphore = DispatchSemaphore(value: maxInFlightBuffers)
         super.init()
         computePipeline = MetalComputePipeline(device: device)
-    }
-
-    func drawRectResized(size: CGSize) {
-        guard size.width > 0, size.height > 0 else { return }
-        viewportSize = size
-        updateOrientation()
-        rgbUniforms.viewRatio = Float(size.width / max(size.height, 1))
-    }
-
-    // MARK: - 当前点数（供 UI 显示）
-    var currentPointCountPublic: Int {
-        pointBufferSnapshot().count
-    }
-
-    func pointBufferSnapshot() -> (count: Int, index: Int) {
-        pointBufferLock.lock()
-        defer { pointBufferLock.unlock() }
-        return (currentPointCount, currentPointIndex)
-    }
-
-    var scannedRegionCountPublic: Int { scannedRegions.count }
-    var coverageVoxelCount: Int { coverageVoxels.count }
-    var voxelDiscoveryTrendPublic: VoxelDiscoveryTrend { scanProgress.voxelDiscoveryTrend }
-    var voxelDiscoveryRatePublic: Float { scanProgress.voxelDiscoveryRate }
-
-    struct CameraMatrices {
-        let projectionMatrix: simd_float4x4
-        let viewMatrix: simd_float4x4
-        let viewportSize: CGSize
-    }
-
-    func getCameraMatrices() -> CameraMatrices? {
-        guard let frame = session.currentFrame else { return nil }
-        updateOrientation()
-        let projMatrix = frame.camera.projectionMatrix(for: orientation, viewportSize: viewportSize, zNear: 0.001, zFar: 0)
-        let viewMatrix = frame.camera.viewMatrix(for: orientation)
-        return CameraMatrices(projectionMatrix: projMatrix, viewMatrix: viewMatrix, viewportSize: viewportSize)
     }
 
 }

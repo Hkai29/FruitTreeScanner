@@ -9,6 +9,7 @@ struct PLYParserResult: Sendable {
     let fruitCount: Int
     let yieldKg: Float
     let fruitType: String
+    let confidence: String
 }
 
 // MARK: - Shared PLY filename + result parsing
@@ -18,9 +19,11 @@ struct PLYParserResult: Sendable {
 //   [0]? [1]fruitType [2]? [3]fruitCount [4]yieldKg [5]?
 //
 enum PLYParserHelper {
+    static let maximumHeaderSize = 64 * 1_024
+
     static func parsePLYFile(at url: URL) -> PLYParserResult? {
-        let metadata = parseFilenameMetadata(from: url)
-            ?? parseHeaderMetadata(from: url)
+        let metadata = parseHeaderMetadata(from: url)
+            ?? parseFilenameMetadata(from: url)
             ?? fallbackMetadata(from: url)
         let result = readCompanionResult(for: url)
 
@@ -31,40 +34,50 @@ enum PLYParserHelper {
             gpsLon: metadata.gpsLon,
             fruitCount: result.fruitCount,
             yieldKg: result.yieldKg,
-            fruitType: result.fruitType
+            fruitType: result.fruitType,
+            confidence: result.confidence
         )
     }
 
     static func parsePointCloudData(at url: URL) -> PointCloudData? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        guard let headerEndRange = data.range(of: Data("end_header\n".utf8))
-                ?? data.range(of: Data("end_header\r\n".utf8)) else { return nil }
-        guard let header = String(data: data[data.startIndex..<headerEndRange.lowerBound], encoding: .utf8) else {
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
+        let prefix = Data(data.prefix(maximumHeaderSize + 1))
+        guard let headerEndRange = headerEndRange(in: prefix),
+              headerEndRange.upperBound <= maximumHeaderSize,
+              let header = String(
+                  data: prefix[prefix.startIndex..<headerEndRange.lowerBound],
+                  encoding: .utf8
+              )
+        else {
             return nil
         }
 
         let headerLines = header
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let properties = parsePointCloudHeader(headerLines)
-        guard properties.vertexCount > 0 else { return nil }
+        guard let schema = parsePointCloudHeader(headerLines) else { return nil }
 
         let bodyStart = headerEndRange.upperBound
-        if properties.isBinary {
+        switch schema.format {
+        case .ascii:
+            return parseASCIIPointCloud(
+                data: data,
+                bodyStart: bodyStart,
+                schema: schema,
+                sourceURL: url
+            )
+        case .binaryLittleEndian, .binaryBigEndian:
             return parseBinaryPointCloud(
                 data: data,
                 bodyStart: bodyStart,
-                vertexCount: properties.vertexCount,
-                bigEndian: properties.isBigEndian,
-                hasColor: properties.hasColor,
+                schema: schema,
                 sourceURL: url
             )
         }
-        return parseASCIIPointCloud(
-            data: data,
-            bodyStart: bodyStart,
-            vertexCount: properties.vertexCount,
-            sourceURL: url
-        )
+    }
+
+    static func headerEndRange(in data: Data) -> Range<Data.Index>? {
+        data.range(of: Data("\nend_header\r\n".utf8))
+            ?? data.range(of: Data("\nend_header\n".utf8))
     }
 }

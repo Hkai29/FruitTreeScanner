@@ -3,8 +3,7 @@ import SwiftUI
 struct VarietyDatabaseView: View {
     @ObservedObject private var store = FruitParametersStore.shared
     @ObservedObject private var settings = SettingsStore.shared
-    @State private var showEditSheet = false
-    @State private var editingCategory: FruitCategory? = nil
+    @State private var editingSheet: VarietyEditSheet?
     @State private var showResetConfirm = false
     @State private var searchText = ""
     
@@ -79,26 +78,25 @@ struct VarietyDatabaseView: View {
                 }
             }
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let category = editingCategory {
-                VarietyEditView(
-                    category: category,
-                    params: store.param(for: category),
-                    onSave: { newParams in
-                        store.updateParam(for: category) { p in
-                            p.diamMin = newParams.diamMin
-                            p.diamMax = newParams.diamMax
-                            p.averageWeightG = newParams.averageWeightG
-                            p.density = newParams.density
-                            p.clusterEps = newParams.clusterEps
-                            p.sphericityThreshold = newParams.sphericityThreshold
-                        }
-                    },
-                    onReset: {
-                        store.resetToDefault(for: category)
+        .sheet(item: $editingSheet) { sheet in
+            let category = sheet.category
+            VarietyEditView(
+                category: category,
+                params: store.param(for: category),
+                onSave: { newParams in
+                    store.updateParam(for: category) { p in
+                        p.diamMin = newParams.diamMin
+                        p.diamMax = newParams.diamMax
+                        p.averageWeightG = newParams.averageWeightG
+                        p.density = newParams.density
+                        p.clusterEps = newParams.clusterEps
+                        p.sphericityThreshold = newParams.sphericityThreshold
                     }
-                )
-            }
+                },
+                onReset: {
+                    store.resetToDefault(for: category)
+                }
+            )
         }
         .alert("重置所有参数", isPresented: $showResetConfirm) {
             Button("取消", role: .cancel) {}
@@ -116,7 +114,12 @@ struct VarietyDatabaseView: View {
     }
 
     private func editCategory(_ category: FruitCategory) {
-        editingCategory = category
-        showEditSheet = true
+        editingSheet = VarietyEditSheet(category: category)
     }
+}
+
+private struct VarietyEditSheet: Identifiable {
+    let category: FruitCategory
+
+    var id: String { category.rawValue }
 }

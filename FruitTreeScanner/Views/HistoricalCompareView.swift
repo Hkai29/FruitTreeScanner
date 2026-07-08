@@ -9,8 +9,7 @@ struct HistoricalCompareView: View {
     var onStartScan: (() -> Void)? = nil
     @State private var selectedScan1: ScanItem?
     @State private var selectedScan2: ScanItem?
-    @State private var showScanPicker1 = false
-    @State private var showScanPicker2 = false
+    @State private var activePicker: HistoricalComparePicker?
 
     // Use real data from historyStore
     private var availableScans: [ScanItem] {
@@ -67,11 +66,13 @@ struct HistoricalCompareView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .sheet(isPresented: $showScanPicker1) {
-            ScanPickerView(scans: availableScans, selectedScan: $selectedScan1)
-        }
-        .sheet(isPresented: $showScanPicker2) {
-            ScanPickerView(scans: availableScans, selectedScan: $selectedScan2)
+        .sheet(item: $activePicker) { picker in
+            switch picker {
+            case .first:
+                ScanPickerView(scans: availableScans, selectedScan: $selectedScan1)
+            case .second:
+                ScanPickerView(scans: availableScans, selectedScan: $selectedScan2)
+            }
         }
     }
 
@@ -79,7 +80,7 @@ struct HistoricalCompareView: View {
     private var scanSelectionSection: some View {
         HStack(spacing: Design.Space.md) {
             ScanSelectionCard(scan: selectedScan1, label: "扫描 A") {
-                showScanPicker1 = true
+                activePicker = .first
             }
 
             Text("VS")
@@ -88,7 +89,7 @@ struct HistoricalCompareView: View {
                 .frame(width: 28)
 
             ScanSelectionCard(scan: selectedScan2, label: "扫描 B") {
-                showScanPicker2 = true
+                activePicker = .second
             }
         }
     }
@@ -216,5 +217,17 @@ struct HistoricalCompareView: View {
         if v1 < v2 { return .up }
         if v1 > v2 { return .down }
         return .neutral
+    }
+}
+
+private enum HistoricalComparePicker: Identifiable {
+    case first
+    case second
+
+    var id: String {
+        switch self {
+        case .first: return "first"
+        case .second: return "second"
+        }
     }
 }

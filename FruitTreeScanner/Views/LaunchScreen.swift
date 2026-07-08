@@ -1,175 +1,200 @@
-// LaunchScreen.swift
-// 冷启动页 — 简洁专业版
-
 import SwiftUI
 
 struct LaunchScreen: View {
-    @State private var treeScale: CGFloat = 0.8
+    @State private var contentScale: CGFloat = 1.04
     @State private var contentOpacity: Double = 0
 
     var body: some View {
-        ZStack {
-            // Background
-            Color(red: 0.98, green: 0.973, blue: 0.961)
-                .ignoresSafeArea()
-
-            VStack(spacing: 24) {
-                // Tree icon with entrance animation
-                TreeIconView()
-                    .frame(width: 120, height: 140)
-                    .scaleEffect(treeScale)
-                    .opacity(contentOpacity)
-
-                // App name
-                VStack(spacing: 6) {
-                    Text("FruitScanner")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(Color(red: 0.24, green: 0.42, blue: 0.36))
-
-                    Text("果树 LiDAR 产量估算")
-                        .font(.system(size: 15))
-                        .foregroundColor(Color(red: 0.54, green: 0.53, blue: 0.52))
-                }
-                .opacity(contentOpacity)
+        GeometryReader { proxy in
+            ZStack {
+                launchBackground(size: proxy.size)
+                launchFruitTreeBranches(size: proxy.size)
+                launchContent(size: proxy.size)
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .ignoresSafeArea()
         }
         .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-                treeScale = 1.0
-                contentOpacity = 1.0
+            withAnimation(.easeOut(duration: 0.42)) {
+                contentScale = 1
+                contentOpacity = 1
             }
         }
+        .ignoresSafeArea()
     }
-}
 
-// MARK: - Tree Icon View
-struct TreeIconView: View {
-    var body: some View {
-        ZStack {
-            // Ground shadow
-            Ellipse()
-                .fill(Color(red: 0.24, green: 0.42, blue: 0.36).opacity(0.12))
-                .frame(width: 80, height: 14)
-                .offset(y: 60)
+    private func launchBackground(size: CGSize) -> some View {
+        let launchBase = Color(hex: "101A10")
 
-            // Tree body
-            VStack(spacing: 0) {
-                // Canopy (layered circles)
-                ZStack {
-                    // Bottom layer (darkest)
-                    Circle()
-                        .fill(Color(red: 0.18, green: 0.32, blue: 0.27))
-                        .frame(width: 90, height: 90)
-                        .offset(y: 6)
+        return ZStack {
+            launchBase
+                .ignoresSafeArea()
 
-                    // Middle layer
-                    Circle()
-                        .fill(Color(red: 0.24, green: 0.42, blue: 0.36))
-                        .frame(width: 80, height: 80)
+            launchEdgeBands(size: size)
 
-                    // Top layer (lightest)
-                    Circle()
-                        .fill(Color(red: 0.32, green: 0.47, blue: 0.44))
-                        .frame(width: 65, height: 65)
-                        .offset(y: -6)
+            RadialGradient(
+                colors: [
+                    Design.Colors.forest.opacity(0.28),
+                    launchBase.opacity(0.96)
+                ],
+                center: .center,
+                startRadius: 20,
+                endRadius: max(size.width, size.height) * 0.72
+            )
+            .ignoresSafeArea()
 
-                    // Highlight
-                    Circle()
-                        .fill(Color(red: 0.52, green: 0.66, blue: 0.55).opacity(0.5))
-                        .frame(width: 28, height: 28)
-                        .offset(x: -15, y: -22)
-                }
-
-                // Trunk
-                VStack(spacing: 0) {
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(red: 0.55, green: 0.41, blue: 0.08), Color(red: 0.18, green: 0.32, blue: 0.27)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 14, height: 32)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-
-                    // Root branches
-                    HStack(spacing: 18) {
-                        Rectangle()
-                            .fill(Color(red: 0.18, green: 0.32, blue: 0.27))
-                            .frame(width: 18, height: 5)
-                            .clipShape(RoundedRectangle(cornerRadius: 2))
-                            .rotationEffect(.degrees(-15))
-
-                        Rectangle()
-                            .fill(Color(red: 0.18, green: 0.32, blue: 0.27))
-                            .frame(width: 18, height: 5)
-                            .clipShape(RoundedRectangle(cornerRadius: 2))
-                            .rotationEffect(.degrees(15))
-                    }
-                    .offset(y: -2)
-                }
-                .offset(y: -6)
-            }
-
-            // Fruits
-            FruitDotView(color: Color(red: 0.88, green: 0.32, blue: 0.25))
-                .offset(x: 22, y: -28)
-            FruitDotView(color: Color(red: 0.90, green: 0.22, blue: 0.21))
-                .offset(x: -20, y: -22)
-            FruitDotView(color: Color(red: 1.0, green: 0.44, blue: 0.27))
-                .offset(x: 8, y: -38)
-            FruitDotView(color: Color(red: 0.90, green: 0.22, blue: 0.21))
-                .offset(x: -30, y: -2)
-            FruitDotView(color: Color(red: 1.0, green: 0.65, blue: 0.15))
-                .offset(x: 30, y: 3)
-            FruitDotView(color: Color(red: 1.0, green: 0.44, blue: 0.27))
-                .offset(x: -6, y: -10)
-            FruitDotView(color: Color(red: 0.88, green: 0.32, blue: 0.25))
-                .offset(x: 16, y: 8)
-            FruitDotView(color: Color(red: 1.0, green: 0.65, blue: 0.15))
-                .offset(x: -14, y: 14)
-
-            // Leaf accents
-            Ellipse()
-                .fill(Color(red: 0.52, green: 0.66, blue: 0.55))
-                .frame(width: 12, height: 8)
-                .rotationEffect(.degrees(-30))
-                .offset(x: -34, y: -18)
-
-            Ellipse()
-                .fill(Color(red: 0.52, green: 0.66, blue: 0.55))
-                .frame(width: 12, height: 8)
-                .rotationEffect(.degrees(-30))
-                .offset(x: 32, y: 2)
-
-            Ellipse()
-                .fill(Color(red: 0.52, green: 0.66, blue: 0.55))
-                .frame(width: 12, height: 8)
-                .rotationEffect(.degrees(-30))
-                .offset(x: -28, y: 22)
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.035),
+                    Design.Colors.forest.opacity(0.12)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
         }
     }
-}
 
-// MARK: - Fruit Dot View
-struct FruitDotView: View {
-    let color: Color
+    private func launchEdgeBands(size: CGSize) -> some View {
+        let bandHeight = min(max(min(size.width, size.height) * 0.105, 52), 88)
+        let bandColor = Color(hex: "0B2510")
 
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(color)
-                .frame(width: 14, height: 14)
+        return VStack(spacing: 0) {
+            bandColor
+                .frame(height: bandHeight)
 
-            Circle()
-                .fill(Color.white.opacity(0.35))
-                .frame(width: 5, height: 5)
-                .offset(x: -3, y: -3)
+            Spacer(minLength: 0)
+
+            bandColor
+                .frame(height: bandHeight)
         }
+        .frame(width: size.width, height: size.height)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    private func launchFruitTreeBranches(size: CGSize) -> some View {
+        let isLandscape = size.width > size.height
+        let horizontalBleed = min(size.width * 0.085, isLandscape ? 110 : 78)
+        let verticalBleed = min(size.height * 0.045, isLandscape ? 42 : 54)
+        let cornerWidth = min(
+            size.width * (isLandscape ? 0.48 : 0.72),
+            isLandscape ? 660 : 560
+        )
+        let topHeight = min(
+            size.height * (isLandscape ? 0.64 : 0.46),
+            isLandscape ? 520 : 620
+        )
+        let bottomHeight = min(
+            size.height * (isLandscape ? 0.72 : 0.50),
+            isLandscape ? 560 : 660
+        )
+
+        return ZStack {
+            launchFruitBranch(
+                "LaunchFruitTopLeft",
+                width: cornerWidth,
+                height: topHeight,
+                alignment: .topLeading,
+                offset: CGSize(width: -horizontalBleed, height: -verticalBleed)
+            )
+            launchFruitBranch(
+                "LaunchFruitTopRight",
+                width: cornerWidth,
+                height: topHeight,
+                alignment: .topTrailing,
+                offset: CGSize(width: horizontalBleed, height: -verticalBleed)
+            )
+            launchFruitBranch(
+                "LaunchFruitBottomLeft",
+                width: cornerWidth,
+                height: bottomHeight,
+                alignment: .bottomLeading,
+                offset: CGSize(width: -horizontalBleed, height: verticalBleed)
+            )
+            launchFruitBranch(
+                "LaunchFruitBottomRight",
+                width: cornerWidth,
+                height: bottomHeight,
+                alignment: .bottomTrailing,
+                offset: CGSize(width: horizontalBleed, height: verticalBleed)
+            )
+        }
+        .frame(width: size.width, height: size.height)
+        .saturation(0.96)
+        .contrast(1.06)
+        .opacity(0.9)
+        .allowsHitTesting(false)
+    }
+
+    private func launchFruitBranch(
+        _ imageName: String,
+        width: CGFloat,
+        height: CGFloat,
+        alignment: Alignment,
+        offset: CGSize
+    ) -> some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: width, height: height, alignment: alignment)
+            .offset(offset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+    }
+
+    private func launchContent(size: CGSize) -> some View {
+        let isLandscape = size.width > size.height
+        let shortSide = min(size.width, size.height)
+        let iconSize = min(
+            max(shortSide * (isLandscape ? 0.23 : 0.27), 104),
+            isLandscape ? 150 : 156
+        )
+        let titleSize = min(
+            max(shortSide * (isLandscape ? 0.052 : 0.084), 34),
+            isLandscape ? 50 : 54
+        )
+
+        return VStack(spacing: isLandscape ? 16 : 18) {
+            Image("LaunchIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: iconSize, height: iconSize)
+                .clipShape(RoundedRectangle(cornerRadius: iconSize * 0.215, style: .continuous))
+                .shadow(color: .black.opacity(0.28), radius: 18, y: 10)
+
+            Text(Design.Brand.productName)
+                .font(.custom("AvenirNext-DemiBoldItalic", size: titleSize))
+                .tracking(isLandscape ? 1.4 : 1.8)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Design.Colors.harvestLight,
+                            Design.Colors.Dark.textPrimary,
+                            Design.Colors.harvest
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+                .shadow(color: Design.Colors.harvest.opacity(0.26), radius: 11, y: 1)
+                .shadow(color: .black.opacity(0.36), radius: 8, y: 4)
+                .accessibilityLabel(Design.Brand.productName)
+        }
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .offset(y: isLandscape ? 0 : -10)
+        .opacity(contentOpacity)
+        .scaleEffect(contentScale)
     }
 }
 
-#Preview {
+#Preview("Portrait") {
     LaunchScreen()
+}
+
+#Preview("Landscape") {
+    LaunchScreen()
+        .frame(width: 812, height: 375)
 }

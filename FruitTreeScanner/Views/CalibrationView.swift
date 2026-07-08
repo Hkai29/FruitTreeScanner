@@ -41,8 +41,14 @@ struct CalibrationView: View {
                             accent: Design.Colors.Dark.info
                         )
 
-                        // 参数调整卡片
-                        paramsCard
+                        CalibrationParametersCard(
+                            maxDiameter: $maxDiameter,
+                            minClusterPoints: $minClusterPoints,
+                            sphericity: $sphericity,
+                            onCommitMinClusterPoints: commitMinClusterPointsDraft,
+                            onCommitMaxDiameter: commitMaxDiameterDraft,
+                            onCommitSphericity: commitSphericityDraft
+                        )
 
                         // 误差统计
                         statisticsCard
@@ -108,121 +114,6 @@ struct CalibrationView: View {
         }
     }
 
-    // MARK: - 参数调整卡片
-
-    private var paramsCard: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            HStack {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.glow)
-
-                Text("算法参数")
-                    .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Spacer()
-            }
-
-            Divider().background(Design.Colors.Dark.glassBorder)
-
-            // 最小聚类点数 → clusterMinPoints
-            VStack(alignment: .leading, spacing: Design.Space.xs) {
-                HStack {
-                    Text("最小聚类点数")
-                        .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    Spacer()
-                    Text("\(Int(minClusterPoints))")
-                        .font(Design.Typography.mono)
-                        .foregroundColor(Design.Colors.Dark.glow)
-                }
-                Slider(
-                    value: $minClusterPoints,
-                    in: 3...150,
-                    step: 1,
-                    onEditingChanged: { isEditing in
-                        if !isEditing {
-                            commitMinClusterPointsDraft()
-                        }
-                    }
-                )
-                .tint(Design.Colors.Dark.glow)
-            }
-
-            // 最大聚类直径 → clusterMaxDiameter
-            VStack(alignment: .leading, spacing: Design.Space.xs) {
-                HStack {
-                    Text("最大聚类直径 (m)")
-                        .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    Spacer()
-                    Text(String(format: "%.3f m", maxDiameter))
-                        .font(Design.Typography.mono)
-                        .foregroundColor(Design.Colors.Dark.glow)
-                }
-                Slider(
-                    value: $maxDiameter,
-                    in: 0.04...0.20,
-                    step: 0.005,
-                    onEditingChanged: { isEditing in
-                        if !isEditing {
-                            commitMaxDiameterDraft()
-                        }
-                    }
-                )
-                .tint(Design.Colors.Dark.glow)
-            }
-
-            // 最小球形度 → sphericityThreshold
-            VStack(alignment: .leading, spacing: Design.Space.xs) {
-                HStack {
-                    Text("最小球形度")
-                        .font(Design.Typography.subheadline)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    Spacer()
-                    Text(String(format: "%.2f", sphericity))
-                        .font(Design.Typography.mono)
-                        .foregroundColor(Design.Colors.Dark.glow)
-                }
-                Slider(
-                    value: $sphericity,
-                    in: 0.2...0.8,
-                    step: 0.02,
-                    onEditingChanged: { isEditing in
-                        if !isEditing {
-                            commitSphericityDraft()
-                        }
-                    }
-                )
-                .tint(Design.Colors.Dark.glow)
-            }
-
-            // HSV 色调范围（只读显示）
-            VStack(alignment: .leading, spacing: Design.Space.xs) {
-                Text("HSV 色调范围")
-                    .font(Design.Typography.subheadline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                HStack {
-                    Text("H: \(Int(SettingsStore.shared.hsvHMin))° - \(Int(SettingsStore.shared.hsvHMax))°")
-                        .font(Design.Typography.monoSmall)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                    Spacer()
-                    Text("S≥\(String(format: "%.0f%%", SettingsStore.shared.hsvSMin * 100)) V≥\(String(format: "%.0f%%", SettingsStore.shared.hsvVMin * 100))")
-                        .font(Design.Typography.monoSmall)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
-            }
-        }
-        .padding(Design.Space.md)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.Dark.bgSurface)
-                .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
-        )
-    }
-
     // MARK: - 误差统计卡片
 
     private var statisticsCard: some View {
@@ -245,18 +136,12 @@ struct CalibrationView: View {
 
     private func loadRecords() {
         recordsTask?.cancel()
-        let url = Self.recordsURL()
         recordsTask = Task.detached(priority: .utility) {
             do {
-                let data = try Data(contentsOf: url)
-                let records = try JSONDecoder().decode([CalibrationRecord].self, from: data)
+                let records = try CalibrationRecordPersistence.load()
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     self.calibrationRecords = records
-                }
-            } catch CocoaError.fileReadNoSuchFile {
-                await MainActor.run {
-                    self.calibrationRecords = []
                 }
             } catch {
             }
@@ -265,11 +150,9 @@ struct CalibrationView: View {
 
     private func saveRecords() {
         let records = calibrationRecords
-        let url = Self.recordsURL()
         Task.detached(priority: .utility) {
             do {
-                let data = try JSONEncoder().encode(records)
-                try data.write(to: url, options: .atomic)
+                try CalibrationRecordPersistence.save(records)
             } catch {
             }
         }
@@ -333,10 +216,6 @@ struct CalibrationView: View {
             SettingsStore.shared.sphericityThreshold = rounded
         }
         sphericity = rounded
-    }
-
-    private static func recordsURL() -> URL {
-        getDocumentsDirectory().appendingPathComponent("calibration_records.json")
     }
 
     private var deleteAlertBinding: Binding<Bool> {

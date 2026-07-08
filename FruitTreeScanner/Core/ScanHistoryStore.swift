@@ -67,11 +67,13 @@ final class ScanHistoryStore: ObservableObject {
                         gpsLat: result.gpsLat,
                         gpsLon: result.gpsLon,
                         fruitType: result.fruitType,
+                        confidence: result.confidence,
                         fileSizeBytes: fileSizeBytes
                     )
                 }
                 .sorted { $0.scanDate > $1.scanDate }
         } catch {
+            Log.general.error("Failed to read scan history directory: \(error.localizedDescription)")
             return []
         }
     }
@@ -83,30 +85,53 @@ final class ScanHistoryStore: ObservableObject {
     func deleteRecords(_ records: [ScanFileRecord]) {
         let recordsToDelete = records
         Task.detached(priority: .utility) { [weak self] in
-            recordsToDelete.forEach(Self.deleteFiles)
+            let failedCount = recordsToDelete.reduce(into: 0) { count, record in
+                if !Self.deleteFiles(for: record) {
+                    count += 1
+                }
+            }
+            if failedCount > 0 {
+                Log.general.error("Failed to fully delete \(failedCount) scan record(s); some primary or companion files may remain")
+            }
             guard !Task.isCancelled else { return }
             await self?.loadRecords(postNotification: true)
         }
     }
 
-    nonisolated private static func deleteFiles(for record: ScanFileRecord) {
-        do {
-            try FileManager.default.removeItem(at: record.fileURL)
-        } catch {
-        }
-        let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
-        if FileManager.default.fileExists(atPath: csvURL.path) {
+    @discardableResult
+    nonisolated static func deleteFiles(
+        for record: ScanFileRecord,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
+    ) -> Bool {
+        if fileExists(record.fileURL.path) {
             do {
-                try FileManager.default.removeItem(at: csvURL)
+                try removeItem(record.fileURL)
             } catch {
+                return false
+            }
+        }
+
+        var deletedAllAvailableFiles = true
+        let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
+        if fileExists(csvURL.path) {
+            do {
+                try removeItem(csvURL)
+            } catch {
+                deletedAllAvailableFiles = false
             }
         }
         let baseName = record.fileURL.deletingPathExtension().lastPathComponent
         let jsonURL = record.fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_result.json")
-        if FileManager.default.fileExists(atPath: jsonURL.path) {
-            try? FileManager.default.removeItem(at: jsonURL)
+        if fileExists(jsonURL.path) {
+            do {
+                try removeItem(jsonURL)
+            } catch {
+                deletedAllAvailableFiles = false
+            }
         }
+        return deletedAllAvailableFiles
     }
 
     func notifyRecordsUpdated() {
@@ -124,18 +149,34 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
     let gpsLat: Double
     let gpsLon: Double
     let fruitType: String
+    let confidence: String
     let fileSizeBytes: Int
 
-    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple", fileSizeBytes: Int = 0) {
+    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple", confidence: String = "low", fileSizeBytes: Int = 0) {
         self.id = id
         self.treeID = treeID
         self.fileURL = fileURL
         self.scanDate = scanDate
-        self.fruitCount = fruitCount
-        self.yieldKg = yieldKg
-        self.gpsLat = gpsLat
-        self.gpsLon = gpsLon
+        self.fruitCount = max(0, fruitCount)
+        self.yieldKg = Self.nonNegativeFinite(yieldKg)
+        self.gpsLat = Self.latitude(gpsLat)
+        self.gpsLon = Self.longitude(gpsLon)
         self.fruitType = fruitType
+        self.confidence = confidence
         self.fileSizeBytes = fileSizeBytes
+    }
+
+    private static func nonNegativeFinite(_ value: Float) -> Float {
+        value.isFinite ? max(0, value) : 0
+    }
+
+    private static func latitude(_ value: Double) -> Double {
+        guard value.isFinite, (-90...90).contains(value) else { return 0 }
+        return value
+    }
+
+    private static func longitude(_ value: Double) -> Double {
+        guard value.isFinite, (-180...180).contains(value) else { return 0 }
+        return value
     }
 }

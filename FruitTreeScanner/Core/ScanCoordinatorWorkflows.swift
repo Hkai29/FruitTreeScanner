@@ -1,7 +1,4 @@
-import ARKit
-import os
-import QuartzCore
-import UIKit
+import Foundation
 
 extension ScanCoordinator {
     func startDetectionTimer() {
@@ -15,9 +12,7 @@ extension ScanCoordinator {
     @MainActor
     func loadSettings() {
         var detectorConfig = settings.fruitScanConfig
-        #if DEBUG
         detectorConfig.minConfidence = DetectionDebugConfiguration.effectiveThreshold(for: detectorConfig.minConfidence)
-        #endif
         imageDetector.updateConfig(detectorConfig)
         publishImageDetectorStatus()
         renderer?.applyScanQualitySettings()
@@ -28,13 +23,15 @@ extension ScanCoordinator {
         let status = modelStatus.hudLabel
         let detail = modelStatus.hudDetail
         let diagnostics = imageDetector.diagnosticsSnapshot()
+        let detectorConfig = imageDetector.configSnapshot()
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.isTornDown else { return }
+            let stableFruitCount = self.confirmedLiveFruitCount(detectorConfig: detectorConfig)
             self.hudState?.update(
                 visionModelStatus: status,
                 visionModelDetail: detail,
                 processedImageFrames: diagnostics.processedFrameCount,
-                detectedFruitCount: max(self.detectedFruits.count, diagnostics.mappedFruitCount)
+                detectedFruitCount: stableFruitCount
             )
         }
     }
@@ -68,11 +65,41 @@ extension ScanCoordinator {
 
     func appendDetectedFruits(_ detected: [DetectedFruit]) async {
         guard !detected.isEmpty else { return }
+        let detectorConfig = imageDetector.configSnapshot()
 
         await MainActor.run {
             guard !self.isTornDown else { return }
             self.detectedFruits.append(contentsOf: detected)
+            self.archiveStableFusionEvidence(detectorConfig: detectorConfig)
+            self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
         }
+    }
+
+    func archiveStableFusionEvidence(detectorConfig: FruitScanConfig) {
+        let stableEvidence = DetectionDeduplicator.stableEvidenceDetections(
+            detectedFruits.filter(\.hasAlignedDepthContext),
+            minimumObservations: max(detectorConfig.minimumStableDetectionsForYield, 2),
+            minimumConfidence: max(detectorConfig.minConfidence, 0.85),
+            timeWindow: detectorConfig.stableDetectionTimeWindow
+        )
+        guard !stableEvidence.isEmpty else { return }
+
+        var archivedIDs = Set(archivedFusionEvidenceDetections.map(\.id))
+        for detection in stableEvidence where archivedIDs.insert(detection.id).inserted {
+            archivedFusionEvidenceDetections.append(detection)
+        }
+    }
+
+    func fusionEstimateDetectionsSnapshot() -> [DetectedFruit] {
+        var seenIDs = Set<UUID>()
+        var snapshot: [DetectedFruit] = []
+        snapshot.reserveCapacity(archivedFusionEvidenceDetections.count + detectedFruits.count)
+
+        for detection in archivedFusionEvidenceDetections + detectedFruits
+            where seenIDs.insert(detection.id).inserted {
+            snapshot.append(detection)
+        }
+        return snapshot
     }
 
     func beginDetectionProcessing() -> Bool {
@@ -87,6 +114,44 @@ extension ScanCoordinator {
         detectionProcessingLock.lock()
         isDetectionProcessing = false
         detectionProcessingLock.unlock()
+    }
+
+    @MainActor
+    func startRecording() {
+        detectionTask?.cancel()
+        detectionTask = nil
+        fusionEstimateTask?.cancel()
+        fusionEstimateTask = nil
+        imageDetector.clearQueue()
+        createDirectory(folder: "scans")
+        pointCount = 0
+        scannedRegionCount = 0
+        coveragePercent = 0
+        coverageVoxelCount = 0
+        scanCompletion = ScanCompletion()
+        detectedFruits.removeAll()
+        archivedFusionEvidenceDetections.removeAll()
+        hudState?.resetForNewScan()
+        publishImageDetectorStatus()
+        hudState?.update(fusionStatus: "扫描中")
+        lastCameraPosition = nil
+        lastCameraSpeedTime = 0
+        smoothedCameraSpeed = 0
+        renderer?.currentFolder = "scans"
+        renderer?.isRecording = true
+    }
+
+    @MainActor
+    func resumeRecordingPreservingCapture() {
+        // This is the same logical scan. Keep the in-flight detection task and
+        // queued frames so stopping briefly does not discard image evidence
+        // that still needs to be fused with the preserved point cloud.
+        fusionEstimateTask?.cancel()
+        fusionEstimateTask = nil
+        publishImageDetectorStatus()
+        hudState?.update(fusionStatus: "补扫中")
+        renderer?.currentFolder = "scans"
+        renderer?.resumeRecordingPreservingPointCloud()
     }
 
     func stopRecording() {
@@ -121,8 +186,10 @@ extension ScanCoordinator {
 
     /// 多模态融合产量估算（新 pipeline）
     @MainActor
-    func runMultiModalYieldEstimate(completion: @escaping (YieldResult, FruitCountResult?) -> Void) {
-        let frameContext = makeFusionFrameContext()
+    func runMultiModalYieldEstimate(
+        season: Season = .mature,
+        completion: @escaping (YieldResult, FruitCountResult?) -> Void
+    ) {
         let fruitType = settings.fruitType
         let fruitCat = FruitCategory(rawValue: fruitType)
         let paramsSnapshot = FruitParametersStore.shared.parameterSnapshot()
@@ -139,12 +206,20 @@ extension ScanCoordinator {
 
             let points = self.extractColoredPoints()
             let imageDiagnostics = self.imageDetector.diagnosticsSnapshot()
+            let calibrationRecords = (try? CalibrationRecordPersistence.load()) ?? []
+            let calibrationCorrection = YieldCalibrationCorrector.correction(
+                from: calibrationRecords,
+                fruitCategory: fruitCat,
+                fruitType: fruitType
+            )
             guard !Task.isCancelled else { return }
 
             let savedDetections: [DetectedFruit] = await MainActor.run {
                 guard !self.isTornDown else { return [] as [DetectedFruit] }
-                let saved = self.detectedFruits
+                self.archiveStableFusionEvidence(detectorConfig: fusionConfig)
+                let saved = self.fusionEstimateDetectionsSnapshot()
                 self.detectedFruits.removeAll()
+                self.archivedFusionEvidenceDetections.removeAll()
                 return saved
             }
             guard !Task.isCancelled else { return }
@@ -155,14 +230,15 @@ extension ScanCoordinator {
                     points: points,
                     savedDetections: savedDetections,
                     imageDiagnostics: imageDiagnostics,
-                    frameContext: frameContext,
                     fruitType: fruitType,
                     fruitCategory: fruitCat,
                     paramsSnapshot: paramsSnapshot,
                     defaultParams: defaultParams,
                     clusterConfig: clusterConfig,
                     fusionConfig: fusionConfig,
-                    colorFilter: colorFilter
+                    colorFilter: colorFilter,
+                    season: season,
+                    calibrationCorrection: calibrationCorrection
                 )
             )
             guard !Task.isCancelled else { return }
@@ -180,24 +256,4 @@ extension ScanCoordinator {
         }
     }
 
-    private func makeFusionFrameContext() -> ScanFusionFrameContext? {
-        guard let frame = session?.currentFrame else { return nil }
-
-        let depthMap: CVPixelBuffer?
-        if let sourceDepthMap = (frame.smoothedSceneDepth ?? frame.sceneDepth)?.depthMap {
-            depthMap = duplicatePixelBuffer(input: sourceDepthMap)
-        } else {
-            depthMap = nil
-        }
-
-        return ScanFusionFrameContext(
-            depthMap: depthMap,
-            cameraIntrinsics: frame.camera.intrinsics,
-            cameraTransform: frame.camera.transform,
-            imageSize: CGSize(
-                width: CGFloat(frame.camera.imageResolution.width),
-                height: CGFloat(frame.camera.imageResolution.height)
-            )
-        )
-    }
 }

@@ -78,4 +78,46 @@ final class ScanExportReadinessTests: XCTestCase {
 
         XCTAssertEqual(reason, "当前设备没有 LiDAR 深度，无法生成有效点云")
     }
+
+    func testBlockedReasonExplainsNoExportableCloudEvenWithRawPointCount() {
+        let reason = ScanExportReadiness.blockedReason(
+            scanIsReady: true,
+            scanBlockedTitle: "",
+            depthRuntimeStatus: "LiDAR",
+            pointCount: 500,
+            exportablePointStatus: "NoCloud"
+        )
+
+        XCTAssertEqual(reason, "尚未采集到可导出点云，请先按录制按钮并移动设备扫描")
+    }
+
+    func testCanExportRequiresActiveDepthReadyCloudAndMinimumPointCount() {
+        XCTAssertTrue(ScanExportReadiness.canExport(
+            scanIsReady: true,
+            depthRuntimeStatus: "LiDAR",
+            exportablePointStatus: "Ready",
+            pointCount: 200
+        ))
+
+        XCTAssertFalse(ScanExportReadiness.canExport(
+            scanIsReady: true,
+            depthRuntimeStatus: "LiDAR",
+            exportablePointStatus: "Ready",
+            pointCount: 99
+        ))
+
+        XCTAssertFalse(ScanExportReadiness.canExport(
+            scanIsReady: true,
+            depthRuntimeStatus: "LiDAR",
+            exportablePointStatus: "NoCloud",
+            pointCount: 500
+        ))
+
+        XCTAssertFalse(ScanExportReadiness.canExport(
+            scanIsReady: true,
+            depthRuntimeStatus: "Wait",
+            exportablePointStatus: "Ready",
+            pointCount: 500
+        ))
+    }
 }
