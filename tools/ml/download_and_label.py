@@ -6,6 +6,7 @@ Creates pseudo-labels for 9 missing fruit types.
 
 import os
 import sys
+from pathlib import Path
 
 MISSING_FRUITS = {
     "pomelo":       {"id": 3,  "queries": ["pomelo fruit", "柚子", "grapefruit pomelo"]},
@@ -19,9 +20,10 @@ MISSING_FRUITS = {
     "chestnut":     {"id": 21, "queries": ["chestnut fruit", "板栗", "chestnut on tree"]},
 }
 
-OUTPUT_DIR = "/Users/reece24/FruitTreeScanner/fruit_dataset_26"
-MODEL_PATH = "/Users/reece24/FruitTreeScanner/runs/detect/runs/fruit_26_nano/weights/best.pt"
-DOWNLOAD_DIR = "/Users/reece24/FruitTreeScanner/downloaded_fruits"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_DIR = REPO_ROOT / "ml" / "datasets" / "fruit_dataset_26"
+MODEL_PATH = REPO_ROOT / "ml" / "training-runs" / "yolo" / "detect" / "runs" / "fruit_26_nano" / "weights" / "best.pt"
+DOWNLOAD_DIR = REPO_ROOT / "ml" / "downloaded_fruits"
 
 
 def download_images():
@@ -65,7 +67,7 @@ def auto_label():
     from PIL import Image
     import shutil
 
-    model = YOLO(MODEL_PATH)
+    model = YOLO(str(MODEL_PATH))
 
     for fruit_name, info in MISSING_FRUITS.items():
         class_id = info["id"]

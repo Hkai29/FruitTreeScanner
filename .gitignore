@@ -2,7 +2,8 @@
 
 # Xcode user state and local build output
 *.xcuserstate
-*.xcuserdata/
+xcuserdata/
+*.xcuserdatad/
 DerivedData/
 .derivedData/
 build/
@@ -12,9 +13,17 @@ build/
 .tmp-*.jpg
 
 # Local agent worktrees and external skill repositories
+.claude/
 .claude/worktrees/
 Awesome-Agent-Skills-for-Empirical-Research/
 research-writing-skill/
+
+# Local ML scratch data and generated experiment outputs
+dataset/
+downloaded_fruits/
+ml/downloaded_fruits/
+ml/datasets/source/
+runs/
 
 # Swift Package Manager local state
 .build/

@@ -1,4 +1,4 @@
-path: /Users/reece24/FruitTreeScanner/fruit_dataset_26
+path: ml/datasets/fruit_dataset_26
 train: images/train
 val: images/val
 

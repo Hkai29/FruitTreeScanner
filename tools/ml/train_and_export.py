@@ -7,9 +7,12 @@ Supports 26 fruit categories matching FruitCategory enum
 import os
 import shutil
 import random
+from pathlib import Path
 
-DATASET_DIR = "/Users/reece24/FruitTreeScanner/dataset"
-OUTPUT_DIR = "/Users/reece24/FruitTreeScanner/fruit_dataset_26"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATASET_DIR = REPO_ROOT / "ml" / "datasets" / "source"
+OUTPUT_DIR = REPO_ROOT / "ml" / "datasets" / "fruit_dataset_26"
+TRAINING_RUN_DIR = REPO_ROOT / "ml" / "training-runs" / "yolo"
 
 FRUIT_CLASSES_26 = [
     "apple",       # 0
@@ -145,7 +148,7 @@ def remap_dataset():
     for i, name in enumerate(FRUIT_CLASSES_26):
         names_yaml += f"  {i}: {name}\n"
 
-    yaml_content = f"""path: {OUTPUT_DIR}
+    yaml_content = f"""path: {OUTPUT_DIR.relative_to(REPO_ROOT)}
 train: images/train
 val: images/val
 
@@ -177,7 +180,7 @@ def train_model(yaml_path):
         device='cpu',
         patience=30,
         batch=16,
-        project='/Users/reece24/FruitTreeScanner/runs',
+        project=str(TRAINING_RUN_DIR),
         name='fruit_26',
         exist_ok=True,
         verbose=True,
@@ -185,7 +188,7 @@ def train_model(yaml_path):
         plots=True,
     )
 
-    best_path = '/Users/reece24/FruitTreeScanner/runs/fruit_26/weights/best.pt'
+    best_path = TRAINING_RUN_DIR / 'fruit_26' / 'weights' / 'best.pt'
     print(f"\nTraining complete! Best model: {best_path}")
     return best_path
 
@@ -197,13 +200,13 @@ def export_coreml(best_path):
 
     from ultralytics import YOLO
 
-    model = YOLO(best_path)
+    model = YOLO(str(best_path))
 
     coreml_path = model.export(format='coreml')
     print(f"CoreML exported to: {coreml_path}")
 
     # Copy to project
-    dest = '/Users/reece24/FruitTreeScanner/FruitTreeScanner/Core/FruitsDetector.mlpackage'
+    dest = REPO_ROOT / 'FruitTreeScanner' / 'Core' / 'FruitsDetector.mlpackage'
     if os.path.exists(dest):
         shutil.rmtree(dest)
 

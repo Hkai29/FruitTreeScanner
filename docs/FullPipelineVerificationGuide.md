@@ -15,7 +15,7 @@
 ### 1.2 上传验证脚本
 
 1. 点击 "文件" → "上传笔记本"
-2. 选择 `Scripts/verify_pipeline.ipynb`
+2. 选择 `tools/ml/verify_pipeline.ipynb`
 3. 或直接新建代码单元，粘贴以下代码：
 
 ```python
@@ -184,7 +184,7 @@ xcodebuild -project FruitTreeScanner.xcodeproj \
 
 1. 拍摄 50+ 张/类水果照片
 2. 在 Roboflow 标注
-3. 运行 `Scripts/train_yolov8.py`
+3. 运行 `tools/ml/train_yolov8.py`
 4. 导出 CoreML 并替换当前模型
 
 详见: `docs/FruitDetectionModelGuide.md`

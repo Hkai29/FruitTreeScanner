@@ -1,7 +1,7 @@
 # FruitTreeScanner 真实果园 Ground Truth 协议
 
 评估日期：2026-07-02
-关联文档：`COMMERCIAL_READINESS_REVIEW.md`、`REAL_DEVICE_ACCEPTANCE.md`
+关联文档：`./COMMERCIAL_READINESS_REVIEW.md`、`./REAL_DEVICE_ACCEPTANCE.md`
 
 ## 目的
 

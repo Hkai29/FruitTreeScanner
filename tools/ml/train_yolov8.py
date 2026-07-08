@@ -123,7 +123,7 @@ results = model.train(
     device='cuda',
     patience=50,
     batch=16,
-    project='./runs',
+    project='./ml/training-runs/yolo',
     name='fruit_detector_26',
     exist_ok=True,
     verbose=True,
@@ -132,7 +132,7 @@ results = model.train(
 )
 
 print("Training complete!")
-print(f"Best model: runs/fruit_detector_26/train/weights/best.pt")
+print("Best model: ml/training-runs/yolo/fruit_detector_26/weights/best.pt")
 
 # ============================================================
 # STEP 5: 验证模型 / Validate Model

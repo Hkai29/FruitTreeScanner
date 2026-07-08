@@ -1,7 +1,7 @@
 # FruitTreeScanner 真机验收表
 
 评估日期：2026-07-02
-关联文档：`COMMERCIAL_READINESS_REVIEW.md`
+关联文档：`./COMMERCIAL_READINESS_REVIEW.md`
 
 ## 目的
 

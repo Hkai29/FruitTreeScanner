@@ -54,7 +54,7 @@ model.export(format='coreml')
 ### Step 2: Run Training Script
 
 1. Open Google Colab: https://colab.research.google.com
-2. Upload `Scripts/train_yolov8.py`
+2. Upload `tools/ml/train_yolov8.py`
 3. Fill in your Roboflow credentials (lines 45-48):
 ```python
 RF_API_KEY = "your-api-key"

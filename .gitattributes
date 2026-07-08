@@ -1,0 +1,16 @@
+# Keep GitHub language stats focused on the iOS app.
+docs/** linguist-documentation
+research/** linguist-documentation
+tools/** linguist-documentation
+
+# Large ML assets are useful project artifacts, not source-language signal.
+ml/datasets/** linguist-vendored
+ml/training-runs/** linguist-generated
+ml/models/** linguist-generated
+*.mlpackage/** linguist-generated
+
+# Manuscript artifacts should not dominate repository language charts.
+*.docx linguist-documentation
+*.tex linguist-documentation
+*.bib linguist-documentation
+*.ipynb linguist-documentation

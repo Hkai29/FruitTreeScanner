@@ -5,7 +5,7 @@ A4 paper, proper margins, Times New Roman / 宋体, 1.5 line spacing,
 numbered sections, formatted tables with borders, justified text.
 
 Usage:
-    python3 generate_paper.py PAPER_CHINESE.md PAPER_CHINESE.docx \
+    python3 tools/paper/generate_paper.py research/PAPER_CHINESE.md research/PAPER_CHINESE.docx \
         --lang zh \
         --title "FruitTreeScanner: 基于移动设备 LiDAR 的多模态果树果实检测与产量估算系统" \
         --authors "作者姓名" \

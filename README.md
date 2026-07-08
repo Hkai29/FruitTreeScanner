@@ -32,6 +32,22 @@ FruitTreeScanner 是一款面向果园场景的 iOS/iPadOS LiDAR 果树扫描应
 - **CoreLocation**：扫描记录的 GPS 坐标采集。
 - **XCTest**：点云解析、检测去重、估产、扫描诊断和导出逻辑测试。
 
+## 仓库布局
+
+根目录只保留运行 App 必需入口和几类清晰的资产目录：
+
+```text
+FruitTreeScanner.xcodeproj   Xcode 工程
+FruitTreeScanner/            iOS App 源码、资源、CoreML 运行时模型
+FruitTreeScannerTests/       XCTest 单元测试与核心逻辑验证
+docs/                        技术说明、实现记录、验收和验证文档
+ml/                          训练数据、训练输出、模型实验资产
+research/                    论文、章节草稿、LaTeX 和研究计划
+tools/                       ML、论文和历史迁移辅助脚本
+```
+
+App 真正加载的模型在 `FruitTreeScanner/Core/FruitsDetector.mlpackage`。训练数据、YOLO 训练输出和历史导出模型统一放在 `ml/`，不会再摊在 GitHub 首页根目录。
+
 ## 点云数据
 
 应用导出的 PLY 文件包含点坐标、颜色和扫描元数据，格式可被 Open3D 等工具直接读取。
@@ -82,12 +98,12 @@ print(pcd)
 xcodebuild build \
   -project FruitTreeScanner.xcodeproj \
   -scheme FruitTreeScanner \
-  -destination 'platform=iOS Simulator,name=FruitTreeScanner-Test,OS=26.5'
+  -destination 'generic/platform=iOS Simulator'
 
 xcodebuild test \
   -project FruitTreeScanner.xcodeproj \
   -scheme FruitTreeScanner \
-  -destination 'platform=iOS Simulator,name=FruitTreeScanner-Test,OS=26.5'
+  -destination 'platform=iOS Simulator,name=<your simulator name>'
 ```
 
 ## 项目结构
@@ -101,6 +117,21 @@ FruitTreeScanner/
   Views/            SwiftUI 页面与流程
 FruitTreeScannerTests/
   XCTest 单元测试与核心逻辑验证
+docs/
+  validation/      真机验收、ground truth 和商业可用性检查
+  reference/       技术参考文档
+ml/
+  datasets/        训练数据集
+  models/          训练/导出模型资产
+  training-runs/   YOLO 训练输出和评估图表
+research/
+  paper/           LaTeX 和 Word 论文材料
+  chapters/        章节草稿
+  plan/            研究计划和证据地图
+tools/
+  ml/              训练、导出、点云分析脚本
+  paper/           文档生成工具
+  legacy/          历史迁移脚本
 ```
 
 ## 来源与许可

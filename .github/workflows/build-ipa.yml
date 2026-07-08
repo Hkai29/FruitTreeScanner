@@ -1,8 +1,13 @@
-name: Build iOS IPA
+name: iOS Build
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'FruitTreeScanner/**'
+      - 'FruitTreeScannerTests/**'
+      - 'FruitTreeScanner.xcodeproj/**'
+      - '.github/workflows/build-ipa.yml'
   workflow_dispatch:
 
 jobs:
@@ -13,29 +18,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate Xcode project (clean)
-        run: |
-          rm -rf FruitTreeScanner.xcodeproj
-          xcodegen generate --spec project.yml
-          ls -la *.xcodeproj 2>/dev/null && echo "✅ xcodeproj 生成" || echo "❌ 失败"
-
-      - name: Build
+      - name: Build for iOS Simulator
         id: build
         run: |
-          # 先列出可用的 simulators
-          # 列出已连接的设备（真机）
           xcrun simctl list devices available | grep -E "iPhone|iPad" | head -5
-          echo "---"
-          system_profiler SPUSBDataType 2>/dev/null | grep -E "iPad|iPhone" | head -5 || echo "未检测到USB设备"
-          
+
           xcodebuild \
             -project FruitTreeScanner.xcodeproj \
             -scheme FruitTreeScanner \
             -configuration Debug \
-            -destination 'generic/platform=iOS' \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
@@ -44,14 +36,12 @@ jobs:
           EXIT=${PIPESTATUS[0]}
           echo "EXIT_CODE=$EXIT" >> $GITHUB_ENV
 
-          # 提取错误（写 step summary）
-          echo "### xcodebuild errors (Simulator build - IPA not created)" >> $GITHUB_STEP_SUMMARY
+          echo "### xcodebuild errors" >> $GITHUB_STEP_SUMMARY
           grep -E "error:" /tmp/build_output.txt | head -30 >> $GITHUB_STEP_SUMMARY || echo "✅ 无编译错误" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "EXIT CODE: $EXIT" >> $GITHUB_STEP_SUMMARY
-          echo "(IPA packaging requires device + code signing - this build tests compilation only)" >> $GITHUB_STEP_SUMMARY
+          echo "This workflow verifies simulator compilation. IPA packaging still requires device signing outside CI." >> $GITHUB_STEP_SUMMARY
 
-          # 警告摘要
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Warnings (first 10)" >> $GITHUB_STEP_SUMMARY
           grep -E "warning:" /tmp/build_output.txt | grep -v "accessibility" | head -10 >> $GITHUB_STEP_SUMMARY || true
@@ -61,21 +51,3 @@ jobs:
           if [ -n "$APP" ]; then echo "APP_FOUND=true" >> $GITHUB_ENV; fi
 
           exit $EXIT
-
-      - name: Package as IPA
-        if: env.APP_FOUND == 'true'
-        run: |
-          APP_PATH=$(find build -name "*.app" -type d | head -1)
-          echo "Packaging: $APP_PATH"
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          zip -r FruitTreeScanner.ipa Payload
-          echo "IPA created: $(ls -lh FruitTreeScanner.ipa)"
-
-      - name: Upload IPA
-        if: env.APP_FOUND == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: FruitTreeScanner-IPA
-          path: FruitTreeScanner.ipa
-          retention-days: 7

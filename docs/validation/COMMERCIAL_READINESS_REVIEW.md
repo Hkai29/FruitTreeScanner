@@ -27,7 +27,7 @@ FruitTreeScanner 现在不是玩具 Demo，也不是纯 UI 壳。它已经是一
 - `README.md` 已经定义了面向果园 LiDAR 扫描的产品愿景。
 - `.github/workflows/build-ipa.yml` 有 iOS 构建/IPA 打包雏形。
 - `docs/superpowers/specs/2026-05-06-commercial-grade-enhancement-design.md` 已经指出性能、线程安全、GPU/CPU 同步、扫描交互和架构拆分问题。
-- 仓库同时包含 `runs/`、`fruit_dataset_26/`、`paper/`、`research-writing-skill/`、`Awesome-Agent-Skills-for-Empirical-Research/`、`.derivedData/` 等大量非 App 交付资产。
+- 仓库曾经在根目录同时包含训练 runs、数据集、论文和本地工具资产；现在已收拢到 `ml/`、`research/`、`tools/` 和 `docs/`。
 
 ## 商业级定义
 
@@ -130,7 +130,7 @@ FruitTreeScanner 的核心商业任务应该收敛为：
 - `datasets/` 或外部数据存储；
 - 大文件通过 Git LFS 或对象存储管理。
 
-当前仓库中 `.derivedData/`、训练 runs、论文、第三方 research skill、数据集都不应该长期和 App 源码混在一个交付仓库里。
+训练 runs、论文、第三方 research skill、数据集和本地派生数据不应该长期和 App 源码混在根目录；当前整理已先完成同仓内分区，后续可再拆独立仓库或外部对象存储。
 
 ### P0.5 发布质量门槛
 

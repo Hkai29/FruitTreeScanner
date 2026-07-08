@@ -359,6 +359,6 @@ for i, ref in enumerate(refs, 1):
     run.font.size = Pt(10)
 
 # ========== SAVE ==========
-output_path = '/Users/reece24/FruitTreeScanner/paper/FruitTreeScanner_Bilingual_Paper.docx'
+output_path = 'research/paper/FruitTreeScanner_Bilingual_Paper.docx'
 doc.save(output_path)
 print(f'Paper saved to: {output_path}')

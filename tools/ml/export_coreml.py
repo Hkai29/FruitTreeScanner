@@ -4,7 +4,7 @@ FruitTreeScanner - YOLOv8 CoreML Export Script
 Exports a custom-trained YOLOv8 model that supports 26 fruit categories
 
 Usage:
-    python3 Scripts/export_coreml.py
+    python3 tools/ml/export_coreml.py
 
 Requirements:
     pip install ultralytics
@@ -12,6 +12,9 @@ Requirements:
 
 import os
 import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 FRUIT_CLASSES_26 = [
     "apple",       # 0
@@ -56,10 +59,15 @@ def main():
         sys.exit(1)
 
     # Try to load custom-trained model first, fallback to COCO pretrained
-    custom_model_path = "runs/fruit_detector_26/train/weights/best.pt"
-    if os.path.exists(custom_model_path):
+    custom_model_candidates = [
+        REPO_ROOT / "ml" / "training-runs" / "yolo" / "detect" / "runs" / "fruit_26_nano" / "weights" / "best.pt",
+        REPO_ROOT / "ml" / "training-runs" / "yolo" / "detect" / "runs" / "fruit_26_v2" / "weights" / "best.pt",
+        REPO_ROOT / "ml" / "training-runs" / "yolo" / "fruit_detector_26" / "train" / "weights" / "best.pt",
+    ]
+    custom_model_path = next((path for path in custom_model_candidates if path.exists()), None)
+    if custom_model_path is not None:
         print(f"\n📦 Loading custom-trained model: {custom_model_path}")
-        model = YOLO(custom_model_path)
+        model = YOLO(str(custom_model_path))
         print("✅ Custom model loaded (26 fruit classes)")
     else:
         print("\n📦 Custom model not found, loading COCO pretrained YOLOv8s...")
