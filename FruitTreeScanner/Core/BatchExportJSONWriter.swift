@@ -75,8 +75,9 @@ enum BatchExportJSONWriter {
             "fruitMassEstimates": sidecar?["fruitMassEstimates"] as? [[String: Any]] ?? [],
             "sourceCounts": sourceCounts(from: diagnostics),
             "zeroYieldReasons": diagnostics?["zeroYieldReasons"] as? [String] ?? [],
-            "diagnostics": diagnostics ?? [:],
+            "diagnostics": sanitizedDiagnostics(diagnostics),
             "imageDiagnostics": imageDiagnostics(from: diagnostics),
+            "recognitionDiagnostics": recognitionDiagnostics(from: sidecar, diagnostics: diagnostics),
             "singleScanMetadataAvailable": sidecar != nil,
             "compatibilityNote": sidecar == nil
                 ? "Single-scan _result.json sidecar unavailable; batch JSON includes scan-history summary fields only for this record."
@@ -119,14 +120,69 @@ enum BatchExportJSONWriter {
         ]
     }
 
+    private static func sanitizedDiagnostics(_ diagnostics: [String: Any]?) -> [String: Any] {
+        guard var diagnostics else { return [:] }
+        diagnostics.removeValue(forKey: "rawPredictions")
+        diagnostics.removeValue(forKey: "filteredPredictions")
+        return diagnostics
+    }
+
+    private static func recognitionDiagnostics(
+        from sidecar: [String: Any]?,
+        diagnostics: [String: Any]?
+    ) -> [String: Any] {
+        if let payload = sidecar?["recognitionDiagnostics"] as? [String: Any] {
+            return [
+                "metadataAvailable": boolValue(payload["metadataAvailable"], defaultValue: sidecar != nil),
+                "modelLabelCompatibilityStatus": stringValue(payload["modelLabelCompatibilityStatus"]),
+                "modelLabelCompatibilityWarnings": stringArrayValue(payload["modelLabelCompatibilityWarnings"]),
+                "runtimeModelLabelsAvailable": boolValue(payload["runtimeModelLabelsAvailable"]),
+                "runtimeModelLabelCount": intValue(payload["runtimeModelLabelCount"]),
+                "rawDetectedLabels": stringArrayValue(payload["rawDetectedLabels"]),
+                "mappedDetectedCategories": stringArrayValue(payload["mappedDetectedCategories"]),
+                "unmappedDetectedLabels": stringArrayValue(payload["unmappedDetectedLabels"]),
+                "filteredBySelectedFruitTypeCount": intValue(payload["filteredBySelectedFruitTypeCount"]),
+                "confidenceFilteredCount": intValue(payload["confidenceFilteredCount"]),
+                "unmappedObservationCount": intValue(payload["unmappedObservationCount"]),
+                "mappedFruitCount": intValue(payload["mappedFruitCount"])
+            ]
+        }
+
+        return [
+            "metadataAvailable": sidecar != nil,
+            "modelLabelCompatibilityStatus": stringValue(diagnostics?["imageModelLabelCompatibilityStatus"]),
+            "modelLabelCompatibilityWarnings": stringArrayValue(diagnostics?["imageModelLabelCompatibilityWarnings"]),
+            "runtimeModelLabelsAvailable": boolValue(diagnostics?["imageRuntimeModelLabelsAvailable"]),
+            "runtimeModelLabelCount": stringArrayValue(diagnostics?["imageRuntimeModelLabels"]).count,
+            "rawDetectedLabels": stringArrayValue(diagnostics?["imageRawDetectedLabels"]),
+            "mappedDetectedCategories": stringArrayValue(diagnostics?["imageMappedCategories"]),
+            "unmappedDetectedLabels": stringArrayValue(diagnostics?["imageUnmappedLabels"]),
+            "filteredBySelectedFruitTypeCount": intValue(diagnostics?["filteredBySelectedFruitTypeCount"]),
+            "confidenceFilteredCount": intValue(diagnostics?["imageConfidenceFilteredCount"]),
+            "unmappedObservationCount": max(0, intValue(diagnostics?["imageObservationCount"]) - intValue(diagnostics?["imageConfidenceFilteredCount"]) - intValue(diagnostics?["imageMappedFruitCount"])),
+            "mappedFruitCount": intValue(diagnostics?["imageMappedFruitCount"])
+        ]
+    }
+
     private static func intValue(_ value: Any?) -> Int {
         if let value = value as? Int { return value }
         if let value = value as? NSNumber { return value.intValue }
         return 0
     }
 
+    private static func boolValue(_ value: Any?, defaultValue: Bool = false) -> Bool {
+        if let value = value as? Bool { return value }
+        if let value = value as? NSNumber { return value.boolValue }
+        return defaultValue
+    }
+
     private static func stringValue(_ value: Any?) -> String {
         value as? String ?? ""
+    }
+
+    private static func stringArrayValue(_ value: Any?, limit: Int = 32) -> [String] {
+        guard let values = value as? [String] else { return [] }
+        return Array(values.filter { !$0.isEmpty }.prefix(limit))
     }
 
     private static func finite(_ value: Float) -> Float {

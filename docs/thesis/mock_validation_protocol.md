@@ -69,6 +69,7 @@ When a matching single-scan sidecar exists next to the PLY file, named
 - `fruitMassEstimates`
 - `diagnostics`
 - `imageDiagnostics`
+- `recognitionDiagnostics`
 - `sourceCounts`
 - `zeroYieldReasons`
 
@@ -76,6 +77,13 @@ If no sidecar exists, the batch JSON record sets
 `singleScanMetadataAvailable` to `false` and includes a compatibility note. The
 record is still useful for count/yield MAE/MAPE and repeated-scan stability, but
 not for detailed fusion or failure diagnosis.
+
+`recognitionDiagnostics` is intentionally lightweight. Mock sidecars should use
+small label summaries such as `rawDetectedLabels`, `mappedDetectedCategories`,
+`unmappedDetectedLabels`, `modelLabelCompatibilityStatus`,
+`runtimeModelLabelCount`, and `filteredBySelectedFruitTypeCount`. Do not include
+full raw prediction arrays, bounding boxes, frame buffers, depth maps, or
+per-frame image data in research JSON.
 
 ## Constructing Fused, Image-Only, and Cloud-Only Mock Entries
 
@@ -240,7 +248,7 @@ Record these fields per tree during real experiments:
   correctness on real trees.
 - Batch research JSON depends on single-scan `_result.json` sidecars for
   detailed diagnostics. Without sidecars, only scan-history summary fields are
-  available.
+  available and `recognitionDiagnostics.metadataAvailable` is `false`.
 - Per-detection boxes and raw depth-confidence maps are not exported.
 - Manual ground-truth alignment remains an external data-management step.
 - Replicate ID, operator, plot ID, row ID, orchard name, and tree position still

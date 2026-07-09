@@ -138,6 +138,7 @@ final class ScanResultExportService: @unchecked Sendable {
             "crownVolM3": finite(result.crownVolM3),
             "fruitMassEstimates": fruitMassEstimatePayloads(result.fruitMassEstimates),
             "validatedFruits": validatedFruitPayloads(result.validatedFruits),
+            "recognitionDiagnostics": recognitionDiagnosticsPayload(diagnostics),
             "diagnostics": [
                 "pointCloudPointCount": diagnostics.pointCloudPointCount,
                 "imageDetectionCount": diagnostics.imageDetectionCount,
@@ -203,6 +204,23 @@ final class ScanResultExportService: @unchecked Sendable {
         let data = try JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
         try data.write(to: metadataURL, options: .atomic)
         return metadataURL
+    }
+
+    private func recognitionDiagnosticsPayload(_ diagnostics: ScanYieldDiagnostics) -> [String: Any] {
+        [
+            "metadataAvailable": true,
+            "modelLabelCompatibilityStatus": diagnostics.imageModelLabelCompatibilityStatus,
+            "modelLabelCompatibilityWarnings": limitedStrings(diagnostics.imageModelLabelCompatibilityWarnings),
+            "runtimeModelLabelsAvailable": diagnostics.imageRuntimeModelLabelsAvailable,
+            "runtimeModelLabelCount": diagnostics.imageRuntimeModelLabels.count,
+            "rawDetectedLabels": limitedStrings(diagnostics.imageRawDetectedLabels),
+            "mappedDetectedCategories": limitedStrings(diagnostics.imageMappedCategories),
+            "unmappedDetectedLabels": limitedStrings(diagnostics.imageUnmappedLabels),
+            "filteredBySelectedFruitTypeCount": diagnostics.filteredBySelectedFruitTypeCount,
+            "confidenceFilteredCount": diagnostics.imageConfidenceFilteredCount,
+            "unmappedObservationCount": max(0, diagnostics.imageObservationCount - diagnostics.imageConfidenceFilteredCount - diagnostics.imageMappedFruitCount),
+            "mappedFruitCount": diagnostics.imageMappedFruitCount
+        ]
     }
 
     private func fruitMassEstimatePayloads(_ estimates: [FruitMassEstimate]) -> [[String: Any]] {
@@ -280,6 +298,10 @@ final class ScanResultExportService: @unchecked Sendable {
 
     private func formatLongitude(_ value: Double) -> String {
         StableDataFormatting.decimal(longitude(value), precision: 6)
+    }
+
+    private func limitedStrings(_ values: [String], limit: Int = 32) -> [String] {
+        Array(values.filter { !$0.isEmpty }.prefix(limit))
     }
 
     private func csvLine(_ fields: [String]) -> String {

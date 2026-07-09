@@ -59,6 +59,7 @@ kept for spreadsheet workflows and compatibility with existing app behavior.
 | `diagnostics.imageModelStatus` | Image model status | text | `ScanYieldDiagnostics` | Single JSON, batch JSON when sidecar exists | no | model readiness diagnosis | no |
 | `diagnostics.imageModelName` | Image model name | text | `ScanYieldDiagnostics` | Single JSON, batch JSON when sidecar exists | no | model provenance | no |
 | `diagnostics.imageFailureReason` | Image detection failure reason | text | `ScanYieldDiagnostics` | Single JSON, batch JSON when sidecar exists | no | detection failure diagnosis | no |
+| `recognitionDiagnostics` | Bounded runtime recognition diagnostics: model-label compatibility, label summaries, selected-type filter count, confidence/unmapped/mapped counts | mixed | `ScanYieldDiagnostics` / `ScanResultExportService` | Single JSON, batch JSON | no | recognition failure, category mismatch, unmapped-label diagnosis | no |
 | `trueWeightG` | Manual per-fruit mass | grams | `FruitMassEstimateGroundTruth` | Per-fruit research CSV | per-fruit mass MAE/MAPE | no | yes |
 | `trueVolumeCm3` | Manual per-fruit volume | cm3 | `FruitMassEstimateGroundTruth` | Per-fruit research CSV | per-fruit volume error | no | yes |
 
@@ -69,8 +70,8 @@ kept for spreadsheet workflows and compatibility with existing app behavior.
   confidence, method, and note.
 - Single-scan JSON covers the same high-level result fields plus canopy metrics,
   mass estimates, validation-source diagnostics, scan diagnostics, image
-  diagnostics, zero-yield reasons, `scanID`, `sourceFilename`, and per-fruit
-  `validatedFruits`.
+  diagnostics, recognition diagnostics, zero-yield reasons, `scanID`,
+  `sourceFilename`, and per-fruit `validatedFruits`.
 - Per-fruit research CSV covers fruit mass geometry, model choice, warning
   flags, confidence, point/depth quality, and optional manual per-fruit ground
   truth.
@@ -95,13 +96,17 @@ kept for spreadsheet workflows and compatibility with existing app behavior.
 - MAE/MAPE calculations should use `estimatedCount` with manual fruit count and
   `estimatedYieldKg` with harvested yield kg.
 - Scan failure diagnosis should use `diagnostics`, `zeroYieldReasons`,
-  `sourceCounts`, `imageDiagnostics`, and `singleScanMetadataAvailable`.
+  `sourceCounts`, `imageDiagnostics`, `recognitionDiagnostics`, and
+  `singleScanMetadataAvailable`.
 
 ## Internal but Not Exported
 
 - Raw `DetectedFruit` bounding boxes, per-detection confidence, image timestamp,
   camera intrinsics, camera transform, depth map, and depth confidence map are
   internal and not exported in research files.
+- Full raw/filtered prediction arrays are internal debug data and are not
+  exported. Research JSON only includes bounded label summaries in
+  `recognitionDiagnostics`.
 - `FruitCandidate` point samples, sphericity, average color, source category,
   and depth support ratio are internal and not exported per candidate.
 - Full point-cloud samples and renderer confidence values are internal and are

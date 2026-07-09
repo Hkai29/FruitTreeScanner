@@ -448,10 +448,23 @@ Implemented in `feat/recognition-metadata-diagnostics`:
 - Selected fruit type filtering now exposes a filtered count in scan
   diagnostics while keeping the existing strict filtering behavior.
 
+Implemented in `feat/export-recognition-diagnostics`:
+
+- Single-scan research JSON now appends a top-level `recognitionDiagnostics`
+  object with model-label compatibility status, bounded label summaries,
+  selected fruit type filtered count, confidence-filtered count, unmapped count,
+  and mapped fruit count.
+- Batch research JSON now appends per-record `recognitionDiagnostics`, reusing
+  the single-scan sidecar when available and marking metadata unavailable when
+  the sidecar is missing.
+- Full raw/filtered prediction arrays, bounding boxes, frame data, depth maps,
+  and complete runtime label arrays remain intentionally excluded from research
+  JSON.
+
 Remaining gaps:
 
 - Confidence threshold calibration still needs validation data.
 - Per-class recognition accuracy still needs real or held-out orchard-style
   evaluation.
-- Export surfaces may later append the new recognition diagnostics if research
-  analysis needs label distributions outside app/runtime diagnostics.
+- Future export work may add more aggregate recognition metrics if thesis
+  analysis needs them, but it should keep arrays bounded.

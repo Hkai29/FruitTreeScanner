@@ -312,6 +312,23 @@ final class BatchExportServiceTests: XCTestCase {
                         "confidenceScore": 0.76
                     ]
                 ],
+                "recognitionDiagnostics": [
+                    "metadataAvailable": true,
+                    "modelLabelCompatibilityStatus": "compatible",
+                    "modelLabelCompatibilityWarnings": ["mock warning"],
+                    "runtimeModelLabelsAvailable": true,
+                    "runtimeModelLabelCount": 26,
+                    "rawDetectedLabels": ["apple", "unknown fruit"],
+                    "mappedDetectedCategories": ["apple"],
+                    "unmappedDetectedLabels": ["unknown fruit"],
+                    "filteredBySelectedFruitTypeCount": 1,
+                    "confidenceFilteredCount": 1,
+                    "unmappedObservationCount": 3,
+                    "mappedFruitCount": 2,
+                    "rawPredictions": [
+                        ["label": "apple", "confidence": 0.91]
+                    ]
+                ],
                 "diagnostics": [
                     "validatedFruitCount": 2,
                     "fusedValidationCount": 1,
@@ -327,6 +344,12 @@ final class BatchExportServiceTests: XCTestCase {
                     "imageModelStatus": "loaded",
                     "imageModelName": "mock-detector",
                     "imageFailureReason": "",
+                    "rawPredictions": [
+                        ["label": "apple", "confidence": 0.91]
+                    ],
+                    "filteredPredictions": [
+                        ["label": "apple", "confidence": 0.91]
+                    ],
                     "zeroYieldReasons": ["mock low coverage"]
                 ]
             ]
@@ -363,9 +386,26 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(first["zeroYieldReasons"] as? [String], ["mock low coverage"])
         let diagnostics = try XCTUnwrap(first["diagnostics"] as? [String: Any])
         XCTAssertEqual(diagnostics["pointCloudPointCount"] as? Int, 1200)
+        XCTAssertNil(diagnostics["rawPredictions"])
+        XCTAssertNil(diagnostics["filteredPredictions"])
         let imageDiagnostics = try XCTUnwrap(first["imageDiagnostics"] as? [String: Any])
         XCTAssertEqual(imageDiagnostics["imageFramesProcessed"] as? Int, 8)
         XCTAssertEqual(imageDiagnostics["imageModelName"] as? String, "mock-detector")
+        let recognitionDiagnostics = try XCTUnwrap(first["recognitionDiagnostics"] as? [String: Any])
+        XCTAssertEqual(recognitionDiagnostics["metadataAvailable"] as? Bool, true)
+        XCTAssertEqual(recognitionDiagnostics["modelLabelCompatibilityStatus"] as? String, "compatible")
+        XCTAssertEqual(recognitionDiagnostics["modelLabelCompatibilityWarnings"] as? [String], ["mock warning"])
+        XCTAssertEqual(recognitionDiagnostics["runtimeModelLabelsAvailable"] as? Bool, true)
+        XCTAssertEqual(recognitionDiagnostics["runtimeModelLabelCount"] as? Int, 26)
+        XCTAssertEqual(recognitionDiagnostics["rawDetectedLabels"] as? [String], ["apple", "unknown fruit"])
+        XCTAssertEqual(recognitionDiagnostics["mappedDetectedCategories"] as? [String], ["apple"])
+        XCTAssertEqual(recognitionDiagnostics["unmappedDetectedLabels"] as? [String], ["unknown fruit"])
+        XCTAssertEqual(recognitionDiagnostics["filteredBySelectedFruitTypeCount"] as? Int, 1)
+        XCTAssertEqual(recognitionDiagnostics["confidenceFilteredCount"] as? Int, 1)
+        XCTAssertEqual(recognitionDiagnostics["unmappedObservationCount"] as? Int, 3)
+        XCTAssertEqual(recognitionDiagnostics["mappedFruitCount"] as? Int, 2)
+        XCTAssertNil(recognitionDiagnostics["rawPredictions"])
+        XCTAssertNil(recognitionDiagnostics["filteredPredictions"])
 
         let second = records[1]
         XCTAssertEqual(second["scanID"] as? String, "scan-B")
@@ -374,6 +414,11 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(second["singleScanMetadataAvailable"] as? Bool, false)
         XCTAssertTrue((second["validatedFruits"] as? [[String: Any]])?.isEmpty == true)
         XCTAssertEqual(second["zeroYieldReasons"] as? [String], [])
+        let secondRecognitionDiagnostics = try XCTUnwrap(second["recognitionDiagnostics"] as? [String: Any])
+        XCTAssertEqual(secondRecognitionDiagnostics["metadataAvailable"] as? Bool, false)
+        XCTAssertEqual(secondRecognitionDiagnostics["runtimeModelLabelsAvailable"] as? Bool, false)
+        XCTAssertEqual(secondRecognitionDiagnostics["runtimeModelLabelCount"] as? Int, 0)
+        XCTAssertEqual(secondRecognitionDiagnostics["rawDetectedLabels"] as? [String], [])
         XCTAssertTrue((second["compatibilityNote"] as? String)?.contains("sidecar unavailable") == true)
     }
 
@@ -741,6 +786,14 @@ final class BatchExportServiceTests: XCTestCase {
         result.diagnostics.imageModelStatus = "loaded"
         result.diagnostics.imageModelName = "mock-detector"
         result.diagnostics.imageFailureReason = "none"
+        result.diagnostics.imageModelLabelCompatibilityStatus = "compatible"
+        result.diagnostics.imageModelLabelCompatibilityWarnings = ["mock warning"]
+        result.diagnostics.imageRuntimeModelLabels = ["apple", "orange"]
+        result.diagnostics.imageRuntimeModelLabelsAvailable = true
+        result.diagnostics.imageRawDetectedLabels = ["apple", "unknown fruit"]
+        result.diagnostics.imageMappedCategories = ["apple"]
+        result.diagnostics.imageUnmappedLabels = ["unknown fruit"]
+        result.diagnostics.filteredBySelectedFruitTypeCount = 1
         result.diagnostics.zeroYieldReasons = ["mock low coverage", "mock no fused fruit"]
         result.validatedFruits = [
             ValidatedFruitData(from: ValidatedFruit(
@@ -865,6 +918,24 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(diagnostics["imageModelName"] as? String, "mock-detector")
         XCTAssertEqual(diagnostics["imageFailureReason"] as? String, "none")
         XCTAssertEqual(diagnostics["zeroYieldReasons"] as? [String], ["mock low coverage", "mock no fused fruit"])
+        XCTAssertNil(diagnostics["rawPredictions"])
+        XCTAssertNil(diagnostics["filteredPredictions"])
+
+        let recognitionDiagnostics = try XCTUnwrap(payload["recognitionDiagnostics"] as? [String: Any])
+        XCTAssertEqual(recognitionDiagnostics["metadataAvailable"] as? Bool, true)
+        XCTAssertEqual(recognitionDiagnostics["modelLabelCompatibilityStatus"] as? String, "compatible")
+        XCTAssertEqual(recognitionDiagnostics["modelLabelCompatibilityWarnings"] as? [String], ["mock warning"])
+        XCTAssertEqual(recognitionDiagnostics["runtimeModelLabelsAvailable"] as? Bool, true)
+        XCTAssertEqual(recognitionDiagnostics["runtimeModelLabelCount"] as? Int, 2)
+        XCTAssertEqual(recognitionDiagnostics["rawDetectedLabels"] as? [String], ["apple", "unknown fruit"])
+        XCTAssertEqual(recognitionDiagnostics["mappedDetectedCategories"] as? [String], ["apple"])
+        XCTAssertEqual(recognitionDiagnostics["unmappedDetectedLabels"] as? [String], ["unknown fruit"])
+        XCTAssertEqual(recognitionDiagnostics["filteredBySelectedFruitTypeCount"] as? Int, 1)
+        XCTAssertEqual(recognitionDiagnostics["confidenceFilteredCount"] as? Int, 2)
+        XCTAssertEqual(recognitionDiagnostics["unmappedObservationCount"] as? Int, 3)
+        XCTAssertEqual(recognitionDiagnostics["mappedFruitCount"] as? Int, 4)
+        XCTAssertNil(recognitionDiagnostics["rawPredictions"])
+        XCTAssertNil(recognitionDiagnostics["filteredPredictions"])
 
         let validatedFruits = try XCTUnwrap(payload["validatedFruits"] as? [[String: Any]])
         XCTAssertEqual(validatedFruits.count, 3)
