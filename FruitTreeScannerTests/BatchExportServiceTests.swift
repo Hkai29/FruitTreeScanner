@@ -11,12 +11,13 @@ final class BatchExportServiceTests: XCTestCase {
         yieldKg: Float = 5.5,
         gpsLat: Double = 36.123456,
         gpsLon: Double = 139.654321,
-        fruitType: String = "apple"
+        fruitType: String = "apple",
+        fileURL: URL? = nil
     ) -> ScanFileRecord {
         ScanFileRecord(
             id: id,
             treeID: treeID,
-            fileURL: URL(fileURLWithPath: "/tmp/\(id)"),
+            fileURL: fileURL ?? URL(fileURLWithPath: "/tmp/\(id)"),
             scanDate: scanDate,
             fruitCount: fruitCount,
             yieldKg: yieldKg,
@@ -37,6 +38,20 @@ final class BatchExportServiceTests: XCTestCase {
         )
         defer { try? FileManager.default.removeItem(at: result.url) }
         return try String(contentsOf: result.url, encoding: .utf8)
+    }
+
+    private func exportJSONPayload(
+        records: [ScanFileRecord],
+        options: BatchExportService.ExportOptions = .init()
+    ) async throws -> [String: Any] {
+        let result = try await BatchExportService.shared.export(
+            records: records,
+            format: .json,
+            options: options
+        )
+        defer { try? FileManager.default.removeItem(at: result.url) }
+        let data = try Data(contentsOf: result.url)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
     private func exportExcelContent(
@@ -130,6 +145,18 @@ final class BatchExportServiceTests: XCTestCase {
         return result
     }
 
+    private func writeMockSingleScanMetadata(
+        for plyURL: URL,
+        payload: [String: Any]
+    ) throws {
+        let baseName = (plyURL.lastPathComponent as NSString).deletingPathExtension
+        let metadataURL = plyURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+        let data = try JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
+        try data.write(to: metadataURL, options: .atomic)
+    }
+
     // MARK: - (1) Empty records throws BatchExportError.noRecords
 
     func testEmptyRecordsThrowsNoRecords() async {
@@ -220,6 +247,134 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertTrue(csv.contains("2 棵"))
         XCTAssertTrue(csv.contains("10 个"))
         XCTAssertTrue(csv.contains("4.00 kg"))
+    }
+
+    func testBatchResearchJSONExportsMetadataRecordsAndSidecarDiagnostics() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchResearchJSON-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let firstURL = tempDir.appendingPathComponent("scan-A.ply")
+        let secondURL = tempDir.appendingPathComponent("scan-B.ply")
+        let firstRecord = makeRecord(
+            id: "scan-A.ply",
+            treeID: "T-A",
+            scanDate: Date(timeIntervalSince1970: 1_717_200_000),
+            fruitCount: 12,
+            yieldKg: 3.45,
+            gpsLat: 35.12,
+            gpsLon: 139.65,
+            fruitType: "apple",
+            fileURL: firstURL
+        )
+        let secondRecord = makeRecord(
+            id: "scan-B.ply",
+            treeID: "T-B",
+            scanDate: Date(timeIntervalSince1970: 1_717_203_600),
+            fruitCount: 8,
+            yieldKg: 2.10,
+            gpsLat: 36.12,
+            gpsLon: 140.65,
+            fruitType: "orange",
+            fileURL: secondURL
+        )
+        try writeMockSingleScanMetadata(
+            for: firstURL,
+            payload: [
+                "scanID": "scan-A",
+                "sourceFilename": "scan-A.ply",
+                "validatedFruits": [
+                    [
+                        "id": "fruit-fused",
+                        "category": "apple",
+                        "positionX": 1,
+                        "positionY": 2,
+                        "positionZ": 3,
+                        "confidence": 0.91,
+                        "source": "fused"
+                    ],
+                    [
+                        "id": "fruit-image",
+                        "category": "apple",
+                        "positionX": 4,
+                        "positionY": 5,
+                        "positionZ": 6,
+                        "confidence": 0.72,
+                        "source": "image_only"
+                    ]
+                ],
+                "fruitMassEstimates": [
+                    [
+                        "id": "mass-1",
+                        "fruitCategory": "apple",
+                        "estimatedWeightG": 245.1,
+                        "confidenceScore": 0.76
+                    ]
+                ],
+                "diagnostics": [
+                    "validatedFruitCount": 2,
+                    "fusedValidationCount": 1,
+                    "trackedImageFruitCount": 0,
+                    "imageOnlyFruitCount": 1,
+                    "cloudOnlyFruitCount": 0,
+                    "pointCloudPointCount": 1200,
+                    "imageDetectionCount": 3,
+                    "imageFramesProcessed": 8,
+                    "imageObservationCount": 6,
+                    "imageConfidenceFilteredCount": 1,
+                    "imageMappedFruitCount": 2,
+                    "imageModelStatus": "loaded",
+                    "imageModelName": "mock-detector",
+                    "imageFailureReason": "",
+                    "zeroYieldReasons": ["mock low coverage"]
+                ]
+            ]
+        )
+
+        let payload = try await exportJSONPayload(records: [firstRecord, secondRecord])
+
+        let metadata = try XCTUnwrap(payload["exportMetadata"] as? [String: Any])
+        XCTAssertEqual(metadata["exportVersion"] as? Int, 1)
+        XCTAssertEqual(metadata["recordCount"] as? Int, 2)
+        XCTAssertEqual(metadata["totalEstimatedCount"] as? Int, 20)
+        XCTAssertEqual(try XCTUnwrap(metadata["totalEstimatedYieldKg"] as? NSNumber).doubleValue, 5.55, accuracy: 0.0001)
+        XCTAssertNotNil(metadata["exportedAt"] as? String)
+
+        let records = try XCTUnwrap(payload["records"] as? [[String: Any]])
+        XCTAssertEqual(records.count, 2)
+        let first = records[0]
+        XCTAssertEqual(first["scanID"] as? String, "scan-A")
+        XCTAssertEqual(first["sourceFilename"] as? String, "scan-A.ply")
+        XCTAssertEqual(first["treeID"] as? String, "T-A")
+        XCTAssertEqual(first["fruitType"] as? String, "apple")
+        XCTAssertEqual(first["estimatedCount"] as? Int, 12)
+        XCTAssertEqual(try XCTUnwrap(first["estimatedYield"] as? NSNumber).doubleValue, 3.45, accuracy: 0.0001)
+        XCTAssertEqual(first["singleScanMetadataAvailable"] as? Bool, true)
+
+        let validatedFruits = try XCTUnwrap(first["validatedFruits"] as? [[String: Any]])
+        XCTAssertEqual(validatedFruits.map { $0["source"] as? String }, ["fused", "image_only"])
+        let massEstimates = try XCTUnwrap(first["fruitMassEstimates"] as? [[String: Any]])
+        XCTAssertEqual(try XCTUnwrap(massEstimates.first?["estimatedWeightG"] as? NSNumber).doubleValue, 245.1, accuracy: 0.0001)
+        let sourceCounts = try XCTUnwrap(first["sourceCounts"] as? [String: Any])
+        XCTAssertEqual(sourceCounts["fusedCount"] as? Int, 1)
+        XCTAssertEqual(sourceCounts["imageOnlyCount"] as? Int, 1)
+        XCTAssertEqual(sourceCounts["cloudOnlyCount"] as? Int, 0)
+        XCTAssertEqual(first["zeroYieldReasons"] as? [String], ["mock low coverage"])
+        let diagnostics = try XCTUnwrap(first["diagnostics"] as? [String: Any])
+        XCTAssertEqual(diagnostics["pointCloudPointCount"] as? Int, 1200)
+        let imageDiagnostics = try XCTUnwrap(first["imageDiagnostics"] as? [String: Any])
+        XCTAssertEqual(imageDiagnostics["imageFramesProcessed"] as? Int, 8)
+        XCTAssertEqual(imageDiagnostics["imageModelName"] as? String, "mock-detector")
+
+        let second = records[1]
+        XCTAssertEqual(second["scanID"] as? String, "scan-B")
+        XCTAssertEqual(second["sourceFilename"] as? String, "scan-B.ply")
+        XCTAssertEqual(second["fruitType"] as? String, "orange")
+        XCTAssertEqual(second["singleScanMetadataAvailable"] as? Bool, false)
+        XCTAssertTrue((second["validatedFruits"] as? [[String: Any]])?.isEmpty == true)
+        XCTAssertEqual(second["zeroYieldReasons"] as? [String], [])
+        XCTAssertTrue((second["compatibilityNote"] as? String)?.contains("sidecar unavailable") == true)
     }
 
     func testExportResultReturnsCorrectMetadata() async throws {

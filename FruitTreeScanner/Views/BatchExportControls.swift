@@ -90,6 +90,7 @@ private extension BatchExportService.ExportFormat {
         switch self {
         case .csv: return "csv"
         case .excel: return "excel"
+        case .json: return "json"
         }
     }
 }

@@ -12,6 +12,8 @@ readiness with synthetic data only.
 ## Goals
 
 - Prove single-scan CSV and JSON can be produced from a synthetic `YieldResult`.
+- Prove batch research JSON can be produced from multiple synthetic scan
+  records.
 - Prove per-fruit research CSV can be produced from synthetic
   `FruitMassEstimate` values.
 - Prove batch CSV/Excel can be produced from synthetic `ScanFileRecord` values.
@@ -42,6 +44,38 @@ Populate `YieldResult` with:
 - `diagnostics` for scan quality and failure traceability
 - `fruitMassEstimates` for per-fruit mass research
 - `validatedFruits` for source-label export verification
+
+## Constructing Batch Research JSON
+
+Use `BatchExportService.shared.export(records:format:options:)` with
+`format: .json`.
+
+Each `ScanFileRecord` provides the batch-level summary fields:
+
+- `scanID`, derived from the PLY filename
+- `sourceFilename`
+- `treeID`
+- `timestamp` and formatted date
+- `fruitType`
+- `estimatedCount`
+- `estimatedYield` / `estimatedYieldKg`
+- GPS coordinates
+- summary confidence
+
+When a matching single-scan sidecar exists next to the PLY file, named
+`<scanID>_result.json`, batch JSON also includes:
+
+- `validatedFruits`
+- `fruitMassEstimates`
+- `diagnostics`
+- `imageDiagnostics`
+- `sourceCounts`
+- `zeroYieldReasons`
+
+If no sidecar exists, the batch JSON record sets
+`singleScanMetadataAvailable` to `false` and includes a compatibility note. The
+record is still useful for count/yield MAE/MAPE and repeated-scan stability, but
+not for detailed fusion or failure diagnosis.
 
 ## Constructing Fused, Image-Only, and Cloud-Only Mock Entries
 
@@ -113,6 +147,15 @@ Join scan-level ground truth to exports by `tree_id`, `scan_id`, `fruit_type`,
 and timestamp window. Join per-fruit ground truth by `fruit_instance_id` when
 available; otherwise use a manually reviewed mapping table.
 
+For batch JSON, use:
+
+- `records[].treeID`
+- `records[].scanID`
+- `records[].sourceFilename`
+- `records[].fruitType`
+- `records[].timestamp`
+- `records[].gpsLat` and `records[].gpsLon` when location is reliable
+
 ## Error Metrics
 
 For each scan with valid ground truth:
@@ -160,6 +203,10 @@ The current mock validation should verify:
 - single-scan JSON contains `scanID`, `sourceFilename`, `treeID`, `fruitType`,
   timestamp, GPS, count, yield, diagnostics, `fruitMassEstimates`, and
   `validatedFruits`
+- batch research JSON contains `exportMetadata`, `recordCount`, `exportedAt`,
+  a `records` array, scan identity fields, estimated count/yield, sidecar
+  availability, source counts, diagnostics, image diagnostics, zero-yield
+  reasons, `validatedFruits`, and `fruitMassEstimates`
 - diagnostics include validation-source counts, image diagnostics, canopy
   diagnostics, depth availability, conservative mode, and zero-yield reasons
 - `fruitMassEstimates` include geometry, confidence, warning flags, and model
@@ -191,6 +238,10 @@ Record these fields per tree during real experiments:
 - This protocol validates export wiring, not LiDAR scan accuracy.
 - It does not prove ARKit depth quality, fruit detection recall, or fusion
   correctness on real trees.
-- Current batch export has CSV and Excel XML, but no dedicated batch JSON.
+- Batch research JSON depends on single-scan `_result.json` sidecars for
+  detailed diagnostics. Without sidecars, only scan-history summary fields are
+  available.
 - Per-detection boxes and raw depth-confidence maps are not exported.
 - Manual ground-truth alignment remains an external data-management step.
+- Replicate ID, operator, plot ID, row ID, orchard name, and tree position still
+  require manual tables or filename/tree-ID conventions.

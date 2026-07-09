@@ -8,11 +8,13 @@ final class BatchExportService {
     enum ExportFormat: String, CaseIterable {
         case csv = "CSV"
         case excel = "Excel (XML)"
+        case json = "Research JSON"
         
         var fileExtension: String {
             switch self {
             case .csv: return "csv"
             case .excel: return "xls"
+            case .json: return "json"
             }
         }
         
@@ -20,6 +22,7 @@ final class BatchExportService {
             switch self {
             case .csv: return "tablecells"
             case .excel: return "tablecells.fill"
+            case .json: return "doc.text.magnifyingglass"
             }
         }
         
@@ -27,6 +30,7 @@ final class BatchExportService {
             switch self {
             case .csv: return "通用数据格式，兼容所有表格软件"
             case .excel: return "Microsoft Excel 兼容格式"
+            case .json: return "研究分析用结构化 JSON"
             }
         }
     }
@@ -84,6 +88,8 @@ final class BatchExportService {
                 try BatchExportCSVWriter.write(records: records, options: options, to: tempURL)
             case .excel:
                 try BatchExportExcelWriter.write(records: records, options: options, to: tempURL)
+            case .json:
+                try BatchExportJSONWriter.write(records: records, options: options, to: tempURL)
             }
 
             try Task.checkCancellation()
