@@ -1360,6 +1360,32 @@ final class PointCloudProcessingTests: XCTestCase {
         assertColor(pointCloud.colors[1], r: 51.0 / 255.0, g: 178.5 / 255.0, b: 1)
     }
 
+    func testASCIIPLYAboveDisplayLimitKeepsExistingRenderedPointLimit() throws {
+        let displayLimit = 500_000
+        let vertexCount = displayLimit + 1
+        var data = Data("""
+        ply
+        format ascii 1.0
+        element vertex \(vertexCount)
+        property float x
+        property float y
+        property float z
+        end_header
+
+        """.utf8)
+        data.reserveCapacity(data.count + vertexCount * 12)
+        for index in 0..<vertexCount {
+            data.append(contentsOf: "\(index) 0 0\n".utf8)
+        }
+
+        let pointCloud = try XCTUnwrap(parsePLY(data: data, name: "above_display_limit_ascii.ply"))
+        XCTAssertEqual(pointCloud.pointCount, displayLimit)
+        XCTAssertEqual(pointCloud.colors.count, displayLimit)
+        assertVertex(pointCloud.vertices[0], x: 0, y: 0, z: 0)
+        assertVertex(pointCloud.vertices[displayLimit - 1], x: Float(displayLimit - 1), y: 0, z: 0)
+        assertColor(pointCloud.colors[displayLimit - 1], r: 0.5, g: 0.5, b: 0.5)
+    }
+
     func testUTF8ChineseTreeIDHeaderCommentDoesNotBreakParsing() throws {
         let pointCloud = try XCTUnwrap(parsePLY("""
         ply

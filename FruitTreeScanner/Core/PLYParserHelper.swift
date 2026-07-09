@@ -40,8 +40,7 @@ enum PLYParserHelper {
     }
 
     static func parsePointCloudData(at url: URL) -> PointCloudData? {
-        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
-        let prefix = Data(data.prefix(maximumHeaderSize + 1))
+        guard let prefix = readPointCloudHeaderPrefix(at: url) else { return nil }
         guard let headerEndRange = headerEndRange(in: prefix),
               headerEndRange.upperBound <= maximumHeaderSize,
               let header = String(
@@ -60,13 +59,14 @@ enum PLYParserHelper {
         let bodyStart = headerEndRange.upperBound
         switch schema.format {
         case .ascii:
-            return parseASCIIPointCloud(
-                data: data,
+            return parseStreamingASCIIPointCloud(
+                at: url,
                 bodyStart: bodyStart,
                 schema: schema,
                 sourceURL: url
             )
         case .binaryLittleEndian, .binaryBigEndian:
+            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
             return parseBinaryPointCloud(
                 data: data,
                 bodyStart: bodyStart,
@@ -79,5 +79,16 @@ enum PLYParserHelper {
     static func headerEndRange(in data: Data) -> Range<Data.Index>? {
         data.range(of: Data("\nend_header\r\n".utf8))
             ?? data.range(of: Data("\nend_header\n".utf8))
+    }
+
+    private static func readPointCloudHeaderPrefix(at url: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+
+        do {
+            return try handle.read(upToCount: maximumHeaderSize + 1) ?? Data()
+        } catch {
+            return nil
+        }
     }
 }
