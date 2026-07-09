@@ -23,6 +23,94 @@ struct CalibrationRecord: Codable, Identifiable, Sendable {
     }
 }
 
+struct CalibrationValidationMetrics: Equatable, Sendable {
+    let recordCount: Int
+    let countSampleCount: Int
+    let yieldSampleCount: Int
+    let countMAE: Double?
+    let countMAPE: Double?
+    let countRMSE: Double?
+    let yieldMAE: Double?
+    let yieldMAPE: Double?
+    let yieldRMSE: Double?
+
+    var hasEvidence: Bool {
+        countSampleCount > 0 || yieldSampleCount > 0
+    }
+
+    static func make(from records: [CalibrationRecord]) -> CalibrationValidationMetrics {
+        let countSamples = records.compactMap(countErrorSample)
+        let yieldSamples = records.compactMap(yieldErrorSample)
+        let recordsWithEvidence = records.filter {
+            countErrorSample($0) != nil || yieldErrorSample($0) != nil
+        }
+
+        return CalibrationValidationMetrics(
+            recordCount: recordsWithEvidence.count,
+            countSampleCount: countSamples.count,
+            yieldSampleCount: yieldSamples.count,
+            countMAE: meanAbsoluteError(countSamples),
+            countMAPE: meanAbsolutePercentageError(countSamples),
+            countRMSE: rootMeanSquaredError(countSamples),
+            yieldMAE: meanAbsoluteError(yieldSamples),
+            yieldMAPE: meanAbsolutePercentageError(yieldSamples),
+            yieldRMSE: rootMeanSquaredError(yieldSamples)
+        )
+    }
+
+    private static func countErrorSample(_ record: CalibrationRecord) -> ValidationErrorSample? {
+        guard record.estimatedFruitCount >= 0,
+              let manualFruitCount = record.manualFruitCount,
+              manualFruitCount > 0 else {
+            return nil
+        }
+        return ValidationErrorSample(
+            estimate: Double(record.estimatedFruitCount),
+            truth: Double(manualFruitCount)
+        )
+    }
+
+    private static func yieldErrorSample(_ record: CalibrationRecord) -> ValidationErrorSample? {
+        guard record.estimatedYieldKg.isFinite,
+              record.estimatedYieldKg >= 0,
+              let actualYieldKg = record.actualYieldKg,
+              actualYieldKg.isFinite,
+              actualYieldKg > 0 else {
+            return nil
+        }
+        return ValidationErrorSample(estimate: record.estimatedYieldKg, truth: actualYieldKg)
+    }
+
+    private static func meanAbsoluteError(_ samples: [ValidationErrorSample]) -> Double? {
+        guard !samples.isEmpty else { return nil }
+        return samples.reduce(0) { $0 + abs($1.error) } / Double(samples.count)
+    }
+
+    private static func meanAbsolutePercentageError(_ samples: [ValidationErrorSample]) -> Double? {
+        guard !samples.isEmpty else { return nil }
+        return samples.reduce(0) { $0 + $1.absolutePercentageError } / Double(samples.count)
+    }
+
+    private static func rootMeanSquaredError(_ samples: [ValidationErrorSample]) -> Double? {
+        guard !samples.isEmpty else { return nil }
+        let meanSquared = samples.reduce(0) { $0 + $1.error * $1.error } / Double(samples.count)
+        return sqrt(meanSquared)
+    }
+}
+
+private struct ValidationErrorSample {
+    let estimate: Double
+    let truth: Double
+
+    var error: Double {
+        estimate - truth
+    }
+
+    var absolutePercentageError: Double {
+        abs(error) / truth * 100
+    }
+}
+
 struct YieldCalibrationCorrection: Equatable, Sendable {
     let countFactor: Float
     let yieldFactor: Float

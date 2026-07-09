@@ -88,6 +88,43 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
         XCTAssertEqual(correction, .neutral)
     }
 
+    func testCalibrationValidationMetricsUsesAbsoluteErrorsWithoutCancellation() throws {
+        let records = [
+            makeRecord(fruitType: "apple", estimatedCount: 12, manualCount: 10, estimatedYield: 6, actualYield: 5),
+            makeRecord(fruitType: "apple", estimatedCount: 8, manualCount: 10, estimatedYield: 4, actualYield: 5),
+        ]
+
+        let metrics = CalibrationValidationMetrics.make(from: records)
+
+        XCTAssertEqual(metrics.recordCount, 2)
+        XCTAssertEqual(metrics.countSampleCount, 2)
+        XCTAssertEqual(metrics.yieldSampleCount, 2)
+        XCTAssertEqual(try XCTUnwrap(metrics.countMAE), 2, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(metrics.countMAPE), 20, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(metrics.countRMSE), 2, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(metrics.yieldMAE), 1, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(metrics.yieldMAPE), 20, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(metrics.yieldRMSE), 1, accuracy: 0.000_1)
+    }
+
+    func testCalibrationValidationMetricsSkipsInvalidGroundTruthSamples() throws {
+        let records = [
+            makeRecord(fruitType: "apple", estimatedCount: 12, manualCount: nil, estimatedYield: 6, actualYield: nil),
+            makeRecord(fruitType: "apple", estimatedCount: 12, manualCount: 0, estimatedYield: 6, actualYield: 0),
+            makeRecord(fruitType: "apple", estimatedCount: 10, manualCount: 8, estimatedYield: .nan, actualYield: 5),
+            makeRecord(fruitType: "apple", estimatedCount: 9, manualCount: 9, estimatedYield: 4, actualYield: 5),
+        ]
+
+        let metrics = CalibrationValidationMetrics.make(from: records)
+
+        XCTAssertTrue(metrics.hasEvidence)
+        XCTAssertEqual(metrics.recordCount, 2)
+        XCTAssertEqual(metrics.countSampleCount, 2)
+        XCTAssertEqual(metrics.yieldSampleCount, 1)
+        XCTAssertEqual(try XCTUnwrap(metrics.countMAE), 1, accuracy: 0.000_1)
+        XCTAssertEqual(try XCTUnwrap(metrics.yieldMAE), 1, accuracy: 0.000_1)
+    }
+
     private func temporaryDirectory() -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

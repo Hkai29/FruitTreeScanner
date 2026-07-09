@@ -3,8 +3,8 @@ import SwiftUI
 struct CalibrationStatisticsCard: View {
     let records: [CalibrationRecord]
 
-    private var validRecords: [CalibrationRecord] {
-        records.filter { $0.countError != nil || $0.yieldError != nil }
+    private var metrics: CalibrationValidationMetrics {
+        CalibrationValidationMetrics.make(from: records)
     }
 
     var body: some View {
@@ -23,7 +23,7 @@ struct CalibrationStatisticsCard: View {
 
             Divider()
 
-            if validRecords.isEmpty {
+            if !metrics.hasEvidence {
                 Text("暂无校准数据")
                     .font(Design.Typography.subheadline)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
@@ -42,30 +42,35 @@ struct CalibrationStatisticsCard: View {
     }
 
     private var statisticsRow: some View {
-        let countErrors = validRecords.compactMap { $0.countError }
-        let avgCountError = countErrors.isEmpty ? 0 : countErrors.reduce(0, +) / Double(countErrors.count)
-        let yieldErrors = validRecords.compactMap { $0.yieldError }
-        let avgYieldError = yieldErrors.isEmpty ? 0 : yieldErrors.reduce(0, +) / Double(yieldErrors.count)
-
         return HStack(spacing: Design.Space.xl) {
             CalibrationStatBox(
-                title: "计数误差",
-                value: String(format: "%.1f%%", avgCountError),
-                color: CalibrationErrorPalette.color(for: avgCountError)
+                title: "果数 MAPE",
+                value: percentageValue(metrics.countMAPE),
+                color: metricColor(metrics.countMAPE)
             )
 
             CalibrationStatBox(
-                title: "产量误差",
-                value: String(format: "%.1f%%", avgYieldError),
-                color: CalibrationErrorPalette.color(for: avgYieldError)
+                title: "产量 MAPE",
+                value: percentageValue(metrics.yieldMAPE),
+                color: metricColor(metrics.yieldMAPE)
             )
 
             CalibrationStatBox(
                 title: "校准次数",
-                value: "\(validRecords.count)",
+                value: "\(metrics.recordCount)",
                 color: Design.Colors.Dark.glow
             )
         }
+    }
+
+    private func percentageValue(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        return String(format: "%.1f%%", value)
+    }
+
+    private func metricColor(_ value: Double?) -> Color {
+        guard let value else { return Design.Colors.Dark.textSecondary }
+        return CalibrationErrorPalette.color(for: value)
     }
 }
 
