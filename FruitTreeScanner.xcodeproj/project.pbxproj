@@ -252,6 +252,7 @@
 		METALMEAS001122 /* MetalMeasurementOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = METALMEAS7799 /* MetalMeasurementOverlay.swift */; };
 		BATCH001122 /* BatchExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCH778899 /* BatchExportService.swift */; };
 		BATCHCSV001 /* BatchExportCSVWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHCSV002 /* BatchExportCSVWriter.swift */; };
+		BATCHJSON001 /* BatchExportJSONWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHJSON002 /* BatchExportJSONWriter.swift */; };
 		BATCHEXCEL001 /* BatchExportExcelWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHEXCEL002 /* BatchExportExcelWriter.swift */; };
 		BATCHFORMAT001 /* BatchExportFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHFORMAT002 /* BatchExportFormatting.swift */; };
 		BATCHVIEW001122 /* BatchExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BATCHVIEW7799 /* BatchExportView.swift */; };
@@ -546,6 +547,7 @@
 		METALMEAS7799 /* MetalMeasurementOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalMeasurementOverlay.swift; sourceTree = "<group>"; };
 		BATCH778899 /* BatchExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportService.swift; sourceTree = "<group>"; };
 		BATCHCSV002 /* BatchExportCSVWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportCSVWriter.swift; sourceTree = "<group>"; };
+		BATCHJSON002 /* BatchExportJSONWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportJSONWriter.swift; sourceTree = "<group>"; };
 		BATCHEXCEL002 /* BatchExportExcelWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportExcelWriter.swift; sourceTree = "<group>"; };
 		BATCHFORMAT002 /* BatchExportFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportFormatting.swift; sourceTree = "<group>"; };
 		BATCHVIEW7799 /* BatchExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportView.swift; sourceTree = "<group>"; };
@@ -918,6 +920,7 @@
 				FVARIETYP001122 /* FruitParametersStore.swift */,
 				BATCH778899 /* BatchExportService.swift */,
 				BATCHCSV002 /* BatchExportCSVWriter.swift */,
+				BATCHJSON002 /* BatchExportJSONWriter.swift */,
 				BATCHEXCEL002 /* BatchExportExcelWriter.swift */,
 				BATCHFORMAT002 /* BatchExportFormatting.swift */,
 			);
@@ -1291,6 +1294,7 @@
 				METALMEAS001122 /* MetalMeasurementOverlay.swift in Sources */,
 				BATCH001122 /* BatchExportService.swift in Sources */,
 				BATCHCSV001 /* BatchExportCSVWriter.swift in Sources */,
+				BATCHJSON001 /* BatchExportJSONWriter.swift in Sources */,
 				BATCHEXCEL001 /* BatchExportExcelWriter.swift in Sources */,
 				BATCHFORMAT001 /* BatchExportFormatting.swift in Sources */,
 				BATCHVIEW001122 /* BatchExportView.swift in Sources */,
