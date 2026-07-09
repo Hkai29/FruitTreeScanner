@@ -382,3 +382,35 @@ Task 5: training run report template
 - Model changes: No
 - Test: review checklist completion.
 - Risk: Low.
+
+## 14. Pretraining Decision Pack Status
+
+The repository now includes a human-review decision pack. This documentation
+pass does not train a model, export CoreML, modify `data.yaml`, move or delete
+images, edit labels, or change App behavior.
+
+Generated decision records:
+
+- Duplicate review pack: `ml/audit_reports/duplicate_review_pack.md`
+- Fixed test-split approval summary:
+  `ml/audit_reports/test_split_approval_summary.md`
+- Class-strategy decision: `ml/audit_reports/retraining_class_strategy.md`
+- Prefilled dataset version record:
+  `docs/datasets/fruit_dataset_26_pretraining_review.md`
+
+Current decisions:
+
+- All five duplicate groups have matching label fingerprints and remain
+  `remove_duplicate_candidate` items pending visual human approval.
+- The 376-image, 10%, seed-`20260709` test plan is conditionally suitable for
+  a core-class fixed test set. It is not sufficient for a 26-class quality
+  claim because 15 weak classes are intentionally protected from test
+  sampling.
+- The recommended next training strategy is a six-class high-quality core
+  model: `apple`, `orange`, `pear`, `persimmon`, `grape`, and `strawberry`.
+  This is a future training-scope decision, not a current App-model change.
+
+Before any dataset split or cleanup operation, a human must approve every
+duplicate group and approve or revise the fixed test plan. The prefilled
+dataset version record must then be updated with the actual operation and
+resulting paths before retraining begins.
