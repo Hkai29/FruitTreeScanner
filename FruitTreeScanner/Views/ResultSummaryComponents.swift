@@ -12,6 +12,10 @@ struct ResultSummaryHeader: View {
         ResultAlgorithmParametersPresentation(result: result)
     }
 
+    private var reliabilityPresentation: ResultReliabilityPresentation {
+        ResultReliabilityPresentation(result: result)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
@@ -36,6 +40,8 @@ struct ResultSummaryHeader: View {
                 color: confidencePresentation.color
             )
 
+            ResultReliabilitySummaryCard(presentation: reliabilityPresentation)
+
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), spacing: 8),
@@ -59,6 +65,48 @@ struct ResultSummaryHeader: View {
         .padding(16)
         .resultSurface(cornerRadius: 10)
         .padding(.horizontal, 18)
+    }
+}
+
+private struct ResultReliabilitySummaryCard: View {
+    let presentation: ResultReliabilityPresentation
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: presentation.iconName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(presentation.tint)
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(presentation.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(presentation.recommendedAction)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(presentation.tint)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(presentation.summary)
+                    .font(.system(size: 12))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let diagnosticHint = presentation.diagnosticHint {
+                    Text(diagnosticHint)
+                        .font(.system(size: 11))
+                        .foregroundColor(Design.Colors.Dark.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(presentation.tint.opacity(0.10))
+        .cornerRadius(8)
     }
 }
 

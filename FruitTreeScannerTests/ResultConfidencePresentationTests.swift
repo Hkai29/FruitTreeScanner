@@ -33,6 +33,87 @@ final class ResultConfidencePresentationTests: XCTestCase {
         XCTAssertTrue(ResultReviewPolicy.needsReview("unknown"))
     }
 
+    func testReliabilityPresentationTreatsFusedHighConfidenceResultAsUsable() {
+        let result = makeReliabilityResult(confidence: "high", fusedCount: 2)
+
+        let presentation = ResultReliabilityPresentation(result: result)
+
+        XCTAssertEqual(presentation.level, .reliable)
+        XCTAssertEqual(presentation.title, "结果可靠，可用于估产")
+        XCTAssertEqual(presentation.recommendedAction, "可以保存并导出")
+        XCTAssertNil(presentation.diagnosticHint)
+    }
+
+    func testReliabilityPresentationShowsNoReliableEstimateWithoutFusedFruit() {
+        let result = makeReliabilityResult(
+            confidence: "low",
+            yieldKg: 0,
+            fusedCount: 0,
+            imageOnlyCount: 2,
+            cloudOnlyCount: 1
+        )
+
+        let presentation = ResultReliabilityPresentation(result: result)
+
+        XCTAssertEqual(presentation.level, .noReliableEstimate)
+        XCTAssertEqual(presentation.title, "无可靠估产")
+        XCTAssertEqual(presentation.recommendedAction, "当前没有足够 RGB+LiDAR 融合证据")
+        XCTAssertTrue(presentation.summary.contains("RGB+LiDAR"))
+    }
+
+    func testReliabilityPresentationPrioritizesZeroYieldReason() {
+        var result = makeReliabilityResult(confidence: "high", fusedCount: 1)
+        result.diagnostics.zeroYieldReasons = ["点云数量不足", "融合验证失败"]
+
+        let presentation = ResultReliabilityPresentation(result: result)
+
+        XCTAssertEqual(presentation.level, .unreliable)
+        XCTAssertEqual(presentation.title, "结果不可靠，建议复扫")
+        XCTAssertEqual(presentation.summary, "点云数量不足")
+        XCTAssertEqual(presentation.diagnosticHint, "主要原因：点云数量不足")
+    }
+
+    func testReliabilityPresentationPromptsFruitTypeCheckWhenSelectedTypeFiltered() {
+        var result = makeReliabilityResult(confidence: "high", fusedCount: 1)
+        result.diagnostics.filteredBySelectedFruitTypeCount = 3
+
+        let presentation = ResultReliabilityPresentation(result: result)
+
+        XCTAssertEqual(presentation.level, .review)
+        XCTAssertEqual(presentation.recommendedAction, "请确认选择的果类是否正确")
+        XCTAssertEqual(presentation.diagnosticHint, "部分识别结果与当前果类选择不匹配。")
+    }
+
+    func testReliabilityPresentationHintsUnmappedRecognitionLabels() {
+        var result = makeReliabilityResult(confidence: "high", fusedCount: 1)
+        result.diagnostics.imageUnmappedLabels = ["unknown_fruit"]
+
+        let presentation = ResultReliabilityPresentation(result: result)
+
+        XCTAssertEqual(presentation.level, .review)
+        XCTAssertEqual(presentation.recommendedAction, "请检查识别类别映射并结合诊断复核")
+        XCTAssertEqual(presentation.diagnosticHint, "检测到未映射识别类别，详细标签见诊断区域。")
+    }
+
+    func testReliabilityPresentationDoesNotMutateYieldResultValues() {
+        var result = makeReliabilityResult(confidence: "medium", yieldKg: 4.25, fusedCount: 1)
+        result.nLidar = 7
+        result.methodUsed = "fusion_visual_calibrated"
+        result.diagnostics.validationSourceReliability = 0.62
+
+        let yieldBefore = result.yieldFinalKg
+        let countBefore = result.nLidar
+        let methodBefore = result.methodUsed
+        let diagnosticsBefore = result.diagnostics
+
+        _ = ResultReliabilityPresentation(result: result)
+
+        XCTAssertEqual(result.yieldFinalKg, yieldBefore)
+        XCTAssertEqual(result.nLidar, countBefore)
+        XCTAssertEqual(result.methodUsed, methodBefore)
+        XCTAssertEqual(result.diagnostics, diagnosticsBefore)
+    }
+
     func testResultValueFormatterKeepsExistingUnitsAndPrecision() {
         XCTAssertEqual(ResultValueFormatter.finalYieldKg(12.34), "12.3")
         XCTAssertEqual(ResultValueFormatter.correctionFactor(1.234), "×1.23")
@@ -126,6 +207,37 @@ final class ResultConfidencePresentationTests: XCTestCase {
         result.methodUsed = "tracked_image_visual_calibrated"
         presentation = ResultAlgorithmParametersPresentation(result: result)
         XCTAssertEqual(presentation.methodDisplayName, "多帧视觉估计")
+    }
+
+    private func makeReliabilityResult(
+        confidence: String,
+        yieldKg: Float = 3.4,
+        fusedCount: Int,
+        imageOnlyCount: Int = 0,
+        cloudOnlyCount: Int = 0
+    ) -> YieldResult {
+        var result = YieldResult()
+        result.confidence = confidence
+        result.yieldFinalKg = yieldKg
+        result.nLidar = fusedCount
+        result.diagnostics.depthAvailable = true
+        result.diagnostics.pointCloudPointCount = 2_000
+        result.diagnostics.fusedValidationCount = fusedCount
+        result.diagnostics.validatedFruitCount = fusedCount + imageOnlyCount + cloudOnlyCount
+        result.diagnostics.imageOnlyFruitCount = imageOnlyCount
+        result.diagnostics.cloudOnlyFruitCount = cloudOnlyCount
+        result.diagnostics.validationSourceReliability = fusedCount > 0 ? 0.82 : 0
+        result.validatedFruits = (0..<fusedCount).map { index in
+            ValidatedFruitData(
+                from: ValidatedFruit(
+                    category: .apple,
+                    position: SIMD3<Float>(Float(index), 0, 0),
+                    confidence: 0.9,
+                    source: .fused
+                )
+            )
+        }
+        return result
     }
 }
 

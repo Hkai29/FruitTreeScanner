@@ -75,6 +75,157 @@ enum ResultReviewPolicy {
     }
 }
 
+struct ResultReliabilityPresentation {
+    enum Level: Equatable {
+        case reliable
+        case review
+        case unreliable
+        case noReliableEstimate
+    }
+
+    let level: Level
+    let title: String
+    let summary: String
+    let recommendedAction: String
+    let diagnosticHint: String?
+
+    init(result: YieldResult) {
+        let diagnostics = result.diagnostics
+        let fusedCount = max(
+            diagnostics.fusedValidationCount,
+            result.validatedFruits.filter { $0.source == ValidationSource.fused.rawValue }.count
+        )
+        let nonFusedEvidenceCount = diagnostics.imageOnlyFruitCount
+            + diagnostics.cloudOnlyFruitCount
+            + diagnostics.trackedImageFruitCount
+        let primaryZeroYieldReason = diagnostics.zeroYieldReasons.first
+        let hasUnmappedLabels = !diagnostics.imageUnmappedLabels.isEmpty
+        let hasSelectedFruitFiltering = diagnostics.filteredBySelectedFruitTypeCount > 0
+        let hasWeakFusionEvidence = fusedCount == 0 && nonFusedEvidenceCount > 0
+        let confidenceNeedsReview = ResultReviewPolicy.needsReview(result.confidence)
+        let sourceReliability = diagnostics.validationSourceReliability
+        let lowSourceReliability = sourceReliability > 0 && sourceReliability < 0.55
+
+        let action = Self.recommendedAction(
+            diagnostics: diagnostics,
+            hasSelectedFruitFiltering: hasSelectedFruitFiltering,
+            hasUnmappedLabels: hasUnmappedLabels,
+            hasWeakFusionEvidence: hasWeakFusionEvidence
+        )
+        let hint = Self.diagnosticHint(
+            primaryZeroYieldReason: primaryZeroYieldReason,
+            hasUnmappedLabels: hasUnmappedLabels,
+            hasSelectedFruitFiltering: hasSelectedFruitFiltering,
+            hasWeakFusionEvidence: hasWeakFusionEvidence
+        )
+
+        if fusedCount == 0 {
+            self.level = .noReliableEstimate
+            self.title = "无可靠估产"
+            self.summary = primaryZeroYieldReason ?? "当前没有足够 RGB+LiDAR 融合证据形成可靠估产。"
+            self.recommendedAction = action
+            self.diagnosticHint = hint
+            return
+        }
+
+        if let primaryZeroYieldReason {
+            self.level = .unreliable
+            self.title = "结果不可靠，建议复扫"
+            self.summary = primaryZeroYieldReason
+            self.recommendedAction = action
+            self.diagnosticHint = hint
+            return
+        }
+
+        if confidenceNeedsReview || lowSourceReliability || hasSelectedFruitFiltering || hasUnmappedLabels {
+            self.level = .review
+            self.title = "结果一般，建议结合诊断复核"
+            self.summary = "已形成 RGB+LiDAR 融合证据，但仍建议查看下方诊断。"
+            self.recommendedAction = action
+            self.diagnosticHint = hint
+            return
+        }
+
+        self.level = .reliable
+        self.title = "结果可靠，可用于估产"
+        self.summary = "已形成 RGB+LiDAR 融合证据，当前结果可作为本次估产记录。"
+        self.recommendedAction = "可以保存并导出"
+        self.diagnosticHint = nil
+    }
+
+    var iconName: String {
+        switch level {
+        case .reliable:
+            return "checkmark.seal.fill"
+        case .review:
+            return "exclamationmark.circle.fill"
+        case .unreliable:
+            return "arrow.clockwise.circle.fill"
+        case .noReliableEstimate:
+            return "xmark.octagon.fill"
+        }
+    }
+
+    var tint: Color {
+        switch level {
+        case .reliable:
+            return Design.Colors.forest
+        case .review:
+            return Design.Colors.harvest
+        case .unreliable, .noReliableEstimate:
+            return Design.Colors.warning
+        }
+    }
+
+    private static func recommendedAction(
+        diagnostics: ScanYieldDiagnostics,
+        hasSelectedFruitFiltering: Bool,
+        hasUnmappedLabels: Bool,
+        hasWeakFusionEvidence: Bool
+    ) -> String {
+        if hasSelectedFruitFiltering {
+            return "请确认选择的果类是否正确"
+        }
+        if hasUnmappedLabels {
+            return "请检查识别类别映射并结合诊断复核"
+        }
+        if hasWeakFusionEvidence {
+            return "当前没有足够 RGB+LiDAR 融合证据"
+        }
+        if !diagnostics.depthAvailable && diagnostics.pointCloudPointCount == 0 {
+            return "建议放慢移动并复扫"
+        }
+        if diagnostics.scanAngleCoverage > 0 && diagnostics.scanAngleCoverage < 0.45 {
+            return "建议补扫树冠背面"
+        }
+        if !diagnostics.zeroYieldReasons.isEmpty {
+            return "建议放慢移动并复扫"
+        }
+        return "可以保存并导出"
+    }
+
+    private static func diagnosticHint(
+        primaryZeroYieldReason: String?,
+        hasUnmappedLabels: Bool,
+        hasSelectedFruitFiltering: Bool,
+        hasWeakFusionEvidence: Bool
+    ) -> String? {
+        if let primaryZeroYieldReason {
+            return "主要原因：\(primaryZeroYieldReason)"
+        }
+        if hasSelectedFruitFiltering {
+            return "部分识别结果与当前果类选择不匹配。"
+        }
+        if hasUnmappedLabels {
+            return "检测到未映射识别类别，详细标签见诊断区域。"
+        }
+        if hasWeakFusionEvidence {
+            return "存在视觉或点云候选，但可靠融合证据不足。"
+        }
+        return nil
+    }
+}
+
 enum DiagnosticRecommendation {
     private static let reasonToRecommendation: [String: [String]] = [
         "模型未加载": [
