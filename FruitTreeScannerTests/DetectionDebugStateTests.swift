@@ -1,4 +1,5 @@
 import XCTest
+import CoreML
 import CoreVideo
 import simd
 @testable import FruitTreeScanner
@@ -67,6 +68,82 @@ final class DetectionDebugStateTests: XCTestCase {
 
         XCTAssertFalse(state.modelLoaded)
         XCTAssertEqual(state.lastErrorMessage, "Model file not found")
+    }
+
+    func testModelLabelDiagnosticsReportCompatibleRuntimeLabels() {
+        let diagnostics = ImageDetectorModelLoader.labelDiagnostics(
+            forRuntimeLabels: FruitCategory.customModelLabelOrder
+        )
+
+        XCTAssertTrue(diagnostics.runtimeModelLabelsAvailable)
+        XCTAssertEqual(diagnostics.runtimeModelLabels, FruitCategory.customModelLabelOrder)
+        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "compatible")
+        XCTAssertTrue(diagnostics.modelLabelCompatibilityWarnings.isEmpty)
+    }
+
+    func testModelLabelDiagnosticsReportMismatchWithoutFailing() {
+        var labels = FruitCategory.customModelLabelOrder
+        labels.swapAt(0, 1)
+
+        let diagnostics = ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: labels)
+
+        XCTAssertTrue(diagnostics.runtimeModelLabelsAvailable)
+        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "mismatch")
+        XCTAssertFalse(diagnostics.modelLabelCompatibilityWarnings.isEmpty)
+    }
+
+    func testModelLabelDiagnosticsParseUltralyticsNamesMetadata() {
+        let labels = ImageDetectorModelLoader.labels(
+            fromNamesMetadata: "{0: 'apple', 1: 'orange', 2: 'mandarin'}"
+        )
+
+        XCTAssertEqual(labels, ["apple", "orange", "mandarin"])
+    }
+
+    func testDebugStateStoresModelLabelDiagnostics() {
+        var state = DetectionDebugState(currentThreshold: 0.5)
+        let diagnostics = ImageDetectorModelLoader.labelDiagnostics(
+            forRuntimeLabels: FruitCategory.customModelLabelOrder
+        )
+
+        state.markModelLoaded(
+            modelName: "FruitsDetector",
+            modelURLFound: true,
+            supportedClasses: diagnostics.runtimeModelLabels,
+            labelDiagnostics: diagnostics
+        )
+
+        XCTAssertTrue(state.runtimeModelLabelsAvailable)
+        XCTAssertEqual(state.modelLabelCompatibilityStatus, "compatible")
+        XCTAssertEqual(state.runtimeModelLabels, FruitCategory.customModelLabelOrder)
+    }
+
+    func testImageDetectionDiagnosticsRecordsLabelSummaries() {
+        var recorder = ImageDetectorDiagnosticsRecorder()
+
+        recorder.recordCoreMLDetection(
+            observationCount: 3,
+            confidenceFilteredCount: 1,
+            unmappedObservationCount: 1,
+            mappedFruitCount: 1,
+            rawDetectedLabels: ["apple", "unknown fruit"],
+            mappedCategories: ["apple"],
+            unmappedLabels: ["unknown fruit"]
+        )
+
+        XCTAssertEqual(recorder.snapshot.rawDetectedLabels, ["apple", "unknown fruit"])
+        XCTAssertEqual(recorder.snapshot.mappedCategories, ["apple"])
+        XCTAssertEqual(recorder.snapshot.unmappedLabels, ["unknown fruit"])
+        XCTAssertEqual(recorder.snapshot.unmappedObservationCount, 1)
+    }
+
+    func testProductionModelMetadataLabelsMatchCustomModelOrder() throws {
+        let loadState = ImageDetectorModelLoader.loadModelState(named: "FruitsDetector")
+        let diagnostics = try XCTUnwrap(loadState.loadedModel?.labelDiagnostics)
+
+        XCTAssertTrue(diagnostics.runtimeModelLabelsAvailable)
+        XCTAssertEqual(diagnostics.runtimeModelLabels, FruitCategory.customModelLabelOrder)
+        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "compatible")
     }
 
     func testTopPredictionsSortByConfidence() {

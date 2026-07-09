@@ -49,6 +49,12 @@ enum CustomFruitID: Int, CaseIterable {
 }
 
 extension FruitCategory {
+    static var customModelLabelOrder: [String] {
+        CustomFruitID.allCases
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { $0.fruitCategory.rawValue }
+    }
+
     static func fromCOCO(_ cocoID: Int) -> FruitCategory? {
         COCOFruit(rawValue: cocoID)?.fruitCategory
     }

@@ -106,6 +106,10 @@ struct DetectionDebugState: Sendable, Equatable {
     var modelName: String = "--"
     var modelURLFound: Bool = false
     var supportedClasses: [String] = []
+    var runtimeModelLabels: [String] = []
+    var runtimeModelLabelsAvailable: Bool = false
+    var modelLabelCompatibilityStatus: String = "unavailable"
+    var modelLabelCompatibilityWarnings: [String] = []
     var frameReceived: Bool = false
     var inferenceRequested: Bool = false
     var inferenceRunning: Bool = false
@@ -147,12 +151,17 @@ struct DetectionDebugState: Sendable, Equatable {
     mutating func markModelLoaded(
         modelName: String,
         modelURLFound: Bool,
-        supportedClasses: [String]
+        supportedClasses: [String],
+        labelDiagnostics: ModelLabelCompatibilityDiagnostics = .unavailable
     ) {
         self.modelLoaded = true
         self.modelName = modelName
         self.modelURLFound = modelURLFound
         self.supportedClasses = supportedClasses
+        self.runtimeModelLabels = labelDiagnostics.runtimeModelLabels
+        self.runtimeModelLabelsAvailable = labelDiagnostics.runtimeModelLabelsAvailable
+        self.modelLabelCompatibilityStatus = labelDiagnostics.modelLabelCompatibilityStatus
+        self.modelLabelCompatibilityWarnings = labelDiagnostics.modelLabelCompatibilityWarnings
         self.lastErrorMessage = nil
         self.lastUpdatedAt = Date()
     }
@@ -166,6 +175,10 @@ struct DetectionDebugState: Sendable, Equatable {
         self.modelName = modelName
         self.modelURLFound = modelURLFound
         self.supportedClasses = []
+        self.runtimeModelLabels = []
+        self.runtimeModelLabelsAvailable = false
+        self.modelLabelCompatibilityStatus = "unavailable"
+        self.modelLabelCompatibilityWarnings = ["Runtime model labels unavailable; requires runtime confirmation."]
         self.lastErrorMessage = errorMessage
         self.lastUpdatedAt = Date()
     }

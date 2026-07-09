@@ -33,6 +33,7 @@ struct ImageDetectorLoadedModel {
     let resourceName: String
     let bundleExtension: String
     let supportedClasses: [String]
+    let labelDiagnostics: ModelLabelCompatibilityDiagnostics
 
     var displayName: String {
         "\(resourceName).\(bundleExtension)"
@@ -91,11 +92,13 @@ enum ImageDetectorModelLoader {
         if let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodelc") {
             let mlModel = try MLModel(contentsOf: modelURL)
             let model = try VNCoreMLModel(for: mlModel)
+            let labelDiagnostics = labelDiagnostics(from: mlModel)
             return ImageDetectorLoadedModel(
                 model: model,
                 resourceName: name,
                 bundleExtension: "mlmodelc",
-                supportedClasses: supportedClasses(from: mlModel)
+                supportedClasses: labelDiagnostics.runtimeModelLabels,
+                labelDiagnostics: labelDiagnostics
             )
         }
 
@@ -103,11 +106,13 @@ enum ImageDetectorModelLoader {
             let compiledURL = try MLModel.compileModel(at: modelURL)
             let mlModel = try MLModel(contentsOf: compiledURL)
             let model = try VNCoreMLModel(for: mlModel)
+            let labelDiagnostics = labelDiagnostics(from: mlModel)
             return ImageDetectorLoadedModel(
                 model: model,
                 resourceName: name,
                 bundleExtension: "mlmodel",
-                supportedClasses: supportedClasses(from: mlModel)
+                supportedClasses: labelDiagnostics.runtimeModelLabels,
+                labelDiagnostics: labelDiagnostics
             )
         }
 
@@ -115,11 +120,13 @@ enum ImageDetectorModelLoader {
             let compiledURL = try MLModel.compileModel(at: modelURL)
             let mlModel = try MLModel(contentsOf: compiledURL)
             let model = try VNCoreMLModel(for: mlModel)
+            let labelDiagnostics = labelDiagnostics(from: mlModel)
             return ImageDetectorLoadedModel(
                 model: model,
                 resourceName: name,
                 bundleExtension: "mlpackage",
-                supportedClasses: supportedClasses(from: mlModel)
+                supportedClasses: labelDiagnostics.runtimeModelLabels,
+                labelDiagnostics: labelDiagnostics
             )
         }
 
@@ -130,12 +137,94 @@ enum ImageDetectorModelLoader {
         )
     }
 
+    static func labelDiagnostics(from mlModel: MLModel) -> ModelLabelCompatibilityDiagnostics {
+        let labels = supportedClasses(from: mlModel)
+        return labelDiagnostics(forRuntimeLabels: labels)
+    }
+
+    static func labelDiagnostics(forRuntimeLabels labels: [String]) -> ModelLabelCompatibilityDiagnostics {
+        guard !labels.isEmpty else {
+            return .unavailable
+        }
+
+        let expectedLabels = FruitCategory.customModelLabelOrder
+        guard labels == expectedLabels else {
+            return ModelLabelCompatibilityDiagnostics(
+                runtimeModelLabels: labels,
+                runtimeModelLabelsAvailable: true,
+                modelLabelCompatibilityStatus: "mismatch",
+                modelLabelCompatibilityWarnings: compatibilityWarnings(
+                    runtimeLabels: labels,
+                    expectedLabels: expectedLabels
+                )
+            )
+        }
+
+        return ModelLabelCompatibilityDiagnostics(
+            runtimeModelLabels: labels,
+            runtimeModelLabelsAvailable: true,
+            modelLabelCompatibilityStatus: "compatible",
+            modelLabelCompatibilityWarnings: []
+        )
+    }
+
+    static func labels(fromNamesMetadata names: String) -> [String] {
+        let trimmed = names.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = trimmed
+            .trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
+        let pairs: [(index: Int, label: String)] = body
+            .split(separator: ",")
+            .compactMap { component in
+                let pieces = component.split(separator: ":", maxSplits: 1)
+                guard pieces.count == 2 else { return nil }
+                let indexText = pieces[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let labelText = pieces[1]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                guard let index = Int(indexText), !labelText.isEmpty else { return nil }
+                return (index, labelText)
+            }
+        return pairs.sorted { $0.index < $1.index }.map(\.label)
+    }
+
     private static func supportedClasses(from mlModel: MLModel) -> [String] {
         if let labels = mlModel.modelDescription.classLabels, !labels.isEmpty {
             return labels.map { "\($0)" }
         }
 
-        // TODO: Read a bundled labels file when the model exporter includes one.
+        if let labels = labelsFromUserDefinedMetadata(mlModel), !labels.isEmpty {
+            return labels
+        }
+
         return []
+    }
+
+    private static func labelsFromUserDefinedMetadata(_ mlModel: MLModel) -> [String]? {
+        guard let metadata = mlModel.modelDescription.metadata[.creatorDefinedKey] as? [String: String],
+              let names = metadata["names"] else {
+            return nil
+        }
+        return labels(fromNamesMetadata: names)
+    }
+
+    private static func compatibilityWarnings(
+        runtimeLabels: [String],
+        expectedLabels: [String]
+    ) -> [String] {
+        var warnings: [String] = []
+        if runtimeLabels.count != expectedLabels.count {
+            warnings.append("Runtime model label count \(runtimeLabels.count) does not match expected count \(expectedLabels.count).")
+        }
+
+        for index in 0..<min(runtimeLabels.count, expectedLabels.count) {
+            guard runtimeLabels[index] != expectedLabels[index] else { continue }
+            warnings.append("Label \(index) runtime=\(runtimeLabels[index]) expected=\(expectedLabels[index]).")
+            if warnings.count >= 5 { break }
+        }
+
+        if warnings.isEmpty {
+            warnings.append("Runtime model labels are present but do not match the expected custom fruit label order.")
+        }
+        return warnings
     }
 }

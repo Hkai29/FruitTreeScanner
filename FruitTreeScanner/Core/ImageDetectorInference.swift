@@ -112,11 +112,20 @@ struct ImageDetectorInference: Sendable {
                     config: config,
                     categoryMapper: detector.categoryMapper
                 )
+                let highConfidenceLabels = objectObservations
+                    .filter { $0.confidence >= config.minConfidence }
+                    .compactMap { $0.labels.first?.identifier }
+                let unmappedLabels = highConfidenceLabels.filter {
+                    detector.categoryMapper.category(for: $0) == nil
+                }
                 detector.recordCoreMLDetection(
                     observationCount: objectObservations.count,
                     confidenceFilteredCount: confidenceFilteredCount,
                     unmappedObservationCount: max(objectObservations.count - detectedFruits.count - confidenceFilteredCount, 0),
-                    mappedFruitCount: detectedFruits.count
+                    mappedFruitCount: detectedFruits.count,
+                    rawDetectedLabels: rawPredictions.map(\.label),
+                    mappedCategories: detectedFruits.map(\.category.rawValue),
+                    unmappedLabels: unmappedLabels
                 )
                 detector.recordDebugDetectionResult(
                     startedAt: inferenceStart,
@@ -158,7 +167,10 @@ struct ImageDetectorInference: Sendable {
                 observationCount: parsed.modelCandidateCount,
                 confidenceFilteredCount: parsed.confidenceFilteredCount,
                 unmappedObservationCount: parsed.unmappedObservationCount,
-                mappedFruitCount: parsed.fruits.count
+                mappedFruitCount: parsed.fruits.count,
+                rawDetectedLabels: parsed.rawPredictions.map(\.label),
+                mappedCategories: parsed.mappedCategories,
+                unmappedLabels: parsed.unmappedLabels
             )
             detector.recordDebugDetectionResult(
                 startedAt: inferenceStart,

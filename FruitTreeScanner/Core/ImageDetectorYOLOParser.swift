@@ -12,6 +12,8 @@ extension ImageDetector {
         let confidenceFilteredCount: Int
         let thresholdPassedCount: Int
         let unmappedObservationCount: Int
+        let mappedCategories: [String]
+        let unmappedLabels: [String]
         let rawPredictions: [DetectionPredictionDebug]
         let filteredPredictions: [DetectionPredictionDebug]
     }
@@ -48,6 +50,8 @@ extension ImageDetector {
         var predictions: [YOLOPrediction] = []
         var rawDebugPredictions: [DetectionPredictionDebug] = []
         var filteredDebugPredictions: [DetectionPredictionDebug] = []
+        var mappedCategories: [String] = []
+        var unmappedLabels: [String] = []
         predictions.reserveCapacity(64)
         var modelCandidateCount = 0
         var confidenceFilteredCount = 0
@@ -105,9 +109,11 @@ extension ImageDetector {
 
             guard let category = FruitCategory.fromCustomModel(classIndex) else {
                 unmappedObservationCount += 1
+                unmappedLabels.append(debugPrediction.label)
                 continue
             }
 
+            mappedCategories.append(category.rawValue)
             predictions.append(YOLOPrediction(
                 category: category,
                 boundingBox: boundingBox,
@@ -133,6 +139,8 @@ extension ImageDetector {
             confidenceFilteredCount: confidenceFilteredCount,
             thresholdPassedCount: thresholdPassedCount,
             unmappedObservationCount: unmappedObservationCount,
+            mappedCategories: mappedCategories,
+            unmappedLabels: unmappedLabels,
             rawPredictions: rawDebugPredictions,
             filteredPredictions: filteredDebugPredictions
         )

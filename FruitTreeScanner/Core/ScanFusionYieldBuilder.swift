@@ -44,12 +44,13 @@ enum ScanFusionYieldBuilder {
 
         Log.fusion.info("Clustering: \(input.points.count) raw points / \(pointCloudOutput.colorFilteredPoints.count) color-filtered / \(pointCloudOutput.denoising.stats.retainedCount) SOR-retained → \(pointCloudOutput.candidates.count) cloud candidates + \(detectionDepthOutput.rawCandidates.count) ROI-depth observations / \(detectionDepthOutput.candidates.count) merged ROI-depth candidates")
 
-        let targetDetections = ScanFusionCategoryFilter.detections(
+        let detectionFilterResult = ScanFusionCategoryFilter.detectionFilterResult(
             input.savedDetections,
             targetCategory: input.fruitCategory
         )
+        diagnostics.filteredBySelectedFruitTypeCount = detectionFilterResult.filteredBySelectedFruitTypeCount
         let fusionOutput = FusionEvidencePipeline(fusionConfig: input.fusionConfig).run(
-            detections: targetDetections,
+            detections: detectionFilterResult.detections,
             candidates: candidates
         )
         ScanFusionDiagnosticsUpdater.applyFusionOutput(fusionOutput, to: &diagnostics)

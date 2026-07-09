@@ -19,6 +19,8 @@ enum YOLOParserSupport {
             confidenceFilteredCount: 0,
             thresholdPassedCount: 0,
             unmappedObservationCount: 0,
+            mappedCategories: [],
+            unmappedLabels: [],
             rawPredictions: [],
             filteredPredictions: []
         )

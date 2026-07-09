@@ -96,6 +96,27 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertNil(FruitCategory.fromCOCO(999), "不存在的 COCO ID 应返回 nil")
     }
 
+    func testFruitCategoryMapperNormalizesCaseWhitespaceUnderscoresAndHyphens() {
+        let mapper = FruitCategoryMapper.standard
+
+        XCTAssertEqual(mapper.category(for: " APPLE "), .apple)
+        XCTAssertEqual(mapper.category(for: "kiwi_fruit"), .kiwi)
+        XCTAssertEqual(mapper.category(for: "mandarin-orange"), .mandarin)
+        XCTAssertEqual(mapper.category(for: "bay berry"), .bayberry)
+    }
+
+    func testFruitCategoryMapperReturnsNilForUnknownLabel() {
+        XCTAssertNil(FruitCategoryMapper.standard.category(for: "dragon fruit"))
+    }
+
+    func testCustomModelOrderMatchesFruitCategoryCases() {
+        XCTAssertEqual(FruitCategory.customModelLabelOrder, FruitCategory.allCases.map(\.rawValue))
+        for (index, category) in FruitCategory.allCases.enumerated() {
+            XCTAssertEqual(FruitCategory.fromCustomModel(index), category)
+        }
+        XCTAssertNil(FruitCategory.fromCustomModel(FruitCategory.allCases.count))
+    }
+
     func testWeightedFruitCountUsesRoundedCategoryTotals() {
         let counter = FruitCounter()
         let fruits = [

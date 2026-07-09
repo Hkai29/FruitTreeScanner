@@ -42,6 +42,7 @@ struct FruitCategoryMapper {
         "apple": .apple,
         "orange": .orange,
         "mandarin": .mandarin,
+        "mandarin orange": .mandarin,
         "tangerine": .mandarin,
         "clementine": .mandarin,
         "pomelo": .pomelo,
@@ -52,6 +53,7 @@ struct FruitCategoryMapper {
         "persimmon": .persimmon,
         "mango": .mango,
         "kiwi": .kiwi,
+        "kiwi fruit": .kiwi,
         "kiwifruit": .kiwi,
         "plum": .plum,
         "pomegranate": .pomegranate,
@@ -60,6 +62,7 @@ struct FruitCategoryMapper {
         "lichee": .lychee,
         "longan": .longan,
         "bayberry": .bayberry,
+        "bay berry": .bayberry,
         "waxberry": .bayberry,
         "jujube": .jujube,
         "hawthorn": .hawthorn,
@@ -74,34 +77,65 @@ struct FruitCategoryMapper {
     ]
 
     func category(for identifier: String) -> FruitCategory? {
-        if let customID = Int(identifier),
+        let normalized = normalizedIdentifier(identifier)
+
+        if let customID = Int(normalized),
            let mapped = customModelCategoryMapping[customID] {
             return mapped
         }
 
-        if let mapped = stringCategoryMapping[identifier.lowercased()] {
+        if let mapped = stringCategoryMapping[normalized] {
             return mapped
         }
 
-        if let cocoID = Int(identifier),
+        if let cocoID = Int(normalized),
            let mapped = cocoCategoryMapping[cocoID] {
             return mapped
         }
 
         return nil
     }
+
+    func normalizedIdentifier(_ identifier: String) -> String {
+        identifier
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+}
+
+struct ModelLabelCompatibilityDiagnostics: Sendable, Equatable {
+    var runtimeModelLabels: [String] = []
+    var runtimeModelLabelsAvailable: Bool = false
+    var modelLabelCompatibilityStatus: String = "unavailable"
+    var modelLabelCompatibilityWarnings: [String] = [
+        "Runtime model labels unavailable; requires runtime confirmation."
+    ]
+
+    static let unavailable = ModelLabelCompatibilityDiagnostics()
 }
 
 struct ImageDetectionDiagnostics: Sendable, Equatable {
     var modelStatus: String = "--"
     var modelName: String = "--"
     var modelFailureReason: String = ""
+    var runtimeModelLabels: [String] = []
+    var runtimeModelLabelsAvailable: Bool = false
+    var modelLabelCompatibilityStatus: String = "unavailable"
+    var modelLabelCompatibilityWarnings: [String] = []
     var queuedFrameCount: Int = 0
     var processedFrameCount: Int = 0
     var observationCount: Int = 0
     var confidenceFilteredCount: Int = 0
     var unmappedObservationCount: Int = 0
     var mappedFruitCount: Int = 0
+    var rawDetectedLabels: [String] = []
+    var mappedCategories: [String] = []
+    var unmappedLabels: [String] = []
     var fallbackFrameCount: Int = 0
     var lastDetectionError: String = ""
 
@@ -123,6 +157,13 @@ struct ImageDetectorDiagnosticsRecorder {
         }
     }
 
+    mutating func apply(labelDiagnostics: ModelLabelCompatibilityDiagnostics) {
+        snapshot.runtimeModelLabels = labelDiagnostics.runtimeModelLabels
+        snapshot.runtimeModelLabelsAvailable = labelDiagnostics.runtimeModelLabelsAvailable
+        snapshot.modelLabelCompatibilityStatus = labelDiagnostics.modelLabelCompatibilityStatus
+        snapshot.modelLabelCompatibilityWarnings = labelDiagnostics.modelLabelCompatibilityWarnings
+    }
+
     mutating func reset(modelStatus: ImageDetectorModelStatus) {
         snapshot = ImageDetectionDiagnostics()
         apply(modelStatus: modelStatus)
@@ -136,13 +177,19 @@ struct ImageDetectorDiagnosticsRecorder {
         observationCount: Int,
         confidenceFilteredCount: Int,
         unmappedObservationCount: Int,
-        mappedFruitCount: Int
+        mappedFruitCount: Int,
+        rawDetectedLabels: [String] = [],
+        mappedCategories: [String] = [],
+        unmappedLabels: [String] = []
     ) {
         snapshot.processedFrameCount += 1
         snapshot.observationCount += observationCount
         snapshot.confidenceFilteredCount += confidenceFilteredCount
         snapshot.unmappedObservationCount += unmappedObservationCount
         snapshot.mappedFruitCount += mappedFruitCount
+        snapshot.rawDetectedLabels = Self.mergingLimited(snapshot.rawDetectedLabels, rawDetectedLabels)
+        snapshot.mappedCategories = Self.mergingLimited(snapshot.mappedCategories, mappedCategories)
+        snapshot.unmappedLabels = Self.mergingLimited(snapshot.unmappedLabels, unmappedLabels)
         snapshot.lastDetectionError = ""
     }
 
@@ -158,6 +205,20 @@ struct ImageDetectorDiagnosticsRecorder {
         if snapshot.modelFailureReason.isEmpty {
             snapshot.modelFailureReason = reason
         }
+    }
+
+    private static func mergingLimited(
+        _ existing: [String],
+        _ newValues: [String],
+        limit: Int = 32
+    ) -> [String] {
+        var merged = existing
+        for value in newValues {
+            guard !value.isEmpty, !merged.contains(value) else { continue }
+            merged.append(value)
+            if merged.count >= limit { break }
+        }
+        return merged
     }
 }
 

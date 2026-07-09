@@ -138,6 +138,58 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         }
     }
 
+    func testSelectedFruitFilteringKeepsMatchingDetectionsAndCountsMismatches() {
+        let detections = [
+            DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.9),
+            DetectedFruit(category: .pear, boundingBox: .zero, confidence: 0.9)
+        ]
+
+        let result = ScanFusionCategoryFilter.detectionFilterResult(
+            detections,
+            targetCategory: .apple
+        )
+
+        XCTAssertEqual(result.detections.map(\.category), [.apple])
+        XCTAssertEqual(result.filteredBySelectedFruitTypeCount, 1)
+    }
+
+    func testSelectedFruitFilteringKeepsAllDetectionsWhenNoTargetCategory() {
+        let detections = [
+            DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.9),
+            DetectedFruit(category: .pear, boundingBox: .zero, confidence: 0.9)
+        ]
+
+        let result = ScanFusionCategoryFilter.detectionFilterResult(
+            detections,
+            targetCategory: nil
+        )
+
+        XCTAssertEqual(result.detections.count, 2)
+        XCTAssertEqual(result.filteredBySelectedFruitTypeCount, 0)
+    }
+
+    func testBuildDiagnosticsExposeSelectedFruitFilteredCount() async {
+        let input = ScanFusionYieldBuilder.Input(
+            points: [],
+            savedDetections: [
+                DetectedFruit(category: .pear, boundingBox: .zero, confidence: 0.9)
+            ],
+            imageDiagnostics: emptyImageDiagnostics(),
+            fruitType: "apple",
+            fruitCategory: .apple,
+            paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+            defaultParams: appleParams(),
+            clusterConfig: .default,
+            fusionConfig: .default,
+            colorFilter: nil
+        )
+
+        let (yield, _) = await ScanFusionYieldBuilder.build(from: input)
+
+        XCTAssertEqual(yield.diagnostics.filteredBySelectedFruitTypeCount, 1)
+        XCTAssertEqual(yield.diagnostics.fusedFruitCount, 0)
+    }
+
     private func ringPoints(
         angleStart: Float,
         angleEnd: Float,

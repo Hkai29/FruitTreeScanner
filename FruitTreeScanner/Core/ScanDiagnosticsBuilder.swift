@@ -16,6 +16,13 @@ struct ScanDiagnosticsBuilder {
         diagnostics.imageModelStatus = imageDiagnostics.modelStatus
         diagnostics.imageModelName = imageDiagnostics.modelName
         diagnostics.imageFailureReason = imageDiagnostics.effectiveFailureReason
+        diagnostics.imageRuntimeModelLabels = imageDiagnostics.runtimeModelLabels
+        diagnostics.imageRuntimeModelLabelsAvailable = imageDiagnostics.runtimeModelLabelsAvailable
+        diagnostics.imageModelLabelCompatibilityStatus = imageDiagnostics.modelLabelCompatibilityStatus
+        diagnostics.imageModelLabelCompatibilityWarnings = imageDiagnostics.modelLabelCompatibilityWarnings
+        diagnostics.imageRawDetectedLabels = imageDiagnostics.rawDetectedLabels
+        diagnostics.imageMappedCategories = imageDiagnostics.mappedCategories
+        diagnostics.imageUnmappedLabels = imageDiagnostics.unmappedLabels
         return diagnostics
     }
 

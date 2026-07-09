@@ -98,6 +98,14 @@ struct ScanYieldDiagnostics: Sendable, Equatable {
     var imageModelStatus: String = "--"
     var imageModelName: String = "--"
     var imageFailureReason: String = ""
+    var imageRuntimeModelLabels: [String] = []
+    var imageRuntimeModelLabelsAvailable: Bool = false
+    var imageModelLabelCompatibilityStatus: String = "unavailable"
+    var imageModelLabelCompatibilityWarnings: [String] = []
+    var imageRawDetectedLabels: [String] = []
+    var imageMappedCategories: [String] = []
+    var imageUnmappedLabels: [String] = []
+    var filteredBySelectedFruitTypeCount: Int = 0
     var zeroYieldReasons: [String] = []
 
     var shortStatus: String {

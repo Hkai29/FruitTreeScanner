@@ -428,3 +428,30 @@ Priority 5:
 - Do not broaden UI fruit choices based only on repository metadata.
 - Do not claim multi-class recognition accuracy from the current artifacts
   without per-class validation.
+
+## 11. Implemented Status
+
+Implemented in `feat/recognition-metadata-diagnostics`:
+
+- Runtime model label diagnostics now read `MLModel.modelDescription.classLabels`
+  when available and fall back to CoreML user-defined `names` metadata.
+- Runtime labels are compared with the expected `CustomFruitID` /
+  `FruitCategory` order and surfaced as compatible, mismatch, or unavailable.
+- Model label diagnostics are stored in image detection diagnostics and debug
+  state without changing model loading success or failure behavior.
+- `FruitCategoryMapper` now normalizes case, surrounding whitespace,
+  underscores, hyphens, and repeated whitespace before string label lookup.
+- Mapper tests cover known labels, normalized labels, unknown labels, and
+  `FruitCategory.fromCustomModel` order compatibility.
+- Image detection diagnostics now keep bounded summaries for raw detected
+  labels, mapped categories, and unmapped labels.
+- Selected fruit type filtering now exposes a filtered count in scan
+  diagnostics while keeping the existing strict filtering behavior.
+
+Remaining gaps:
+
+- Confidence threshold calibration still needs validation data.
+- Per-class recognition accuracy still needs real or held-out orchard-style
+  evaluation.
+- Export surfaces may later append the new recognition diagnostics if research
+  analysis needs label distributions outside app/runtime diagnostics.

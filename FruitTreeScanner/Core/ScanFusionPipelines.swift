@@ -86,12 +86,33 @@ struct DetectionDepthCandidatePipeline {
 }
 
 enum ScanFusionCategoryFilter {
+    struct DetectionFilterResult {
+        let detections: [DetectedFruit]
+        let filteredBySelectedFruitTypeCount: Int
+    }
+
     static func detections(
         _ detections: [DetectedFruit],
         targetCategory: FruitCategory?
     ) -> [DetectedFruit] {
-        guard let targetCategory else { return detections }
-        return detections.filter { $0.category == targetCategory }
+        detectionFilterResult(detections, targetCategory: targetCategory).detections
+    }
+
+    static func detectionFilterResult(
+        _ detections: [DetectedFruit],
+        targetCategory: FruitCategory?
+    ) -> DetectionFilterResult {
+        guard let targetCategory else {
+            return DetectionFilterResult(
+                detections: detections,
+                filteredBySelectedFruitTypeCount: 0
+            )
+        }
+        let filtered = detections.filter { $0.category == targetCategory }
+        return DetectionFilterResult(
+            detections: filtered,
+            filteredBySelectedFruitTypeCount: detections.count - filtered.count
+        )
     }
 
     static func candidates(

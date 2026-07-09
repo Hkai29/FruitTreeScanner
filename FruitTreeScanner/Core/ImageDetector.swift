@@ -85,7 +85,7 @@ final class ImageDetector: @unchecked Sendable {
             Log.detection.info(
                 "CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))"
             )
-            updateModelDiagnostics()
+            updateModelDiagnostics(labelDiagnostics: loadedModel.labelDiagnostics)
             updateModelDebugStateLoaded(loadedModel)
             return
         }
@@ -106,10 +106,13 @@ final class ImageDetector: @unchecked Sendable {
         return diagnosticsRecorder.snapshot
     }
 
-    private func updateModelDiagnostics() {
+    private func updateModelDiagnostics(
+        labelDiagnostics: ModelLabelCompatibilityDiagnostics = .unavailable
+    ) {
         lock.lock()
         defer { lock.unlock() }
         applyModelStatusToDiagnosticsLocked()
+        diagnosticsRecorder.apply(labelDiagnostics: labelDiagnostics)
     }
 
     private func applyModelStatusToDiagnosticsLocked() {
@@ -121,7 +124,8 @@ final class ImageDetector: @unchecked Sendable {
         detectionDebugState.markModelLoaded(
             modelName: loadedModel.displayName,
             modelURLFound: true,
-            supportedClasses: loadedModel.supportedClasses
+            supportedClasses: loadedModel.supportedClasses,
+            labelDiagnostics: loadedModel.labelDiagnostics
         )
         lock.unlock()
     }
@@ -169,14 +173,20 @@ final class ImageDetector: @unchecked Sendable {
         observationCount: Int,
         confidenceFilteredCount: Int,
         unmappedObservationCount: Int,
-        mappedFruitCount: Int
+        mappedFruitCount: Int,
+        rawDetectedLabels: [String] = [],
+        mappedCategories: [String] = [],
+        unmappedLabels: [String] = []
     ) {
         lock.lock()
         diagnosticsRecorder.recordCoreMLDetection(
             observationCount: observationCount,
             confidenceFilteredCount: confidenceFilteredCount,
             unmappedObservationCount: unmappedObservationCount,
-            mappedFruitCount: mappedFruitCount
+            mappedFruitCount: mappedFruitCount,
+            rawDetectedLabels: rawDetectedLabels,
+            mappedCategories: mappedCategories,
+            unmappedLabels: unmappedLabels
         )
         lock.unlock()
     }
