@@ -11,12 +11,14 @@ import simd
 
 final class ImageDetector: @unchecked Sendable {
 
-    // RGB and depth buffers are synchronously copied (duplicatePixelBuffer)
-    // inside enqueueFrame before QueuedFrame is created, so transferring the
-    // frame to detectionQueue does not retain ARKit's reusable buffers.
+    // RGB, depth, and depth-confidence buffers are synchronously copied
+    // (duplicatePixelBuffer) inside enqueueFrame before QueuedFrame is created,
+    // so transferring the frame to detectionQueue does not retain ARKit's
+    // reusable buffers.
     struct QueuedFrame: @unchecked Sendable {
         let pixelBuffer: CVPixelBuffer
         let depthMap: CVPixelBuffer?
+        let depthConfidenceMap: CVPixelBuffer?
         let timestamp: TimeInterval
         let cameraTransform: simd_float4x4
         let cameraIntrinsics: simd_float3x3
@@ -39,11 +41,12 @@ final class ImageDetector: @unchecked Sendable {
     var preparingFrameGeneration: Int?
     let minimumQueueInterval: TimeInterval = 0.45
     let lock = NSLock()
+    private let inference = ImageDetectorInference()
 
     // CoreML 模型 (由初始化时注入)
     var coreMLModel: VNCoreMLModel?
     private(set) var modelStatus: ImageDetectorModelStatus = .fallback(reason: "模型尚未加载")
-    var diagnosticsRecorder = ImageDetectionDiagnosticsRecorder()
+    var diagnosticsRecorder = ImageDetectorDiagnosticsRecorder()
     var detectionDebugState = DetectionDebugState()
     var detectionFailureSamples: [DetectionFailureSample] = []
     let maxDetectionFailureSamples = 20
@@ -74,31 +77,27 @@ final class ImageDetector: @unchecked Sendable {
     /// 加载 CoreML 模型
     /// - Important: 调用此方法前需要先将 .mlmodel 文件添加到项目
     private func loadCoreMLModel() {
-        // 尝试加载用户训练的模型
-        // 如果模型不存在，使用 Vision 内置分类器作为 fallback
-        do {
-            let loadedModel = try ImageDetectorModelLoader.loadModel(named: "FruitsDetector")
-            coreMLModel = loadedModel.model
-            modelStatus = .coreML(
-                resourceName: loadedModel.resourceName,
-                bundleExtension: loadedModel.bundleExtension
+        let loadState = ImageDetectorModelLoader.loadModelState(named: "FruitsDetector")
+        coreMLModel = loadState.model
+        modelStatus = loadState.status
+
+        if let loadedModel = loadState.loadedModel {
+            Log.detection.info(
+                "CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))"
             )
-            Log.detection.info("CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))")
             updateModelDiagnostics()
             updateModelDebugStateLoaded(loadedModel)
-        } catch {
-            let modelResource = ImageDetectorModelLoader.modelURL(named: "FruitsDetector")
-            let modelName = modelResource.map { "FruitsDetector.\($0.bundleExtension)" } ?? "FruitsDetector"
-            coreMLModel = nil
-            modelStatus = .fallback(reason: error.localizedDescription)
-            Log.detection.error("CoreML model not available, using fallback: \(error.localizedDescription)")
-            updateModelDiagnostics()
-            updateModelDebugStateFailure(
-                modelName: modelName,
-                modelURLFound: modelResource != nil,
-                errorMessage: error.localizedDescription
-            )
+            return
         }
+
+        let failureMessage = loadState.failureMessage ?? "Unknown model load failure"
+        Log.detection.error("CoreML model not available, using fallback: \(failureMessage)")
+        updateModelDiagnostics()
+        updateModelDebugStateFailure(
+            modelName: loadState.failureModelName ?? "FruitsDetector",
+            modelURLFound: loadState.failureModelURLFound,
+            errorMessage: failureMessage
+        )
     }
 
     func diagnosticsSnapshot() -> ImageDetectionDiagnostics {
@@ -152,23 +151,14 @@ final class ImageDetector: @unchecked Sendable {
         var allDetectedFruits: [DetectedFruit] = []
 
         for frame in framesToProcess {
-            let fruits = await performDetection(
+            let fruits = await inference.performDetection(
+                detector: self,
                 pixelBuffer: frame.pixelBuffer,
                 timestamp: frame.timestamp,
-                imageSize: frame.imageSize
+                imageSize: frame.imageSize,
+                queue: detectionQueue
             )
-            let enriched = fruits.map { fruit in
-                DetectedFruit(
-                    category: fruit.category,
-                    boundingBox: fruit.boundingBox,
-                    confidence: fruit.confidence,
-                    timestamp: fruit.timestamp,
-                    cameraTransform: frame.cameraTransform,
-                    cameraIntrinsics: frame.cameraIntrinsics,
-                    imageSize: frame.imageSize,
-                    depthMap: frame.depthMap
-                )
-            }
+            let enriched = ImageDetectorQueue.enrich(fruits, with: frame)
             allDetectedFruits.append(contentsOf: enriched)
         }
 

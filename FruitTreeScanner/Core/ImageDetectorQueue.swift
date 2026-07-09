@@ -5,6 +5,72 @@ import Foundation
 @preconcurrency import CoreVideo
 import simd
 
+enum ImageDetectorQueue {
+    struct FrameCopyResult {
+        let queuedFrame: ImageDetector.QueuedFrame?
+        let failedToCopyPixelBuffer: Bool
+        let droppedDepthMap: Bool
+        let droppedDepthConfidenceMap: Bool
+    }
+
+    static func makeQueuedFrame(
+        pixelBuffer: CVPixelBuffer,
+        timestamp: TimeInterval,
+        cameraTransform: simd_float4x4,
+        cameraIntrinsics: simd_float3x3,
+        imageSize: CGSize,
+        depthMap: CVPixelBuffer?,
+        depthConfidenceMap: CVPixelBuffer?
+    ) -> FrameCopyResult {
+        guard let copiedPixelBuffer = duplicatePixelBuffer(input: pixelBuffer) else {
+            return FrameCopyResult(
+                queuedFrame: nil,
+                failedToCopyPixelBuffer: true,
+                droppedDepthMap: false,
+                droppedDepthConfidenceMap: false
+            )
+        }
+
+        let copiedDepthMap = depthMap.flatMap { duplicatePixelBuffer(input: $0) }
+        let copiedDepthConfidenceMap = depthConfidenceMap.flatMap { duplicatePixelBuffer(input: $0) }
+        let queuedFrame = ImageDetector.QueuedFrame(
+            pixelBuffer: copiedPixelBuffer,
+            depthMap: copiedDepthMap,
+            depthConfidenceMap: copiedDepthConfidenceMap,
+            timestamp: timestamp,
+            cameraTransform: cameraTransform,
+            cameraIntrinsics: cameraIntrinsics,
+            imageSize: imageSize
+        )
+
+        return FrameCopyResult(
+            queuedFrame: queuedFrame,
+            failedToCopyPixelBuffer: false,
+            droppedDepthMap: depthMap != nil && copiedDepthMap == nil,
+            droppedDepthConfidenceMap: depthConfidenceMap != nil && copiedDepthConfidenceMap == nil
+        )
+    }
+
+    static func enrich(
+        _ fruits: [DetectedFruit],
+        with frame: ImageDetector.QueuedFrame
+    ) -> [DetectedFruit] {
+        fruits.map { fruit in
+            DetectedFruit(
+                category: fruit.category,
+                boundingBox: fruit.boundingBox,
+                confidence: fruit.confidence,
+                timestamp: fruit.timestamp,
+                cameraTransform: frame.cameraTransform,
+                cameraIntrinsics: frame.cameraIntrinsics,
+                imageSize: frame.imageSize,
+                depthMap: frame.depthMap,
+                depthConfidenceMap: frame.depthConfidenceMap
+            )
+        }
+    }
+}
+
 extension ImageDetector {
     func enqueueFrame(
         _ pixelBuffer: CVPixelBuffer,
@@ -12,7 +78,8 @@ extension ImageDetector {
         cameraTransform: simd_float4x4,
         cameraIntrinsics: simd_float3x3,
         imageSize: CGSize,
-        depthMap: CVPixelBuffer?
+        depthMap: CVPixelBuffer?,
+        depthConfidenceMap: CVPixelBuffer? = nil
     ) {
         let pixelBufferSize = CGSize(
             width: CGFloat(CVPixelBufferGetWidth(pixelBuffer)),
@@ -49,26 +116,26 @@ extension ImageDetector {
         diagnosticsRecorder.recordQueuedFrame()
         lock.unlock()
 
-        guard let copiedPixelBuffer = duplicatePixelBuffer(input: pixelBuffer) else {
+        let frameCopy = ImageDetectorQueue.makeQueuedFrame(
+            pixelBuffer: pixelBuffer,
+            timestamp: timestamp,
+            cameraTransform: cameraTransform,
+            cameraIntrinsics: cameraIntrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap,
+            depthConfidenceMap: depthConfidenceMap
+        )
+        guard let queuedFrame = frameCopy.queuedFrame else {
             Log.detection.error("Dropping image detection frame: failed to copy RGB pixel buffer")
             cancelPreparingFrame(generation: generation)
             return
         }
-        // ARKit recycles scene-depth buffers. Keep the exact depth image that
-        // accompanied this RGB frame so fusion never projects through a later
-        // frame's depth map.
-        let copiedDepthMap = depthMap.flatMap { duplicatePixelBuffer(input: $0) }
-        if depthMap != nil, copiedDepthMap == nil {
+        if frameCopy.droppedDepthMap {
             Log.detection.warning("Continuing image detection without aligned depth: failed to copy depth pixel buffer")
         }
-        let queuedFrame = QueuedFrame(
-            pixelBuffer: copiedPixelBuffer,
-            depthMap: copiedDepthMap,
-            timestamp: timestamp,
-            cameraTransform: cameraTransform,
-            cameraIntrinsics: cameraIntrinsics,
-            imageSize: imageSize
-        )
+        if frameCopy.droppedDepthConfidenceMap {
+            Log.detection.warning("Continuing image detection without depth confidence: failed to copy confidence pixel buffer")
+        }
         detectionQueue.async { [weak self, queuedFrame, generation] in
             self?.finishPreparingFrame(queuedFrame, generation: generation)
         }

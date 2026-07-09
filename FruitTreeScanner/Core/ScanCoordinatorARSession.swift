@@ -23,13 +23,15 @@ extension ScanCoordinator: ARSessionDelegate {
             width: CGFloat(frame.camera.imageResolution.width),
             height: CGFloat(frame.camera.imageResolution.height)
         )
+        let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
         imageDetector.enqueueFrame(
             frame.capturedImage,
             timestamp: frame.timestamp,
             cameraTransform: frame.camera.transform,
             cameraIntrinsics: frame.camera.intrinsics,
             imageSize: imageSize,
-            depthMap: (frame.smoothedSceneDepth ?? frame.sceneDepth)?.depthMap
+            depthMap: depthData?.depthMap,
+            depthConfidenceMap: depthData?.confidenceMap
         )
     }
 

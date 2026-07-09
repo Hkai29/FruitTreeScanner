@@ -133,6 +133,7 @@ extension FusionValidator {
     func projectDetectionTo3D(
         detection: DetectedFruit,
         depthMap: CVPixelBuffer?,
+        depthConfidenceMap: CVPixelBuffer? = nil,
         cameraIntrinsics: matrix_float3x3,
         cameraTransform: simd_float4x4,
         imageSize: CGSize
@@ -140,6 +141,7 @@ extension FusionValidator {
         projectDetectionTo3D(
             detection: detection,
             depthMap: depthMap,
+            depthConfidenceMap: depthConfidenceMap,
             cameraIntrinsics: cameraIntrinsics,
             cameraTransform: cameraTransform,
             imageSize: imageSize,
@@ -150,6 +152,7 @@ extension FusionValidator {
     func projectDetectionTo3DWithValidDepth(
         detection: DetectedFruit,
         depthMap: CVPixelBuffer?,
+        depthConfidenceMap: CVPixelBuffer? = nil,
         cameraIntrinsics: matrix_float3x3,
         cameraTransform: simd_float4x4,
         imageSize: CGSize
@@ -157,6 +160,7 @@ extension FusionValidator {
         projectDetectionTo3D(
             detection: detection,
             depthMap: depthMap,
+            depthConfidenceMap: depthConfidenceMap,
             cameraIntrinsics: cameraIntrinsics,
             cameraTransform: cameraTransform,
             imageSize: imageSize,
@@ -167,6 +171,7 @@ extension FusionValidator {
     private func projectDetectionTo3D(
         detection: DetectedFruit,
         depthMap: CVPixelBuffer?,
+        depthConfidenceMap: CVPixelBuffer?,
         cameraIntrinsics: matrix_float3x3,
         cameraTransform: simd_float4x4,
         imageSize: CGSize,
@@ -179,8 +184,9 @@ extension FusionValidator {
         // surface inside the 2D detection instead of letting background leaves
         // dominate a simple center or whole-box median.
         var validDepths: [Float] = []
-        if let depthMap = depthMap, let depthSampler = DepthSampler(depthMap: depthMap) {
-            let sampleGrid = 9
+        if let depthMap = depthMap,
+           let depthSampler = DepthSampler(depthMap: depthMap, confidenceMap: depthConfidenceMap) {
+            let sampleGrid = FruitScanExperimentConfig.default.depth.projectionSampleGrid
             validDepths.reserveCapacity(sampleGrid * sampleGrid)
             for row in 0..<sampleGrid {
                 for col in 0..<sampleGrid {
@@ -262,7 +268,10 @@ enum DetectionDepthCandidateBuilder {
               let cameraIntrinsics = detection.cameraIntrinsics,
               let cameraTransform = detection.cameraTransform,
               let imageSize = detection.imageSize,
-              let depthSampler = DepthSampler(depthMap: depthMap),
+              let depthSampler = DepthSampler(
+                  depthMap: depthMap,
+                  confidenceMap: detection.depthConfidenceMap
+              ),
               imageSize.width > 0,
               imageSize.height > 0 else {
             return nil
@@ -679,14 +688,27 @@ enum DetectionDepthCandidateBuilder {
 }
 
 private final class DepthSampler {
+    // ARConfidenceLevelLow is 0, medium is 1, high is 2 in the SDK enum.
+    private static let minimumReliableConfidence = FruitScanExperimentConfig.default.depth.minimumReliableConfidence
+
     let width: Int
     let height: Int
 
     private let depthMap: CVPixelBuffer
+    private let confidenceSampler: DepthConfidenceSampler?
     private let baseAddress: UnsafeMutableRawPointer
     private let pixelFormat: FourCharCode
 
-    init?(depthMap: CVPixelBuffer) {
+    init?(depthMap: CVPixelBuffer, confidenceMap: CVPixelBuffer? = nil) {
+        if let confidenceMap {
+            guard let confidenceSampler = DepthConfidenceSampler(confidenceMap: confidenceMap) else {
+                return nil
+            }
+            self.confidenceSampler = confidenceSampler
+        } else {
+            self.confidenceSampler = nil
+        }
+
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
             CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
@@ -710,6 +732,16 @@ private final class DepthSampler {
         let clampedX = max(0, min(x, width - 1))
         let clampedY = max(0, min(y, height - 1))
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+        if let confidenceSampler,
+           !confidenceSampler.isReliable(
+               x: clampedX,
+               y: clampedY,
+               depthWidth: width,
+               depthHeight: height,
+               minimumConfidence: Self.minimumReliableConfidence
+           ) {
+            return nil
+        }
 
         let fp32: FourCharCode = 0x66703233 // 'fp32' legacy/custom float map
         let depthFloat32 = kCVPixelFormatType_DepthFloat32
@@ -738,5 +770,48 @@ private final class DepthSampler {
 
         guard depth > 0.1, depth < 10.0 else { return nil }
         return depth
+    }
+}
+
+private final class DepthConfidenceSampler {
+    private let confidenceMap: CVPixelBuffer
+    private let baseAddress: UnsafeMutableRawPointer
+    private let bytesPerRow: Int
+    private let width: Int
+    private let height: Int
+
+    init?(confidenceMap: CVPixelBuffer) {
+        CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
+        guard let baseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else {
+            CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly)
+            return nil
+        }
+
+        self.confidenceMap = confidenceMap
+        self.baseAddress = baseAddress
+        self.bytesPerRow = CVPixelBufferGetBytesPerRow(confidenceMap)
+        self.width = CVPixelBufferGetWidth(confidenceMap)
+        self.height = CVPixelBufferGetHeight(confidenceMap)
+    }
+
+    deinit {
+        CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly)
+    }
+
+    func isReliable(
+        x: Int,
+        y: Int,
+        depthWidth: Int,
+        depthHeight: Int,
+        minimumConfidence: UInt8
+    ) -> Bool {
+        guard width > 0, height > 0, depthWidth > 0, depthHeight > 0 else {
+            return false
+        }
+
+        let confidenceX = max(0, min(x * width / depthWidth, width - 1))
+        let confidenceY = max(0, min(y * height / depthHeight, height - 1))
+        let confidenceBuffer = baseAddress.assumingMemoryBound(to: UInt8.self)
+        return confidenceBuffer[confidenceY * bytesPerRow + confidenceX] >= minimumConfidence
     }
 }

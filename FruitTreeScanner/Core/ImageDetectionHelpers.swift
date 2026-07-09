@@ -110,7 +110,7 @@ struct ImageDetectionDiagnostics: Sendable, Equatable {
     }
 }
 
-struct ImageDetectionDiagnosticsRecorder {
+struct ImageDetectorDiagnosticsRecorder {
     private(set) var snapshot = ImageDetectionDiagnostics()
 
     mutating func apply(modelStatus: ImageDetectorModelStatus) {
@@ -160,3 +160,5 @@ struct ImageDetectionDiagnosticsRecorder {
         }
     }
 }
+
+typealias ImageDetectionDiagnosticsRecorder = ImageDetectorDiagnosticsRecorder

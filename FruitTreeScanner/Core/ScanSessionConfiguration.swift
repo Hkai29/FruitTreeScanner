@@ -1,6 +1,20 @@
 import ARKit
 
 enum ScanSessionConfiguration {
+    static func preferredDepthSemantics(
+        supports: (ARConfiguration.FrameSemantics) -> Bool = {
+            ARWorldTrackingConfiguration.supportsFrameSemantics($0)
+        }
+    ) -> ARConfiguration.FrameSemantics? {
+        if supports(.smoothedSceneDepth) {
+            return .smoothedSceneDepth
+        }
+        if supports(.sceneDepth) {
+            return .sceneDepth
+        }
+        return nil
+    }
+
     static func preferredVideoFormat(settings: SettingsStore = .shared) -> ARConfiguration.VideoFormat? {
         let targetFPS = requestedFrameRate(from: settings.cameraFrameRate)
         let targetWidth = requestedResolutionWidth(from: settings.cameraResolution)

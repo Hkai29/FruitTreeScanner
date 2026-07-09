@@ -39,6 +39,33 @@ final class DetectionDeduplicatorTests: XCTestCase {
         return buffer
     }
 
+    private func makeConfidenceMap(width: Int, height: Int, fillValue: UInt8) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_OneComponent8,
+            nil,
+            &pixelBuffer
+        )
+        guard status == kCVReturnSuccess, let buffer = pixelBuffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+            for y in 0..<height {
+                let rowPointer = baseAddress
+                    .advanced(by: y * bytesPerRow)
+                    .assumingMemoryBound(to: UInt8.self)
+                for x in 0..<width {
+                    rowPointer[x] = fillValue
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        return buffer
+    }
+
     func testDeduplicate2DEmpty() {
         let result = DetectionDeduplicator.deduplicate2D([])
         XCTAssertTrue(result.isEmpty)
@@ -292,6 +319,51 @@ final class DetectionDeduplicatorTests: XCTestCase {
             DetectionDeduplicator.deduplicate2D(detections).count,
             2,
             "无有效 ROI 深度时不能借默认投影把远距离 2D 观测合并"
+        )
+    }
+
+    func testLowConfidenceDepthDoesNotCreate3DAssociation() {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        let confidenceMap = makeConfidenceMap(width: 256, height: 192, fillValue: 0)
+        XCTAssertNotNil(depthMap)
+        XCTAssertNotNil(confidenceMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        var shiftedCameraTransform = matrix_identity_float4x4
+        shiftedCameraTransform.columns.3.x = -2.304
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.95,
+                timestamp: 10,
+                cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap,
+                depthConfidenceMap: confidenceMap
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.60, y: 0.30, width: 0.20, height: 0.20),
+                confidence: 0.93,
+                timestamp: 10.6,
+                cameraTransform: shiftedCameraTransform,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap,
+                depthConfidenceMap: confidenceMap
+            )
+        ]
+
+        XCTAssertTrue(
+            DetectionDeduplicator.stableEvidenceDetections(detections).isEmpty,
+            "低置信度 ROI 深度不能确认跨视角稳定轨迹"
+        )
+        XCTAssertEqual(
+            DetectionDeduplicator.deduplicate2D(detections).count,
+            2,
+            "低置信度 ROI 深度不能把远距离 2D 观测合并"
         )
     }
 

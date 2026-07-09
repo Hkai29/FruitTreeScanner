@@ -5,32 +5,40 @@ import Foundation
 import CoreGraphics
 import CoreML
 import os
-import Vision
+@preconcurrency import Vision
 @preconcurrency import CoreVideo
 
-extension ImageDetector {
-    func performDetection(pixelBuffer: CVPixelBuffer, timestamp: TimeInterval, imageSize: CGSize) async -> [DetectedFruit] {
-        let sendablePixelBuffer = SendablePixelBuffer(value: pixelBuffer)
-        let config = configSnapshot()
+struct ImageDetectorInference: Sendable {
+    func performDetection(
+        detector: ImageDetector,
+        pixelBuffer: CVPixelBuffer,
+        timestamp: TimeInterval,
+        imageSize: CGSize,
+        queue: DispatchQueue
+    ) async -> [DetectedFruit] {
+        let sendablePixelBuffer = ImageDetector.SendablePixelBuffer(value: pixelBuffer)
+        let config = detector.configSnapshot()
+        let model = detector.coreMLModel
 
         return await withCheckedContinuation { continuation in
-            detectionQueue.async { [weak self, sendablePixelBuffer, config] in
-                guard let self else {
+            queue.async { [sendablePixelBuffer, config, weak detector] in
+                guard let detector else {
                     continuation.resume(returning: [])
                     return
                 }
 
                 let pixelBuffer = sendablePixelBuffer.value
-                let pixelBufferSize = Self.pixelBufferSize(pixelBuffer)
+                let pixelBufferSize = ImageDetector.pixelBufferSize(pixelBuffer)
                 let inferenceStart = Date()
-                self.recordDebugInferenceStarted(
+                detector.recordDebugInferenceStarted(
                     frameSize: imageSize,
                     pixelBufferSize: pixelBufferSize,
                     threshold: config.minConfidence
                 )
 
-                if let model = self.coreMLModel {
+                if let model {
                     self.performCoreMLDetection(
+                        detector: detector,
                         pixelBuffer: pixelBuffer,
                         timestamp: timestamp,
                         imageSize: imageSize,
@@ -43,20 +51,20 @@ extension ImageDetector {
                     )
                 } else {
                     self.performVisionClassification(
-                        pixelBuffer: pixelBuffer,
-                        timestamp: timestamp,
-                        imageSize: imageSize,
+                        detector: detector,
                         inferenceStart: inferenceStart,
                         config: config,
                         completion: { fruits in
-                        continuation.resume(returning: fruits)
-                    })
+                            continuation.resume(returning: fruits)
+                        }
+                    )
                 }
             }
         }
     }
 
-    func performCoreMLDetection(
+    private func performCoreMLDetection(
+        detector: ImageDetector,
         pixelBuffer: CVPixelBuffer,
         timestamp: TimeInterval,
         imageSize: CGSize,
@@ -65,8 +73,8 @@ extension ImageDetector {
         config: FruitScanConfig,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
-        let request = VNCoreMLRequest(model: model) { [weak self] request, error in
-            guard let self else {
+        let request = VNCoreMLRequest(model: model) { [weak detector] request, error in
+            guard let detector else {
                 completion([])
                 return
             }
@@ -74,8 +82,8 @@ extension ImageDetector {
             if let error {
                 let reason = error.localizedDescription
                 Log.detection.error("CoreML detection failed: \(reason)")
-                self.recordDetectionFailure(reason)
-                self.recordDebugDetectionResult(
+                detector.recordDetectionFailure(reason)
+                detector.recordDebugDetectionResult(
                     startedAt: inferenceStart,
                     rawObservationCount: 0,
                     filteredObservationCount: 0,
@@ -84,7 +92,7 @@ extension ImageDetector {
                     threshold: config.minConfidence,
                     errorMessage: reason
                 )
-                self.captureDetectionFailureSample(note: reason)
+                detector.captureDetectionFailureSample(note: reason)
                 completion([])
                 return
             }
@@ -94,22 +102,23 @@ extension ImageDetector {
             if !objectObservations.isEmpty {
                 let confidenceFilteredCount = objectObservations.filter { $0.confidence < config.minConfidence }.count
                 let filteredObservationCount = objectObservations.count - confidenceFilteredCount
-                let rawPredictions = objectObservations.compactMap(Self.debugPrediction)
+                let rawPredictions = objectObservations.compactMap(ImageDetector.debugPrediction)
                 let filteredPredictions = objectObservations
                     .filter { $0.confidence >= config.minConfidence }
-                    .compactMap(Self.debugPrediction)
-                let detectedFruits = self.mapObjectObservationsToFruits(
+                    .compactMap(ImageDetector.debugPrediction)
+                let detectedFruits = mapObjectObservationsToFruits(
                     observations: objectObservations,
                     timestamp: timestamp,
-                    config: config
+                    config: config,
+                    categoryMapper: detector.categoryMapper
                 )
-                self.recordCoreMLDetection(
+                detector.recordCoreMLDetection(
                     observationCount: objectObservations.count,
                     confidenceFilteredCount: confidenceFilteredCount,
                     unmappedObservationCount: max(objectObservations.count - detectedFruits.count - confidenceFilteredCount, 0),
                     mappedFruitCount: detectedFruits.count
                 )
-                self.recordDebugDetectionResult(
+                detector.recordDebugDetectionResult(
                     startedAt: inferenceStart,
                     rawObservationCount: objectObservations.count,
                     filteredObservationCount: filteredObservationCount,
@@ -125,8 +134,8 @@ extension ImageDetector {
             guard let multiArray = featureObservations.compactMap({ $0.featureValue.multiArrayValue }).first else {
                 let reason = "CoreML 输出格式不支持：未返回目标框或 YOLO MultiArray"
                 Log.detection.error("\(reason)")
-                self.recordDetectionFailure(reason)
-                self.recordDebugDetectionResult(
+                detector.recordDetectionFailure(reason)
+                detector.recordDebugDetectionResult(
                     startedAt: inferenceStart,
                     rawObservationCount: 0,
                     filteredObservationCount: 0,
@@ -135,23 +144,23 @@ extension ImageDetector {
                     threshold: config.minConfidence,
                     errorMessage: reason
                 )
-                self.captureDetectionFailureSample(note: reason)
+                detector.captureDetectionFailureSample(note: reason)
                 completion([])
                 return
             }
 
-            let parsed = Self.parseYOLOMultiArray(
+            let parsed = ImageDetector.parseYOLOMultiArray(
                 multiArray,
                 timestamp: timestamp,
                 config: config
             )
-            self.recordCoreMLDetection(
+            detector.recordCoreMLDetection(
                 observationCount: parsed.modelCandidateCount,
                 confidenceFilteredCount: parsed.confidenceFilteredCount,
                 unmappedObservationCount: parsed.unmappedObservationCount,
                 mappedFruitCount: parsed.fruits.count
             )
-            self.recordDebugDetectionResult(
+            detector.recordDebugDetectionResult(
                 startedAt: inferenceStart,
                 rawObservationCount: parsed.modelCandidateCount,
                 filteredObservationCount: parsed.thresholdPassedCount,
@@ -170,8 +179,8 @@ extension ImageDetector {
             try handler.perform([request])
         } catch {
             Log.detection.error("VNImageRequestHandler failed: \(error.localizedDescription)")
-            recordDetectionFailure(error.localizedDescription)
-            recordDebugDetectionResult(
+            detector.recordDetectionFailure(error.localizedDescription)
+            detector.recordDebugDetectionResult(
                 startedAt: inferenceStart,
                 rawObservationCount: 0,
                 filteredObservationCount: 0,
@@ -180,15 +189,16 @@ extension ImageDetector {
                 threshold: config.minConfidence,
                 errorMessage: error.localizedDescription
             )
-            captureDetectionFailureSample(note: error.localizedDescription)
+            detector.captureDetectionFailureSample(note: error.localizedDescription)
             completion([])
         }
     }
 
-    func mapObjectObservationsToFruits(
+    private func mapObjectObservationsToFruits(
         observations: [VNRecognizedObjectObservation],
         timestamp: TimeInterval,
-        config: FruitScanConfig
+        config: FruitScanConfig,
+        categoryMapper: FruitCategoryMapper
     ) -> [DetectedFruit] {
         var detectedFruits: [DetectedFruit] = []
 
@@ -214,17 +224,15 @@ extension ImageDetector {
         return detectedFruits
     }
 
-    func performVisionClassification(
-        pixelBuffer: CVPixelBuffer,
-        timestamp: TimeInterval,
-        imageSize: CGSize,
+    private func performVisionClassification(
+        detector: ImageDetector,
         inferenceStart: Date,
         config: FruitScanConfig,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
         let reason = "CoreML model not loaded; fallback has no 2D bounding boxes"
-        recordFallbackFrame(reason: modelStatus.hudDetail)
-        recordDebugDetectionResult(
+        detector.recordFallbackFrame(reason: detector.modelStatus.hudDetail)
+        detector.recordDebugDetectionResult(
             startedAt: inferenceStart,
             rawObservationCount: 0,
             filteredObservationCount: 0,
@@ -233,8 +241,23 @@ extension ImageDetector {
             threshold: config.minConfidence,
             errorMessage: reason
         )
-        captureDetectionFailureSample(note: reason)
+        detector.captureDetectionFailureSample(note: reason)
         completion([])
     }
+}
 
+extension ImageDetector {
+    func performDetection(
+        pixelBuffer: CVPixelBuffer,
+        timestamp: TimeInterval,
+        imageSize: CGSize
+    ) async -> [DetectedFruit] {
+        await ImageDetectorInference().performDetection(
+            detector: self,
+            pixelBuffer: pixelBuffer,
+            timestamp: timestamp,
+            imageSize: imageSize,
+            queue: detectionQueue
+        )
+    }
 }

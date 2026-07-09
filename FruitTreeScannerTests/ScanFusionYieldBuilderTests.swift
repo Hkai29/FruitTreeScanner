@@ -41,6 +41,32 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         return buffer
     }
 
+    private func makeConfidenceMap(width: Int, height: Int, fillValue: UInt8) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width, height,
+            kCVPixelFormatType_OneComponent8,
+            nil,
+            &pixelBuffer
+        )
+        guard status == kCVReturnSuccess, let buffer = pixelBuffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+            for y in 0 ..< height {
+                let rowPointer = baseAddress
+                    .advanced(by: y * bytesPerRow)
+                    .assumingMemoryBound(to: UInt8.self)
+                for x in 0 ..< width {
+                    rowPointer[x] = fillValue
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        return buffer
+    }
+
     private func setDepth(_ depthMap: CVPixelBuffer, x: Int, y: Int, value: Float) {
         CVPixelBufferLockBaseAddress(depthMap, [])
         defer { CVPixelBufferUnlockBaseAddress(depthMap, []) }
@@ -871,7 +897,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         XCTAssertEqual(merged.sphericity, 0.92, accuracy: 0.001)
     }
 
-    func testBuildKeepsOverlappingDetectionDepthROICandidatesForDifferentCategories() async {
+    func testBuildKeepsOverlappingDetectionDepthROICandidatesButCountsOnlySelectedCategory() async {
         let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
         XCTAssertNotNil(depthMap)
 
@@ -930,9 +956,74 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         let (yield, countResult) = await ScanFusionYieldBuilder.build(from: input)
 
         XCTAssertEqual(yield.diagnostics.imageDetectionCount, 2)
-        XCTAssertEqual(yield.diagnostics.deduplicatedImageDetectionCount, 2)
+        XCTAssertEqual(yield.diagnostics.deduplicatedImageDetectionCount, 1)
         XCTAssertEqual(yield.diagnostics.detectionDepthCandidateCount, 2)
-        XCTAssertEqual(yield.diagnostics.pointCloudCandidateCount, 2)
+        XCTAssertEqual(yield.diagnostics.pointCloudCandidateCount, 1)
+        XCTAssertEqual(yield.diagnostics.fusedFruitCount, 1)
+        XCTAssertEqual(countResult.totalCount, 1)
+        XCTAssertEqual(countResult.fruitCountsEnum[.apple], 1)
+        XCTAssertEqual(countResult.fruitCountsEnum[.orange], 0)
+    }
+
+    func testBuildCountsMultipleCategoriesWhenNoSelectedFruitCategory() async {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.494, y: 0.494, width: 0.012, height: 0.012),
+                confidence: 0.9,
+                timestamp: 10,
+                cameraTransform: identityTransform,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap
+            ),
+            DetectedFruit(
+                category: .orange,
+                boundingBox: CGRect(x: 0.496, y: 0.494, width: 0.012, height: 0.012),
+                confidence: 0.88,
+                timestamp: 10.1,
+                cameraTransform: identityTransform,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depthMap
+            )
+        ]
+
+        let input = ScanFusionYieldBuilder.Input(
+            points: [],
+            savedDetections: detections,
+            imageDiagnostics: emptyImageDiagnostics(),
+            fruitType: "自定义果",
+            fruitCategory: nil,
+            paramsSnapshot: [
+                FruitCategory.apple.rawValue: appleParams(),
+                FruitCategory.orange.rawValue: FruitVarietyParams(category: .orange)
+            ],
+            defaultParams: appleParams(),
+            clusterConfig: ClusterConfig(
+                minPoints: 3,
+                minDiameter: 0.015,
+                maxDiameter: 0.20,
+                baseEps: 0.1,
+                sphericityThreshold: 0.5
+            ),
+            fusionConfig: FruitScanConfig(
+                imageDetectionInterval: 10,
+                minConfidence: 0.5,
+                sizeTolerance: 0.35,
+                sphericityThreshold: 0.5
+            ),
+            colorFilter: nil
+        )
+
+        let (yield, countResult) = await ScanFusionYieldBuilder.build(from: input)
+
+        XCTAssertEqual(yield.diagnostics.deduplicatedImageDetectionCount, 2)
         XCTAssertEqual(yield.diagnostics.fusedFruitCount, 2)
         XCTAssertEqual(countResult.totalCount, 2)
         XCTAssertEqual(countResult.fruitCountsEnum[.apple], 1)
@@ -1013,6 +1104,93 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             accuracy: 0.001
         )
         XCTAssertEqual(multiViewCount.totalCount, 1)
+    }
+
+    func testBuildIgnoresLowConfidenceDepthCameraAnglesForOcclusion() async {
+        let reliableDepthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        let lowConfidenceDepthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        let lowConfidenceMap = makeConfidenceMap(width: 256, height: 192, fillValue: 0)
+        XCTAssertNotNil(reliableDepthMap)
+        XCTAssertNotNil(lowConfidenceDepthMap)
+        XCTAssertNotNil(lowConfidenceMap)
+
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let target = SIMD3<Float>(0, 0, 2)
+        let boundingBox = CGRect(x: 0.494, y: 0.494, width: 0.012, height: 0.012)
+        let reliableDetection = DetectedFruit(
+            category: .apple,
+            boundingBox: boundingBox,
+            confidence: 0.9,
+            timestamp: 10,
+            cameraTransform: cameraTransform(eye: SIMD3<Float>(0, 0, 0), target: target),
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: reliableDepthMap
+        )
+        let lowConfidenceDetections = [
+            SIMD3<Float>(2, 0, 2),
+            SIMD3<Float>(0, 0, 4),
+            SIMD3<Float>(-2, 0, 2)
+        ].enumerated().map { index, eye in
+            DetectedFruit(
+                category: .apple,
+                boundingBox: boundingBox,
+                confidence: 0.88,
+                timestamp: 13 + TimeInterval(index * 3),
+                cameraTransform: cameraTransform(eye: eye, target: target),
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: lowConfidenceDepthMap,
+                depthConfidenceMap: lowConfidenceMap
+            )
+        }
+
+        func makeInput(_ detections: [DetectedFruit]) -> ScanFusionYieldBuilder.Input {
+            ScanFusionYieldBuilder.Input(
+                points: [],
+                savedDetections: detections,
+                imageDiagnostics: emptyImageDiagnostics(),
+                fruitType: "苹果",
+                fruitCategory: .apple,
+                paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+                defaultParams: appleParams(),
+                clusterConfig: ClusterConfig(
+                    minPoints: 3,
+                    minDiameter: 0.015,
+                    maxDiameter: 0.20,
+                    baseEps: 0.1,
+                    sphericityThreshold: 0.5
+                ),
+                fusionConfig: FruitScanConfig(
+                    imageDetectionInterval: 10,
+                    minConfidence: 0.5,
+                    sizeTolerance: 0.35,
+                    sphericityThreshold: 0.5
+                ),
+                colorFilter: nil
+            )
+        }
+
+        let (baselineYield, _) = await ScanFusionYieldBuilder.build(from: makeInput([reliableDetection]))
+        let (withLowConfidenceYield, countResult) = await ScanFusionYieldBuilder.build(
+            from: makeInput([reliableDetection] + lowConfidenceDetections)
+        )
+
+        XCTAssertEqual(withLowConfidenceYield.diagnostics.detectionDepthCandidateCount, 1)
+        XCTAssertEqual(withLowConfidenceYield.diagnostics.fusedFruitCount, 1)
+        XCTAssertEqual(
+            withLowConfidenceYield.diagnostics.cameraAngleCoverage,
+            baselineYield.diagnostics.cameraAngleCoverage,
+            accuracy: 0.001,
+            "低置信度 ROI 深度不能扩大相机角度覆盖并降低遮挡补偿"
+        )
+        XCTAssertEqual(
+            withLowConfidenceYield.correctionK,
+            baselineYield.correctionK,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(countResult.totalCount, 1)
     }
 
     func testBuildFlagsLowCoverageStrongOcclusionAsManualReview() async throws {

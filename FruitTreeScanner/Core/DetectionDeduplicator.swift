@@ -44,6 +44,33 @@ struct DetectionDeduplicator {
             lastTimestamp - firstTimestamp
         }
 
+        func evidenceSample(
+            minimumObservations: Int,
+            minimumDuration: TimeInterval,
+            maxObservations: Int
+        ) -> [DetectedFruit] {
+            let sorted = observations.sorted { $0.timestamp < $1.timestamp }
+            let requiredObservations = max(minimumObservations, 1)
+            let sampleLimit = max(maxObservations, requiredObservations)
+            guard sorted.count > sampleLimit else { return sorted }
+
+            var selected = Array(sorted.prefix(sampleLimit))
+            for startIndex in sorted.indices {
+                let endIndex = min(startIndex + sampleLimit, sorted.count)
+                let window = Array(sorted[startIndex..<endIndex])
+                guard window.count >= requiredObservations,
+                      let first = window.first,
+                      let last = window.last,
+                      last.timestamp - first.timestamp >= minimumDuration else {
+                    continue
+                }
+                selected = window
+                break
+            }
+
+            return selected.sorted { $0.timestamp < $1.timestamp }
+        }
+
         func canAccept(
             _ detection: DetectedFruit,
             maxGap: TimeInterval,
@@ -106,6 +133,85 @@ struct DetectionDeduplicator {
             minimumDuration: minimumDuration,
             recentOnly: recentOnly
         ).flatMap(\.observations)
+    }
+
+    static func compactStableEvidenceDetections(
+        _ detections: [DetectedFruit],
+        minimumObservations: Int = 2,
+        minimumConfidence: Float = 0.85,
+        timeWindow: TimeInterval = 3.5,
+        centerDistanceThreshold: CGFloat = 0.16,
+        minimumDuration: TimeInterval = 0.35,
+        maxObservationsPerTrack: Int? = nil
+    ) -> [DetectedFruit] {
+        let requiredObservations = max(minimumObservations, 1)
+        let sampleLimit = max(maxObservationsPerTrack ?? max(requiredObservations, 3), requiredObservations)
+        let tracks = stableTracks(
+            detections,
+            minimumObservations: requiredObservations,
+            minimumConfidence: minimumConfidence,
+            timeWindow: timeWindow,
+            centerDistanceThreshold: centerDistanceThreshold,
+            minimumDuration: minimumDuration,
+            recentOnly: false
+        )
+        let compactedTracks = compactTracksBySpatialIdentity(
+            tracks,
+            centerDistanceThreshold: centerDistanceThreshold
+        )
+        return compactedTracks.flatMap {
+            $0.evidenceSample(
+                minimumObservations: requiredObservations,
+                minimumDuration: minimumDuration,
+                maxObservations: sampleLimit
+            )
+        }
+    }
+
+    private static func compactTracksBySpatialIdentity(
+        _ tracks: [StableDetectionTrack],
+        centerDistanceThreshold: CGFloat
+    ) -> [StableDetectionTrack] {
+        var compactedTracks: [StableDetectionTrack] = []
+        var projectedPositions: [UUID: SIMD3<Float>] = [:]
+
+        for track in tracks {
+            let matchesExistingTrack = compactedTracks.contains { existingTrack in
+                detectionsReferToSameFruit(
+                    existingTrack.representative,
+                    track.representative,
+                    centerDistanceThreshold: centerDistanceThreshold,
+                    projectedPositions: &projectedPositions
+                )
+            }
+            if !matchesExistingTrack {
+                compactedTracks.append(track)
+            }
+        }
+
+        return compactedTracks
+    }
+
+    private static func detectionsReferToSameFruit(
+        _ lhs: DetectedFruit,
+        _ rhs: DetectedFruit,
+        centerDistanceThreshold: CGFloat,
+        projectedPositions: inout [UUID: SIMD3<Float>]
+    ) -> Bool {
+        guard lhs.category == rhs.category else { return false }
+        switch spatialRelationshipIn3D(
+            lhs,
+            rhs,
+            projectedPositions: &projectedPositions
+        ) {
+        case .associated:
+            return true
+        case .separated:
+            return false
+        case .unavailable:
+            return normalizedCenterDistance(lhs.boundingBox, rhs.boundingBox) <= centerDistanceThreshold &&
+                areaSimilarity(lhs.boundingBox, rhs.boundingBox) >= 0.45
+        }
     }
 
     private static func stableTracks(
@@ -303,68 +409,20 @@ struct DetectionDeduplicator {
             return nil
         }
 
-        guard let depth = robustDetectionDepth(
-            for: detection,
+        let position = FusionValidator().projectDetectionTo3DWithValidDepth(
+            detection: detection,
             depthMap: depthMap,
+            depthConfidenceMap: detection.depthConfidenceMap,
+            cameraIntrinsics: cameraIntrinsics,
+            cameraTransform: cameraTransform,
             imageSize: imageSize
-        ) else {
-            return nil
-        }
-
-        let normCenterX = detection.boundingBox.midX
-        let normCenterY = detection.boundingBox.midY
-        let centerX = normCenterX * imageSize.width
-        let centerY = (1 - normCenterY) * imageSize.height
-        let imagePoint = SIMD3<Float>(Float(centerX), Float(centerY), 1.0)
-        guard let cameraPoint = FusionValidator.cameraPointFromImagePoint(
-            imagePoint,
-            depth: depth,
-            cameraIntrinsics: cameraIntrinsics
-        ) else {
-            return nil
-        }
-
-        let worldPoint = cameraTransform * SIMD4<Float>(cameraPoint.x, cameraPoint.y, cameraPoint.z, 1.0)
-        let position = SIMD3<Float>(worldPoint.x, worldPoint.y, worldPoint.z)
+        )
+        guard let position else { return nil }
         guard position.x.isFinite, position.y.isFinite, position.z.isFinite else {
             return nil
         }
         cache[detection.id] = position
         return position
-    }
-
-    private static func robustDetectionDepth(
-        for detection: DetectedFruit,
-        depthMap: CVPixelBuffer,
-        imageSize: CGSize
-    ) -> Float? {
-        guard imageSize.width > 0,
-              imageSize.height > 0,
-              let depthSampler = DetectionDepthSampler(depthMap: depthMap) else {
-            return nil
-        }
-
-        let sampleGrid = 9
-        var validDepths: [Float] = []
-        validDepths.reserveCapacity(sampleGrid * sampleGrid)
-        for row in 0..<sampleGrid {
-            for col in 0..<sampleGrid {
-                let normalizedPoint = CGPoint(
-                    x: detection.boundingBox.origin.x + detection.boundingBox.width * (CGFloat(col) + 0.5) / CGFloat(sampleGrid),
-                    y: detection.boundingBox.origin.y + detection.boundingBox.height * (CGFloat(row) + 0.5) / CGFloat(sampleGrid)
-                )
-                let depthPoint = FusionValidator.depthSamplePoint(
-                    normalizedPoint: normalizedPoint,
-                    imageSize: imageSize,
-                    depthSize: CGSize(width: depthSampler.width, height: depthSampler.height)
-                )
-                if let depth = depthSampler.depth(x: Int(depthPoint.x), y: Int(depthPoint.y)) {
-                    validDepths.append(depth)
-                }
-            }
-        }
-
-        return FusionValidator.robustDepth(from: validDepths)
     }
 
     private static func normalizedCenterDistance(_ a: CGRect, _ b: CGRect) -> CGFloat {
@@ -383,65 +441,6 @@ struct DetectionDeduplicator {
         return min(areaA, areaB) / larger
     }
 
-    private final class DetectionDepthSampler {
-        let width: Int
-        let height: Int
-
-        private let depthMap: CVPixelBuffer
-        private let baseAddress: UnsafeMutableRawPointer
-        private let pixelFormat: FourCharCode
-
-        init?(depthMap: CVPixelBuffer) {
-            CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-            guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
-                CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
-                return nil
-            }
-
-            self.depthMap = depthMap
-            self.baseAddress = baseAddress
-            self.width = CVPixelBufferGetWidth(depthMap)
-            self.height = CVPixelBufferGetHeight(depthMap)
-            self.pixelFormat = CVPixelBufferGetPixelFormatType(depthMap)
-        }
-
-        deinit {
-            CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
-        }
-
-        func depth(x: Int, y: Int) -> Float? {
-            guard width > 0, height > 0 else { return nil }
-
-            let clampedX = max(0, min(x, width - 1))
-            let clampedY = max(0, min(y, height - 1))
-            let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
-            let fp32: FourCharCode = 0x66703233
-            let up16: FourCharCode = 0x75703136
-            let depth: Float
-
-            if pixelFormat == fp32 ||
-                pixelFormat == kCVPixelFormatType_DepthFloat32 ||
-                pixelFormat == kCVPixelFormatType_OneComponent32Float {
-                let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
-                let rowFloats = bytesPerRow / MemoryLayout<Float>.size
-                depth = floatBuffer[clampedY * rowFloats + clampedX]
-            } else if pixelFormat == kCVPixelFormatType_DepthFloat16 ||
-                pixelFormat == kCVPixelFormatType_OneComponent16Half {
-                let halfBuffer = baseAddress.assumingMemoryBound(to: UInt16.self)
-                let rowHalfs = bytesPerRow / MemoryLayout<UInt16>.size
-                depth = Float(Float16(bitPattern: halfBuffer[clampedY * rowHalfs + clampedX]))
-            } else if pixelFormat == up16 {
-                let shortBuffer = baseAddress.assumingMemoryBound(to: UInt16.self)
-                let rowShorts = bytesPerRow / MemoryLayout<UInt16>.size
-                depth = Float(shortBuffer[clampedY * rowShorts + clampedX]) / 1000.0
-            } else {
-                return nil
-            }
-
-            guard depth > 0.1, depth < 10.0 else { return nil }
-            return depth
-        }
-    }
 }
 
 // MARK: - Detection retention

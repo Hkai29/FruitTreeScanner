@@ -208,6 +208,7 @@ final class DetectionDebugStateTests: XCTestCase {
         )
         let imageBuffer = try makePixelBuffer(width: 4, height: 4, pixelFormat: kCVPixelFormatType_32BGRA)
         let depthMap = try makeDepthMap(width: 4, height: 4, fillValue: 2.0)
+        let confidenceMap = try makeConfidenceMap(width: 4, height: 4, fillValue: 2)
         let transform = matrix_identity_float4x4
         var intrinsics = matrix_identity_float3x3
         intrinsics[0][0] = 500
@@ -219,17 +220,22 @@ final class DetectionDebugStateTests: XCTestCase {
             cameraTransform: transform,
             cameraIntrinsics: intrinsics,
             imageSize: CGSize(width: 1920, height: 1080),
-            depthMap: depthMap
+            depthMap: depthMap,
+            depthConfidenceMap: confidenceMap
         )
         fillDepth(depthMap, value: 9.0)
+        fillConfidence(confidenceMap, value: 0)
 
         let frames = await detector.drainPendingFrames()
         let queuedFrame = try XCTUnwrap(frames.first)
         let copiedDepth = try XCTUnwrap(queuedFrame.depthMap)
+        let copiedConfidence = try XCTUnwrap(queuedFrame.depthConfidenceMap)
 
         XCTAssertEqual(frames.count, 1)
         XCTAssertEqual(depthValue(depthMap), 9.0, accuracy: 0.001)
         XCTAssertEqual(depthValue(copiedDepth), 2.0, accuracy: 0.001)
+        XCTAssertEqual(confidenceValue(confidenceMap), 0)
+        XCTAssertEqual(confidenceValue(copiedConfidence), 2)
         XCTAssertEqual(queuedFrame.timestamp, 12.5, accuracy: 0.001)
         XCTAssertEqual(queuedFrame.imageSize.width, 1920)
         XCTAssertEqual(queuedFrame.cameraIntrinsics[0][0], 500, accuracy: 0.001)
@@ -244,6 +250,7 @@ final class DetectionDebugStateTests: XCTestCase {
         let queuedFrame = ImageDetector.QueuedFrame(
             pixelBuffer: try makePixelBuffer(width: 4, height: 4, pixelFormat: kCVPixelFormatType_32BGRA),
             depthMap: nil,
+            depthConfidenceMap: nil,
             timestamp: 1,
             cameraTransform: matrix_identity_float4x4,
             cameraIntrinsics: matrix_identity_float3x3,
@@ -304,6 +311,44 @@ final class DetectionDebugStateTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testFusionEvidenceArchiveCompactsLongStableTrack() async throws {
+        let coordinator = ScanCoordinator()
+        let config = FruitScanConfig(
+            imageDetectionInterval: 1,
+            minConfidence: 0.85,
+            sizeTolerance: 0.2,
+            sphericityThreshold: 0.5,
+            minimumStableDetectionsForYield: 2,
+            stableDetectionTimeWindow: 4.0
+        )
+        coordinator.imageDetector.updateConfig(config)
+
+        let frameCount = DetectionRetentionPolicy.defaultMaxFrameCount + 40
+        let batchSize = 20
+        for batchStart in stride(from: 0, to: frameCount, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, frameCount)
+            let detections = try (batchStart..<batchEnd).map { index in
+                try makeAlignedAppleDetection(timestamp: TimeInterval(index) * 0.5)
+            }
+            await coordinator.appendDetectedFruits(detections)
+        }
+
+        XCTAssertLessThanOrEqual(
+            coordinator.archivedFusionEvidenceDetections.count,
+            max(config.minimumStableDetectionsForYield, 3),
+            "同一稳定果实的归档证据应压缩为少量观测，避免长扫时长期保留大量深度图副本"
+        )
+
+        let stableEvidence = DetectionDeduplicator.stableEvidenceDetections(
+            coordinator.archivedFusionEvidenceDetections.filter(\.hasAlignedDepthContext),
+            minimumObservations: max(config.minimumStableDetectionsForYield, 2),
+            minimumConfidence: max(config.minConfidence, 0.85),
+            timeWindow: config.stableDetectionTimeWindow
+        )
+        XCTAssertFalse(stableEvidence.isEmpty, "压缩后的归档证据仍应能证明稳定轨迹")
+    }
+
     private func makeDepthMap(width: Int, height: Int, fillValue: Float) throws -> CVPixelBuffer {
         let buffer = try makePixelBuffer(
             width: width,
@@ -311,6 +356,16 @@ final class DetectionDebugStateTests: XCTestCase {
             pixelFormat: kCVPixelFormatType_DepthFloat32
         )
         fillDepth(buffer, value: fillValue)
+        return buffer
+    }
+
+    private func makeConfidenceMap(width: Int, height: Int, fillValue: UInt8) throws -> CVPixelBuffer {
+        let buffer = try makePixelBuffer(
+            width: width,
+            height: height,
+            pixelFormat: kCVPixelFormatType_OneComponent8
+        )
+        fillConfidence(buffer, value: fillValue)
         return buffer
     }
 
@@ -356,6 +411,36 @@ final class DetectionDebugStateTests: XCTestCase {
         return baseAddress
             .advanced(by: clampedY * bytesPerRow)
             .assumingMemoryBound(to: Float.self)[clampedX]
+    }
+
+    private func fillConfidence(_ confidenceMap: CVPixelBuffer, value: UInt8) {
+        CVPixelBufferLockBaseAddress(confidenceMap, [])
+        defer { CVPixelBufferUnlockBaseAddress(confidenceMap, []) }
+        guard let baseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else { return }
+        let width = CVPixelBufferGetWidth(confidenceMap)
+        let height = CVPixelBufferGetHeight(confidenceMap)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(confidenceMap)
+
+        for row in 0..<height {
+            let rowPointer = baseAddress
+                .advanced(by: row * bytesPerRow)
+                .assumingMemoryBound(to: UInt8.self)
+            for col in 0..<width {
+                rowPointer[col] = value
+            }
+        }
+    }
+
+    private func confidenceValue(_ confidenceMap: CVPixelBuffer, x: Int = 0, y: Int = 0) -> UInt8 {
+        CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly) }
+        guard let baseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else { return 0 }
+        let clampedX = min(max(x, 0), CVPixelBufferGetWidth(confidenceMap) - 1)
+        let clampedY = min(max(y, 0), CVPixelBufferGetHeight(confidenceMap) - 1)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(confidenceMap)
+        return baseAddress
+            .advanced(by: clampedY * bytesPerRow)
+            .assumingMemoryBound(to: UInt8.self)[clampedX]
     }
 
     private func makeAlignedAppleDetection(timestamp: TimeInterval) throws -> DetectedFruit {

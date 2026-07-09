@@ -130,8 +130,8 @@ class ScanCoordinator: NSObject {
         }
 
         let config = ARWorldTrackingConfiguration()
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-            config.frameSemantics = .sceneDepth
+        if let depthSemantics = ScanSessionConfiguration.preferredDepthSemantics() {
+            config.frameSemantics = depthSemantics
             requestedSceneDepth = true
         }
         if let videoFormat = ScanSessionConfiguration.preferredVideoFormat() {

@@ -39,7 +39,44 @@ struct ImageDetectorLoadedModel {
     }
 }
 
+struct ImageDetectorModelLoadState {
+    let model: VNCoreMLModel?
+    let status: ImageDetectorModelStatus
+    let loadedModel: ImageDetectorLoadedModel?
+    let failureModelName: String?
+    let failureModelURLFound: Bool
+    let failureMessage: String?
+}
+
 enum ImageDetectorModelLoader {
+    static func loadModelState(named name: String) -> ImageDetectorModelLoadState {
+        do {
+            let loadedModel = try loadModel(named: name)
+            return ImageDetectorModelLoadState(
+                model: loadedModel.model,
+                status: .coreML(
+                    resourceName: loadedModel.resourceName,
+                    bundleExtension: loadedModel.bundleExtension
+                ),
+                loadedModel: loadedModel,
+                failureModelName: nil,
+                failureModelURLFound: false,
+                failureMessage: nil
+            )
+        } catch {
+            let modelResource = modelURL(named: name)
+            let modelName = modelResource.map { "\(name).\($0.bundleExtension)" } ?? name
+            return ImageDetectorModelLoadState(
+                model: nil,
+                status: .fallback(reason: error.localizedDescription),
+                loadedModel: nil,
+                failureModelName: modelName,
+                failureModelURLFound: modelResource != nil,
+                failureMessage: error.localizedDescription
+            )
+        }
+    }
+
     static func modelURL(named name: String) -> (url: URL, bundleExtension: String)? {
         for bundleExtension in ["mlmodelc", "mlmodel", "mlpackage"] {
             if let modelURL = Bundle.main.url(forResource: name, withExtension: bundleExtension) {

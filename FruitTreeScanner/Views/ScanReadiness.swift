@@ -58,7 +58,7 @@ extension ScanReadiness {
             return .metalUnavailable
         }
 
-        guard ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) else {
+        guard ScanSessionConfiguration.preferredDepthSemantics() != nil else {
             return .lidarUnavailable
         }
 

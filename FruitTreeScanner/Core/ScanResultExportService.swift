@@ -134,6 +134,7 @@ final class ScanResultExportService: @unchecked Sendable {
             "yieldBCorrectedKg": finite(result.yieldBCorrectedKg),
             "treeHeightM": finite(result.treeHeightM),
             "crownVolM3": finite(result.crownVolM3),
+            "fruitMassEstimates": fruitMassEstimatePayloads(result.fruitMassEstimates),
             "diagnostics": [
                 "pointCloudPointCount": diagnostics.pointCloudPointCount,
                 "imageDetectionCount": diagnostics.imageDetectionCount,
@@ -191,6 +192,31 @@ final class ScanResultExportService: @unchecked Sendable {
         let data = try JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
         try data.write(to: metadataURL, options: .atomic)
         return metadataURL
+    }
+
+    private func fruitMassEstimatePayloads(_ estimates: [FruitMassEstimate]) -> [[String: Any]] {
+        estimates.map { estimate in
+            [
+                "id": estimate.id.uuidString,
+                "fruitCategory": estimate.fruitCategory,
+                "lengthCm": finite(estimate.lengthCm),
+                "widthCm": finite(estimate.widthCm),
+                "heightCm": finite(estimate.heightCm),
+                "equivalentDiameterCm": finite(estimate.equivalentDiameterCm),
+                "sphereVolumeCm3": finite(estimate.sphereVolumeCm3),
+                "ellipsoidVolumeCm3": finite(estimate.ellipsoidVolumeCm3),
+                "selectedVolumeCm3": finite(estimate.selectedVolumeCm3),
+                "densityGPerCm3": finite(estimate.densityGPerCm3),
+                "estimatedWeightG": finite(estimate.estimatedWeightG),
+                "confidenceScore": finite(estimate.confidenceScore),
+                "pointCount": nonNegative(estimate.pointCount),
+                "highConfidenceRatio": finite(estimate.highConfidenceRatio),
+                "validDepthRatio": finite(estimate.validDepthRatio),
+                "shapeModelUsed": estimate.shapeModelUsed.rawValue,
+                "warningFlags": estimate.warningFlags.map(\.rawValue),
+                "createdAt": ISO8601DateFormatter().string(from: estimate.createdAt)
+            ]
+        }
     }
 
     private func finite(_ value: Float) -> Float {

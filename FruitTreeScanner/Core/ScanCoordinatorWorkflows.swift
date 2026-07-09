@@ -76,10 +76,12 @@ extension ScanCoordinator {
     }
 
     func archiveStableFusionEvidence(detectorConfig: FruitScanConfig) {
+        let minimumObservations = max(detectorConfig.minimumStableDetectionsForYield, 2)
+        let minimumConfidence = max(detectorConfig.minConfidence, 0.85)
         let stableEvidence = DetectionDeduplicator.stableEvidenceDetections(
             detectedFruits.filter(\.hasAlignedDepthContext),
-            minimumObservations: max(detectorConfig.minimumStableDetectionsForYield, 2),
-            minimumConfidence: max(detectorConfig.minConfidence, 0.85),
+            minimumObservations: minimumObservations,
+            minimumConfidence: minimumConfidence,
             timeWindow: detectorConfig.stableDetectionTimeWindow
         )
         guard !stableEvidence.isEmpty else { return }
@@ -88,6 +90,13 @@ extension ScanCoordinator {
         for detection in stableEvidence where archivedIDs.insert(detection.id).inserted {
             archivedFusionEvidenceDetections.append(detection)
         }
+        archivedFusionEvidenceDetections = DetectionDeduplicator.compactStableEvidenceDetections(
+            archivedFusionEvidenceDetections,
+            minimumObservations: minimumObservations,
+            minimumConfidence: minimumConfidence,
+            timeWindow: detectorConfig.stableDetectionTimeWindow,
+            maxObservationsPerTrack: max(minimumObservations, 3)
+        )
     }
 
     func fusionEstimateDetectionsSnapshot() -> [DetectedFruit] {

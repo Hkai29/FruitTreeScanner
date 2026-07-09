@@ -147,7 +147,7 @@ struct OcclusionCorrector {
         visibleCount: Int,
         crownRadiusM: Float = 1.5,
         crownDepthM: Float = 0.4,
-        lidarPenetrationM: Float = 0.4
+        lidarPenetrationM: Float = FruitScanExperimentConfig.default.occlusion.lidarPenetrationMeters
     ) -> Float {
         correctionFactorDetailed(
             visibleCount: visibleCount,
@@ -162,7 +162,7 @@ struct OcclusionCorrector {
         visibleCount: Int,
         crownRadiusM: Float = 1.5,
         crownDepthM: Float = 0.4,
-        lidarPenetrationM: Float = 0.4,
+        lidarPenetrationM: Float = FruitScanExperimentConfig.default.occlusion.lidarPenetrationMeters,
         scanAngleCoverage: Float = 0.5,
         visualDetectionCount: Int? = nil,
         lidarDetectionCount: Int? = nil

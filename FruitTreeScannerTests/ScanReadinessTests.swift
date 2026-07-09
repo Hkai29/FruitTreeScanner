@@ -1,4 +1,5 @@
 import XCTest
+import ARKit
 @testable import FruitTreeScanner
 
 final class ScanReadinessTests: XCTestCase {
@@ -189,5 +190,29 @@ final class ScanCompletionEvaluatorTests: XCTestCase {
         )
 
         XCTAssertEqual(completion.statusHint, "放慢补扫树冠上下层")
+    }
+}
+
+final class ScanSessionConfigurationTests: XCTestCase {
+    func testPreferredDepthSemanticsPrefersSmoothedDepthWhenAvailable() {
+        let semantics = ScanSessionConfiguration.preferredDepthSemantics { requested in
+            requested == .sceneDepth || requested == .smoothedSceneDepth
+        }
+
+        XCTAssertEqual(semantics, .smoothedSceneDepth)
+    }
+
+    func testPreferredDepthSemanticsFallsBackToSceneDepth() {
+        let semantics = ScanSessionConfiguration.preferredDepthSemantics { requested in
+            requested == .sceneDepth
+        }
+
+        XCTAssertEqual(semantics, .sceneDepth)
+    }
+
+    func testPreferredDepthSemanticsReturnsNilWithoutDepthSupport() {
+        let semantics = ScanSessionConfiguration.preferredDepthSemantics { _ in false }
+
+        XCTAssertNil(semantics)
     }
 }

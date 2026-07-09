@@ -26,6 +26,9 @@
 		SCANYIELDHELP001 /* ScanYieldEstimateHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANYIELDHELP002 /* ScanYieldEstimateHelpers.swift */; };
 		SCANDIAG001 /* ScanDiagnosticsBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANDIAG002 /* ScanDiagnosticsBuilder.swift */; };
 		SCANFUSYLD001 /* ScanFusionYieldBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */; };
+		SCANFUSPIPE001 /* ScanFusionPipelines.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFUSPIPE002 /* ScanFusionPipelines.swift */; };
+		SCANDIAGUPD001 /* ScanFusionDiagnosticsUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANDIAGUPD002 /* ScanFusionDiagnosticsUpdater.swift */; };
+		YIELDCOMP001 /* YieldResultComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = YIELDCOMP002 /* YieldResultComposer.swift */; };
 		SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANRESULTEXP002 /* ScanResultExportService.swift */; };
 		CANOPYGEOM001 /* CanopyGeometryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CANOPYGEOM002 /* CanopyGeometryEstimator.swift */; };
 		FRUITMASS001 /* FruitMassEstimate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITMASS002 /* FruitMassEstimate.swift */; };
@@ -148,6 +151,7 @@
 		QUICKSCAN001 /* QuickScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = QUICKSCAN002 /* QuickScanView.swift */; };
 		MODEL279228 /* FruitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL987654321 /* FruitModels.swift */; };
 		FRUITDETMODEL001 /* FruitDetectionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITDETMODEL002 /* FruitDetectionModels.swift */; };
+		FRUITEXPCONF001 /* FruitScanExperimentConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITEXPCONF002 /* FruitScanExperimentConfig.swift */; };
 		FRUITCOLOR001 /* FruitColorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCOLOR002 /* FruitColorModels.swift */; };
 		FRUITMAP001 /* FruitModelMappings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITMAP002 /* FruitModelMappings.swift */; };
 		CLUSTER279228 /* PointCloudCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUSTER987654321 /* PointCloudCluster.swift */; };
@@ -169,6 +173,7 @@
 		FUSIONVAL279228 /* FusionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONVAL987654321 /* FusionValidator.swift */; };
 		FUSIONPROJ001 /* FusionValidatorProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONPROJ002 /* FusionValidatorProjection.swift */; };
 		FUSIONMATCH001 /* FusionValidatorMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONMATCH002 /* FusionValidatorMatching.swift */; };
+		FUSIONSVC001 /* FusionValidatorServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONSVC002 /* FusionValidatorServices.swift */; };
 		FRUITCNT279228 /* FruitCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCNT987654321 /* FruitCounter.swift */; };
 		SETTINGS279228 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGS987654321 /* SettingsStore.swift */; };
 		SETTINGSSUP001 /* SettingsStoreSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSSUP002 /* SettingsStoreSupport.swift */; };
@@ -308,6 +313,9 @@
 		SCANYIELDHELP002 /* ScanYieldEstimateHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanYieldEstimateHelpers.swift; sourceTree = "<group>"; };
 		SCANDIAG002 /* ScanDiagnosticsBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanDiagnosticsBuilder.swift; sourceTree = "<group>"; };
 		SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFusionYieldBuilder.swift; sourceTree = "<group>"; };
+		SCANFUSPIPE002 /* ScanFusionPipelines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFusionPipelines.swift; sourceTree = "<group>"; };
+		SCANDIAGUPD002 /* ScanFusionDiagnosticsUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFusionDiagnosticsUpdater.swift; sourceTree = "<group>"; };
+		YIELDCOMP002 /* YieldResultComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldResultComposer.swift; sourceTree = "<group>"; };
 		SCANRESULTEXP002 /* ScanResultExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultExportService.swift; sourceTree = "<group>"; };
 		CANOPYGEOM002 /* CanopyGeometryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanopyGeometryEstimator.swift; sourceTree = "<group>"; };
 		FRUITMASS002 /* FruitMassEstimate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitMassEstimate.swift; sourceTree = "<group>"; };
@@ -437,6 +445,7 @@
 		QUICKSCAN002 /* QuickScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickScanView.swift; sourceTree = "<group>"; };
 		MODEL987654321 /* FruitModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitModels.swift; sourceTree = "<group>"; };
 		FRUITDETMODEL002 /* FruitDetectionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitDetectionModels.swift; sourceTree = "<group>"; };
+		FRUITEXPCONF002 /* FruitScanExperimentConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitScanExperimentConfig.swift; sourceTree = "<group>"; };
 		FRUITCOLOR002 /* FruitColorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitColorModels.swift; sourceTree = "<group>"; };
 		FRUITMAP002 /* FruitModelMappings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitModelMappings.swift; sourceTree = "<group>"; };
 		CLUSTER987654321 /* PointCloudCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudCluster.swift; sourceTree = "<group>"; };
@@ -458,6 +467,7 @@
 		FUSIONVAL987654321 /* FusionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidator.swift; sourceTree = "<group>"; };
 		FUSIONPROJ002 /* FusionValidatorProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorProjection.swift; sourceTree = "<group>"; };
 		FUSIONMATCH002 /* FusionValidatorMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorMatching.swift; sourceTree = "<group>"; };
+		FUSIONSVC002 /* FusionValidatorServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorServices.swift; sourceTree = "<group>"; };
 		FRUITCNT987654321 /* FruitCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCounter.swift; sourceTree = "<group>"; };
 		SETTINGS987654321 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		SETTINGSSUP002 /* SettingsStoreSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreSupport.swift; sourceTree = "<group>"; };
@@ -838,6 +848,7 @@
 					PCDISPLAY002 /* PointCloudDisplayModels.swift */,
 				MODEL987654321 /* FruitModels.swift */,
 				FRUITDETMODEL002 /* FruitDetectionModels.swift */,
+				FRUITEXPCONF002 /* FruitScanExperimentConfig.swift */,
 				FRUITCOLOR002 /* FruitColorModels.swift */,
 				FRUITMAP002 /* FruitModelMappings.swift */,
 				SCANHIST987654321 /* ScanHistoryStore.swift */,
@@ -855,6 +866,9 @@
 				SCANYIELDHELP002 /* ScanYieldEstimateHelpers.swift */,
 				SCANDIAG002 /* ScanDiagnosticsBuilder.swift */,
 				SCANFUSYLD002 /* ScanFusionYieldBuilder.swift */,
+				SCANFUSPIPE002 /* ScanFusionPipelines.swift */,
+				SCANDIAGUPD002 /* ScanFusionDiagnosticsUpdater.swift */,
+				YIELDCOMP002 /* YieldResultComposer.swift */,
 				SCANRESULTEXP002 /* ScanResultExportService.swift */,
 				CANOPYGEOM002 /* CanopyGeometryEstimator.swift */,
 				FRUITMASS002 /* FruitMassEstimate.swift */,
@@ -882,6 +896,7 @@
 				FUSIONVAL987654321 /* FusionValidator.swift */,
 				FUSIONPROJ002 /* FusionValidatorProjection.swift */,
 				FUSIONMATCH002 /* FusionValidatorMatching.swift */,
+				FUSIONSVC002 /* FusionValidatorServices.swift */,
 				FRUITCNT987654321 /* FruitCounter.swift */,
 				SETTINGS987654321 /* SettingsStore.swift */,
 				SETTINGSSUP002 /* SettingsStoreSupport.swift */,
@@ -1148,6 +1163,7 @@
 				QUICKSCAN001 /* QuickScanView.swift in Sources */,
 				MODEL279228 /* FruitModels.swift in Sources */,
 				FRUITDETMODEL001 /* FruitDetectionModels.swift in Sources */,
+				FRUITEXPCONF001 /* FruitScanExperimentConfig.swift in Sources */,
 				FRUITCOLOR001 /* FruitColorModels.swift in Sources */,
 				FRUITMAP001 /* FruitModelMappings.swift in Sources */,
 				SCANHIST279228 /* ScanHistoryStore.swift in Sources */,
@@ -1167,6 +1183,9 @@
 				SCANYIELDHELP001 /* ScanYieldEstimateHelpers.swift in Sources */,
 				SCANDIAG001 /* ScanDiagnosticsBuilder.swift in Sources */,
 				SCANFUSYLD001 /* ScanFusionYieldBuilder.swift in Sources */,
+				SCANFUSPIPE001 /* ScanFusionPipelines.swift in Sources */,
+				SCANDIAGUPD001 /* ScanFusionDiagnosticsUpdater.swift in Sources */,
+				YIELDCOMP001 /* YieldResultComposer.swift in Sources */,
 				SCANRESULTEXP001 /* ScanResultExportService.swift in Sources */,
 				CANOPYGEOM001 /* CanopyGeometryEstimator.swift in Sources */,
 				FRUITMASS001 /* FruitMassEstimate.swift in Sources */,
@@ -1194,6 +1213,7 @@
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
 				FUSIONPROJ001 /* FusionValidatorProjection.swift in Sources */,
 				FUSIONMATCH001 /* FusionValidatorMatching.swift in Sources */,
+				FUSIONSVC001 /* FusionValidatorServices.swift in Sources */,
 				FRUITCNT279228 /* FruitCounter.swift in Sources */,
 				SETTINGS279228 /* SettingsStore.swift in Sources */,
 				SETTINGSSUP001 /* SettingsStoreSupport.swift in Sources */,

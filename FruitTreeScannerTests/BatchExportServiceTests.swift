@@ -70,6 +70,48 @@ final class BatchExportServiceTests: XCTestCase {
         return result
     }
 
+    private func makeMassEstimate(
+        id: UUID = UUID(),
+        fruitCategory: String = "apple",
+        lengthCm: Float = 8,
+        widthCm: Float = 8,
+        heightCm: Float = 8,
+        equivalentDiameterCm: Float = 8,
+        sphereVolumeCm3: Float = 268.08,
+        ellipsoidVolumeCm3: Float = 268.08,
+        selectedVolumeCm3: Float = 268.08,
+        densityGPerCm3: Float = 0.85,
+        estimatedWeightG: Float = 227.87,
+        confidenceScore: Float = 0.8,
+        pointCount: Int = 24,
+        highConfidenceRatio: Float = 0.9,
+        validDepthRatio: Float = 0.85,
+        shapeModelUsed: FruitShapeModelUsed = .sphere,
+        warningFlags: [FruitMassEstimateWarningFlag] = [.usingSphereBaseline],
+        createdAt: Date = Date(timeIntervalSince1970: 1717200000)
+    ) -> FruitMassEstimate {
+        FruitMassEstimate(
+            id: id,
+            fruitCategory: fruitCategory,
+            lengthCm: lengthCm,
+            widthCm: widthCm,
+            heightCm: heightCm,
+            equivalentDiameterCm: equivalentDiameterCm,
+            sphereVolumeCm3: sphereVolumeCm3,
+            ellipsoidVolumeCm3: ellipsoidVolumeCm3,
+            selectedVolumeCm3: selectedVolumeCm3,
+            densityGPerCm3: densityGPerCm3,
+            estimatedWeightG: estimatedWeightG,
+            confidenceScore: confidenceScore,
+            pointCount: pointCount,
+            highConfidenceRatio: highConfidenceRatio,
+            validDepthRatio: validDepthRatio,
+            shapeModelUsed: shapeModelUsed,
+            warningFlags: warningFlags,
+            createdAt: createdAt
+        )
+    }
+
     // MARK: - Helpers for CSV content inspection
 
     private func stripBOM(_ csv: String) -> String {
@@ -537,6 +579,23 @@ final class BatchExportServiceTests: XCTestCase {
         result.diagnostics.canopyPartitionCount = 9
         result.diagnostics.cameraAngleCoverage = 0.50
         result.diagnostics.scanAngleCoverage = 0.50
+        let massEstimateID = UUID()
+        result.fruitMassEstimates = [
+            makeMassEstimate(
+                id: massEstimateID,
+                fruitCategory: "apple",
+                lengthCm: 9.1,
+                widthCm: 8.2,
+                heightCm: 7.3,
+                equivalentDiameterCm: 8.2,
+                selectedVolumeCm3: 288.4,
+                estimatedWeightG: 245.1,
+                confidenceScore: 0.76,
+                pointCount: 42,
+                shapeModelUsed: .ellipsoid,
+                warningFlags: [.usingEllipsoidBaseline]
+            )
+        ]
         let request = ScanResultExportService.ExportRequest(
             treeID: "=FORMULA(1+2)",
             fruitType: "+SUM(A1:A10)",
@@ -613,6 +672,19 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(diagnostics["canopyPartitionCount"] as? Int, 9)
         XCTAssertEqual(try XCTUnwrap(diagnostics["cameraAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
         XCTAssertEqual(try XCTUnwrap(diagnostics["scanAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
+
+        let massEstimates = try XCTUnwrap(payload["fruitMassEstimates"] as? [[String: Any]])
+        XCTAssertEqual(massEstimates.count, 1)
+        let estimate = massEstimates[0]
+        XCTAssertEqual(estimate["id"] as? String, massEstimateID.uuidString)
+        XCTAssertEqual(estimate["fruitCategory"] as? String, "apple")
+        XCTAssertEqual(try XCTUnwrap(estimate["lengthCm"] as? NSNumber).doubleValue, 9.1, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(estimate["selectedVolumeCm3"] as? NSNumber).doubleValue, 288.4, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(estimate["estimatedWeightG"] as? NSNumber).doubleValue, 245.1, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(estimate["confidenceScore"] as? NSNumber).doubleValue, 0.76, accuracy: 0.0001)
+        XCTAssertEqual(estimate["pointCount"] as? Int, 42)
+        XCTAssertEqual(estimate["shapeModelUsed"] as? String, "ellipsoid")
+        XCTAssertEqual(estimate["warningFlags"] as? [String], ["usingEllipsoidBaseline"])
     }
 
     func testScanResultExportSanitizesNonFiniteNumericValues() throws {
@@ -626,6 +698,17 @@ final class BatchExportServiceTests: XCTestCase {
         result.correctionK = .nan
         result.yieldBVisibleKg = .infinity
         result.yieldBCorrectedKg = -.infinity
+        result.fruitMassEstimates = [
+            makeMassEstimate(
+                lengthCm: .nan,
+                widthCm: .infinity,
+                heightCm: -.infinity,
+                selectedVolumeCm3: .nan,
+                estimatedWeightG: .infinity,
+                confidenceScore: .nan,
+                pointCount: -4
+            )
+        ]
 
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-clean",
@@ -670,6 +753,21 @@ final class BatchExportServiceTests: XCTestCase {
             let value = try XCTUnwrap(payload[key] as? NSNumber, "Missing numeric key \(key)")
             XCTAssertEqual(value.doubleValue, 0, accuracy: 0.000001, key)
         }
+
+        let massEstimates = try XCTUnwrap(payload["fruitMassEstimates"] as? [[String: Any]])
+        let estimate = try XCTUnwrap(massEstimates.first)
+        for key in [
+            "lengthCm",
+            "widthCm",
+            "heightCm",
+            "selectedVolumeCm3",
+            "estimatedWeightG",
+            "confidenceScore"
+        ] {
+            let value = try XCTUnwrap(estimate[key] as? NSNumber, "Missing mass-estimate key \(key)")
+            XCTAssertEqual(value.doubleValue, 0, accuracy: 0.000001, key)
+        }
+        XCTAssertEqual(estimate["pointCount"] as? Int, 0)
     }
 
     func testScanResultExportBoundsGPSCoordinates() throws {

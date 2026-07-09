@@ -10,13 +10,6 @@ import simd
 
 final class FusionValidator: Sendable {
 
-    private struct ProjectionContext {
-        let depthMap: CVPixelBuffer?
-        let cameraIntrinsics: matrix_float3x3
-        let cameraTransform: simd_float4x4
-        let imageSize: CGSize
-    }
-
     // MARK: - Properties
 
     let config: FruitScanConfig
@@ -33,13 +26,15 @@ final class FusionValidator: Sendable {
         detections: [DetectedFruit],
         candidates: [FruitCandidate],
         depthMap: CVPixelBuffer?,
+        depthConfidenceMap: CVPixelBuffer? = nil,
         cameraIntrinsics: matrix_float3x3,
         cameraTransform: simd_float4x4,
         imageSize: CGSize
     ) -> [ValidatedFruit] {
         validate(detections: detections, candidates: candidates) { detection in
-            ProjectionContext(
+            FusionProjectionContext(
                 depthMap: depthMap,
+                depthConfidenceMap: depthConfidenceMap,
                 cameraIntrinsics: detection.cameraIntrinsics ?? cameraIntrinsics,
                 cameraTransform: detection.cameraTransform ?? cameraTransform,
                 imageSize: detection.imageSize ?? imageSize
@@ -62,8 +57,9 @@ final class FusionValidator: Sendable {
             else {
                 return nil
             }
-            return ProjectionContext(
+            return FusionProjectionContext(
                 depthMap: depthMap,
+                depthConfidenceMap: detection.depthConfidenceMap,
                 cameraIntrinsics: cameraIntrinsics,
                 cameraTransform: cameraTransform,
                 imageSize: imageSize
@@ -74,125 +70,67 @@ final class FusionValidator: Sendable {
     private func validate(
         detections: [DetectedFruit],
         candidates: [FruitCandidate],
-        projectionContext: (DetectedFruit) -> ProjectionContext?
+        projectionContext: (DetectedFruit) -> FusionProjectionContext?
     ) -> [ValidatedFruit] {
+        let projectionService = DepthProjectionService(validator: self)
+        let candidateMatcher = CandidateMatcher(validator: self)
+        let decisionPolicy = FusionDecisionPolicy()
         var validatedFruits: [ValidatedFruit] = []
         var usedCandidateIDs = Set<UUID>()
 
         for detection in detections {
             guard let context = projectionContext(detection) else { continue }
 
-            let projectedPosition = projectDetectionTo3D(
+            let projection = projectionService.project(
                 detection: detection,
-                depthMap: context.depthMap,
-                cameraIntrinsics: context.cameraIntrinsics,
-                cameraTransform: context.cameraTransform,
-                imageSize: context.imageSize
-            )
-            let depthProjectedPosition = projectDetectionTo3DWithValidDepth(
-                detection: detection,
-                depthMap: context.depthMap,
-                cameraIntrinsics: context.cameraIntrinsics,
-                cameraTransform: context.cameraTransform,
-                imageSize: context.imageSize
+                context: context
             )
 
-            // Find nearest candidate within tolerance
             let availableCandidates = candidates.filter { !usedCandidateIDs.contains($0.id) }
-            let matchedCandidate = depthProjectedPosition.flatMap { position in
-                findNearestCandidate(
-                    position: position,
+            let matchedCandidate = candidateMatcher.nearestCandidate(
+                position: projection.depthProjectedPosition,
+                candidates: availableCandidates,
+                detection: detection,
+                context: context
+            )
+            let rejectedByDepthCandidate = projection.depthProjectedPosition.map { depthProjectedPosition in
+                candidateMatcher.hasRejectedDetectionDepthCandidate(
+                    near: depthProjectedPosition,
                     candidates: availableCandidates,
                     detection: detection,
-                    cameraIntrinsics: context.cameraIntrinsics,
-                    cameraTransform: context.cameraTransform,
-                    imageSize: context.imageSize
+                    context: context
                 )
-            }
+            } ?? false
 
-            if let candidate = matchedCandidate {
+            switch decisionPolicy.decide(
+                detection: detection,
+                projectedPosition: projection.projectedPosition,
+                matchedCandidate: matchedCandidate,
+                rejectedByDepthCandidate: rejectedByDepthCandidate
+            ) {
+            case let .fused(candidate):
                 usedCandidateIDs.insert(candidate.id)
-
-                // Fused: both image and point cloud validated
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: candidate.position,
-                    confidence: fusedConfidence(detection: detection, candidate: candidate),
+                    confidence: decisionPolicy.fusedConfidence(detection: detection, candidate: candidate),
                     source: .fused
                 )
                 validatedFruits.append(validatedFruit)
-            } else {
-                if let depthProjectedPosition,
-                   hasRejectedDetectionDepthCandidate(
-                       near: depthProjectedPosition,
-                       candidates: availableCandidates,
-                       detection: detection,
-                       cameraIntrinsics: context.cameraIntrinsics,
-                       cameraTransform: context.cameraTransform,
-                       imageSize: context.imageSize
-                   ) {
-                    continue
-                }
-                // Image only: no matching candidate found
+            case let .imageOnly(position):
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
-                    position: projectedPosition,
+                    position: position,
                     confidence: detection.confidence,
                     source: .imageOnly
                 )
                 validatedFruits.append(validatedFruit)
+            case .rejected:
+                continue
             }
         }
 
         return validatedFruits
-    }
-
-    private func hasRejectedDetectionDepthCandidate(
-        near projectedPosition: SIMD3<Float>,
-        candidates: [FruitCandidate],
-        detection: DetectedFruit,
-        cameraIntrinsics: matrix_float3x3,
-        cameraTransform: simd_float4x4,
-        imageSize: CGSize
-    ) -> Bool {
-        let expandedBox = detection.boundingBox.insetBy(
-            dx: -detection.boundingBox.width * 0.12,
-            dy: -detection.boundingBox.height * 0.12
-        )
-
-        return candidates.contains { candidate in
-            guard candidate.sourceCategory == detection.category,
-                  candidate.depthSupportRatio != nil else {
-                return false
-            }
-
-            let distance = simd_distance(projectedPosition, candidate.position)
-            let distanceThreshold = max(0.08, min(candidate.diameter * 3.0, 0.24))
-            if distance <= distanceThreshold {
-                return true
-            }
-
-            guard let projectedCandidate = Self.projectWorldPointToNormalizedImage(
-                candidate.position,
-                cameraIntrinsics: cameraIntrinsics,
-                cameraTransform: cameraTransform,
-                imageSize: imageSize
-            ) else {
-                return false
-            }
-            return expandedBox.contains(projectedCandidate)
-        }
-    }
-
-    private func fusedConfidence(detection: DetectedFruit, candidate: FruitCandidate) -> Float {
-        let depthSupportQuality: Float
-        if let depthSupportRatio = candidate.depthSupportRatio {
-            let clampedRatio = min(max(depthSupportRatio, 0), 1)
-            depthSupportQuality = 0.55 + clampedRatio * 0.45
-        } else {
-            depthSupportQuality = 1
-        }
-        return min(max(detection.confidence * candidate.sphericity * depthSupportQuality, 0), 1)
     }
 
 }

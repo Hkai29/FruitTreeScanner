@@ -14,7 +14,8 @@ extension FusionValidator {
         cameraTransform: simd_float4x4? = nil,
         imageSize: CGSize? = nil
     ) -> FruitCandidate? {
-        let positionTolerance: Float = 0.15
+        let experimentConfig = FruitScanExperimentConfig.default.fusion
+        let positionTolerance = experimentConfig.nearestCandidateDistance
         let sizeTolerance = config.sizeTolerance
 
         var nearestCandidate: FruitCandidate?
@@ -36,9 +37,15 @@ extension FusionValidator {
                 cameraTransform: cameraTransform,
                 imageSize: imageSize
             )
-            let relaxedTolerance = max(positionTolerance, min(candidate.diameter * 3.0, 0.30))
+            let relaxedTolerance = max(
+                positionTolerance,
+                min(
+                    candidate.diameter * experimentConfig.relaxedDistanceMultiplier,
+                    experimentConfig.relaxedDistanceCap
+                )
+            )
             let centerMatch = distance < positionTolerance
-            let frustumMatch = frustumEvidence.ratio >= 0.25 && distance < relaxedTolerance
+            let frustumMatch = frustumEvidence.ratio >= experimentConfig.frustumSupportRatio && distance < relaxedTolerance
             let projectedCenterMatch = frustumEvidence.centerInside && distance < relaxedTolerance
 
             guard centerMatch || frustumMatch || projectedCenterMatch else { continue }
@@ -69,7 +76,10 @@ extension FusionValidator {
             return (0, false)
         }
 
-        let box = expandedDetectionBox(detection.boundingBox, by: 0.12)
+        let box = expandedDetectionBox(
+            detection.boundingBox,
+            by: CGFloat(FruitScanExperimentConfig.default.fusion.projectedBoxExpansionFraction)
+        )
         let centerInside = Self.projectWorldPointToNormalizedImage(
             candidate.position,
             cameraIntrinsics: cameraIntrinsics,

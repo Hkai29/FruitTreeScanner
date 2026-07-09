@@ -41,6 +41,32 @@ final class FusionValidatorTests: XCTestCase {
         return buffer
     }
 
+    private func makeConfidenceMap(width: Int, height: Int, fillValue: UInt8) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width, height,
+            kCVPixelFormatType_OneComponent8,
+            nil,
+            &pixelBuffer
+        )
+        guard status == kCVReturnSuccess, let buffer = pixelBuffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+            for y in 0 ..< height {
+                let rowPointer = baseAddress
+                    .advanced(by: y * bytesPerRow)
+                    .assumingMemoryBound(to: UInt8.self)
+                for x in 0 ..< width {
+                    rowPointer[x] = fillValue
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        return buffer
+    }
+
     private func setDepth(_ depthMap: CVPixelBuffer, x: Int, y: Int, value: Float) {
         CVPixelBufferLockBaseAddress(depthMap, [])
         defer { CVPixelBufferUnlockBaseAddress(depthMap, []) }
@@ -164,6 +190,39 @@ final class FusionValidatorTests: XCTestCase {
             result.first?.source,
             .imageOnly,
             "无有效 ROI 深度时不能用默认 2m 投影把候选提升为 fused"
+        )
+    }
+
+    func testValidateDoesNotFuseCandidateUsingLowConfidenceDepth() {
+        let validator = FusionValidator(config: .default)
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        let confidenceMap = makeConfidenceMap(width: 256, height: 192, fillValue: 0)
+        XCTAssertNotNil(depthMap)
+        XCTAssertNotNil(confidenceMap)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap,
+            depthConfidenceMap: confidenceMap
+        )
+        let depthPositionCandidate = appleCandidate(at: SIMD3<Float>(0, 0, 2))
+
+        let result = validator.validate(
+            detections: [detection],
+            candidates: [depthPositionCandidate]
+        )
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(
+            result.first?.source,
+            .imageOnly,
+            "低置信度 ROI 深度不能把 2D 检测提升为 fused"
         )
     }
 
@@ -372,6 +431,37 @@ final class FusionValidatorTests: XCTestCase {
         XCTAssertEqual(candidate.pointCount, 9, "应只保留中心主簇，而不是把侧边深度团一起平均")
         XCTAssertLessThan(abs(candidate.position.x), 0.03, "候选中心应靠近检测框主簇中心")
         XCTAssertEqual(candidate.depthSupportRatio ?? 0, 9.0 / 81.0, accuracy: 0.001)
+    }
+
+    func testDetectionDepthCandidateRejectsLowConfidenceROIDepth() {
+        let depthMap = makeDepthMap(width: 90, height: 90, fillValue: 2.0)
+        let confidenceMap = makeConfidenceMap(width: 90, height: 90, fillValue: 0)
+        XCTAssertNotNil(depthMap)
+        XCTAssertNotNil(confidenceMap)
+        let imageSize = CGSize(width: 900, height: 900)
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.35, y: 0.35, width: 0.30, height: 0.30),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 1000, fy: 1000, cx: 450, cy: 450),
+            imageSize: imageSize,
+            depthMap: depthMap,
+            depthConfidenceMap: confidenceMap
+        )
+
+        let candidates = DetectionDepthCandidateBuilder.makeCandidates(
+            from: [detection],
+            clusterConfig: ClusterConfig(
+                minPoints: 3,
+                minDiameter: 0.015,
+                maxDiameter: 0.20,
+                baseEps: 0.1,
+                sphericityThreshold: 0.5
+            )
+        )
+
+        XCTAssertTrue(candidates.isEmpty, "低置信度 ROI 深度不能生成 3D 果实候选")
     }
 
     func testDetectionDepthCandidatePrefersCenteredFruitClusterOverLargerEdgeCluster() throws {

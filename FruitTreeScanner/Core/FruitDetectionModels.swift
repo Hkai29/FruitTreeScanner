@@ -9,9 +9,9 @@ import simd
 // MARK: - 图像检测结果
 /// A detection and the AR frame data required to place it in world space.
 ///
-/// `depthMap` is a private, copied depth buffer captured with the RGB frame.
-/// Core Video buffers are not formally `Sendable`, but this value never shares
-/// ARKit's reusable buffer pool across queues.
+/// `depthMap` and `depthConfidenceMap` are private, copied buffers captured with
+/// the RGB frame. Core Video buffers are not formally `Sendable`, but this value
+/// never shares ARKit's reusable buffer pool across queues.
 struct DetectedFruit: Identifiable, @unchecked Sendable {
     let id: UUID
     let category: FruitCategory
@@ -22,6 +22,7 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
     let cameraIntrinsics: simd_float3x3?
     let imageSize: CGSize?
     let depthMap: CVPixelBuffer?
+    let depthConfidenceMap: CVPixelBuffer?
 
     var hasAlignedDepthContext: Bool {
         depthMap != nil && cameraTransform != nil && cameraIntrinsics != nil && imageSize != nil
@@ -35,7 +36,8 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
         cameraTransform: simd_float4x4? = nil,
         cameraIntrinsics: simd_float3x3? = nil,
         imageSize: CGSize? = nil,
-        depthMap: CVPixelBuffer? = nil
+        depthMap: CVPixelBuffer? = nil,
+        depthConfidenceMap: CVPixelBuffer? = nil
     ) {
         self.id = UUID()
         self.category = category
@@ -46,6 +48,7 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
         self.cameraIntrinsics = cameraIntrinsics
         self.imageSize = imageSize
         self.depthMap = depthMap
+        self.depthConfidenceMap = depthConfidenceMap
     }
 }
 
@@ -194,23 +197,23 @@ struct ValidatedFruitData: Codable {
 
 // MARK: - 扫描配置
 struct FruitScanConfig: Sendable {
-    var imageDetectionInterval: Int = 10
-    var minConfidence: Float = 0.5
-    var sizeTolerance: Float = 0.35
-    var sphericityThreshold: Float = 0.5
-    var minimumStableDetectionsForYield: Int = 1
-    var stableDetectionTimeWindow: TimeInterval = 3.5
+    var imageDetectionInterval: Int = FruitScanExperimentConfig.default.detector.imageDetectionInterval
+    var minConfidence: Float = FruitScanExperimentConfig.default.detector.minConfidence
+    var sizeTolerance: Float = FruitScanExperimentConfig.default.fusion.sizeTolerance
+    var sphericityThreshold: Float = FruitScanExperimentConfig.default.fusion.sphericityThreshold
+    var minimumStableDetectionsForYield: Int = FruitScanExperimentConfig.default.fusion.minimumStableDetections
+    var stableDetectionTimeWindow: TimeInterval = FruitScanExperimentConfig.default.fusion.stableDetectionTimeWindow
 
     static let `default` = FruitScanConfig()
 }
 
 // MARK: - 聚类配置
 struct ClusterConfig: Sendable {
-    var minPoints: Int = 3
-    var minDiameter: Float = 0.015
-    var maxDiameter: Float = 0.20
-    var baseEps: Float = 0.1
-    var sphericityThreshold: Float = 0.5
+    var minPoints: Int = FruitScanExperimentConfig.default.clustering.minPoints
+    var minDiameter: Float = FruitScanExperimentConfig.default.clustering.minDiameter
+    var maxDiameter: Float = FruitScanExperimentConfig.default.clustering.maxDiameter
+    var baseEps: Float = FruitScanExperimentConfig.default.clustering.baseEps
+    var sphericityThreshold: Float = FruitScanExperimentConfig.default.clustering.sphericityThreshold
 
     static let `default` = ClusterConfig()
 }
