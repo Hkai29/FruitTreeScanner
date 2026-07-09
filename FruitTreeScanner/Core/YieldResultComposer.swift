@@ -416,6 +416,7 @@ struct YieldResultComposer {
         ScanFusionDiagnosticsUpdater.applyCanopyGeometry(canopyGeometry, to: &result)
         result.diagnostics = diagnostics
         result.fruitMassEstimates = visibleYieldEstimate.massEstimates
+        result.validatedFruits = validatedFruits.map { ValidatedFruitData(from: $0) }
         return result
     }
 

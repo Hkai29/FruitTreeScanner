@@ -175,7 +175,7 @@ struct FruitCountResult: Codable, Sendable {
 }
 
 // Codable 版本（用于 JSON 序列化）
-struct ValidatedFruitData: Codable {
+struct ValidatedFruitData: Codable, Sendable {
     let id: String
     let category: String?
     let positionX: Float

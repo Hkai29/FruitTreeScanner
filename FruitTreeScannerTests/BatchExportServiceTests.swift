@@ -579,6 +579,34 @@ final class BatchExportServiceTests: XCTestCase {
         result.diagnostics.canopyPartitionCount = 9
         result.diagnostics.cameraAngleCoverage = 0.50
         result.diagnostics.scanAngleCoverage = 0.50
+        result.diagnostics.imageFramesProcessed = 12
+        result.diagnostics.imageObservationCount = 9
+        result.diagnostics.imageConfidenceFilteredCount = 2
+        result.diagnostics.imageMappedFruitCount = 4
+        result.diagnostics.imageModelStatus = "loaded"
+        result.diagnostics.imageModelName = "mock-detector"
+        result.diagnostics.imageFailureReason = "none"
+        result.diagnostics.zeroYieldReasons = ["mock low coverage", "mock no fused fruit"]
+        result.validatedFruits = [
+            ValidatedFruitData(from: ValidatedFruit(
+                category: .apple,
+                position: SIMD3<Float>(1, 2, 3),
+                confidence: 0.91,
+                source: .fused
+            )),
+            ValidatedFruitData(from: ValidatedFruit(
+                category: .apple,
+                position: SIMD3<Float>(4, 5, 6),
+                confidence: 0.72,
+                source: .imageOnly
+            )),
+            ValidatedFruitData(from: ValidatedFruit(
+                category: .apple,
+                position: SIMD3<Float>(7, 8, 9),
+                confidence: 0.63,
+                source: .cloudOnly
+            ))
+        ]
         let massEstimateID = UUID()
         result.fruitMassEstimates = [
             makeMassEstimate(
@@ -629,6 +657,8 @@ final class BatchExportServiceTests: XCTestCase {
         let metadataURL = try XCTUnwrap(exported.metadataURL)
         let data = try Data(contentsOf: metadataURL)
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["scanID"] as? String, (sourceFilename as NSString).deletingPathExtension)
+        XCTAssertEqual(payload["sourceFilename"] as? String, sourceFilename)
         XCTAssertEqual(payload["treeID"] as? String, "=FORMULA(1+2)")
         XCTAssertEqual(payload["fruitCount"] as? Int, 12)
         let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [String: Any])
@@ -672,6 +702,21 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(diagnostics["canopyPartitionCount"] as? Int, 9)
         XCTAssertEqual(try XCTUnwrap(diagnostics["cameraAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
         XCTAssertEqual(try XCTUnwrap(diagnostics["scanAngleCoverage"] as? NSNumber).doubleValue, 0.50, accuracy: 0.0001)
+        XCTAssertEqual(diagnostics["imageFramesProcessed"] as? Int, 12)
+        XCTAssertEqual(diagnostics["imageObservationCount"] as? Int, 9)
+        XCTAssertEqual(diagnostics["imageConfidenceFilteredCount"] as? Int, 2)
+        XCTAssertEqual(diagnostics["imageMappedFruitCount"] as? Int, 4)
+        XCTAssertEqual(diagnostics["imageModelStatus"] as? String, "loaded")
+        XCTAssertEqual(diagnostics["imageModelName"] as? String, "mock-detector")
+        XCTAssertEqual(diagnostics["imageFailureReason"] as? String, "none")
+        XCTAssertEqual(diagnostics["zeroYieldReasons"] as? [String], ["mock low coverage", "mock no fused fruit"])
+
+        let validatedFruits = try XCTUnwrap(payload["validatedFruits"] as? [[String: Any]])
+        XCTAssertEqual(validatedFruits.count, 3)
+        XCTAssertEqual(validatedFruits.map { $0["source"] as? String }, ["fused", "image_only", "cloud_only"])
+        XCTAssertEqual(validatedFruits[0]["category"] as? String, "apple")
+        XCTAssertEqual(try XCTUnwrap(validatedFruits[0]["positionX"] as? NSNumber).doubleValue, 1, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(validatedFruits[0]["confidence"] as? NSNumber).doubleValue, 0.91, accuracy: 0.0001)
 
         let massEstimates = try XCTUnwrap(payload["fruitMassEstimates"] as? [[String: Any]])
         XCTAssertEqual(massEstimates.count, 1)

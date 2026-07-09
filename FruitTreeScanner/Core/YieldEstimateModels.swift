@@ -40,6 +40,7 @@ struct YieldResult: Sendable {
     var pointCloudSize: Int = 0
     var diagnostics: ScanYieldDiagnostics = ScanYieldDiagnostics()
     var fruitMassEstimates: [FruitMassEstimate] = []
+    var validatedFruits: [ValidatedFruitData] = []
 }
 
 struct ScanYieldDiagnostics: Sendable, Equatable {

@@ -114,6 +114,8 @@ final class ScanResultExportService: @unchecked Sendable {
         let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
         let diagnostics = result.diagnostics
         let payload: [String: Any] = [
+            "scanID": baseName,
+            "sourceFilename": request.sourceFilename,
             "treeID": request.treeID,
             "fruitType": request.fruitType,
             "fruitCount": nonNegative(result.nLidar),
@@ -135,6 +137,7 @@ final class ScanResultExportService: @unchecked Sendable {
             "treeHeightM": finite(result.treeHeightM),
             "crownVolM3": finite(result.crownVolM3),
             "fruitMassEstimates": fruitMassEstimatePayloads(result.fruitMassEstimates),
+            "validatedFruits": validatedFruitPayloads(result.validatedFruits),
             "diagnostics": [
                 "pointCloudPointCount": diagnostics.pointCloudPointCount,
                 "imageDetectionCount": diagnostics.imageDetectionCount,
@@ -182,7 +185,15 @@ final class ScanResultExportService: @unchecked Sendable {
                 "cameraAngleCoverage": finite(diagnostics.cameraAngleCoverage),
                 "scanAngleCoverage": finite(diagnostics.scanAngleCoverage),
                 "depthAvailable": diagnostics.depthAvailable,
-                "cloudOnlyConservativeMode": diagnostics.cloudOnlyConservativeMode
+                "cloudOnlyConservativeMode": diagnostics.cloudOnlyConservativeMode,
+                "imageFramesProcessed": diagnostics.imageFramesProcessed,
+                "imageObservationCount": diagnostics.imageObservationCount,
+                "imageConfidenceFilteredCount": diagnostics.imageConfidenceFilteredCount,
+                "imageMappedFruitCount": diagnostics.imageMappedFruitCount,
+                "imageModelStatus": diagnostics.imageModelStatus,
+                "imageModelName": diagnostics.imageModelName,
+                "imageFailureReason": diagnostics.imageFailureReason,
+                "zeroYieldReasons": diagnostics.zeroYieldReasons
             ],
             "gpsLat": latitude(request.gpsLat),
             "gpsLon": longitude(request.gpsLon),
@@ -215,6 +226,20 @@ final class ScanResultExportService: @unchecked Sendable {
                 "shapeModelUsed": estimate.shapeModelUsed.rawValue,
                 "warningFlags": estimate.warningFlags.map(\.rawValue),
                 "createdAt": ISO8601DateFormatter().string(from: estimate.createdAt)
+            ]
+        }
+    }
+
+    private func validatedFruitPayloads(_ fruits: [ValidatedFruitData]) -> [[String: Any]] {
+        fruits.map { fruit in
+            [
+                "id": fruit.id,
+                "category": fruit.category.map { $0 as Any } ?? NSNull(),
+                "positionX": finite(fruit.positionX),
+                "positionY": finite(fruit.positionY),
+                "positionZ": finite(fruit.positionZ),
+                "confidence": finite(fruit.confidence),
+                "source": fruit.source
             ]
         }
     }
