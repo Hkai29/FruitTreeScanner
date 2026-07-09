@@ -45,6 +45,14 @@ The audit utility added in this change writes compact reports:
 - `ml/audit_reports/dataset_audit_summary.json`
 - `ml/audit_reports/dataset_class_distribution.csv`
 
+The mapping guard added after the initial audit is:
+
+- `tools/ml/check_data_yaml_app_mapping.py`
+- Default data source: `ml/datasets/fruit_dataset_26/data.yaml`
+- Default App mapping source: `FruitTreeScanner/Core/FruitModelMappings.swift`
+- It fails when `data.yaml` is missing, `nc` differs from `names.count`, class count differs from `CustomFruitID`, raw label order differs, or normalized label order differs.
+- Current result: `OK: data.yaml labels match FruitCategory.customModelLabelOrder`
+
 ## 3. Dataset Problems Found
 
 Structural checks passed on the current dataset:
@@ -113,9 +121,18 @@ App thresholds:
 Missing export validation:
 
 - No script currently proves that PyTorch YOLO and exported CoreML return the same label order and comparable outputs on a fixed image set
-- No model-card style record ties the App-bundled `FruitsDetector.mlpackage` to the exact `best.pt`, dataset hash, script version, and metrics
+- No completed model-card style record ties the App-bundled `FruitsDetector.mlpackage` to the exact `best.pt`, dataset hash, script version, and metrics
 
 The added `tools/ml/check_model_metadata.py` is a metadata/spec checker. It is not an inference parity checker.
+
+The production export guard in `tools/ml/export_coreml.py` now refuses COCO fallback. Before export, it requires:
+
+- A readable `data.yaml`
+- `nc` equal to `names.count`
+- `names` matching the 26-class FruitTreeScanner label order
+- A custom-trained `best.pt` from `--weights` or known training-run candidates
+
+If custom weights are missing, it fails with `missing custom weights` and `refusing COCO fallback for FruitTreeScanner production model`. `--dry-run` validates these checks without importing Ultralytics or exporting CoreML.
 
 ## 6. App Category Mapping Compatibility
 
@@ -145,7 +162,7 @@ Single-scan JSON and batch JSON both preserve recognition diagnostics. The selec
 
 P0 risks:
 
-- `export_coreml.py` can silently fall back to COCO `yolov8s.pt` when custom weights are missing, then produce a model incompatible with the 26-class App mapping.
+- Legacy notebooks or manual workflows can still create COCO exports if used outside the guarded production export script. The production `tools/ml/export_coreml.py` path now refuses COCO fallback.
 - There is no fixed test split, so validation quality can be overstated and cannot measure held-out orchard generalization.
 - No export parity gate currently proves CoreML labels and outputs match the PyTorch model selected for release.
 
@@ -167,10 +184,9 @@ P2 risks:
 
 P0:
 
-- Disable or remove COCO fallback export for production model creation.
-- Require the training command to fail if custom `best.pt` is missing.
+- Use `tools/ml/export_coreml.py`; it now disables COCO fallback for production export and requires custom `best.pt`.
 - Add a fixed `test` split or external held-out orchard test set before declaring quality.
-- Keep `data.yaml`, `CustomFruitID`, and `FruitCategory.customModelLabelOrder` locked together by test.
+- Keep `data.yaml`, `CustomFruitID`, and `FruitCategory.customModelLabelOrder` locked together with `tools/ml/check_data_yaml_app_mapping.py`.
 - Require model metadata labels to match App label order before replacing `FruitsDetector.mlpackage`.
 - Record exact dataset path/hash, training args, source weights, metrics, and export args for every release candidate.
 
@@ -193,18 +209,21 @@ P2:
 
 1. Freeze label order and supported class set before training.
 2. Run `tools/ml/audit_yolo_dataset.py --hash-duplicates` on the candidate dataset.
-3. Create a fixed test split that is never used for training or early stopping.
-4. Decide whether to train all 26 classes or a smaller high-quality subset.
-5. Remove weak remaps and ambiguous labels from the training source.
-6. Train with documented Ultralytics version, source weights, image size, epochs, batch, augmentations, and seed.
-7. Save per-class metrics, confusion matrix, PR curves, sample predictions, and failure cases.
-8. Export CoreML with class labels preserved and `nms=False` unless the App parser is intentionally changed.
-9. Run metadata checks and inference parity checks before copying any model into `FruitTreeScanner/Core/`.
-10. Validate the release candidate on a LiDAR-capable iOS/iPadOS device before claiming scan-to-yield reliability.
+3. Run `tools/ml/check_data_yaml_app_mapping.py` and fix any class order mismatch.
+4. Create a fixed test split that is never used for training or early stopping.
+5. Decide whether to train all 26 classes or a smaller high-quality subset.
+6. Remove weak remaps and ambiguous labels from the training source.
+7. Train with documented Ultralytics version, source weights, image size, epochs, batch, augmentations, and seed.
+8. Fill out `docs/templates/recognition_model_card.md` for the candidate run.
+9. Save per-class metrics, confusion matrix, PR curves, sample predictions, and failure cases.
+10. Export CoreML through `tools/ml/export_coreml.py --weights <best.pt> --data-yaml <data.yaml>` with class labels preserved and `nms=False` unless the App parser is intentionally changed.
+11. Run metadata checks and inference parity checks before copying any model into `FruitTreeScanner/Core/`.
+12. Validate the release candidate on a LiDAR-capable iOS/iPadOS device before claiming scan-to-yield reliability.
 
 ## 10. Post-training Validation Checklist
 
 - `data.yaml` labels match App label order.
+- `tools/ml/check_data_yaml_app_mapping.py` passes.
 - No missing labels/images, empty labels, bbox errors, out-of-range class IDs, split leakage, or duplicate images.
 - Fixed test set metrics are recorded.
 - Per-class precision, recall, mAP50, and mAP50-95 are recorded.
@@ -212,6 +231,8 @@ P2:
 - CoreML metadata `names` exactly matches expected labels.
 - CoreML input size and output shape match App parser assumptions.
 - CoreML export uses expected NMS behavior.
+- `tools/ml/export_coreml.py --dry-run --weights <best.pt> --data-yaml <data.yaml>` passes before export.
+- `docs/templates/recognition_model_card.md` is completed for the candidate model.
 - PyTorch/CoreML inference parity is checked on representative images.
 - Single-scan JSON and batch JSON include recognition diagnostics.
 - Simulator tests pass for detection diagnostics and mapping.
@@ -239,26 +260,26 @@ Task 2: model metadata checker
 
 Task 3: data.yaml to FruitCategory consistency test
 
-- Goal: Add an XCTest or lightweight script that fails when `data.yaml` order diverges from `FruitCategory.customModelLabelOrder`.
-- Files: `FruitTreeScannerTests/FruitModelsTests.swift` or `tools/ml/*`
+- Goal: Keep `data.yaml` order locked to `FruitCategory.customModelLabelOrder`.
+- Files: `tools/ml/check_data_yaml_app_mapping.py`
 - App changes: No production behavior change
 - Model changes: No
-- Test: targeted FruitModels test.
+- Test: `python3 tools/ml/check_data_yaml_app_mapping.py`
 - Risk: Low.
 
 Task 4: CoreML export verification doc
 
 - Goal: Document a release gate for `best.pt -> .mlpackage -> App`.
-- Files: `docs/architecture/*`, `tools/ml/export_coreml.py`
+- Files: `docs/architecture/*`, `tools/ml/export_coreml.py`, `docs/templates/recognition_model_card.md`
 - App changes: No
 - Model changes: No
-- Test: metadata checker and a future inference parity script.
+- Test: `python3 tools/ml/export_coreml.py --dry-run`; metadata checker and a future inference parity script.
 - Risk: Low.
 
 Task 5: training run report template
 
 - Goal: Make every candidate model traceable to dataset, run args, metrics, export args, and App compatibility.
-- Files: `ml/training-runs/*/MODEL_CARD.md` or `docs/architecture/*`
+- Files: `docs/templates/recognition_model_card.md`, then copy per run as `ml/training-runs/*/MODEL_CARD.md`
 - App changes: No
 - Model changes: No
 - Test: review checklist completion.
