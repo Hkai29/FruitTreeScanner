@@ -258,6 +258,104 @@ Task 2: model metadata checker
 - Test: `python3 -m py_compile tools/ml/check_model_metadata.py`; `python3 tools/ml/check_model_metadata.py --help`; run on candidate `.mlpackage`.
 - Risk: Low; depends on `coremltools` for spec inspection.
 
+## 12. Dataset Cleanup Planning Status
+
+This planning pass does not train a model, export CoreML, replace `FruitsDetector.mlpackage`, move images, delete images, edit labels, or change `data.yaml`. It only adds repeatable read-only audit reports and a deterministic test-split plan for human review.
+
+Current dataset paths:
+
+- `data.yaml`: `ml/datasets/fruit_dataset_26/data.yaml`
+- Train images: `ml/datasets/fruit_dataset_26/images/train`
+- Train labels: `ml/datasets/fruit_dataset_26/labels/train`
+- Val images: `ml/datasets/fruit_dataset_26/images/val`
+- Val labels: `ml/datasets/fruit_dataset_26/labels/val`
+- Test images: not present in `data.yaml`
+- Test labels: not present in `data.yaml`
+
+Current dataset counts:
+
+- Total images: 4,602
+- Total labels: 4,602
+- Total boxes: 102,013
+- Train images: 3,757
+- Val images: 845
+- Test images: 0
+- Classes: 26
+- Stem leakage across train/val/test: 0
+- Duplicate image hash groups: 5, all currently inside the train split
+- `data.yaml` / App mapping: passes `tools/ml/check_data_yaml_app_mapping.py`
+
+Generated planning reports:
+
+- Duplicate image review: `ml/audit_reports/duplicate_images_report.csv`
+- Per-class distribution and weak classes: `ml/audit_reports/class_distribution_report.csv`
+- Fixed test split plan: `ml/audit_reports/test_split_plan.csv`
+- Test split per-class before/after summary: `ml/audit_reports/test_split_class_distribution.csv`
+- Dataset version template: `docs/templates/recognition_dataset_version.md`
+
+Duplicate review status:
+
+- Five duplicate hash groups were found.
+- All duplicate rows have matching label fingerprints in this audit.
+- Current recommended action is `remove_duplicate_candidate`, but no files should be removed until a human visually confirms each duplicate group and records the decision in a dataset version note.
+- No label conflict group was found in this run; future conflicts should use `review_label_conflict`.
+
+Weak class and validation risks:
+
+- Low total sample classes: `mandarin`, `jujube`, `fig`, `papaya`.
+- Missing validation classes: `pomelo`, `plum`, `pomegranate`, `loquat`, `lychee`, `longan`, `bayberry`, `hawthorn`, `chestnut`.
+- Validation too small: `cherry`, `coconut`.
+- These classes should not be treated as proven production classes until data is collected, merged, or explicitly marked unsupported.
+
+Fixed test split plan:
+
+- Script: `tools/ml/plan_test_split.py`
+- Default seed: `20260709`
+- Default test ratio: `10%`
+- Source split: train only
+- Val split: unchanged
+- Planned test images: 376
+- The planner is deterministic and does not move files.
+- Classes with very small total data, missing/too-small validation, or insufficient train support are protected from automatic test sampling and marked `protected_low_sample_not_sampled` in `test_split_class_distribution.csv`.
+
+Before retraining, a human must approve:
+
+- Which duplicate candidates to remove, if any.
+- Whether protected weak classes should collect more data, merge into broader categories, be dropped from the model, or remain unsupported.
+- Whether the fixed test split plan is acceptable for a frozen held-out set.
+- A completed dataset version record based on `docs/templates/recognition_dataset_version.md`.
+
+Do not directly retrain from the current train/val split and replace the App model. The current split has no fixed test set, known duplicate train images, missing validation classes, and severe class imbalance.
+
+## 13. Retraining Strategy Recommendation
+
+Option A: continue 26-class retraining.
+
+- Use only if each class has sufficient train/val/test support.
+- Use only after duplicate cleanup and fixed test split approval.
+- Use only if per-class recall and mAP are no longer extremely low.
+- This option is not recommended as the next immediate step with the current dataset.
+
+Option B: train a smaller high-quality model first.
+
+- Use when core orchard classes such as apple, orange, pear, persimmon, grape, strawberry, and selected well-supported classes need reliable behavior before full 26-class coverage.
+- This is the recommended next training direction because current historical 26-class metrics are weak and several classes lack validation support.
+- The App should treat unsupported classes explicitly in diagnostics/model documentation if a smaller model is chosen later.
+
+Option C: merge or temporarily remove weak classes.
+
+- Use when classes have too few images, no validation split, visually ambiguous labels, or no practical orchard evaluation plan.
+- Candidate classes for merge/drop/manual review include `jujube`, `fig`, `papaya`, and classes missing validation coverage.
+- Do not modify `data.yaml` until the class decision is approved and recorded in the dataset version.
+
+Recommended path:
+
+1. Review and approve duplicate cleanup.
+2. Approve or revise the fixed test split plan.
+3. Record a dataset version.
+4. Train a smaller high-quality class set first unless additional data can support all 26 classes.
+5. Only consider replacing the production CoreML model after metadata checks, App mapping checks, fixed-test metrics, per-class metrics, and real-device validation pass.
+
 Task 3: data.yaml to FruitCategory consistency test
 
 - Goal: Keep `data.yaml` order locked to `FruitCategory.customModelLabelOrder`.

@@ -175,6 +175,223 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def parse_label_file(label_path: Path, class_count: int) -> tuple[list[int], int, str]:
+    try:
+        raw_lines = label_path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        raw_lines = label_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    normalized_lines = [line.strip() for line in raw_lines if line.strip()]
+    class_ids: list[int] = []
+    for line in normalized_lines:
+        parts = line.split()
+        if len(parts) != 5:
+            continue
+        try:
+            class_index = int(float(parts[0]))
+        except ValueError:
+            continue
+        if 0 <= class_index < class_count:
+            class_ids.append(class_index)
+    fingerprint = hashlib.sha256(
+        "\n".join(sorted(normalized_lines)).encode("utf-8")
+    ).hexdigest()
+    return sorted(set(class_ids)), len(normalized_lines), fingerprint
+
+
+def collect_image_records(data_yaml: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    config, yaml_errors = load_data_yaml(data_yaml)
+    if yaml_errors:
+        raise ValueError("; ".join(yaml_errors))
+    root = dataset_root(data_yaml, config)
+    names = config.get("names", [])
+    records: list[dict[str, Any]] = []
+
+    for split in SPLITS:
+        image_dir = split_image_dir(root, config, split)
+        if image_dir is None:
+            continue
+        label_dir = label_dir_for_image_dir(image_dir)
+        images = sorted(
+            path for path in image_dir.glob("*") if path.suffix.lower() in IMAGE_EXTENSIONS
+        ) if image_dir.exists() else []
+        for image_path in images:
+            label_path = label_dir / f"{image_path.stem}.txt"
+            class_ids: list[int] = []
+            bbox_count = 0
+            label_fingerprint = ""
+            if label_path.exists():
+                class_ids, bbox_count, label_fingerprint = parse_label_file(
+                    label_path,
+                    len(names),
+                )
+            records.append(
+                {
+                    "image_path": image_path,
+                    "label_path": label_path,
+                    "split": split,
+                    "class_ids": class_ids,
+                    "bbox_count": bbox_count,
+                    "label_fingerprint": label_fingerprint,
+                }
+            )
+    return config, records
+
+
+def class_distribution_report_rows(
+    summary: dict[str, Any],
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    names = summary["names"]
+    image_counts: dict[str, Counter[int]] = {
+        split: Counter() for split in SPLITS
+    }
+    bbox_counts: dict[str, Counter[int]] = {
+        split: Counter() for split in SPLITS
+    }
+
+    for record in records:
+        split = str(record["split"])
+        label_path = record["label_path"]
+        class_ids = set(record["class_ids"])
+        for class_id in class_ids:
+            image_counts[split][class_id] += 1
+        if label_path.exists():
+            try:
+                raw_lines = label_path.read_text(encoding="utf-8").splitlines()
+            except UnicodeDecodeError:
+                raw_lines = label_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            for line in raw_lines:
+                parts = line.split()
+                if len(parts) != 5:
+                    continue
+                try:
+                    class_id = int(float(parts[0]))
+                except ValueError:
+                    continue
+                if 0 <= class_id < len(names):
+                    bbox_counts[split][class_id] += 1
+
+    rows: list[dict[str, Any]] = []
+    for class_id, class_name in enumerate(names):
+        train_image_count = image_counts["train"][class_id]
+        val_image_count = image_counts["val"][class_id]
+        test_image_count = image_counts["test"][class_id]
+        train_bbox_count = bbox_counts["train"][class_id]
+        val_bbox_count = bbox_counts["val"][class_id]
+        test_bbox_count = bbox_counts["test"][class_id]
+        total_image_count = train_image_count + val_image_count + test_image_count
+        total_bbox_count = train_bbox_count + val_bbox_count + test_bbox_count
+        train_val_ratio_note = ratio_note(train_image_count, val_image_count)
+        risk_level, recommended_action = class_risk(
+            train_image_count,
+            val_image_count,
+            total_image_count,
+            train_val_ratio_note,
+        )
+        rows.append(
+            {
+                "class_id": class_id,
+                "class_name": class_name,
+                "train_image_count": train_image_count,
+                "train_bbox_count": train_bbox_count,
+                "val_image_count": val_image_count,
+                "val_bbox_count": val_bbox_count,
+                "test_image_count": test_image_count,
+                "test_bbox_count": test_bbox_count,
+                "total_image_count": total_image_count,
+                "total_bbox_count": total_bbox_count,
+                "train_val_ratio_note": train_val_ratio_note,
+                "risk_level": risk_level,
+                "recommended_action": recommended_action,
+            }
+        )
+    return rows
+
+
+def ratio_note(train_images: int, val_images: int) -> str:
+    if train_images == 0 and val_images == 0:
+        return "missing_from_dataset"
+    if val_images == 0:
+        return "missing_from_val"
+    ratio = train_images / max(val_images, 1)
+    if ratio > 12:
+        return f"train_heavy_{ratio:.1f}:1"
+    if ratio < 2:
+        return f"val_heavy_{ratio:.1f}:1"
+    return f"ok_{ratio:.1f}:1"
+
+
+def class_risk(
+    train_images: int,
+    val_images: int,
+    total_images: int,
+    train_val_ratio_note: str,
+) -> tuple[str, str]:
+    if total_images == 0:
+        return "review", "manual_review"
+    if total_images < 10 or train_images < 5:
+        return "low_sample", "merge_or_drop_candidate"
+    if val_images == 0:
+        return "missing_from_val", "do_not_sample_into_test_yet"
+    if val_images < 5:
+        return "val_too_small", "collect_more_data"
+    if train_val_ratio_note.startswith(("train_heavy", "val_heavy")):
+        return "train_val_imbalanced", "manual_review"
+    if total_images < 50:
+        return "low_sample", "collect_more_data"
+    return "ok", "keep"
+
+
+def duplicate_report_rows(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    hashes: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for record in records:
+        image_path = record["image_path"]
+        try:
+            hashes[sha256_file(image_path)].append(record)
+        except OSError:
+            continue
+
+    rows: list[dict[str, Any]] = []
+    duplicate_groups = [
+        (digest, group)
+        for digest, group in sorted(hashes.items())
+        if len(group) > 1
+    ]
+    for group_index, (digest, group) in enumerate(duplicate_groups, start=1):
+        fingerprints = {str(record["label_fingerprint"]) for record in group}
+        same_group_labels = len(fingerprints) == 1
+        recommended_action = (
+            "remove_duplicate_candidate"
+            if same_group_labels
+            else "review_label_conflict"
+        )
+        reference_fingerprint = str(group[0]["label_fingerprint"])
+        for record in group:
+            same_label_as_group = str(record["label_fingerprint"]) == reference_fingerprint
+            rows.append(
+                {
+                    "hash": digest,
+                    "image_path": display_path(record["image_path"]),
+                    "split": record["split"],
+                    "label_path": display_path(record["label_path"]),
+                    "class_ids": "|".join(str(item) for item in record["class_ids"]),
+                    "bbox_count": record["bbox_count"],
+                    "label_fingerprint": record["label_fingerprint"],
+                    "duplicate_group_id": f"dup_{group_index:03d}",
+                    "same_label_as_group": str(same_label_as_group).lower(),
+                    "recommended_action": recommended_action,
+                    "notes": (
+                        "identical image bytes and matching label fingerprint"
+                        if same_group_labels
+                        else "identical image bytes but label fingerprints differ"
+                    ),
+                }
+            )
+    return rows
+
+
 def add_example(items: list[Any], value: Any) -> None:
     if len(items) < EXAMPLE_LIMIT:
         if isinstance(value, Path):
@@ -368,6 +585,8 @@ def write_reports(summary: dict[str, Any], output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "dataset_audit_summary.json"
     distribution_path = output_dir / "dataset_class_distribution.csv"
+    class_distribution_report_path = output_dir / "class_distribution_report.csv"
+    duplicate_report_path = output_dir / "duplicate_images_report.csv"
     summary_path.write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -380,11 +599,60 @@ def write_reports(summary: dict[str, Any], output_dir: Path) -> None:
         )
         writer.writeheader()
         writer.writerows(class_rows(summary))
+    if "class_distribution_report_rows" in summary:
+        with class_distribution_report_path.open("w", newline="", encoding="utf-8") as handle:
+            fieldnames = [
+                "class_id",
+                "class_name",
+                "train_image_count",
+                "train_bbox_count",
+                "val_image_count",
+                "val_bbox_count",
+                "test_image_count",
+                "test_bbox_count",
+                "total_image_count",
+                "total_bbox_count",
+                "train_val_ratio_note",
+                "risk_level",
+                "recommended_action",
+            ]
+            writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(summary["class_distribution_report_rows"])
+    if "duplicate_image_report_rows" in summary:
+        with duplicate_report_path.open("w", newline="", encoding="utf-8") as handle:
+            fieldnames = [
+                "hash",
+                "image_path",
+                "split",
+                "label_path",
+                "class_ids",
+                "bbox_count",
+                "label_fingerprint",
+                "duplicate_group_id",
+                "same_label_as_group",
+                "recommended_action",
+                "notes",
+            ]
+            writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(summary["duplicate_image_report_rows"])
 
 
 def main() -> int:
     args = parse_args()
-    summary = audit_dataset(Path(args.data_yaml), hash_duplicates=args.hash_duplicates)
+    data_yaml = Path(args.data_yaml)
+    summary = audit_dataset(data_yaml, hash_duplicates=args.hash_duplicates)
+    try:
+        _, records = collect_image_records(data_yaml)
+        summary["class_distribution_report_rows"] = class_distribution_report_rows(
+            summary,
+            records,
+        )
+        if args.hash_duplicates:
+            summary["duplicate_image_report_rows"] = duplicate_report_rows(records)
+    except ValueError as error:
+        summary["examples"].setdefault("report_generation_errors", []).append(str(error))
     if not args.no_write:
         write_reports(summary, Path(args.output_dir))
 
