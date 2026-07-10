@@ -400,8 +400,12 @@ Generated decision records:
 
 Current decisions:
 
-- All five duplicate groups have matching label fingerprints and remain
-  `remove_duplicate_candidate` items pending visual human approval.
+- Four loquat duplicate groups have recorded human decisions: one canonical
+  copy is retained and one duplicate is excluded only from a future training
+  copy.
+- The lychee duplicate group has a human-reported content or label mismatch
+  and remains `review_label_conflict`; it is blocked from cleanup and training
+  use pending curation.
 - The 376-image, 10%, seed-`20260709` test plan is conditionally suitable for
   a core-class fixed test set. It is not sufficient for a 26-class quality
   claim because 15 weak classes are intentionally protected from test
@@ -410,8 +414,8 @@ Current decisions:
   model: `apple`, `orange`, `pear`, `persimmon`, `grape`, and `strawberry`.
   This is a future training-scope decision, not a current App-model change.
 
-Before any dataset split or cleanup operation, a human must approve every
-duplicate group and approve or revise the fixed test plan. The prefilled
+Before any dataset split or cleanup operation, the lychee conflict must be
+curated and the fixed test plan must be approved or revised. The prefilled
 dataset version record must then be updated with the actual operation and
 resulting paths before retraining begins.
 
@@ -433,13 +437,14 @@ and can only copy into a new dataset root such as
 `ml/datasets/fruit_dataset_6_core_v1/`. It never performs in-place cleanup of
 `fruit_dataset_26`.
 
-The generated decision templates currently contain 10 pending duplicate rows
-and 376 pending split rows. The dry-run is therefore intentionally blocked for
-apply until a human records final actions.
+The generated decision templates currently contain four approved duplicate
+removals, four canonical duplicate keeps, two label-conflict reviews, and 376
+pending split rows. The dry-run is intentionally blocked until the lychee
+conflict and every split decision have final dispositions.
 
-Human reviewers must change every `approved_action` from `pending_review` to
-an explicit final decision before a separate approved apply task can create a
-new dataset copy.
+Human reviewers must change every split `approved_action` from `pending_review`
+to an explicit final decision before a separate approved apply task can create
+a new dataset copy.
 
 ## 16. Invalid Image Review Status and Exclusion Policy
 
@@ -452,19 +457,36 @@ not modify images, labels, splits, or `data.yaml`.
 Semantic content cannot be proven from filenames, image hashes, or YOLO labels.
 The audit therefore uses `exclude_from_training` automatically only for
 high-confidence evidence: full decode failures, near-black frames, approved
-duplicate candidates, and human-reviewed inappropriate or label-mismatch
-examples. Low-quality heuristics and unapproved duplicates remain
-`manual_review`.
+duplicate candidates, human-reviewed inappropriate or label-mismatch examples,
+and strict Vision non-fruit signals. Low-quality heuristics, people signals,
+fruit-class disagreement, and unapproved duplicates remain `manual_review`.
 
 `exclude_from_training` is a future-copy policy, not a deletion instruction:
 the original `fruit_dataset_26` record must remain preserved for provenance and
 curation. Any semantic review decision requires documented human confirmation.
 
-Current run result: 4,602 images fully decoded. The report has 10 rows: four
-human-approved duplicate candidates marked `exclude_from_training`, four
-canonical duplicate copies marked `keep`, and two human-reviewed lychee
-content or label mismatches marked `exclude_from_training`. No additional
+Current structural run result: all 4,602 images fully decoded. No additional
 corrupt, near-black, extreme-resolution, extreme-aspect-ratio, or low-contrast
-candidates crossed the conservative review thresholds. This is not a claim
-that every image is semantically valid; it records the evidence available to
-this audit.
+candidates crossed the conservative quality thresholds.
+
+The semantic stage is `tools/ml/audit_dataset_semantic_images.swift`, which
+uses the local Apple Vision classifier and writes
+`ml/audit_reports/dataset_semantic_image_review.csv`. It flags people without
+fruit signals, strong non-fruit signals, and strong fruit-class-disagreement
+signals. The Python invalid-image audit merges those signals with the
+structural report; human-confirmed exclusions still take priority.
+
+Apple Vision's `adult` label is a generic adult-person category, not an NSFW
+classifier, so it is not used as a safety exclusion signal. Only high-confidence
+non-fruit signals such as computer, document, animal, bedding, clothing,
+screen, or vehicle with no fruit signal may be marked
+`exclude_from_training`; all other Vision observations remain manual review.
+
+Current combined run result: 4,602 images were scanned and 810 review rows
+were written. The report contains 56 `exclude_from_training` rows (four
+approved duplicate candidates, two human-reviewed lychee mismatches, and 50
+strict Vision non-fruit candidates), four canonical duplicate `keep` rows, and
+750 `manual_review` rows. The strict Vision exclusions are 25 computer, 18
+animal, three document, two bedding, and two clothing signals without fruit
+evidence. The 750 manual rows remain a triage queue, not confirmed invalid
+images.

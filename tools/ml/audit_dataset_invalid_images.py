@@ -26,6 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATA_YAML = "ml/datasets/fruit_dataset_26/data.yaml"
 DEFAULT_OUTPUT = "ml/audit_reports/dataset_invalid_image_review.csv"
 DEFAULT_DUPLICATE_DECISIONS = "ml/audit_reports/duplicate_cleanup_decisions.csv"
+DEFAULT_SEMANTIC_REVIEW = "ml/audit_reports/dataset_semantic_image_review.csv"
 CSV_FIELDS = [
     "image_path",
     "current_class",
@@ -64,6 +65,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Existing human duplicate decisions used as high-confidence review "
             f"evidence. Default: {DEFAULT_DUPLICATE_DECISIONS}"
+        ),
+    )
+    parser.add_argument(
+        "--semantic-review",
+        default=DEFAULT_SEMANTIC_REVIEW,
+        help=(
+            "Optional Apple Vision semantic review CSV merged as manual-review "
+            f"evidence. Default: {DEFAULT_SEMANTIC_REVIEW}"
         ),
     )
     parser.add_argument(
@@ -207,6 +216,28 @@ def human_duplicate_decisions(path: Path) -> dict[Path, dict[str, str]]:
     return decisions
 
 
+def semantic_review_rows(path: Path) -> list[dict[str, str]]:
+    return read_csv(path, CSV_FIELDS)
+
+
+def merge_candidate(
+    candidates: dict[Path, dict[str, str]],
+    image_path: Path,
+    candidate: dict[str, str],
+) -> None:
+    current = candidates.get(image_path)
+    if current is None:
+        candidates[image_path] = candidate
+        return
+    if current["recommended_action"] == "exclude_from_training":
+        return
+    if candidate["recommended_action"] == "exclude_from_training":
+        candidates[image_path] = candidate
+        return
+    if current["recommended_action"] == "keep" and candidate["recommended_action"] == "manual_review":
+        candidates[image_path] = candidate
+
+
 def candidate_from_decision(
     image_path: Path,
     current_class: str,
@@ -342,6 +373,7 @@ def main() -> int:
     data_yaml = repo_path(args.data_yaml)
     output = repo_path(args.output)
     decisions_path = repo_path(args.duplicate_decisions)
+    semantic_path = repo_path(args.semantic_review)
     dataset_root, config, names = load_dataset(data_yaml)
     decisions = human_duplicate_decisions(decisions_path)
     candidates: dict[Path, dict[str, str]] = {}
@@ -367,7 +399,7 @@ def main() -> int:
             if decision is not None:
                 candidate = candidate_from_decision(resolved_path, current_class, decision)
                 if candidate is not None:
-                    candidates[resolved_path] = candidate
+                    merge_candidate(candidates, resolved_path, candidate)
 
             try:
                 metrics = image_quality(resolved_path, args.thumbnail_size)
@@ -377,7 +409,7 @@ def main() -> int:
                 quality_error = error
             candidate = quality_candidate(resolved_path, current_class, metrics, quality_error)
             if candidate is not None and resolved_path not in candidates:
-                candidates[resolved_path] = candidate
+                merge_candidate(candidates, resolved_path, candidate)
 
     for digest, paths in image_hashes.items():
         if len(paths) < 2:
@@ -385,7 +417,7 @@ def main() -> int:
         for image_path in paths:
             if image_path in candidates:
                 continue
-            candidates[image_path] = {
+            merge_candidate(candidates, image_path, {
                 "image_path": display_path(image_path),
                 "current_class": "unknown",
                 "issue_type": "duplicate_image",
@@ -395,7 +427,16 @@ def main() -> int:
                     f"Exact SHA-256 duplicate group ({digest[:12]}...). "
                     "No human duplicate decision was found."
                 ),
-            }
+            })
+
+    semantic_rows = semantic_review_rows(semantic_path)
+    for row in semantic_rows:
+        image_path = repo_path(row["image_path"])
+        if not image_path.exists():
+            raise ValueError(
+                f"Semantic review references a missing image: {display_path(image_path)}"
+            )
+        merge_candidate(candidates, image_path, row)
 
     rows = list(candidates.values())
     write_report(output, rows)
@@ -403,6 +444,7 @@ def main() -> int:
     issue_counts = Counter(row["issue_type"] for row in rows)
     print(f"Scanned images: {scanned}")
     print(f"Review rows: {len(rows)}")
+    print(f"Merged semantic review rows: {len(semantic_rows)}")
     print("Actions: " + ", ".join(f"{key}={action_counts[key]}" for key in sorted(action_counts)))
     print("Issues: " + ", ".join(f"{key}={issue_counts[key]}" for key in sorted(issue_counts)))
     print(f"Report written: {display_path(output)}")
