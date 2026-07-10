@@ -1,0 +1,3059 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Dataset Review Queue</title>
+  <style>
+    :root { color: #1c252b; background: #f4f6f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0 auto; max-width: 1180px; padding: 28px; }
+    h1, h2, p { margin-top: 0; }
+    p, dd { line-height: 1.45; }
+    .notice { background: #fff3cd; border: 1px solid #d5a520; border-radius: 8px; padding: 14px; }
+    .summary { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin: 20px 0 28px; }
+    .summary div { background: #fff; border: 1px solid #d7dce1; border-radius: 8px; padding: 14px; }
+    .summary strong { display: block; font-size: 1.55rem; }
+    .risk-group { border-top: 4px solid #6e7e8a; margin: 34px 0; padding-top: 16px; }
+    .risk-group.high { border-color: #ba3a32; }
+    .risk-group.medium { border-color: #ad7a16; }
+    .risk-group.low { border-color: #397b59; }
+    h2 span { color: #5e6a73; font-size: 1rem; font-weight: 500; }
+    .review-card { align-items: start; background: #fff; border: 1px solid #d7dce1; border-radius: 8px; display: grid; gap: 18px; grid-template-columns: minmax(180px, 240px) 1fr; margin: 14px 0; padding: 16px; }
+    figure { margin: 0; }
+    .thumbnail img { background: #e6eaed; display: block; height: 180px; object-fit: contain; width: 100%; }
+    figcaption { color: #5e6a73; font-size: .82rem; margin-top: 6px; }
+    dl { display: grid; gap: 8px 14px; grid-template-columns: 155px minmax(0, 1fr); margin: 0; }
+    dt { color: #53616a; font-weight: 650; }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; }
+    .badge { border-radius: 999px; color: #fff; display: inline-block; font-weight: 700; padding: 3px 9px; }
+    .badge.high { background: #ba3a32; }
+    .badge.medium { background: #ad7a16; }
+    .badge.low { background: #397b59; }
+    @media (max-width: 640px) { body { padding: 16px; } .review-card { grid-template-columns: 1fr; } dl { grid-template-columns: 1fr; gap: 3px; } dt { margin-top: 8px; } }
+  </style>
+</head>
+<body>
+  <h1>Semantic Dataset Review Queue</h1>
+  <p class="notice">These are local source-image thumbnails for human curation and may include unsuitable or incorrectly labelled content. The page does not confirm an image is invalid, apply a decision, or alter the dataset. Record approvals only in <code>manual_review_decisions.csv</code>.</p>
+  <section class="summary">
+    <div><strong>200</strong>total review rows</div>
+    <div><strong>180</strong>high risk</div>
+    <div><strong>20</strong>medium risk</div>
+    <div><strong>0</strong>low risk</div>
+    <div><strong>60</strong>exclude candidates</div>
+    <div><strong>140</strong>keep/manual review</div>
+  </section>
+  <section class="risk-group high">
+  <h2>High risk <span>180</span></h2>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000420713.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000420713.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000420713.jpg</code></dd>
+    <dt>class_name</dt><dd>pear|peach|grape</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_apple_0.826</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000261503.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000261503.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000261503.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|pear</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_mango_0.803</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000413401.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000413401.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000413401.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_strawberry_0.799</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000066670.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000066670.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000066670.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_mango_0.795</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000151892.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000151892.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000151892.jpg</code></dd>
+    <dt>class_name</dt><dd>cherry</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_grape_0.794</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000126733.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000126733.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000126733.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|pear|cherry|persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_grape_0.779</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000007367.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000007367.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000007367.jpg</code></dd>
+    <dt>class_name</dt><dd>pear|peach</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_mango_0.769</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000366389.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000366389.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000366389.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_apple_0.753</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision named a fruit category that conflicts with the current YOLO label.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000397404.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000397404.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000397404.jpg</code></dd>
+    <dt>class_name</dt><dd>orange|pear|grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.954</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000510552.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000510552.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000510552.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.948</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000422611.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000422611.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000422611.jpg</code></dd>
+    <dt>class_name</dt><dd>strawberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.946</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/pomegranate_Image_57.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_57.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_57.jpg</code></dd>
+    <dt>class_name</dt><dd>pomegranate</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.943</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000077990.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000077990.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000077990.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.940</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000551718.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000551718.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000551718.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.936</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000515878.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000515878.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000515878.jpg</code></dd>
+    <dt>class_name</dt><dd>peach</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.935</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000032699.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000032699.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000032699.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.934</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000389006.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000389006.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000389006.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.933</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000446670.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000446670.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000446670.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.927</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000574735.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000574735.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000574735.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.925</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000297639.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000297639.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000297639.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.922</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000092998.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000092998.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000092998.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.920</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000151830.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000151830.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000151830.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.920</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000534467.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000534467.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000534467.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.919</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000036091.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000036091.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000036091.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.918</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000581501.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000581501.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000581501.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.918</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000267932.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000267932.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000267932.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.917</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000552502.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000552502.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000552502.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.917</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000181179.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000181179.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000181179.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.915</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000130180.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000130180.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000130180.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.912</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000541279.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000541279.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000541279.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.912</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000226559.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000226559.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000226559.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.911</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000139004.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000139004.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000139004.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.910</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/chestnut_Image_39.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/chestnut_Image_39.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/chestnut_Image_39.jpg</code></dd>
+    <dt>class_name</dt><dd>chestnut</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.909</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000432417.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000432417.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000432417.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.907</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000119276.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000119276.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000119276.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.905</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000164121.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000164121.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000164121.jpg</code></dd>
+    <dt>class_name</dt><dd>orange|pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.903</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000325505.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000325505.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000325505.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.902</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000505657.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000505657.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000505657.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.900</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000275961.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000275961.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000275961.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.898</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000424337.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000424337.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000424337.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.897</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000071936.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000071936.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000071936.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.896</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000341070.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000341070.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000341070.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.896</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000362599.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000362599.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000362599.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.895</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000334328.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000334328.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000334328.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.890</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000181851.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000181851.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000181851.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.885</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000490711.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000490711.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000490711.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.883</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000364032.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000364032.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000364032.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.882</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/pomegranate_Image_27.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_27.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_27.jpg</code></dd>
+    <dt>class_name</dt><dd>pomegranate</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.882</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000486936.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000486936.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000486936.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.880</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000421560.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000421560.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000421560.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.878</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000039315.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000039315.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000039315.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.876</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000316026.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000316026.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000316026.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.875</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000178526.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000178526.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000178526.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.873</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/pomegranate_Image_59.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_59.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_59.jpg</code></dd>
+    <dt>class_name</dt><dd>pomegranate</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.871</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000514725.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000514725.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000514725.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.869</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000036953.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000036953.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000036953.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.865</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000528915.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000528915.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000528915.jpg</code></dd>
+    <dt>class_name</dt><dd>cherry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.864</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000080853.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000080853.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000080853.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.864</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000151546.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000151546.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000151546.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.864</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000561894.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000561894.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000561894.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.863</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/bayberry_Image_28.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/bayberry_Image_28.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/bayberry_Image_28.jpg</code></dd>
+    <dt>class_name</dt><dd>bayberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.862</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000346503.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000346503.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000346503.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.861</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000545160.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000545160.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000545160.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.859</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/pomegranate_Image_26.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_26.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_26.jpg</code></dd>
+    <dt>class_name</dt><dd>pomegranate</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.857</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000333580.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000333580.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000333580.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.856</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000360871.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000360871.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000360871.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.854</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000554698.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000554698.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000554698.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.854</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000424632.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000424632.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000424632.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.851</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>review_reason</dt><dd>High-confidence non-fruit Vision signal; verify that the image is usable.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000070965.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000070965.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000070965.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.848</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000185820.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000185820.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000185820.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.847</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000475001.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000475001.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000475001.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_clothing_0.847</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/lychee_Image_35.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/lychee_Image_35.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/lychee_Image_35.jpg</code></dd>
+    <dt>class_name</dt><dd>lychee</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.846</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000352252.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000352252.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000352252.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.845</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000506605.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000506605.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000506605.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.845</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/lychee_Image_54.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/lychee_Image_54.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/lychee_Image_54.jpg</code></dd>
+    <dt>class_name</dt><dd>lychee</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.844</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000349322.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000349322.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000349322.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.840</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000572754.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000572754.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000572754.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.839</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000442197.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000442197.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000442197.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_document_0.838</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000530002.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000530002.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000530002.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.837</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000571654.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000571654.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000571654.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.836</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000021020.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000021020.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000021020.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.835</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000151170.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000151170.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000151170.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.833</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000523536.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000523536.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000523536.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.832</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/chestnut_Image_48.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/chestnut_Image_48.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/chestnut_Image_48.jpg</code></dd>
+    <dt>class_name</dt><dd>chestnut</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.832</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000292051.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000292051.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000292051.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_document_0.831</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000444233.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000444233.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000444233.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.831</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000486543.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000486543.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000486543.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.828</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/pomegranate_Image_22.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_22.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_22.jpg</code></dd>
+    <dt>class_name</dt><dd>pomegranate</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.827</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000107691.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000107691.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000107691.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.826</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000150444.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000150444.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000150444.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.826</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000506470.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000506470.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000506470.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.826</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000485483.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000485483.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000485483.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.824</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000508278.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000508278.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000508278.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.823</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000295889.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000295889.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000295889.jpg</code></dd>
+    <dt>class_name</dt><dd>cherry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.822</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000434222.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000434222.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000434222.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.821</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000165610.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000165610.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000165610.jpg</code></dd>
+    <dt>class_name</dt><dd>pear|persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.819</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/chestnut_Image_24.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/chestnut_Image_24.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/chestnut_Image_24.jpg</code></dd>
+    <dt>class_name</dt><dd>chestnut</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.818</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000051639.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000051639.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000051639.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.817</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000486415.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000486415.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000486415.jpg</code></dd>
+    <dt>class_name</dt><dd>strawberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.815</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/pomegranate_Image_14.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_14.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/pomegranate_Image_14.jpg</code></dd>
+    <dt>class_name</dt><dd>pomegranate</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.813</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/chestnut_Image_8.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/chestnut_Image_8.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/chestnut_Image_8.jpg</code></dd>
+    <dt>class_name</dt><dd>chestnut</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.807</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000170976.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000170976.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000170976.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.807</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000326293.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000326293.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000326293.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.807</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000106351.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000106351.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000106351.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.806</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000279561.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000279561.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000279561.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.806</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000296843.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000296843.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000296843.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.805</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000161941.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000161941.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000161941.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.804</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000143040.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000143040.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000143040.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.803</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000015947.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000015947.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000015947.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.802</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000118086.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000118086.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000118086.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.801</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000173856.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000173856.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000173856.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.800</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/bayberry_Image_14.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/bayberry_Image_14.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/bayberry_Image_14.jpg</code></dd>
+    <dt>class_name</dt><dd>bayberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.800</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000183398.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000183398.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000183398.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.799</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/lychee_Image_45.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/lychee_Image_45.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/lychee_Image_45.jpg</code></dd>
+    <dt>class_name</dt><dd>lychee</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.797</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000280270.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000280270.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000280270.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_vehicle_0.796</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000062175.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000062175.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000062175.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.791</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000272670.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000272670.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000272670.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.789</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000259115.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000259115.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000259115.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.788</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000341232.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000341232.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000341232.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.788</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000561543.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000561543.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000561543.jpg</code></dd>
+    <dt>class_name</dt><dd>mulberry|blueberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.788</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000385485.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000385485.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000385485.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.787</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000500984.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000500984.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000500984.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.787</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000392843.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000392843.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000392843.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_vehicle_0.786</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/bayberry_Image_13.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/bayberry_Image_13.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/bayberry_Image_13.jpg</code></dd>
+    <dt>class_name</dt><dd>bayberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.785</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000347300.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000347300.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000347300.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.785</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000308798.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000308798.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000308798.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.782</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000110518.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000110518.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000110518.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.780</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000535145.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000535145.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000535145.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.780</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/bayberry_Image_23.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/bayberry_Image_23.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/bayberry_Image_23.jpg</code></dd>
+    <dt>class_name</dt><dd>bayberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.778</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000110019.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000110019.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000110019.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.777</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/lychee_Image_60.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/lychee_Image_60.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/lychee_Image_60.jpg</code></dd>
+    <dt>class_name</dt><dd>lychee</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.775</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/bayberry_Image_5.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/bayberry_Image_5.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/bayberry_Image_5.jpg</code></dd>
+    <dt>class_name</dt><dd>bayberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.773</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000053385.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000053385.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000053385.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.772</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000219059.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000219059.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000219059.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.772</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000172509.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000172509.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000172509.jpg</code></dd>
+    <dt>class_name</dt><dd>kiwi</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.768</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000414539.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000414539.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000414539.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|pear|mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.766</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000168963.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000168963.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000168963.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.763</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000296161.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000296161.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000296161.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.763</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000543882.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000543882.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000543882.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.762</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000089978.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000089978.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000089978.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.760</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000571431.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000571431.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000571431.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.759</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/longan_Image_48.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/longan_Image_48.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/longan_Image_48.jpg</code></dd>
+    <dt>class_name</dt><dd>longan</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_clothing_0.757</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000209288.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000209288.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000209288.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.756</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/chestnut_Image_57.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/chestnut_Image_57.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/chestnut_Image_57.jpg</code></dd>
+    <dt>class_name</dt><dd>chestnut</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.755</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000446917.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000446917.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000446917.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_vehicle_0.753</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000046090.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000046090.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000046090.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.752</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000067116.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000067116.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000067116.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.752</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000123995.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000123995.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000123995.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.751</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000189472.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000189472.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000189472.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|cherry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.744</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000168730.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000168730.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000168730.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.743</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000425899.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000425899.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000425899.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.743</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000436354.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000436354.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000436354.jpg</code></dd>
+    <dt>class_name</dt><dd>pear|persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.741</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000066881.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000066881.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000066881.jpg</code></dd>
+    <dt>class_name</dt><dd>mandarin|pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.739</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000026052.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000026052.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000026052.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.738</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000520341.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000520341.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000520341.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_document_0.738</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/bayberry_Image_24.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/bayberry_Image_24.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/bayberry_Image_24.jpg</code></dd>
+    <dt>class_name</dt><dd>bayberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.738</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000199923.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000199923.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000199923.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.735</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000389702.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000389702.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000389702.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.733</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000131352.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000131352.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000131352.jpg</code></dd>
+    <dt>class_name</dt><dd>kiwi|strawberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_bedding_0.731</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000356948.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000356948.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000356948.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.731</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000511580.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000511580.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000511580.jpg</code></dd>
+    <dt>class_name</dt><dd>strawberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_document_0.727</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000022374.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000022374.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000022374.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.726</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000361660.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000361660.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000361660.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.726</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000424307.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000424307.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000424307.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.725</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000282351.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000282351.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000282351.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.724</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000366733.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000366733.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000366733.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.723</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000304777.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000304777.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000304777.jpg</code></dd>
+    <dt>class_name</dt><dd>apple|blueberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_bedding_0.722</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000285257.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000285257.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000285257.jpg</code></dd>
+    <dt>class_name</dt><dd>strawberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.716</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000139327.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000139327.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000139327.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.715</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/bayberry_Image_33.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/bayberry_Image_33.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/bayberry_Image_33.jpg</code></dd>
+    <dt>class_name</dt><dd>bayberry</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.710</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000426548.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000426548.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000426548.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.709</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000444080.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000444080.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000444080.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.706</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000010476.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000010476.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000010476.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_computer_0.704</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000520593.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000520593.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000520593.jpg</code></dd>
+    <dt>class_name</dt><dd>mango</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_art_0.704</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000186734.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000186734.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000186734.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.704</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000575469.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000575469.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000575469.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.703</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000264663.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000264663.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000264663.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.702</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000310645.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000310645.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000310645.jpg</code></dd>
+    <dt>class_name</dt><dd>orange|pear|persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.702</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000357108.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000357108.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000357108.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_animal_0.702</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000329623.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000329623.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000329623.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_furniture_0.700</code></dd>
+    <dt>risk_level</dt><dd><span class="badge high">high</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>A non-fruit object may dominate the frame; verify fruit evidence and label fit.</dd>
+  </dl>
+</article>
+</section>
+
+  <section class="risk-group medium">
+  <h2>Medium risk <span>20</span></h2>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000488962.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000488962.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000488962.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.978</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000147753.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000147753.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000147753.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.973</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000551733.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000551733.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000551733.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.964</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000314392.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000314392.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000314392.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.962</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000020376.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000020376.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000020376.jpg</code></dd>
+    <dt>class_name</dt><dd>apple</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.960</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/longan_Image_41.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/longan_Image_41.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/longan_Image_41.jpg</code></dd>
+    <dt>class_name</dt><dd>longan</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.960</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000364361.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000364361.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000364361.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.958</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000366925.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000366925.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000366925.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.958</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000123147.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000123147.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000123147.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.957</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000525170.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000525170.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000525170.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.957</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000279491.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000279491.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000279491.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.954</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000371786.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000371786.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000371786.jpg</code></dd>
+    <dt>class_name</dt><dd>orange</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.954</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000037286.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000037286.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000037286.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.953</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000578805.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000578805.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000578805.jpg</code></dd>
+    <dt>class_name</dt><dd>grape</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.953</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/hawthorn_Image_1.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/hawthorn_Image_1.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/hawthorn_Image_1.jpg</code></dd>
+    <dt>class_name</dt><dd>hawthorn</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.953</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000305168.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000305168.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000305168.jpg</code></dd>
+    <dt>class_name</dt><dd>cherry</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.952</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000396862.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000396862.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000396862.jpg</code></dd>
+    <dt>class_name</dt><dd>pear</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.951</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000427823.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000427823.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000427823.jpg</code></dd>
+    <dt>class_name</dt><dd>cherry</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.950</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000551314.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000551314.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000551314.jpg</code></dd>
+    <dt>class_name</dt><dd>persimmon</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.950</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000243959.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000243959.jpg">
+    <figcaption>Local source image; no copy created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000243959.jpg</code></dd>
+    <dt>class_name</dt><dd>strawberry</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>vision_signal</dt><dd><code>vision_people_0.950</code></dd>
+    <dt>risk_level</dt><dd><span class="badge medium">medium</span></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>review_reason</dt><dd>Vision found people without a fruit signal; verify that fruit evidence is present.</dd>
+  </dl>
+</article>
+</section>
+
+  <section class="risk-group low">
+  <h2>Low risk <span>0</span></h2>
+</section>
+</body>
+</html>
