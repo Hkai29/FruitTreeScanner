@@ -414,3 +414,29 @@ Before any dataset split or cleanup operation, a human must approve every
 duplicate group and approve or revise the fixed test plan. The prefilled
 dataset version record must then be updated with the actual operation and
 resulting paths before retraining begins.
+
+## 15. Controlled Cleanup Application Preparation
+
+The repository now includes a controlled cleanup application path. It is not a
+dataset operation: this preparation only adds approval CSV templates, a
+dry-run/apply tool, a dry-run report, and a six-class dataset plan.
+
+- Duplicate decisions: `ml/audit_reports/duplicate_cleanup_decisions.csv`
+- Fixed split decisions: `ml/audit_reports/fixed_test_split_decisions.csv`
+- Controlled tool: `tools/ml/apply_dataset_cleanup.py`
+- Dry-run report: `ml/audit_reports/dataset_cleanup_dry_run_summary.md`
+- Six-class target plan: `ml/audit_reports/core_class_dataset_plan.md`
+
+The tool defaults to dry-run. Its apply mode refuses any `pending_review` or
+manual-review decision, validates source image/label pairs and class bounds,
+and can only copy into a new dataset root such as
+`ml/datasets/fruit_dataset_6_core_v1/`. It never performs in-place cleanup of
+`fruit_dataset_26`.
+
+The generated decision templates currently contain 10 pending duplicate rows
+and 376 pending split rows. The dry-run is therefore intentionally blocked for
+apply until a human records final actions.
+
+Human reviewers must change every `approved_action` from `pending_review` to
+an explicit final decision before a separate approved apply task can create a
+new dataset copy.

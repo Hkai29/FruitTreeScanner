@@ -100,6 +100,20 @@ fixed test split. The plan is not an applied split; `data.yaml` still has only
   unsupported, or candidates for a separately approved taxonomy decision.
 - [ ] Record any future cleanup or split operation before it occurs.
 
+## Controlled Cleanup Preparation
+
+- Duplicate decision template:
+  `ml/audit_reports/duplicate_cleanup_decisions.csv`
+- Fixed split decision template:
+  `ml/audit_reports/fixed_test_split_decisions.csv`
+- Apply tool: `tools/ml/apply_dataset_cleanup.py`
+- Dry-run summary: `ml/audit_reports/dataset_cleanup_dry_run_summary.md`
+- Current state: blocked until every `approved_action` is changed from
+  `pending_review` to an explicit final decision.
+- Source protection: the tool cannot modify this dataset in place. Any future
+  approved operation can only create a separate target such as
+  `ml/datasets/fruit_dataset_6_core_v1/`.
+
 ## Known Limitations
 
 - This record does not include visual QA of small, occluded, distant, or
