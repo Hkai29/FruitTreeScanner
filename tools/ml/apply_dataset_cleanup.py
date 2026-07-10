@@ -10,7 +10,6 @@ or rewritten by this tool.
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import math
 import shutil
@@ -20,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from audit_yolo_dataset import IMAGE_EXTENSIONS, load_data_yaml
+from dataset_io import read_csv_rows, write_csv_rows
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -147,24 +147,21 @@ def display_path(path: Path) -> str:
 def read_csv(path: Path, required_fields: list[str]) -> list[dict[str, str]]:
     if not path.exists():
         raise CleanupError(f"CSV not found: {display_path(path)}")
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames is None:
-            raise CleanupError(f"CSV has no header: {display_path(path)}")
-        missing = [field for field in required_fields if field not in reader.fieldnames]
-        if missing:
+    try:
+        return read_csv_rows(path, required_fields)
+    except ValueError as error:
+        if str(error) == "CSV has no header":
+            raise CleanupError(f"CSV has no header: {display_path(path)}") from error
+        if str(error).startswith("CSV missing fields: "):
+            missing = str(error).removeprefix("CSV missing fields: ")
             raise CleanupError(
-                f"CSV missing fields ({', '.join(missing)}): {display_path(path)}"
-            )
-        return [{key: (value or "").strip() for key, value in row.items()} for row in reader]
+                f"CSV missing fields ({missing}): {display_path(path)}"
+            ) from error
+        raise CleanupError(f"Invalid CSV: {display_path(path)}") from error
 
 
 def write_csv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv_rows(path, rows, fields)
 
 
 def load_source_dataset(dataset_root: Path) -> tuple[dict[str, Any], list[str]]:

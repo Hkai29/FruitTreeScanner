@@ -9,7 +9,6 @@ CSV reports that can be reviewed before any dataset operation happens.
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 from collections import Counter
 from pathlib import Path
@@ -20,6 +19,7 @@ from audit_yolo_dataset import (
     display_path,
     ratio_note,
 )
+from dataset_io import count_classes, read_yolo_label_file, write_csv_rows
 
 
 DEFAULT_DATA_YAML = "ml/datasets/fruit_dataset_26/data.yaml"
@@ -87,24 +87,9 @@ def per_class_counts(records: list[dict[str, Any]], class_count: int) -> tuple[C
 
 
 def label_box_counts(label_path: Path, class_count: int) -> Counter[int]:
-    counts: Counter[int] = Counter()
     if not label_path.exists():
-        return counts
-    try:
-        lines = label_path.read_text(encoding="utf-8").splitlines()
-    except UnicodeDecodeError:
-        lines = label_path.read_text(encoding="utf-8", errors="replace").splitlines()
-    for line in lines:
-        parts = line.split()
-        if len(parts) != 5:
-            continue
-        try:
-            class_id = int(float(parts[0]))
-        except ValueError:
-            continue
-        if 0 <= class_id < class_count:
-            counts[class_id] += 1
-    return counts
+        return Counter()
+    return count_classes(read_yolo_label_file(label_path), class_count)
 
 
 def protected_classes(
@@ -264,37 +249,35 @@ def write_plan(
     names: list[str],
     output: Path,
 ) -> None:
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "image_path",
-                "label_path",
-                "current_split",
-                "planned_split",
-                "class_ids",
-                "class_names",
-                "bbox_count",
-                "reason",
-            ],
-            lineterminator="\n",
+    rows: list[dict[str, Any]] = []
+    for record, reason in planned:
+        class_ids = [int(item) for item in record["class_ids"]]
+        rows.append(
+            {
+                "image_path": display_path(record["image_path"]),
+                "label_path": display_path(record["label_path"]),
+                "current_split": record["split"],
+                "planned_split": "test",
+                "class_ids": "|".join(str(item) for item in class_ids),
+                "class_names": "|".join(names[item] for item in class_ids),
+                "bbox_count": record["bbox_count"],
+                "reason": reason,
+            }
         )
-        writer.writeheader()
-        for record, reason in planned:
-            class_ids = [int(item) for item in record["class_ids"]]
-            writer.writerow(
-                {
-                    "image_path": display_path(record["image_path"]),
-                    "label_path": display_path(record["label_path"]),
-                    "current_split": record["split"],
-                    "planned_split": "test",
-                    "class_ids": "|".join(str(item) for item in class_ids),
-                    "class_names": "|".join(names[item] for item in class_ids),
-                    "bbox_count": record["bbox_count"],
-                    "reason": reason,
-                }
-            )
+    write_csv_rows(
+        output,
+        rows,
+        [
+            "image_path",
+            "label_path",
+            "current_split",
+            "planned_split",
+            "class_ids",
+            "class_names",
+            "bbox_count",
+            "reason",
+        ],
+    )
 
 
 def write_class_summary(
@@ -302,57 +285,55 @@ def write_class_summary(
     metadata: dict[str, Any],
     output: Path,
 ) -> None:
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "class_id",
-                "class_name",
-                "before_train_images",
-                "before_train_boxes",
-                "before_val_images",
-                "before_val_boxes",
-                "planned_test_images",
-                "planned_test_boxes",
-                "after_train_images",
-                "after_train_boxes",
-                "risk_note",
-            ],
-            lineterminator="\n",
+    protected = metadata["protected_classes"]
+    train_image_counts = metadata["train_image_counts"]
+    train_box_counts = metadata["train_box_counts"]
+    val_image_counts = metadata["val_image_counts"]
+    val_box_counts = metadata["val_box_counts"]
+    selected_image_counts = metadata["selected_image_counts"]
+    selected_box_counts = metadata["selected_box_counts"]
+    rows: list[dict[str, Any]] = []
+    for class_id, class_name in enumerate(names):
+        after_train_images = train_image_counts[class_id] - selected_image_counts[class_id]
+        after_train_boxes = train_box_counts[class_id] - selected_box_counts[class_id]
+        rows.append(
+            {
+                "class_id": class_id,
+                "class_name": class_name,
+                "before_train_images": train_image_counts[class_id],
+                "before_train_boxes": train_box_counts[class_id],
+                "before_val_images": val_image_counts[class_id],
+                "before_val_boxes": val_box_counts[class_id],
+                "planned_test_images": selected_image_counts[class_id],
+                "planned_test_boxes": selected_box_counts[class_id],
+                "after_train_images": after_train_images,
+                "after_train_boxes": after_train_boxes,
+                "risk_note": risk_note(
+                    class_id,
+                    protected,
+                    selected_image_counts[class_id],
+                    train_image_counts[class_id],
+                    val_image_counts[class_id],
+                ),
+            }
         )
-        writer.writeheader()
-        protected = metadata["protected_classes"]
-        train_image_counts = metadata["train_image_counts"]
-        train_box_counts = metadata["train_box_counts"]
-        val_image_counts = metadata["val_image_counts"]
-        val_box_counts = metadata["val_box_counts"]
-        selected_image_counts = metadata["selected_image_counts"]
-        selected_box_counts = metadata["selected_box_counts"]
-        for class_id, class_name in enumerate(names):
-            after_train_images = train_image_counts[class_id] - selected_image_counts[class_id]
-            after_train_boxes = train_box_counts[class_id] - selected_box_counts[class_id]
-            writer.writerow(
-                {
-                    "class_id": class_id,
-                    "class_name": class_name,
-                    "before_train_images": train_image_counts[class_id],
-                    "before_train_boxes": train_box_counts[class_id],
-                    "before_val_images": val_image_counts[class_id],
-                    "before_val_boxes": val_box_counts[class_id],
-                    "planned_test_images": selected_image_counts[class_id],
-                    "planned_test_boxes": selected_box_counts[class_id],
-                    "after_train_images": after_train_images,
-                    "after_train_boxes": after_train_boxes,
-                    "risk_note": risk_note(
-                        class_id,
-                        protected,
-                        selected_image_counts[class_id],
-                        train_image_counts[class_id],
-                        val_image_counts[class_id],
-                    ),
-                }
-            )
+    write_csv_rows(
+        output,
+        rows,
+        [
+            "class_id",
+            "class_name",
+            "before_train_images",
+            "before_train_boxes",
+            "before_val_images",
+            "before_val_boxes",
+            "planned_test_images",
+            "planned_test_boxes",
+            "after_train_images",
+            "after_train_boxes",
+            "risk_note",
+        ],
+    )
 
 
 def risk_note(

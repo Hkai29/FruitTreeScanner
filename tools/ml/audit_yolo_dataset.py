@@ -10,7 +10,6 @@ distribution. Reports are compact summaries with capped examples.
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import json
 import struct
@@ -18,17 +17,25 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from dataset_io import (
+    IMAGE_EXTENSIONS,
+    SPLITS,
+    class_count_matches_names,
+    count_classes,
+    display_path,
+    iter_image_files,
+    label_dir_for_image_dir,
+    label_path_for_image,
+    load_data_yaml,
+    parse_yolo_row,
+    read_yolo_label_file,
+    resolve_dataset_root,
+    resolve_split_path,
+    validate_yolo_bbox,
+    write_csv_rows,
+)
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-SPLITS = ("train", "val", "test")
 EXAMPLE_LIMIT = 50
-
-
-def display_path(path: Path) -> str:
-    try:
-        return str(path.resolve().relative_to(Path.cwd()))
-    except ValueError:
-        return str(path)
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,95 +65,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_scalar(value: str) -> Any:
-    value = value.strip()
-    if value == "":
-        return ""
-    if value.startswith("[") and value.endswith("]"):
-        body = value[1:-1].strip()
-        if not body:
-            return []
-        return [item.strip().strip("'\"") for item in body.split(",")]
-    try:
-        return int(value)
-    except ValueError:
-        return value.strip("'\"")
-
-
-def load_data_yaml(path: Path) -> tuple[dict[str, Any], list[str]]:
-    errors: list[str] = []
-    config: dict[str, Any] = {}
-    names: dict[int, str] = {}
-    in_names = False
-
-    if not path.exists():
-        return {}, [f"data.yaml not found: {path}"]
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.split("#", 1)[0].rstrip()
-        if not line.strip():
-            continue
-
-        if line.startswith((" ", "\t")) and in_names:
-            item = line.strip()
-            if ":" not in item:
-                errors.append(f"Invalid names entry: {raw_line}")
-                continue
-            key, value = item.split(":", 1)
-            try:
-                names[int(key.strip())] = str(parse_scalar(value))
-            except ValueError:
-                errors.append(f"Invalid names index: {raw_line}")
-            continue
-
-        in_names = False
-        if ":" not in line:
-            errors.append(f"Invalid yaml line: {raw_line}")
-            continue
-        key, value = line.split(":", 1)
-        key = key.strip()
-        if key == "names" and not value.strip():
-            in_names = True
-            continue
-        parsed = parse_scalar(value)
-        if key == "names" and isinstance(parsed, list):
-            names = {index: name for index, name in enumerate(parsed)}
-        else:
-            config[key] = parsed
-
-    if names:
-        max_index = max(names)
-        config["names"] = [names.get(index, "") for index in range(max_index + 1)]
-    else:
-        config["names"] = []
-        errors.append("data.yaml has no parseable names entries")
-
-    return config, errors
-
-
 def dataset_root(data_yaml: Path, config: dict[str, Any]) -> Path:
-    raw_path = config.get("path")
-    if raw_path:
-        path = Path(str(raw_path))
-        return path if path.is_absolute() else Path.cwd() / path
-    return data_yaml.parent
+    return resolve_dataset_root(data_yaml, config)
 
 
 def split_image_dir(root: Path, config: dict[str, Any], split: str) -> Path | None:
-    raw = config.get(split)
-    if raw is None:
-        return None
-    path = Path(str(raw))
-    return path if path.is_absolute() else root / path
-
-
-def label_dir_for_image_dir(image_dir: Path) -> Path:
-    parts = list(image_dir.parts)
-    for index, part in enumerate(parts):
-        if part == "images":
-            parts[index] = "labels"
-            return Path(*parts)
-    return image_dir.parent.parent / "labels" / image_dir.name
+    return resolve_split_path(root, config, split)
 
 
 def image_signature(path: Path) -> str | None:
@@ -176,22 +100,9 @@ def sha256_file(path: Path) -> str:
 
 
 def parse_label_file(label_path: Path, class_count: int) -> tuple[list[int], int, str]:
-    try:
-        raw_lines = label_path.read_text(encoding="utf-8").splitlines()
-    except UnicodeDecodeError:
-        raw_lines = label_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    raw_lines = read_yolo_label_file(label_path)
     normalized_lines = [line.strip() for line in raw_lines if line.strip()]
-    class_ids: list[int] = []
-    for line in normalized_lines:
-        parts = line.split()
-        if len(parts) != 5:
-            continue
-        try:
-            class_index = int(float(parts[0]))
-        except ValueError:
-            continue
-        if 0 <= class_index < class_count:
-            class_ids.append(class_index)
+    class_ids = sorted(count_classes(normalized_lines, class_count))
     fingerprint = hashlib.sha256(
         "\n".join(sorted(normalized_lines)).encode("utf-8")
     ).hexdigest()
@@ -211,11 +122,9 @@ def collect_image_records(data_yaml: Path) -> tuple[dict[str, Any], list[dict[st
         if image_dir is None:
             continue
         label_dir = label_dir_for_image_dir(image_dir)
-        images = sorted(
-            path for path in image_dir.glob("*") if path.suffix.lower() in IMAGE_EXTENSIONS
-        ) if image_dir.exists() else []
+        images = iter_image_files(image_dir)
         for image_path in images:
-            label_path = label_dir / f"{image_path.stem}.txt"
+            label_path = label_path_for_image(image_path, image_dir, label_dir)
             class_ids: list[int] = []
             bbox_count = 0
             label_fingerprint = ""
@@ -256,20 +165,9 @@ def class_distribution_report_rows(
         for class_id in class_ids:
             image_counts[split][class_id] += 1
         if label_path.exists():
-            try:
-                raw_lines = label_path.read_text(encoding="utf-8").splitlines()
-            except UnicodeDecodeError:
-                raw_lines = label_path.read_text(encoding="utf-8", errors="replace").splitlines()
-            for line in raw_lines:
-                parts = line.split()
-                if len(parts) != 5:
-                    continue
-                try:
-                    class_id = int(float(parts[0]))
-                except ValueError:
-                    continue
-                if 0 <= class_id < len(names):
-                    bbox_counts[split][class_id] += 1
+            bbox_counts[split].update(
+                count_classes(read_yolo_label_file(label_path), len(names))
+            )
 
     rows: list[dict[str, Any]] = []
     for class_id, class_name in enumerate(names):
@@ -405,7 +303,7 @@ def audit_dataset(data_yaml: Path, hash_duplicates: bool = False) -> dict[str, A
     root = dataset_root(data_yaml, config) if config else data_yaml.parent
     names = config.get("names", [])
     nc = config.get("nc")
-    yaml_nc_matches_names = isinstance(nc, int) and nc == len(names)
+    yaml_nc_matches_names = class_count_matches_names(config)
 
     summary: dict[str, Any] = {
         "data_yaml": display_path(data_yaml),
@@ -441,9 +339,7 @@ def audit_dataset(data_yaml: Path, hash_duplicates: bool = False) -> dict[str, A
         if image_dir is None:
             continue
         label_dir = label_dir_for_image_dir(image_dir)
-        images = sorted(
-            path for path in image_dir.glob("*") if path.suffix.lower() in IMAGE_EXTENSIONS
-        ) if image_dir.exists() else []
+        images = iter_image_files(image_dir)
         labels = sorted(label_dir.glob("*.txt")) if label_dir.exists() else []
         image_by_stem = {path.stem: path for path in images}
         label_by_stem = {path.stem: path for path in labels}
@@ -483,10 +379,7 @@ def audit_dataset(data_yaml: Path, hash_duplicates: bool = False) -> dict[str, A
                 add_example(summary["examples"]["missing_images"], label_path)
                 continue
 
-            try:
-                raw_lines = label_path.read_text(encoding="utf-8").splitlines()
-            except UnicodeDecodeError:
-                raw_lines = label_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            raw_lines = read_yolo_label_file(label_path)
             nonempty = [line for line in raw_lines if line.strip()]
             if not nonempty:
                 split_summary["empty_labels"] += 1
@@ -495,24 +388,15 @@ def audit_dataset(data_yaml: Path, hash_duplicates: bool = False) -> dict[str, A
 
             classes_in_image: set[int] = set()
             for line_number, line in enumerate(nonempty, start=1):
-                parts = line.split()
-                if len(parts) != 5:
+                parsed = parse_yolo_row(line)
+                if parsed is None:
                     split_summary["invalid_label_lines"] += 1
                     add_example(
                         summary["examples"]["invalid_label_lines"],
                         f"{display_path(label_path)}:{line_number}",
                     )
                     continue
-                try:
-                    class_index = int(float(parts[0]))
-                    x_center, y_center, width, height = map(float, parts[1:])
-                except ValueError:
-                    split_summary["invalid_label_lines"] += 1
-                    add_example(
-                        summary["examples"]["invalid_label_lines"],
-                        f"{display_path(label_path)}:{line_number}",
-                    )
-                    continue
+                class_index, x_center, y_center, width, height = parsed
                 if class_index < 0 or class_index >= len(names):
                     split_summary["out_of_range_class_indices"] += 1
                     add_example(
@@ -520,12 +404,7 @@ def audit_dataset(data_yaml: Path, hash_duplicates: bool = False) -> dict[str, A
                         f"{display_path(label_path)}:{line_number}:{class_index}",
                     )
                     continue
-                if (
-                    not 0 <= x_center <= 1
-                    or not 0 <= y_center <= 1
-                    or not 0 < width <= 1
-                    or not 0 < height <= 1
-                ):
+                if not validate_yolo_bbox(x_center, y_center, width, height):
                     split_summary["invalid_bboxes"] += 1
                     add_example(
                         summary["examples"]["invalid_bboxes"],
@@ -591,17 +470,16 @@ def write_reports(summary: dict[str, Any], output_dir: Path) -> None:
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    with distribution_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["class_index", "class_name", "bbox_count", "image_count"],
-            lineterminator="\n",
-        )
-        writer.writeheader()
-        writer.writerows(class_rows(summary))
+    write_csv_rows(
+        distribution_path,
+        class_rows(summary),
+        ["class_index", "class_name", "bbox_count", "image_count"],
+    )
     if "class_distribution_report_rows" in summary:
-        with class_distribution_report_path.open("w", newline="", encoding="utf-8") as handle:
-            fieldnames = [
+        write_csv_rows(
+            class_distribution_report_path,
+            summary["class_distribution_report_rows"],
+            [
                 "class_id",
                 "class_name",
                 "train_image_count",
@@ -615,13 +493,13 @@ def write_reports(summary: dict[str, Any], output_dir: Path) -> None:
                 "train_val_ratio_note",
                 "risk_level",
                 "recommended_action",
-            ]
-            writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-            writer.writeheader()
-            writer.writerows(summary["class_distribution_report_rows"])
+            ],
+        )
     if "duplicate_image_report_rows" in summary:
-        with duplicate_report_path.open("w", newline="", encoding="utf-8") as handle:
-            fieldnames = [
+        write_csv_rows(
+            duplicate_report_path,
+            summary["duplicate_image_report_rows"],
+            [
                 "hash",
                 "image_path",
                 "split",
@@ -633,10 +511,8 @@ def write_reports(summary: dict[str, Any], output_dir: Path) -> None:
                 "same_label_as_group",
                 "recommended_action",
                 "notes",
-            ]
-            writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-            writer.writeheader()
-            writer.writerows(summary["duplicate_image_report_rows"])
+            ],
+        )
 
 
 def main() -> int:

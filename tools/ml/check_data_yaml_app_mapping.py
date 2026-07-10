@@ -12,7 +12,8 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Any
+
+from dataset_io import load_data_yaml as load_dataset_yaml
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,65 +33,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_scalar(value: str) -> Any:
-    value = value.strip()
-    if value.startswith("[") and value.endswith("]"):
-        body = value[1:-1].strip()
-        if not body:
-            return []
-        return [item.strip().strip("'\"") for item in body.split(",")]
-    try:
-        return int(value)
-    except ValueError:
-        return value.strip("'\"")
-
-
 def load_data_yaml(path: Path) -> tuple[int | None, list[str]]:
-    if not path.exists():
-        raise FileNotFoundError(f"data.yaml not found: {path}")
-
-    nc: int | None = None
-    indexed_names: dict[int, str] = {}
-    list_names: list[str] | None = None
-    in_names = False
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.split("#", 1)[0].rstrip()
-        if not line.strip():
-            continue
-
-        if line.startswith((" ", "\t")) and in_names:
-            item = line.strip()
-            if ":" not in item:
-                raise ValueError(f"Invalid names entry in data.yaml: {raw_line}")
-            key, value = item.split(":", 1)
-            indexed_names[int(key.strip())] = str(parse_scalar(value))
-            continue
-
-        in_names = False
-        if ":" not in line:
-            raise ValueError(f"Invalid line in data.yaml: {raw_line}")
-        key, value = line.split(":", 1)
-        key = key.strip()
-        if key == "nc":
-            parsed = parse_scalar(value)
-            if not isinstance(parsed, int):
-                raise ValueError(f"Invalid nc value in data.yaml: {value.strip()}")
-            nc = parsed
-        elif key == "names":
-            if value.strip():
-                parsed = parse_scalar(value)
-                if not isinstance(parsed, list):
-                    raise ValueError("Inline names must be a YAML-style list")
-                list_names = [str(item) for item in parsed]
-            else:
-                in_names = True
-
-    if list_names is not None:
-        return nc, list_names
-    if indexed_names:
-        return nc, [indexed_names.get(index, "") for index in range(max(indexed_names) + 1)]
-    raise ValueError("data.yaml has no parseable names")
+    config, errors = load_dataset_yaml(path)
+    if errors:
+        if not path.exists():
+            raise FileNotFoundError(errors[0])
+        raise ValueError("; ".join(errors))
+    nc = config.get("nc")
+    if nc is not None and not isinstance(nc, int):
+        raise ValueError(f"Invalid nc value in data.yaml: {nc!r}")
+    names = config.get("names", [])
+    if not isinstance(names, list):
+        raise ValueError("data.yaml names must be a list")
+    return nc, [str(name) for name in names]
 
 
 def extract_enum_body(source: str, enum_name: str) -> str:
