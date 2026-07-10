@@ -9,17 +9,17 @@
 
 ## Approval State
 
-- Pending duplicate decisions: 10
-- Duplicate label-conflict reviews: 0
+- Pending duplicate decisions: 0
+- Duplicate label-conflict reviews: 2
 - Pending split decisions: 376
 - Split manual reviews: 0
 
 ## Planned Duplicate Actions
 
-- Keep: 0
-- Remove from the new dataset copy: 0
-- Pending review: 10
-- Label-conflict review: 0
+- Keep: 4
+- Remove from the new dataset copy: 4
+- Pending review: 0
+- Label-conflict review: 2
 
 ## Planned Fixed Test-Split Actions
 
@@ -62,6 +62,6 @@ Examples of resolved copy candidates (capped at eight per split):
 
 ## Blocked Reasons
 
-- 10 duplicate decisions are pending_review
+- 2 duplicate decisions require label-conflict review
 - 376 split decisions are pending_review
 - Change approved_action to an explicit final decision before apply mode.

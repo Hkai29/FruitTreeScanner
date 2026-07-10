@@ -71,6 +71,15 @@ fixed test split. The plan is not an applied split; `data.yaml` still has only
 - Decision record: `ml/audit_reports/duplicate_review_pack.md`
 - Cleanup state: no image deleted, moved, renamed, or relabeled
 
+Human-review update:
+
+- `dup_001` through `dup_004` (loquat) have approved future-copy duplicate
+  decisions after visual confirmation; one canonical file is retained per
+  group.
+- `dup_005` (lychee) is `review_label_conflict` after unexpected content was
+  reported during visual review. It is blocked from cleanup and training use
+  pending curation. Matching bytes do not validate the claimed class.
+
 ## Fixed Test Split Status
 
 - Plan: `ml/audit_reports/test_split_plan.csv`
