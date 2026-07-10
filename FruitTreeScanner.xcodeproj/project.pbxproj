@@ -19,6 +19,7 @@
 		SCANCOORDAR001 /* ScanCoordinatorARSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORDAR002 /* ScanCoordinatorARSession.swift */; };
 		SCANCOORDWF001 /* ScanCoordinatorWorkflows.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORDWF002 /* ScanCoordinatorWorkflows.swift */; };
 		SCANCOORDHUD001 /* ScanCoordinatorHUDUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */; };
+		SCANYIELDCTRL001 /* ScanYieldEstimationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANYIELDCTRL002 /* ScanYieldEstimationController.swift */; };
 		SCANCONF001 /* ScanSessionConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCONF002 /* ScanSessionConfiguration.swift */; };
 		SCANQUALSAMP001 /* ScanQualitySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANQUALSAMP002 /* ScanQualitySampler.swift */; };
 		SCANGUIDHELP001 /* ScanGuidanceHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANGUIDHELP002 /* ScanGuidanceHelper.swift */; };
@@ -311,6 +312,7 @@
 		SCANCOORDAR002 /* ScanCoordinatorARSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinatorARSession.swift; sourceTree = "<group>"; };
 		SCANCOORDWF002 /* ScanCoordinatorWorkflows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinatorWorkflows.swift; sourceTree = "<group>"; };
 		SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinatorHUDUpdates.swift; sourceTree = "<group>"; };
+		SCANYIELDCTRL002 /* ScanYieldEstimationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanYieldEstimationController.swift; sourceTree = "<group>"; };
 		SCANCONF002 /* ScanSessionConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSessionConfiguration.swift; sourceTree = "<group>"; };
 		SCANQUALSAMP002 /* ScanQualitySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQualitySampler.swift; sourceTree = "<group>"; };
 		SCANGUIDHELP002 /* ScanGuidanceHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanGuidanceHelper.swift; sourceTree = "<group>"; };
@@ -871,6 +873,7 @@
 				SCANCOORDAR002 /* ScanCoordinatorARSession.swift */,
 				SCANCOORDWF002 /* ScanCoordinatorWorkflows.swift */,
 				SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */,
+				SCANYIELDCTRL002 /* ScanYieldEstimationController.swift */,
 				SCANCONF002 /* ScanSessionConfiguration.swift */,
 				SCANQUALSAMP002 /* ScanQualitySampler.swift */,
 				SCANGUIDHELP002 /* ScanGuidanceHelper.swift */,
@@ -1188,6 +1191,7 @@
 				SCANCOORDAR001 /* ScanCoordinatorARSession.swift in Sources */,
 				SCANCOORDWF001 /* ScanCoordinatorWorkflows.swift in Sources */,
 				SCANCOORDHUD001 /* ScanCoordinatorHUDUpdates.swift in Sources */,
+				SCANYIELDCTRL001 /* ScanYieldEstimationController.swift in Sources */,
 				SCANCONF001 /* ScanSessionConfiguration.swift in Sources */,
 				SCANQUALSAMP001 /* ScanQualitySampler.swift in Sources */,
 				SCANGUIDHELP001 /* ScanGuidanceHelper.swift in Sources */,

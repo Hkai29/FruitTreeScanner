@@ -1,9 +1,5 @@
 import Foundation
 
-private struct ScanYieldEstimationSnapshot: @unchecked Sendable {
-    var input: ScanFusionYieldBuilder.Input
-}
-
 extension ScanCoordinator {
     func startDetectionTimer() {
         // 低频处理最新帧，避免 Vision/CoreML 抢占扫描渲染资源。
@@ -133,7 +129,7 @@ extension ScanCoordinator {
     func startRecording() {
         detectionTask?.cancel()
         detectionTask = nil
-        invalidateYieldEstimationRequest()
+        yieldEstimationController.cancel()
         imageDetector.clearQueue()
         createDirectory(folder: "scans")
         pointCount = 0
@@ -158,7 +154,7 @@ extension ScanCoordinator {
         // This is the same logical scan. Keep the in-flight detection task and
         // queued frames so stopping briefly does not discard image evidence
         // that still needs to be fused with the preserved point cloud.
-        invalidateYieldEstimationRequest()
+        yieldEstimationController.cancel()
         publishImageDetectorStatus()
         hudState?.update(fusionStatus: "补扫中")
         renderer?.currentFolder = "scans"
@@ -195,20 +191,8 @@ extension ScanCoordinator {
         return r.makeAnalysisPoints()
     }
 
-    func beginYieldEstimationRequest() -> UInt64 {
-        fusionEstimateTask?.cancel()
-        fusionEstimateTask = nil
-        return yieldEstimationRequestGate.beginRequest()
-    }
-
-    func invalidateYieldEstimationRequest() {
-        yieldEstimationRequestGate.invalidate()
-        fusionEstimateTask?.cancel()
-        fusionEstimateTask = nil
-    }
-
     @MainActor
-    private func makeYieldEstimationSnapshot(season: Season) -> ScanYieldEstimationSnapshot? {
+    private func makeYieldEstimationSnapshot(season: Season) -> ScanYieldEstimationController.Snapshot? {
         guard !isTornDown else { return nil }
 
         let fruitType = settings.fruitType
@@ -225,7 +209,7 @@ extension ScanCoordinator {
         detectedFruits.removeAll()
         archivedFusionEvidenceDetections.removeAll()
 
-        return ScanYieldEstimationSnapshot(
+        return ScanYieldEstimationController.Snapshot(
             input: .init(
                 points: extractColoredPoints(),
                 savedDetections: savedDetections,
@@ -242,70 +226,29 @@ extension ScanCoordinator {
         )
     }
 
-    @MainActor
-    func commitYieldEstimationResult(
-        _ result: YieldResult,
-        countResult: FruitCountResult,
-        generation: UInt64,
-        completion: @escaping (YieldResult, FruitCountResult?) -> Void
-    ) {
-        guard yieldEstimationRequestGate.accepts(generation), !isTornDown else { return }
-
-        fusionEstimateTask = nil
-        hudState?.update(
-            detectedFruitCount: result.diagnostics.fusedFruitCount,
-            fusionStatus: result.diagnostics.fusedFruitCount > 0 ? "OK" : "0kg"
-        )
-        completion(result, countResult)
-    }
-
     /// 多模态融合产量估算（新 pipeline）
     @MainActor
     func runMultiModalYieldEstimate(
         season: Season = .mature,
         completion: @escaping (YieldResult, FruitCountResult?) -> Void
     ) {
-        let generation = beginYieldEstimationRequest()
-
-        fusionEstimateTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-
-            await self.flushPendingDetections()
-            guard !Task.isCancelled,
-                  self.yieldEstimationRequestGate.accepts(generation),
-                  let snapshot = self.makeYieldEstimationSnapshot(season: season) else {
-                return
-            }
-
-            let estimateTask = Task.detached(priority: .userInitiated) { [weak self, snapshot] in
-                let calibrationRecords = (try? CalibrationRecordPersistence.load()) ?? []
-                var input = snapshot.input
-                input.calibrationCorrection = YieldCalibrationCorrector.correction(
-                    from: calibrationRecords,
-                    fruitCategory: input.fruitCategory,
-                    fruitType: input.fruitType
+        yieldEstimationController.start(
+            season: season,
+            flushPendingDetections: { [weak self] in
+                await self?.flushPendingDetections()
+            },
+            makeSnapshot: { [weak self] season in
+                self?.makeYieldEstimationSnapshot(season: season)
+            },
+            completion: { [weak self] result, countResult in
+                guard let self, !self.isTornDown else { return }
+                self.hudState?.update(
+                    detectedFruitCount: result.diagnostics.fusedFruitCount,
+                    fusionStatus: result.diagnostics.fusedFruitCount > 0 ? "OK" : "0kg"
                 )
-                guard !Task.isCancelled else { return }
-
-                Log.fusion.info("Starting yield estimation: \(input.points.count) points, \(input.savedDetections.count) detections")
-                let (result, countResult) = await ScanFusionYieldBuilder.build(from: input)
-                guard !Task.isCancelled else { return }
-
-                Log.fusion.info("Yield estimate complete: \(result.yieldFinalKg, format: .fixed(precision: 2))kg, confidence=\(result.confidence), method=\(result.methodUsed)")
-                await self?.commitYieldEstimationResult(
-                    result,
-                    countResult: countResult,
-                    generation: generation,
-                    completion: completion
-                )
+                completion(result, countResult)
             }
-
-            guard self.yieldEstimationRequestGate.accepts(generation) else {
-                estimateTask.cancel()
-                return
-            }
-            self.fusionEstimateTask = estimateTask
-        }
+        )
     }
 
 }
