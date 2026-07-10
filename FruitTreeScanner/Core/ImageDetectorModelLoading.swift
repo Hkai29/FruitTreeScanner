@@ -148,23 +148,34 @@ enum ImageDetectorModelLoader {
         }
 
         let expectedLabels = FruitCategory.customModelLabelOrder
-        guard labels == expectedLabels else {
+        if labels == expectedLabels {
             return ModelLabelCompatibilityDiagnostics(
                 runtimeModelLabels: labels,
                 runtimeModelLabelsAvailable: true,
-                modelLabelCompatibilityStatus: "mismatch",
-                modelLabelCompatibilityWarnings: compatibilityWarnings(
-                    runtimeLabels: labels,
-                    expectedLabels: expectedLabels
-                )
+                modelLabelCompatibilityStatus: "compatible",
+                modelLabelCompatibilityWarnings: []
             )
+        }
+
+        let mapper = FruitCategoryMapper.standard
+        let unsupportedLabels = labels.filter { mapper.category(forRuntimeModelLabel: $0) == nil }
+        let status = unsupportedLabels.isEmpty && labels.count < expectedLabels.count
+            ? "subset"
+            : "runtimeMapped"
+        var warnings = compatibilityWarnings(
+            runtimeLabels: labels,
+            expectedLabels: expectedLabels
+        )
+        warnings.append("Runtime model labels will be mapped by label string instead of fixed class index.")
+        if !unsupportedLabels.isEmpty {
+            warnings.append("Unsupported runtime labels will be recorded as unmapped: \(unsupportedLabels.prefix(5).joined(separator: ", ")).")
         }
 
         return ModelLabelCompatibilityDiagnostics(
             runtimeModelLabels: labels,
             runtimeModelLabelsAvailable: true,
-            modelLabelCompatibilityStatus: "compatible",
-            modelLabelCompatibilityWarnings: []
+            modelLabelCompatibilityStatus: status,
+            modelLabelCompatibilityWarnings: warnings
         )
     }
 

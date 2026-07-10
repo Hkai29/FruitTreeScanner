@@ -682,8 +682,8 @@ final class DetectionDeduplicatorTests: XCTestCase {
         XCTAssertEqual(parsed.fruits[0].boundingBox.height, 0.2, accuracy: 0.001)
     }
 
-    func testParseYOLOMultiArrayFailsClosedWhenRuntimeLabelsMismatch() throws {
-        let output = try MLMultiArray(shape: [1, 30, 1], dataType: .float32)
+    func testParseYOLOMultiArrayUsesRuntimeLabelsForWrongOrderModel() throws {
+        let output = try MLMultiArray(shape: [1, 30, 2], dataType: .float32)
         setYOLOPrediction(
             output,
             anchor: 0,
@@ -693,6 +693,16 @@ final class DetectionDeduplicatorTests: XCTestCase {
             height: 64,
             classIndex: 0,
             confidence: 0.92
+        )
+        setYOLOPrediction(
+            output,
+            anchor: 1,
+            centerX: 224,
+            centerY: 224,
+            width: 48,
+            height: 48,
+            classIndex: 1,
+            confidence: 0.88
         )
         var runtimeLabels = FruitCategory.customModelLabelOrder
         runtimeLabels.swapAt(0, 1)
@@ -706,18 +716,155 @@ final class DetectionDeduplicatorTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(parsed.modelCandidateCount, 1)
-        XCTAssertEqual(parsed.thresholdPassedCount, 1)
-        XCTAssertTrue(parsed.fruits.isEmpty)
-        XCTAssertEqual(parsed.mappedCategories, [])
-        XCTAssertEqual(parsed.unmappedObservationCount, 1)
-        XCTAssertEqual(parsed.unmappedLabels, ["orange"])
-        XCTAssertEqual(parsed.rawPredictions.map(\.label), ["orange"])
-        XCTAssertEqual(parsed.filteredPredictions.map(\.label), ["orange"])
-        XCTAssertEqual(
-            parsed.labelMappingFailureReason,
-            "Runtime model labels mismatch; fixed YOLO class-index mapping is disabled."
+        XCTAssertEqual(parsed.modelCandidateCount, 2)
+        XCTAssertEqual(parsed.thresholdPassedCount, 2)
+        XCTAssertEqual(parsed.fruits.map(\.category), [.orange, .apple])
+        XCTAssertEqual(parsed.mappedCategories, ["orange", "apple"])
+        XCTAssertEqual(parsed.unmappedObservationCount, 0)
+        XCTAssertTrue(parsed.unmappedLabels.isEmpty)
+        XCTAssertEqual(parsed.rawPredictions.map(\.label), ["orange", "apple"])
+        XCTAssertEqual(parsed.filteredPredictions.map(\.label), ["orange", "apple"])
+        XCTAssertNil(parsed.labelMappingFailureReason)
+    }
+
+    func testParseYOLOMultiArrayMapsSixClassRuntimeLabelSubset() throws {
+        let output = try MLMultiArray(shape: [1, 10, 3], dataType: .float32)
+        setYOLOPrediction(
+            output,
+            anchor: 0,
+            centerX: 96,
+            centerY: 96,
+            width: 48,
+            height: 48,
+            classIndex: 0,
+            confidence: 0.92
         )
+        setYOLOPrediction(
+            output,
+            anchor: 1,
+            centerX: 160,
+            centerY: 160,
+            width: 48,
+            height: 48,
+            classIndex: 1,
+            confidence: 0.90
+        )
+        setYOLOPrediction(
+            output,
+            anchor: 2,
+            centerX: 224,
+            centerY: 224,
+            width: 48,
+            height: 48,
+            classIndex: 5,
+            confidence: 0.88
+        )
+        let labels = ["apple", "orange", "pear", "persimmon", "grape", "strawberry"]
+        let diagnostics = ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: labels)
+
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output,
+            timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5),
+            labelDiagnostics: diagnostics
+        )
+
+        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "subset")
+        XCTAssertEqual(parsed.fruits.map(\.category), [.apple, .orange, .strawberry])
+        XCTAssertEqual(parsed.mappedCategories, ["apple", "orange", "strawberry"])
+        XCTAssertEqual(parsed.unmappedObservationCount, 0)
+    }
+
+    func testParseYOLOMultiArrayRecordsUnknownRuntimeLabelAsUnmapped() throws {
+        let output = try MLMultiArray(shape: [1, 6, 2], dataType: .float32)
+        setYOLOPrediction(
+            output,
+            anchor: 0,
+            centerX: 96,
+            centerY: 96,
+            width: 48,
+            height: 48,
+            classIndex: 0,
+            confidence: 0.92
+        )
+        setYOLOPrediction(
+            output,
+            anchor: 1,
+            centerX: 224,
+            centerY: 224,
+            width: 48,
+            height: 48,
+            classIndex: 1,
+            confidence: 0.88
+        )
+
+        let diagnostics = ImageDetectorModelLoader.labelDiagnostics(
+            forRuntimeLabels: ["apple", "unknown_fruit"]
+        )
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output,
+            timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5),
+            labelDiagnostics: diagnostics
+        )
+
+        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "runtimeMapped")
+        XCTAssertTrue(diagnostics.modelLabelCompatibilityWarnings.contains {
+            $0.contains("Unsupported runtime labels")
+        })
+        XCTAssertEqual(parsed.fruits.map(\.category), [.apple])
+        XCTAssertEqual(parsed.mappedCategories, ["apple"])
+        XCTAssertEqual(parsed.unmappedObservationCount, 1)
+        XCTAssertEqual(parsed.unmappedLabels, ["unknown_fruit"])
+    }
+
+    func testParseYOLOMultiArrayDoesNotUseFixedDebugLabelWhenRuntimeMetadataIsShort() throws {
+        let output = try MLMultiArray(shape: [1, 6, 1], dataType: .float32)
+        setYOLOPrediction(
+            output,
+            anchor: 0,
+            centerX: 160,
+            centerY: 160,
+            width: 64,
+            height: 64,
+            classIndex: 1,
+            confidence: 0.92
+        )
+
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output,
+            timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5),
+            labelDiagnostics: ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: ["apple"])
+        )
+
+        XCTAssertTrue(parsed.fruits.isEmpty)
+        XCTAssertEqual(parsed.unmappedObservationCount, 1)
+        XCTAssertEqual(parsed.unmappedLabels, ["class 1"])
+    }
+
+    func testParseYOLOMultiArrayUsesLegacyFixedOrderOnlyWhenRuntimeLabelsUnavailable() throws {
+        let output = try MLMultiArray(shape: [1, 30, 1], dataType: .float32)
+        setYOLOPrediction(
+            output,
+            anchor: 0,
+            centerX: 160,
+            centerY: 160,
+            width: 64,
+            height: 64,
+            classIndex: 1,
+            confidence: 0.92
+        )
+
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output,
+            timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5),
+            labelDiagnostics: .unavailable
+        )
+
+        XCTAssertEqual(parsed.fruits.map(\.category), [.orange])
+        XCTAssertEqual(parsed.rawPredictions.map(\.label), [FruitCategory.orange.displayName])
     }
 
     func testParseYOLOMultiArrayReportsConfidenceFilteredCandidates() throws {

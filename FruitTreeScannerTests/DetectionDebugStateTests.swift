@@ -81,33 +81,29 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertTrue(diagnostics.modelLabelCompatibilityWarnings.isEmpty)
     }
 
-    func testModelLabelDiagnosticsReportMismatchWithoutFailing() {
+    func testModelLabelDiagnosticsReportRuntimeMappingForWrongOrderLabels() {
         var labels = FruitCategory.customModelLabelOrder
         labels.swapAt(0, 1)
 
         let diagnostics = ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: labels)
 
         XCTAssertTrue(diagnostics.runtimeModelLabelsAvailable)
-        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "mismatch")
+        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "runtimeMapped")
         XCTAssertFalse(diagnostics.modelLabelCompatibilityWarnings.isEmpty)
-        XCTAssertTrue(diagnostics.blocksFixedClassIndexMapping)
-        XCTAssertEqual(
-            diagnostics.fixedClassIndexMappingFailureReason,
-            "Runtime model labels mismatch; fixed YOLO class-index mapping is disabled."
-        )
+        XCTAssertTrue(diagnostics.usesRuntimeLabelMapping)
+        XCTAssertEqual(diagnostics.runtimeLabel(forClassIndex: 0), "orange")
     }
 
-    func testModelLabelMismatchRecordsDiagnosticsAndDebugFailureReason() throws {
+    func testModelLabelRuntimeMappingDoesNotRecordDebugFailureReason() {
         var labels = FruitCategory.customModelLabelOrder
         labels.swapAt(0, 1)
         let labelDiagnostics = ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: labels)
-        let failureReason = try XCTUnwrap(labelDiagnostics.fixedClassIndexMappingFailureReason)
 
         var recorder = ImageDetectorDiagnosticsRecorder()
         recorder.apply(modelStatus: .coreML(resourceName: "FruitsDetector", bundleExtension: "mlmodelc"))
         recorder.apply(labelDiagnostics: labelDiagnostics)
-        XCTAssertEqual(recorder.snapshot.modelLabelCompatibilityStatus, "mismatch")
-        XCTAssertEqual(recorder.snapshot.effectiveFailureReason, failureReason)
+        XCTAssertEqual(recorder.snapshot.modelLabelCompatibilityStatus, "runtimeMapped")
+        XCTAssertTrue(recorder.snapshot.modelFailureReason.isEmpty)
 
         var state = DetectionDebugState(currentThreshold: 0.5)
         state.markModelLoaded(
@@ -116,8 +112,21 @@ final class DetectionDebugStateTests: XCTestCase {
             supportedClasses: labelDiagnostics.runtimeModelLabels,
             labelDiagnostics: labelDiagnostics
         )
-        XCTAssertEqual(state.modelLabelCompatibilityStatus, "mismatch")
-        XCTAssertEqual(state.lastErrorMessage, failureReason)
+        XCTAssertEqual(state.modelLabelCompatibilityStatus, "runtimeMapped")
+        XCTAssertNil(state.lastErrorMessage)
+    }
+
+    func testModelLabelDiagnosticsReportSubsetForSixSupportedFruitLabels() {
+        let labels = ["apple", "orange", "pear", "persimmon", "grape", "strawberry"]
+
+        let diagnostics = ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: labels)
+
+        XCTAssertTrue(diagnostics.runtimeModelLabelsAvailable)
+        XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "subset")
+        XCTAssertTrue(diagnostics.usesRuntimeLabelMapping)
+        XCTAssertTrue(diagnostics.modelLabelCompatibilityWarnings.contains {
+            $0.contains("mapped by label string")
+        })
     }
 
     func testModelLabelDiagnosticsParseUltralyticsNamesMetadata() {

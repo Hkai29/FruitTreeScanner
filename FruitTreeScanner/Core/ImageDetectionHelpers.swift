@@ -95,6 +95,10 @@ struct FruitCategoryMapper {
         return nil
     }
 
+    func category(forRuntimeModelLabel label: String) -> FruitCategory? {
+        stringCategoryMapping[normalizedIdentifier(label)]
+    }
+
     func normalizedIdentifier(_ identifier: String) -> String {
         identifier
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -117,16 +121,16 @@ struct ModelLabelCompatibilityDiagnostics: Sendable, Equatable {
 
     static let unavailable = ModelLabelCompatibilityDiagnostics()
 
-    /// A YOLO MultiArray exposes class scores by index. If the model supplied a
-    /// label list that differs from the App's fixed order, mapping that index
-    /// would silently assign detections to the wrong fruit category.
-    var blocksFixedClassIndexMapping: Bool {
-        runtimeModelLabelsAvailable && modelLabelCompatibilityStatus != "compatible"
+    var usesRuntimeLabelMapping: Bool {
+        runtimeModelLabelsAvailable
     }
 
-    var fixedClassIndexMappingFailureReason: String? {
-        guard blocksFixedClassIndexMapping else { return nil }
-        return "Runtime model labels mismatch; fixed YOLO class-index mapping is disabled."
+    func runtimeLabel(forClassIndex classIndex: Int) -> String? {
+        guard runtimeModelLabelsAvailable,
+              runtimeModelLabels.indices.contains(classIndex) else {
+            return nil
+        }
+        return runtimeModelLabels[classIndex]
     }
 }
 
@@ -173,9 +177,6 @@ struct ImageDetectorDiagnosticsRecorder {
         snapshot.runtimeModelLabelsAvailable = labelDiagnostics.runtimeModelLabelsAvailable
         snapshot.modelLabelCompatibilityStatus = labelDiagnostics.modelLabelCompatibilityStatus
         snapshot.modelLabelCompatibilityWarnings = labelDiagnostics.modelLabelCompatibilityWarnings
-        if let failureReason = labelDiagnostics.fixedClassIndexMappingFailureReason {
-            snapshot.modelFailureReason = failureReason
-        }
     }
 
     mutating func reset(modelStatus: ImageDetectorModelStatus) {

@@ -34,6 +34,9 @@ enum YOLOParserSupport {
         if runtimeLabels.indices.contains(classIndex) {
             return runtimeLabels[classIndex]
         }
+        if !runtimeLabels.isEmpty {
+            return "class \(classIndex)"
+        }
         return FruitCategory.fromCustomModel(classIndex)?.displayName ?? "class \(classIndex)"
     }
 

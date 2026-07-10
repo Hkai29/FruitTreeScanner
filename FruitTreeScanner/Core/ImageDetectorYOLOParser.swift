@@ -59,7 +59,6 @@ extension ImageDetector {
         var confidenceFilteredCount = 0
         var thresholdPassedCount = 0
         var unmappedObservationCount = 0
-        let blocksFixedClassIndexMapping = labelDiagnostics.blocksFixedClassIndexMapping
         let runtimeLabels = labelDiagnostics.runtimeModelLabels
 
         for anchorIndex in 0..<anchorCount {
@@ -117,13 +116,15 @@ extension ImageDetector {
             )
             filteredDebugPredictions.append(debugPrediction)
 
-            guard !blocksFixedClassIndexMapping else {
-                unmappedObservationCount += 1
-                unmappedLabels.append(debugPrediction.label)
-                continue
+            let category: FruitCategory?
+            if labelDiagnostics.usesRuntimeLabelMapping {
+                category = labelDiagnostics.runtimeLabel(forClassIndex: classIndex)
+                    .flatMap { FruitCategoryMapper.standard.category(forRuntimeModelLabel: $0) }
+            } else {
+                category = FruitCategory.fromCustomModel(classIndex)
             }
 
-            guard let category = FruitCategory.fromCustomModel(classIndex) else {
+            guard let category else {
                 unmappedObservationCount += 1
                 unmappedLabels.append(debugPrediction.label)
                 continue
@@ -159,7 +160,7 @@ extension ImageDetector {
             unmappedLabels: unmappedLabels,
             rawPredictions: rawDebugPredictions,
             filteredPredictions: filteredDebugPredictions,
-            labelMappingFailureReason: labelDiagnostics.fixedClassIndexMappingFailureReason
+            labelMappingFailureReason: nil
         )
     }
 }

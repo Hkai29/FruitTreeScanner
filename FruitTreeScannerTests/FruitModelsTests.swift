@@ -109,6 +109,13 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertNil(FruitCategoryMapper.standard.category(for: "dragon fruit"))
     }
 
+    func testFruitCategoryMapperRuntimeLabelsDoNotTreatClassIDsAsFruitNames() {
+        let mapper = FruitCategoryMapper.standard
+
+        XCTAssertEqual(mapper.category(forRuntimeModelLabel: "apple"), .apple)
+        XCTAssertNil(mapper.category(forRuntimeModelLabel: "0"))
+    }
+
     func testFruitCategoryMapperDoesNotMapBananaToPear() {
         XCTAssertNil(FruitCategoryMapper.standard.category(for: "banana"))
         XCTAssertNil(FruitCategory.fromCOCO(52))
