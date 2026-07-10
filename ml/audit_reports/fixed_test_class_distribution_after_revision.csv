@@ -1,0 +1,7 @@
+class_name,approved_test_images,approved_test_boxes,excluded_test_images,excluded_test_boxes,risk_level,notes
+apple,95,1336,7,22,low,approved volume remains at or above 20 images
+orange,63,990,3,129,low,approved volume remains at or above 20 images
+pear,148,4294,8,173,low,approved volume remains at or above 20 images
+persimmon,92,882,1,6,low,approved volume remains at or above 20 images
+grape,15,500,3,22,watch,fewer than 20 approved test images
+strawberry,24,327,1,12,low,approved volume remains at or above 20 images

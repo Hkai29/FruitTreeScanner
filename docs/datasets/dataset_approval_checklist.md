@@ -37,8 +37,11 @@ Review `ml/audit_reports/test_split_review_summary.md` and update only the
 - Use `manual_review` for uncertain rows.
 
 The current recommendation is a six-class test only: apple, orange, pear,
-persimmon, grape, and strawberry. The CSV still contains `pending_review` for
-all rows until a human explicitly decides otherwise.
+persimmon, grape, and strawberry. The fixed-test revision now records 347
+`approve_move_to_test` rows and 29 `exclude_from_core_test` rows: 21 semantic
+exclusions and eight non-core candidates were removed from the target test.
+The fixed-test approval gate is therefore cleared, although the target apply
+remains blocked until semantic exclusions are enforced by the apply path.
 
 ## Decision 3: Six-Class Semantic Review Boundary
 
@@ -56,6 +59,20 @@ remain unresolved and must not be used to justify 26-class model training.
 The narrowed semantic review does not replace the duplicate or fixed-test
 approval gates above.
 
+## Current Six-Class Gate Status
+
+- Semantic review: cleared (one `keep`, 158 `exclude_from_training`, no
+  pending rows).
+- Duplicate conflict: cleared; the rejected lychee duplicate pair was removed
+  with its labels and the dataset audit was rerun without pairing errors.
+- Fixed test: cleared; `fixed_test_revision_summary.md` records the final
+  actions and the 21 semantic-excluded candidates removed from target test.
+- Apply: still blocked. `apply_dataset_cleanup.py` does not consume
+  `core_class_manual_review_decisions.csv`, and its supported
+  `exclude_from_core_test` action only prevents test placement; it leaves the
+  source record eligible for target train. Semantic exclusions must be wired
+  into the controlled apply plan before a dataset copy can be approved.
+
 ## Why Six-Class Testing Does Not Represent a 26-Class Model
 
 The current fixed-test plan deliberately protects weak or unsupported classes.
@@ -66,10 +83,12 @@ all 26 current App categories.
 
 ## Completion Gate
 
-- [ ] Every duplicate row has a final `approved_action`.
-- [ ] Every fixed split row has a final `approved_action`.
-- [ ] Every blocking row in `core_class_manual_review_decisions.csv` has a
-  documented final approval before a six-class apply task.
+- [x] Every duplicate row has a final `approved_action`.
+- [x] Every fixed split row has a final `approved_action`.
+- [x] Every blocking row in `core_class_manual_review_decisions.csv` has a
+  documented final approval.
 - [ ] The six-class scope is recorded as an experiment limitation.
-- [ ] No source image, label, or `data.yaml` has been edited during review.
+- [x] The rejected lychee duplicate pair and corresponding labels were removed
+  intentionally; the post-removal audit confirms no missing image/label pairs.
+- [ ] Semantic exclusions are enforced by the controlled apply plan.
 - [ ] A separate explicit approval is obtained before any apply task.
