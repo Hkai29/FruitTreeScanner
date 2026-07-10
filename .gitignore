@@ -25,6 +25,13 @@ ml/downloaded_fruits/
 ml/datasets/source/
 runs/
 
+# Local generated body of the approved six-class dataset. Keep its version
+# manifest trackable while preventing images, labels, and generated data.yaml
+# from being accidentally staged or pushed.
+/ml/datasets/fruit_dataset_6_core_v1/data.yaml
+/ml/datasets/fruit_dataset_6_core_v1/images/
+/ml/datasets/fruit_dataset_6_core_v1/labels/
+
 # Swift Package Manager local state
 .build/
 .swiftpm/
