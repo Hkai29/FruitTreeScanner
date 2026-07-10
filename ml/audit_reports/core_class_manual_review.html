@@ -1,0 +1,2906 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Six-Class Manual Review</title>
+  <style>
+    :root { color: #1c252b; background: #f4f6f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0 auto; max-width: 1180px; padding: 28px; }
+    h1, h2, p { margin-top: 0; } p, dd { line-height: 1.45; }
+    .notice { background: #fff3cd; border: 1px solid #d5a520; border-radius: 8px; padding: 14px; }
+    .summary { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 20px 0 28px; }
+    .summary div { background: #fff; border: 1px solid #d7dce1; border-radius: 8px; padding: 14px; }
+    .summary strong { display: block; font-size: 1.55rem; }
+    .risk-group { border-top: 4px solid #6e7e8a; margin: 34px 0; padding-top: 16px; }
+    .risk-group.high { border-color: #ba3a32; } .risk-group.medium { border-color: #ad7a16; } .risk-group.low { border-color: #397b59; }
+    h2 span { color: #5e6a73; font-size: 1rem; font-weight: 500; }
+    .review-card { align-items: start; background: #fff; border: 1px solid #d7dce1; border-radius: 8px; display: grid; gap: 18px; grid-template-columns: minmax(180px, 240px) 1fr; margin: 14px 0; padding: 16px; }
+    figure { margin: 0; } .thumbnail img { background: #e6eaed; display: block; height: 180px; object-fit: contain; width: 100%; }
+    figcaption { color: #5e6a73; font-size: .82rem; margin-top: 6px; }
+    dl { display: grid; gap: 8px 14px; grid-template-columns: 180px minmax(0, 1fr); margin: 0; }
+    dt { color: #53616a; font-weight: 650; } dd { margin: 0; overflow-wrap: anywhere; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; }
+    @media (max-width: 640px) { body { padding: 16px; } .review-card { grid-template-columns: 1fr; } dl { grid-template-columns: 1fr; gap: 3px; } dt { margin-top: 8px; } }
+  </style>
+</head>
+<body>
+  <h1>Six-Class Manual Review</h1>
+  <p class="notice">This static page is for human review only. It does not change approvals, labels, images, splits, or dataset membership. Record final decisions only in <code>core_class_manual_review_decisions.csv</code>.</p>
+  <section class="summary">
+    <div><strong>159</strong>total rows</div>
+    <div><strong>143</strong>high-risk rows</div>
+    <div><strong>16</strong>medium-risk rows</div>
+    <div><strong>159</strong>pending rows</div>
+    <div><strong>48</strong>recommended exclude rows</div>
+    <div><strong>0</strong>recommended keep rows</div>
+  </section>
+  <section class="risk-group high">
+  <h2>High risk <span>143</span></h2>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000420713.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000420713.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000420713.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000420713.txt</code></dd>
+    <dt>class_names</dt><dd>pear|peach|grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000261503.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000261503.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000261503.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000261503.txt</code></dd>
+    <dt>class_names</dt><dd>apple|pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000413401.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000413401.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000413401.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000413401.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000066670.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000066670.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000066670.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000066670.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000126733.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000126733.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000126733.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000126733.txt</code></dd>
+    <dt>class_names</dt><dd>apple|pear|cherry|persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000007367.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000007367.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000007367.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000007367.txt</code></dd>
+    <dt>class_names</dt><dd>pear|peach</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000366389.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000366389.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000366389.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000366389.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_fruit_class_disagreement</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000397404.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000397404.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000397404.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000397404.txt</code></dd>
+    <dt>class_names</dt><dd>orange|pear|grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000510552.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000510552.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000510552.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000510552.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000422611.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000422611.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000422611.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000422611.txt</code></dd>
+    <dt>class_names</dt><dd>strawberry</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000077990.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000077990.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000077990.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000077990.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000032699.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000032699.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000032699.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000032699.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000389006.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000389006.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000389006.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000389006.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000446670.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000446670.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000446670.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000446670.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000574735.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000574735.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000574735.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000574735.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000297639.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000297639.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000297639.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000297639.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000092998.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000092998.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000092998.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000092998.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000151830.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000151830.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000151830.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000151830.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000534467.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000534467.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000534467.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000534467.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000036091.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000036091.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000036091.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000036091.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000267932.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000267932.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000267932.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000267932.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000552502.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000552502.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000552502.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000552502.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000181179.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000181179.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000181179.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000181179.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000130180.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000130180.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000130180.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000130180.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000541279.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000541279.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000541279.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000541279.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000226559.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000226559.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000226559.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000226559.txt</code></dd>
+    <dt>class_names</dt><dd>apple|orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000139004.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000139004.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000139004.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000139004.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000432417.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000432417.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000432417.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000432417.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000119276.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000119276.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000119276.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000119276.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000164121.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000164121.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000164121.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000164121.txt</code></dd>
+    <dt>class_names</dt><dd>orange|pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000325505.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000325505.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000325505.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000325505.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000505657.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000505657.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000505657.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000505657.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000275961.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000275961.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000275961.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000275961.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000424337.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000424337.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000424337.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000424337.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000071936.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000071936.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000071936.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000071936.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000341070.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000341070.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000341070.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000341070.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000362599.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000362599.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000362599.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000362599.txt</code></dd>
+    <dt>class_names</dt><dd>apple|pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000334328.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000334328.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000334328.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000334328.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000181851.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000181851.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000181851.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000181851.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000490711.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000490711.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000490711.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000490711.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000364032.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000364032.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000364032.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000364032.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000486936.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000486936.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000486936.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000486936.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000421560.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000421560.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000421560.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000421560.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000039315.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000039315.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000039315.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000039315.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000316026.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000316026.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000316026.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000316026.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000178526.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000178526.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000178526.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000178526.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000514725.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000514725.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000514725.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000514725.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000036953.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000036953.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000036953.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000036953.txt</code></dd>
+    <dt>class_names</dt><dd>apple|pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000080853.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000080853.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000080853.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000080853.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000151546.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000151546.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000151546.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000151546.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000346503.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000346503.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000346503.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000346503.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000545160.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000545160.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000545160.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000545160.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000333580.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000333580.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000333580.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000333580.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000360871.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000360871.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000360871.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000360871.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000424632.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000424632.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000424632.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000424632.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>exclude_from_training_candidate</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000070965.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000070965.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000070965.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000070965.txt</code></dd>
+    <dt>class_names</dt><dd>apple|grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000185820.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000185820.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000185820.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000185820.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000475001.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000475001.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000475001.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000475001.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000352252.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000352252.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000352252.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000352252.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000506605.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000506605.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000506605.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000506605.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000349322.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000349322.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000349322.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000349322.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000572754.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000572754.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000572754.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000572754.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000442197.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000442197.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000442197.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000442197.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000530002.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000530002.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000530002.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000530002.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000571654.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000571654.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000571654.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000571654.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000021020.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000021020.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000021020.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000021020.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000151170.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000151170.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000151170.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000151170.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000523536.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000523536.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000523536.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000523536.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000292051.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000292051.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000292051.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000292051.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000444233.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000444233.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000444233.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000444233.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000486543.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000486543.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000486543.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000486543.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000150444.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000150444.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000150444.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000150444.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000506470.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000506470.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000506470.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000506470.txt</code></dd>
+    <dt>class_names</dt><dd>apple|pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000485483.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000485483.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000485483.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000485483.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000508278.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000508278.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000508278.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000508278.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000434222.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000434222.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000434222.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000434222.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000165610.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000165610.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000165610.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000165610.txt</code></dd>
+    <dt>class_names</dt><dd>pear|persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000051639.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000051639.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000051639.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000051639.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000486415.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000486415.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000486415.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000486415.txt</code></dd>
+    <dt>class_names</dt><dd>strawberry</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000170976.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000170976.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000170976.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000170976.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000326293.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000326293.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000326293.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000326293.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000106351.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000106351.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000106351.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000106351.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000279561.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000279561.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000279561.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000279561.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000296843.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000296843.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000296843.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000296843.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000161941.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000161941.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000161941.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000161941.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000143040.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000143040.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000143040.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000143040.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000015947.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000015947.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000015947.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000015947.txt</code></dd>
+    <dt>class_names</dt><dd>apple|pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000118086.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000118086.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000118086.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000118086.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000173856.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000173856.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000173856.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000173856.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000183398.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000183398.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000183398.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000183398.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000280270.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000280270.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000280270.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000280270.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000062175.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000062175.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000062175.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000062175.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000272670.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000272670.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000272670.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000272670.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000259115.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000259115.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000259115.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000259115.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000341232.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000341232.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000341232.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000341232.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000385485.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000385485.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000385485.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000385485.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000500984.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000500984.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000500984.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000500984.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000347300.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000347300.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000347300.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000347300.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000308798.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000308798.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000308798.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000308798.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000110518.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000110518.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000110518.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000110518.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000535145.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000535145.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000535145.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000535145.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000110019.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000110019.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000110019.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000110019.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000053385.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000053385.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000053385.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000053385.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000219059.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000219059.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000219059.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000219059.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000414539.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000414539.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000414539.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000414539.txt</code></dd>
+    <dt>class_names</dt><dd>apple|pear|mango</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000168963.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000168963.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000168963.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000168963.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000296161.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000296161.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000296161.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000296161.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000543882.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000543882.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000543882.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000543882.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000089978.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000089978.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000089978.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000089978.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000571431.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000571431.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000571431.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000571431.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000209288.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000209288.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000209288.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000209288.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000446917.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000446917.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000446917.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000446917.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000046090.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000046090.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000046090.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000046090.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000067116.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000067116.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000067116.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000067116.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000123995.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000123995.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000123995.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000123995.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000189472.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000189472.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000189472.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000189472.txt</code></dd>
+    <dt>class_names</dt><dd>apple|cherry</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000168730.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000168730.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000168730.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000168730.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000425899.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000425899.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000425899.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000425899.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000436354.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000436354.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000436354.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000436354.txt</code></dd>
+    <dt>class_names</dt><dd>pear|persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000066881.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000066881.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000066881.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000066881.txt</code></dd>
+    <dt>class_names</dt><dd>mandarin|pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000026052.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000026052.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000026052.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000026052.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000520341.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000520341.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000520341.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000520341.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000199923.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000199923.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000199923.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000199923.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000389702.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000389702.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000389702.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000389702.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000131352.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000131352.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000131352.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000131352.txt</code></dd>
+    <dt>class_names</dt><dd>kiwi|strawberry</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000356948.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000356948.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000356948.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000356948.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000511580.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000511580.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000511580.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000511580.txt</code></dd>
+    <dt>class_names</dt><dd>strawberry</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000022374.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000022374.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000022374.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000022374.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000361660.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000361660.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000361660.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000361660.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000282351.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000282351.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000282351.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000282351.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000366733.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000366733.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000366733.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000366733.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000304777.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000304777.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000304777.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000304777.txt</code></dd>
+    <dt>class_names</dt><dd>apple|blueberry</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000285257.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000285257.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000285257.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000285257.txt</code></dd>
+    <dt>class_names</dt><dd>strawberry</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000139327.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000139327.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000139327.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000139327.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000426548.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000426548.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000426548.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000426548.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000444080.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000444080.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000444080.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000444080.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000010476.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000010476.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000010476.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000010476.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000186734.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000186734.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000186734.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000186734.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000575469.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000575469.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000575469.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000575469.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000264663.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000264663.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000264663.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000264663.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000310645.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000310645.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000310645.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000310645.txt</code></dd>
+    <dt>class_names</dt><dd>orange|pear|persimmon</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000357108.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000357108.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000357108.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000357108.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000329623.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000329623.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000329623.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000329623.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>high</dd>
+    <dt>issue_type</dt><dd><code>vision_nonfruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>yes</code></dd>
+  </dl>
+</article>
+</section> <section class="risk-group medium">
+  <h2>Medium risk <span>16</span></h2>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000488962.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000488962.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000488962.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000488962.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000147753.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000147753.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000147753.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000147753.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000551733.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000551733.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000551733.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000551733.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000314392.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000314392.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000314392.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000314392.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000020376.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000020376.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000020376.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000020376.txt</code></dd>
+    <dt>class_names</dt><dd>apple</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000364361.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000364361.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000364361.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000364361.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000366925.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000366925.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000366925.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000366925.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000123147.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000123147.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000123147.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000123147.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000525170.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000525170.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000525170.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000525170.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000279491.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000279491.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000279491.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000279491.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000371786.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000371786.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000371786.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000371786.txt</code></dd>
+    <dt>class_names</dt><dd>orange</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000037286.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000037286.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000037286.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000037286.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>yes</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000578805.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000578805.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000578805.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000578805.txt</code></dd>
+    <dt>class_names</dt><dd>grape</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000396862.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000396862.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000396862.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000396862.txt</code></dd>
+    <dt>class_names</dt><dd>pear</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/000000551314.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/train/000000551314.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/000000551314.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/000000551314.txt</code></dd>
+    <dt>class_names</dt><dd>persimmon</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <figure class="thumbnail">
+    <img loading="lazy" src="../datasets/fruit_dataset_26/images/val/000000243959.jpg" alt="Review candidate: ml/datasets/fruit_dataset_26/images/val/000000243959.jpg">
+    <figcaption>Local source image; no copy is created.</figcaption>
+  </figure>
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/val/000000243959.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/val/000000243959.txt</code></dd>
+    <dt>class_names</dt><dd>strawberry</dd>
+    <dt>risk_level</dt><dd>medium</dd>
+    <dt>issue_type</dt><dd><code>vision_people_without_fruit_signal</code></dd>
+    <dt>recommended_action</dt><dd><code>manual_review</code></dd>
+    <dt>approved_action</dt><dd><code>pending_review</code></dd>
+    <dt>notes</dt><dd>(empty)</dd>
+    <dt>appears_in_fixed_test_plan</dt><dd><code>no</code></dd>
+    <dt>high_risk</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+</section>
+</body>
+</html>
