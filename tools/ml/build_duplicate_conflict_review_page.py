@@ -159,6 +159,7 @@ def write_html(path: Path, groups: dict[str, list[dict[str, str]]]) -> None:
                 ]
             )
         )
+    sections_html = "\n\n  ".join(sections) if sections else "<p>No unresolved duplicate conflicts remain.</p>"
     document = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -184,7 +185,7 @@ def write_html(path: Path, groups: dict[str, list[dict[str, str]]]) -> None:
 <body>
   <h1>Duplicate Conflict Review</h1>
   <p class="notice">This static page is for human curation only. It does not change decisions, labels, source images, or dataset membership. Record any future decision only through the controlled duplicate approval process.</p>
-  {' '.join(sections)}
+  {sections_html}
 </body>
 </html>
 """

@@ -13,7 +13,7 @@ class_id,class_name,train_image_count,train_bbox_count,val_image_count,val_bbox_
 11,plum,44,335,0,0,0,0,44,335,missing_from_val,missing_from_val,do_not_sample_into_test_yet
 12,pomegranate,22,73,0,0,0,0,22,73,missing_from_val,missing_from_val,do_not_sample_into_test_yet
 13,loquat,59,962,0,0,0,0,59,962,missing_from_val,missing_from_val,do_not_sample_into_test_yet
-14,lychee,59,731,0,0,0,0,59,731,missing_from_val,missing_from_val,do_not_sample_into_test_yet
+14,lychee,57,727,0,0,0,0,57,727,missing_from_val,missing_from_val,do_not_sample_into_test_yet
 15,longan,22,61,0,0,0,0,22,61,missing_from_val,missing_from_val,do_not_sample_into_test_yet
 16,bayberry,34,140,0,0,0,0,34,140,missing_from_val,missing_from_val,do_not_sample_into_test_yet
 17,jujube,2,46,0,0,0,0,2,46,missing_from_val,low_sample,merge_or_drop_candidate

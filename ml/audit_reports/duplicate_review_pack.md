@@ -128,44 +128,12 @@ Human decision:
 - [ ] Remove one duplicate candidate
 - [ ] Review labels manually
 
-## Duplicate Group `dup_005`
-
-Images:
-
-- `ml/datasets/fruit_dataset_26/images/train/lychee_Image_1.jpg`
-- `ml/datasets/fruit_dataset_26/images/train/lychee_Image_2.jpg`
-
-Labels:
-
-- `ml/datasets/fruit_dataset_26/labels/train/lychee_Image_1.txt`
-- `ml/datasets/fruit_dataset_26/labels/train/lychee_Image_2.txt`
-
-Class names: `14` / `lychee`.
-
-Bounding boxes: 2 in each label file. Label status: same labels. Both files
-have fingerprint `ba9b1bb6de90bc9cae6f2c730822766eb44a063170784b659775d66a45704d06`.
-
-Recommended action: `review_label_conflict`.
-
-Risk note: human visual review found unexpected content inconsistent with the
-claimed lychee class. Matching image hashes and label fingerprints only prove
-that the two files duplicate each other; they do not validate the semantic
-label. Do not approve cleanup or use either file for training until content,
-provenance, and labels are curated.
-
-Human decision:
-
-- [ ] Keep all
-- [ ] Remove one duplicate candidate
-- [x] Review labels manually
-
 ## Decision Summary
 
-- Duplicate groups: 5
+- Duplicate groups: 4
 - Label conflicts: 0
 - Current action state: four loquat groups have approved future-copy duplicate
-  decisions; `dup_005` is held for label-conflict curation. No dataset action
-  has been taken.
+  decisions. No dataset action has been taken.
 - Required before cleanup: a completed checkbox decision for each group and a
   dataset-version entry that identifies any retained and removed-candidate
   paths.

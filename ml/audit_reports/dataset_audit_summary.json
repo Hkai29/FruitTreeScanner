@@ -36,8 +36,8 @@
     "train": {
       "image_dir": "ml/datasets/fruit_dataset_26/images/train",
       "label_dir": "ml/datasets/fruit_dataset_26/labels/train",
-      "images": 3757,
-      "labels": 3757,
+      "images": 3755,
+      "labels": 3755,
       "missing_labels": 0,
       "missing_images": 0,
       "empty_labels": 0,
@@ -61,8 +61,8 @@
     }
   },
   "totals": {
-    "images": 4602,
-    "labels": 4602,
+    "images": 4600,
+    "labels": 4600,
     "missing_labels": 0,
     "missing_images": 0,
     "empty_labels": 0,
@@ -71,7 +71,7 @@
     "invalid_bboxes": 0,
     "corrupt_or_unknown_images": 0,
     "duplicate_stems_across_splits": 0,
-    "duplicate_image_hashes": 5
+    "duplicate_image_hashes": 4
   },
   "examples": {
     "duplicate_image_hashes": [
@@ -90,10 +90,6 @@
       [
         "ml/datasets/fruit_dataset_26/images/train/loquat_Image_38.jpg",
         "ml/datasets/fruit_dataset_26/images/train/loquat_Image_4.jpg"
-      ],
-      [
-        "ml/datasets/fruit_dataset_26/images/train/lychee_Image_1.jpg",
-        "ml/datasets/fruit_dataset_26/images/train/lychee_Image_2.jpg"
       ]
     ]
   },
@@ -112,7 +108,7 @@
     "11": 335,
     "12": 73,
     "13": 962,
-    "14": 731,
+    "14": 727,
     "15": 61,
     "16": 140,
     "17": 46,
@@ -140,7 +136,7 @@
     "11": 44,
     "12": 22,
     "13": 59,
-    "14": 59,
+    "14": 57,
     "15": 22,
     "16": 34,
     "17": 2,
@@ -367,14 +363,14 @@
     {
       "class_id": 14,
       "class_name": "lychee",
-      "train_image_count": 59,
-      "train_bbox_count": 731,
+      "train_image_count": 57,
+      "train_bbox_count": 727,
       "val_image_count": 0,
       "val_bbox_count": 0,
       "test_image_count": 0,
       "test_bbox_count": 0,
-      "total_image_count": 59,
-      "total_bbox_count": 731,
+      "total_image_count": 57,
+      "total_bbox_count": 727,
       "train_val_ratio_note": "missing_from_val",
       "risk_level": "missing_from_val",
       "recommended_action": "do_not_sample_into_test_yet"
@@ -646,32 +642,6 @@
       "bbox_count": 18,
       "label_fingerprint": "eb63f53b08115331a178e61c588e0cdaa5bf28510b302d145dfaf0e2c9519e04",
       "duplicate_group_id": "dup_004",
-      "same_label_as_group": "true",
-      "recommended_action": "remove_duplicate_candidate",
-      "notes": "identical image bytes and matching label fingerprint"
-    },
-    {
-      "hash": "e89e467943f6e4a7de6ef745404e6676fbf7243e51fee4b7ac558acb82d2e2bc",
-      "image_path": "ml/datasets/fruit_dataset_26/images/train/lychee_Image_1.jpg",
-      "split": "train",
-      "label_path": "ml/datasets/fruit_dataset_26/labels/train/lychee_Image_1.txt",
-      "class_ids": "14",
-      "bbox_count": 2,
-      "label_fingerprint": "ba9b1bb6de90bc9cae6f2c730822766eb44a063170784b659775d66a45704d06",
-      "duplicate_group_id": "dup_005",
-      "same_label_as_group": "true",
-      "recommended_action": "remove_duplicate_candidate",
-      "notes": "identical image bytes and matching label fingerprint"
-    },
-    {
-      "hash": "e89e467943f6e4a7de6ef745404e6676fbf7243e51fee4b7ac558acb82d2e2bc",
-      "image_path": "ml/datasets/fruit_dataset_26/images/train/lychee_Image_2.jpg",
-      "split": "train",
-      "label_path": "ml/datasets/fruit_dataset_26/labels/train/lychee_Image_2.txt",
-      "class_ids": "14",
-      "bbox_count": 2,
-      "label_fingerprint": "ba9b1bb6de90bc9cae6f2c730822766eb44a063170784b659775d66a45704d06",
-      "duplicate_group_id": "dup_005",
       "same_label_as_group": "true",
       "recommended_action": "remove_duplicate_candidate",
       "notes": "identical image bytes and matching label fingerprint"

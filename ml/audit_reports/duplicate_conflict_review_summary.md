@@ -1,8 +1,8 @@
 # Duplicate Conflict Review Summary
 
-- Total duplicate cleanup decision rows: 10
-- Unresolved conflict rows: 2
-- Conflict groups: dup_005
+- Total duplicate cleanup decision rows: 8
+- Unresolved conflict rows: 0
+- Conflict groups: none
 - Core-class affected rows: 0
 
 ## Suggested Human Decision Options
