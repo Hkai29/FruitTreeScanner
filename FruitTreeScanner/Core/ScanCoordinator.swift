@@ -11,6 +11,23 @@ enum ScanDepthRuntimeStatus: String {
     case activeDepth = "LiDAR"
 }
 
+struct YieldEstimationRequestGate: Sendable {
+    private(set) var currentGeneration: UInt64 = 0
+
+    mutating func beginRequest() -> UInt64 {
+        currentGeneration &+= 1
+        return currentGeneration
+    }
+
+    mutating func invalidate() {
+        currentGeneration &+= 1
+    }
+
+    func accepts(_ generation: UInt64) -> Bool {
+        generation == currentGeneration
+    }
+}
+
 class ScanCoordinator: NSObject {
     let settings: ScanSettingsProviding
 
@@ -93,6 +110,7 @@ class ScanCoordinator: NSObject {
     }()
     var detectionTask: Task<Void, Never>?
     var fusionEstimateTask: Task<Void, Never>?
+    var yieldEstimationRequestGate = YieldEstimationRequestGate()
 
     func bind(session: ARSession, renderer: Renderer, mtkView: MTKView) {
         Log.scan.info("Binding scan session")
@@ -181,8 +199,7 @@ class ScanCoordinator: NSObject {
     private func stopRuntimeServices() {
         detectionTask?.cancel()
         detectionTask = nil
-        fusionEstimateTask?.cancel()
-        fusionEstimateTask = nil
+        invalidateYieldEstimationRequest()
         displayLink?.invalidate()
         displayLink = nil
         detectionTimer?.invalidate()
