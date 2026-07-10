@@ -1,6 +1,6 @@
 # Dataset Cleanup Dry-Run Summary
 
-- Mode: dry-run
+- Mode: apply-preflight
 - Source dataset: `ml/datasets/fruit_dataset_26`
 - Planned output dataset: `ml/datasets/fruit_dataset_6_core_v1`
 - Fixed split seed: `20260709`

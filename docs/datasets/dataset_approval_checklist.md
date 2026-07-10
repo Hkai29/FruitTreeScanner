@@ -66,12 +66,11 @@ approval gates above.
   with its labels and the dataset audit was rerun without pairing errors.
 - Fixed test: cleared; `fixed_test_revision_summary.md` records the final
   actions and the 21 semantic-excluded candidates removed from target test.
-- Apply planning: cleared. `apply_dataset_cleanup.py` consumes
-  `core_class_manual_review_decisions.csv` and excludes every
-  `exclude_from_training` source record from train, validation, and test;
-  `core_dataset_apply_readiness.md` records the dry-run projection. A separate
-  explicit approval is still required before an apply operation creates a
-  dataset copy.
+- Apply: completed once after explicit approval. `apply_dataset_cleanup.py`
+  consumed `core_class_manual_review_decisions.csv` and excluded every
+  `exclude_from_training` source record from train, validation, and test. The
+  post-apply audit in `fruit_dataset_6_core_v1_post_apply_audit.md` confirms
+  the copied six-class dataset and source preservation.
 
 ## Why Six-Class Testing Does Not Represent a 26-Class Model
 
@@ -91,4 +90,5 @@ all 26 current App categories.
 - [x] The rejected lychee duplicate pair and corresponding labels were removed
   intentionally; the post-removal audit confirms no missing image/label pairs.
 - [x] Semantic exclusions are enforced by the controlled apply plan.
-- [ ] A separate explicit approval is obtained before any apply task.
+- [x] A separate explicit approval was obtained for the controlled
+  `fruit_dataset_6_core_v1` apply; its post-apply audit passed.
