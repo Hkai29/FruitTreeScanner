@@ -440,3 +440,31 @@ apply until a human records final actions.
 Human reviewers must change every `approved_action` from `pending_review` to
 an explicit final decision before a separate approved apply task can create a
 new dataset copy.
+
+## 16. Invalid Image Review Status and Exclusion Policy
+
+The dataset safety and quality audit writes
+`ml/audit_reports/dataset_invalid_image_review.csv`. It reads images one at a
+time, checks full decodeability, exact duplicate hashes, near-black frames,
+extreme low resolution, extreme aspect ratios, and very low contrast. It does
+not modify images, labels, splits, or `data.yaml`.
+
+Semantic content cannot be proven from filenames, image hashes, or YOLO labels.
+The audit therefore uses `exclude_from_training` automatically only for
+high-confidence evidence: full decode failures, near-black frames, approved
+duplicate candidates, and human-reviewed inappropriate or label-mismatch
+examples. Low-quality heuristics and unapproved duplicates remain
+`manual_review`.
+
+`exclude_from_training` is a future-copy policy, not a deletion instruction:
+the original `fruit_dataset_26` record must remain preserved for provenance and
+curation. Any semantic review decision requires documented human confirmation.
+
+Current run result: 4,602 images fully decoded. The report has 10 rows: four
+human-approved duplicate candidates marked `exclude_from_training`, four
+canonical duplicate copies marked `keep`, and two human-reviewed lychee
+content or label mismatches marked `exclude_from_training`. No additional
+corrupt, near-black, extreme-resolution, extreme-aspect-ratio, or low-contrast
+candidates crossed the conservative review thresholds. This is not a claim
+that every image is semantically valid; it records the evidence available to
+this audit.
