@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Duplicate Review - Metadata Only</title>
+  <style>
+    :root {
+      color: #1b1b1b;
+      background: #f6f7f8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body { margin: 0 auto; max-width: 960px; padding: 32px; }
+    h1, h2 { margin: 0 0 12px; }
+    p, li { line-height: 1.5; }
+    .notice {
+      background: #fff3cd;
+      border: 1px solid #e2b93b;
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .group {
+      background: #fff;
+      border: 1px solid #d7dce1;
+      border-radius: 8px;
+      margin: 24px 0;
+      padding: 20px;
+    }
+    .status {
+      background: #fff3cd;
+      border-radius: 999px;
+      color: #6c4f00;
+      display: inline-block;
+      font-weight: 650;
+      margin-bottom: 14px;
+      padding: 5px 10px;
+    }
+    .metadata {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .metadata th, .metadata td {
+      border: 1px solid #d7dce1;
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .metadata th { background: #f0f3f5; width: 190px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <h1>Duplicate Review - Metadata Only</h1>
+  <p class="notice">
+    Raw source-image previews are intentionally suppressed. Duplicate hashes
+    and matching labels prove byte-level duplication only; they do not verify
+    that an image is a safe or correctly labelled fruit example. Review source
+    paths deliberately in a human-controlled viewer before editing any
+    approval CSV.
+  </p>
+  <p>
+    Keep every <code>approved_action</code> as <code>pending_review</code>
+    until the content and provenance of both paths have been checked. This page
+    does not copy, move, delete, or render dataset images.
+  </p>
+
+  <section class="group">
+    <h2>Duplicate Group <code>dup_001</code></h2>
+    <div class="status">Manual review before any removal</div>
+    <table class="metadata">
+      <tr><th>Claimed class</th><td>loquat</td></tr>
+      <tr><th>Image hash status</th><td>same within group</td></tr>
+      <tr><th>Bounding boxes</th><td>22 in each label file</td></tr>
+      <tr><th>Label fingerprint</th><td><code>dc15cedd01302fd7558f9840fcd14476bcf01899c098538e92606e432a9e08c1</code></td></tr>
+      <tr><th>Recommended action</th><td>manual review; duplicate evidence alone is not a semantic content check</td></tr>
+      <tr><th>Image paths</th><td><code>images/train/loquat_Image_38.jpg</code><br><code>images/train/loquat_Image_4.jpg</code></td></tr>
+      <tr><th>Label paths</th><td><code>labels/train/loquat_Image_38.txt</code><br><code>labels/train/loquat_Image_4.txt</code></td></tr>
+    </table>
+  </section>
+
+  <section class="group">
+    <h2>Duplicate Group <code>dup_002</code></h2>
+    <div class="status">Manual review before any removal</div>
+    <table class="metadata">
+      <tr><th>Claimed class</th><td>loquat</td></tr>
+      <tr><th>Image hash status</th><td>same within group</td></tr>
+      <tr><th>Bounding boxes</th><td>11 in each label file</td></tr>
+      <tr><th>Label fingerprint</th><td><code>144105af218fdbd7f34e8bbd5d333bbc81ca700a369cf28b317e4386ad8ea38a</code></td></tr>
+      <tr><th>Recommended action</th><td>manual review; duplicate evidence alone is not a semantic content check</td></tr>
+      <tr><th>Image paths</th><td><code>images/train/loquat_Image_1.jpg</code><br><code>images/train/loquat_Image_44.jpg</code></td></tr>
+      <tr><th>Label paths</th><td><code>labels/train/loquat_Image_1.txt</code><br><code>labels/train/loquat_Image_44.txt</code></td></tr>
+    </table>
+  </section>
+
+  <section class="group">
+    <h2>Duplicate Group <code>dup_003</code></h2>
+    <div class="status">Manual review before any removal</div>
+    <table class="metadata">
+      <tr><th>Claimed class</th><td>loquat</td></tr>
+      <tr><th>Image hash status</th><td>same within group</td></tr>
+      <tr><th>Bounding boxes</th><td>37 in each label file</td></tr>
+      <tr><th>Label fingerprint</th><td><code>902fefec9b35501f24162a6a2ae8a02640b1c695b2ad9226708f1cd732715e0c</code></td></tr>
+      <tr><th>Recommended action</th><td>manual review; duplicate evidence alone is not a semantic content check</td></tr>
+      <tr><th>Image paths</th><td><code>images/train/loquat_Image_3.jpg</code><br><code>images/train/loquat_Image_37.jpg</code></td></tr>
+      <tr><th>Label paths</th><td><code>labels/train/loquat_Image_3.txt</code><br><code>labels/train/loquat_Image_37.txt</code></td></tr>
+    </table>
+  </section>
+
+  <section class="group">
+    <h2>Duplicate Group <code>dup_004</code></h2>
+    <div class="status">Manual review before any removal</div>
+    <table class="metadata">
+      <tr><th>Claimed class</th><td>loquat</td></tr>
+      <tr><th>Image hash status</th><td>same within group</td></tr>
+      <tr><th>Bounding boxes</th><td>18 in each label file</td></tr>
+      <tr><th>Label fingerprint</th><td><code>eb63f53b08115331a178e61c588e0cdaa5bf28510b302d145dfaf0e2c9519e04</code></td></tr>
+      <tr><th>Recommended action</th><td>manual review; duplicate evidence alone is not a semantic content check</td></tr>
+      <tr><th>Image paths</th><td><code>images/train/loquat_Image_2.jpg</code><br><code>images/train/loquat_Image_45.jpg</code></td></tr>
+      <tr><th>Label paths</th><td><code>labels/train/loquat_Image_2.txt</code><br><code>labels/train/loquat_Image_45.txt</code></td></tr>
+    </table>
+  </section>
+
+  <section class="group">
+    <h2>Duplicate Group <code>dup_005</code></h2>
+    <div class="status">Manual review required - possible content or label mismatch</div>
+    <table class="metadata">
+      <tr><th>Claimed class</th><td>lychee</td></tr>
+      <tr><th>Image hash status</th><td>same within group</td></tr>
+      <tr><th>Bounding boxes</th><td>2 in each label file</td></tr>
+      <tr><th>Label fingerprint</th><td><code>ba9b1bb6de90bc9cae6f2c730822766eb44a063170784b659775d66a45704d06</code></td></tr>
+      <tr><th>Recommended action</th><td>manual review; do not approve cleanup or use for training until content and provenance are reviewed</td></tr>
+      <tr><th>Image paths</th><td><code>images/train/lychee_Image_1.jpg</code><br><code>images/train/lychee_Image_2.jpg</code></td></tr>
+      <tr><th>Label paths</th><td><code>labels/train/lychee_Image_1.txt</code><br><code>labels/train/lychee_Image_2.txt</code></td></tr>
+    </table>
+  </section>
+</body>
+</html>
