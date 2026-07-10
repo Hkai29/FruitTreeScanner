@@ -40,8 +40,7 @@ The current recommendation is a six-class test only: apple, orange, pear,
 persimmon, grape, and strawberry. The fixed-test revision now records 347
 `approve_move_to_test` rows and 29 `exclude_from_core_test` rows: 21 semantic
 exclusions and eight non-core candidates were removed from the target test.
-The fixed-test approval gate is therefore cleared, although the target apply
-remains blocked until semantic exclusions are enforced by the apply path.
+The fixed-test approval gate is cleared.
 
 ## Decision 3: Six-Class Semantic Review Boundary
 
@@ -67,11 +66,12 @@ approval gates above.
   with its labels and the dataset audit was rerun without pairing errors.
 - Fixed test: cleared; `fixed_test_revision_summary.md` records the final
   actions and the 21 semantic-excluded candidates removed from target test.
-- Apply: still blocked. `apply_dataset_cleanup.py` does not consume
-  `core_class_manual_review_decisions.csv`, and its supported
-  `exclude_from_core_test` action only prevents test placement; it leaves the
-  source record eligible for target train. Semantic exclusions must be wired
-  into the controlled apply plan before a dataset copy can be approved.
+- Apply planning: cleared. `apply_dataset_cleanup.py` consumes
+  `core_class_manual_review_decisions.csv` and excludes every
+  `exclude_from_training` source record from train, validation, and test;
+  `core_dataset_apply_readiness.md` records the dry-run projection. A separate
+  explicit approval is still required before an apply operation creates a
+  dataset copy.
 
 ## Why Six-Class Testing Does Not Represent a 26-Class Model
 
@@ -87,8 +87,8 @@ all 26 current App categories.
 - [x] Every fixed split row has a final `approved_action`.
 - [x] Every blocking row in `core_class_manual_review_decisions.csv` has a
   documented final approval.
-- [ ] The six-class scope is recorded as an experiment limitation.
+- [x] The six-class scope is recorded as an experiment limitation.
 - [x] The rejected lychee duplicate pair and corresponding labels were removed
   intentionally; the post-removal audit confirms no missing image/label pairs.
-- [ ] Semantic exclusions are enforced by the controlled apply plan.
+- [x] Semantic exclusions are enforced by the controlled apply plan.
 - [ ] A separate explicit approval is obtained before any apply task.

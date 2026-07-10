@@ -26,8 +26,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASET_ROOT = "ml/datasets/fruit_dataset_26"
 DEFAULT_DUPLICATE_DECISIONS = "ml/audit_reports/duplicate_cleanup_decisions.csv"
 DEFAULT_SPLIT_DECISIONS = "ml/audit_reports/fixed_test_split_decisions.csv"
+DEFAULT_SEMANTIC_DECISIONS = "ml/audit_reports/core_class_manual_review_decisions.csv"
 DEFAULT_OUTPUT_ROOT = "ml/datasets/fruit_dataset_6_core_v1"
 DEFAULT_SUMMARY = "ml/audit_reports/dataset_cleanup_dry_run_summary.md"
+DEFAULT_READINESS = "ml/audit_reports/core_dataset_apply_readiness.md"
 DEFAULT_DUPLICATE_REPORT = "ml/audit_reports/duplicate_images_report.csv"
 DEFAULT_SPLIT_PLAN = "ml/audit_reports/test_split_plan.csv"
 DEFAULT_SEED = 20260709
@@ -68,6 +70,23 @@ SPLIT_FIELDS = [
     "approved_action",
     "notes",
 ]
+SEMANTIC_FIELDS = [
+    "image_path",
+    "label_path",
+    "class_names",
+    "risk_level",
+    "issue_type",
+    "recommended_action",
+    "approved_action",
+    "notes",
+]
+SEMANTIC_ACTIONS = {
+    "pending_review",
+    "manual_review",
+    "keep",
+    "exclude_from_training",
+}
+SEMANTIC_FINAL_ACTIONS = {"keep", "exclude_from_training"}
 
 
 class CleanupError(RuntimeError):
@@ -95,6 +114,14 @@ def parse_args() -> argparse.Namespace:
         "--split-decisions",
         default=DEFAULT_SPLIT_DECISIONS,
         help=f"Fixed test-split approval CSV. Default: {DEFAULT_SPLIT_DECISIONS}",
+    )
+    parser.add_argument(
+        "--semantic-decisions",
+        default=DEFAULT_SEMANTIC_DECISIONS,
+        help=(
+            "Six-class semantic approval CSV. "
+            f"Default: {DEFAULT_SEMANTIC_DECISIONS}"
+        ),
     )
     parser.add_argument(
         "--output-root",
@@ -523,8 +550,52 @@ def validate_split_decisions(
     return rows
 
 
+def load_semantic_decisions(
+    path: Path,
+    source_records: dict[Path, dict[str, Any]],
+) -> list[dict[str, str]]:
+    rows = read_csv(path, SEMANTIC_FIELDS)
+    paths: set[str] = set()
+    for row in rows:
+        image_path = row["image_path"]
+        if image_path in paths:
+            raise CleanupError(f"Semantic decision row repeated: {image_path}")
+        if row["approved_action"] not in SEMANTIC_ACTIONS:
+            raise CleanupError(
+                "Unsupported semantic approved_action for "
+                f"{image_path}: {row['approved_action'] or 'blank'}"
+            )
+        source_record = source_records.get(repo_path(image_path))
+        if source_record is None or source_record["label_path"] != repo_path(
+            row["label_path"]
+        ):
+            raise CleanupError(
+                "Semantic decision source is missing or mismatched: " + image_path
+            )
+        paths.add(image_path)
+    return rows
+
+
+def semantic_exclusion_paths(rows: list[dict[str, str]]) -> set[Path]:
+    return {
+        repo_path(row["image_path"])
+        for row in rows
+        if row["approved_action"] == "exclude_from_training"
+    }
+
+
+def pending_semantic_paths(rows: list[dict[str, str]]) -> set[Path]:
+    return {
+        repo_path(row["image_path"])
+        for row in rows
+        if row["approved_action"] not in SEMANTIC_FINAL_ACTIONS
+    }
+
+
 def unresolved_counts(
-    duplicate_rows: list[dict[str, str]], split_rows: list[dict[str, str]]
+    duplicate_rows: list[dict[str, str]],
+    split_rows: list[dict[str, str]],
+    semantic_rows: list[dict[str, str]],
 ) -> dict[str, int]:
     return {
         "pending_duplicate": sum(
@@ -539,6 +610,10 @@ def unresolved_counts(
         "manual_split": sum(
             row["approved_action"] == "manual_review" for row in split_rows
         ),
+        "pending_semantic": sum(
+            row["approved_action"] not in SEMANTIC_FINAL_ACTIONS
+            for row in semantic_rows
+        ),
     }
 
 
@@ -547,6 +622,8 @@ def target_plan(
     names: list[str],
     duplicate_rows: list[dict[str, str]],
     split_rows: list[dict[str, str]],
+    semantic_excluded_images: set[Path],
+    pending_semantic_images: set[Path],
 ) -> dict[str, Any]:
     source_ids = {name: names.index(name) for name in CORE_CLASS_NAMES}
     remap = {source_ids[name]: target_id for target_id, name in enumerate(CORE_CLASS_NAMES)}
@@ -560,23 +637,37 @@ def target_plan(
     pending_records: list[dict[str, Any]] = []
     excluded_non_core: list[dict[str, Any]] = []
     excluded_duplicate: list[dict[str, Any]] = []
+    excluded_semantic: list[dict[str, Any]] = []
+    pending_semantic: list[dict[str, Any]] = []
+    fixed_test_excluded: list[dict[str, Any]] = []
+    fixed_test_approved: list[dict[str, Any]] = []
 
     for record in records:
-        core_entries = [entry for entry in record["entries"] if entry[0] in remap]
-        if not core_entries:
-            excluded_non_core.append(record)
+        if record["image_path"] in pending_semantic_images:
+            pending_semantic.append(record)
+            pending_records.append(record)
+            continue
+        if record["image_path"] in semantic_excluded_images:
+            excluded_semantic.append(record)
             continue
         if record["image_path"] in removed_images:
             excluded_duplicate.append(record)
             continue
+        core_entries = [entry for entry in record["entries"] if entry[0] in remap]
+        if not core_entries:
+            excluded_non_core.append(record)
+            continue
 
         destination = record["split"]
         action = split_actions.get(record["image_path"])
-        if record["split"] == "train" and action is not None:
+        if action is not None:
             if action == "approve_move_to_test":
                 destination = "test"
+                fixed_test_approved.append(record)
             elif action in {"keep_in_train", "exclude_from_core_test"}:
                 destination = "train"
+                if action == "exclude_from_core_test":
+                    fixed_test_excluded.append(record)
             elif action in {"pending_review", "manual_review"}:
                 pending_records.append(record)
                 continue
@@ -593,12 +684,90 @@ def target_plan(
         "pending_records": pending_records,
         "excluded_non_core": excluded_non_core,
         "excluded_duplicate": excluded_duplicate,
+        "excluded_semantic": excluded_semantic,
+        "pending_semantic": pending_semantic,
+        "fixed_test_excluded": fixed_test_excluded,
+        "fixed_test_approved": fixed_test_approved,
         "remap": remap,
     }
 
 
 def sample_paths(records: list[dict[str, Any]], limit: int = 8) -> list[str]:
     return [display_path(record["image_path"]) for record in records[:limit]]
+
+
+def target_class_counts(plan: dict[str, Any]) -> dict[str, dict[str, Counter[str]]]:
+    counts: dict[str, dict[str, Counter[str]]] = {
+        split: {"images": Counter(), "boxes": Counter()}
+        for split in ("train", "val", "test")
+    }
+    for split, records in plan["targets"].items():
+        for record in records:
+            class_ids = {class_id for class_id, _ in record["core_entries"]}
+            for class_id in class_ids:
+                counts[split]["images"][CORE_CLASS_NAMES[class_id]] += 1
+            for class_id, _ in record["core_entries"]:
+                counts[split]["boxes"][CORE_CLASS_NAMES[class_id]] += 1
+    return counts
+
+
+def write_apply_readiness(
+    path: Path,
+    plan: dict[str, Any],
+    counts: dict[str, int],
+) -> None:
+    class_counts = target_class_counts(plan)
+    pending = sum(counts.values())
+    at_risk = [
+        name
+        for name in CORE_CLASS_NAMES
+        if class_counts["test"]["images"][name] < 20
+    ]
+    lines = [
+        "# Core Dataset Apply Readiness",
+        "",
+        "- semantic exclusions enforced: yes",
+        "- duplicate exclusions enforced: yes",
+        "- fixed-test approvals enforced: yes",
+        f"- pending decisions: {'yes' if pending else 'no'}",
+        f"- planned train images: {len(plan['targets']['train'])}",
+        f"- planned val images: {len(plan['targets']['val'])}",
+        f"- planned test images: {len(plan['targets']['test'])}",
+        "",
+        "## Per-Class Planned Coverage",
+        "",
+        "| Class | Train images | Train boxes | Val images | Val boxes | Test images | Test boxes |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for class_name in CORE_CLASS_NAMES:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    class_name,
+                    str(class_counts["train"]["images"][class_name]),
+                    str(class_counts["train"]["boxes"][class_name]),
+                    str(class_counts["val"]["images"][class_name]),
+                    str(class_counts["val"]["boxes"][class_name]),
+                    str(class_counts["test"]["images"][class_name]),
+                    str(class_counts["test"]["boxes"][class_name]),
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "- classes at risk: "
+            + (", ".join(at_risk) + " have fewer than 20 planned test images." if at_risk else "none"),
+            f"- can apply proceed: {'yes' if not pending else 'no'}",
+            "",
+            "This is a dry-run readiness report. No dataset copy is created by this report.",
+            "",
+        ]
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_dry_run_summary(
@@ -624,6 +793,10 @@ def write_dry_run_summary(
         blocked_reasons.append(f"{counts['pending_split']} split decisions are pending_review")
     if counts["manual_split"]:
         blocked_reasons.append(f"{counts['manual_split']} split decisions require manual review")
+    if counts["pending_semantic"]:
+        blocked_reasons.append(
+            f"{counts['pending_semantic']} semantic decisions are not final"
+        )
     blocked = bool(blocked_reasons)
     targets = plan["targets"]
     non_core_names = [name for name in names if name not in CORE_CLASS_NAMES]
@@ -643,6 +816,18 @@ def write_dry_run_summary(
         f"- Duplicate label-conflict reviews: {counts['manual_duplicate']}",
         f"- Pending split decisions: {counts['pending_split']}",
         f"- Split manual reviews: {counts['manual_split']}",
+        f"- Pending semantic decisions: {counts['pending_semantic']}",
+        "",
+        "## Enforced Exclusion Gates",
+        "",
+        f"- semantic_excluded_images: {len(plan['excluded_semantic'])}",
+        f"- duplicate_excluded_images: {len(plan['excluded_duplicate'])}",
+        f"- fixed_test_excluded_images: {split_actions['exclude_from_core_test']}",
+        f"- fixed_test_approved_images: {split_actions['approve_move_to_test']}",
+        f"- planned_train_images: {len(targets['train'])}",
+        f"- planned_val_images: {len(targets['val'])}",
+        f"- planned_test_images: {len(targets['test'])}",
+        f"- blocked_pending_decisions: {sum(counts.values())}",
         "",
         "## Planned Duplicate Actions",
         "",
@@ -662,15 +847,15 @@ def write_dry_run_summary(
         "## Files That Would Be Copied",
         "",
         "No source file is copied in dry-run mode. The resolved projection below "
-        "shows only records whose destination is currently explicit; pending split "
-        "rows are withheld until approved.",
+        "shows only records whose destination is currently explicit; pending "
+        "decision rows are withheld until approved.",
         "",
         "| Target split | Resolved core image records |",
         "| --- | ---: |",
         f"| train | {len(targets['train'])} |",
         f"| val | {len(targets['val'])} |",
         f"| test | {len(targets['test'])} |",
-        f"| pending split decision | {len(plan['pending_records'])} |",
+        f"| pending decision | {len(plan['pending_records'])} |",
         "",
         "Examples of resolved copy candidates (capped at eight per split):",
     ]
@@ -690,7 +875,7 @@ def write_dry_run_summary(
             f"- Non-core-only source records: {len(plan['excluded_non_core'])}",
             "- Non-core classes excluded from the target labels: "
             + ", ".join(f"`{name}`" for name in non_core_names),
-            f"- Approved duplicate removals that would affect the new copy: {len(plan['excluded_duplicate'])}",
+            f"- Approved duplicate source exclusions: {len(plan['excluded_duplicate'])}",
             "- The original 26-class dataset is preserved in all cases.",
             "",
             "## Target Dataset Rules",
@@ -699,7 +884,7 @@ def write_dry_run_summary(
             "`orange`, `pear`, `persimmon`, `grape`, `strawberry`.",
             "- Non-core annotations would not be copied into the new core-only labels.",
             "- `exclude_from_core_test` keeps an otherwise eligible image in target train; "
-            "it does not delete the source image.",
+            "semantic exclusions take precedence and prevent any target placement.",
             "- Apply mode creates a new output root only and refuses to overwrite an existing one.",
             "",
             "## Blocked Reasons" if blocked else "## Apply Readiness",
@@ -800,8 +985,10 @@ def main() -> int:
     dataset_root = repo_path(args.dataset_root)
     duplicate_path = repo_path(args.duplicate_decisions)
     split_path = repo_path(args.split_decisions)
+    semantic_path = repo_path(args.semantic_decisions)
     output_root = repo_path(args.output_root)
     summary_path = repo_path(DEFAULT_SUMMARY)
+    readiness_path = repo_path(DEFAULT_READINESS)
 
     try:
         config, names = load_source_dataset(dataset_root)
@@ -825,8 +1012,16 @@ def main() -> int:
             source_records,
             names,
         )
-        counts = unresolved_counts(duplicate_rows, split_rows)
-        plan = target_plan(records, names, duplicate_rows, split_rows)
+        semantic_rows = load_semantic_decisions(semantic_path, source_records)
+        counts = unresolved_counts(duplicate_rows, split_rows, semantic_rows)
+        plan = target_plan(
+            records,
+            names,
+            duplicate_rows,
+            split_rows,
+            semantic_exclusion_paths(semantic_rows),
+            pending_semantic_paths(semantic_rows),
+        )
         write_dry_run_summary(
             summary_path,
             dataset_root,
@@ -839,14 +1034,18 @@ def main() -> int:
             counts,
             is_dry_run,
         )
+        write_apply_readiness(readiness_path, plan, counts)
         blocked = any(counts.values())
 
         print(f"Source dataset: {display_path(dataset_root)}")
         print(f"Decision templates: {display_path(duplicate_path)}, {display_path(split_path)}")
         print(f"Dry-run summary: {display_path(summary_path)}")
+        print(f"Apply readiness: {display_path(readiness_path)}")
         print(
             "Pending decisions: "
-            f"duplicates={counts['pending_duplicate']}, splits={counts['pending_split']}"
+            "duplicates="
+            f"{counts['pending_duplicate']}, splits={counts['pending_split']}, "
+            f"semantic={counts['pending_semantic']}"
         )
         print(f"Apply blocked: {'yes' if blocked else 'no'}")
 
