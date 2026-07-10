@@ -143,7 +143,6 @@ def image_src(image_path: str, html_output: Path) -> str:
 def stat_counts(rows: list[dict[str, str]]) -> dict[str, int]:
     approved = Counter(row["approved_action"] for row in rows)
     risk = Counter(row["risk_level"] for row in rows)
-    recommended = Counter(row["recommended_action"] for row in rows)
     return {
         "total": len(rows),
         "high": risk["high"],
@@ -152,13 +151,12 @@ def stat_counts(rows: list[dict[str, str]]) -> dict[str, int]:
         "keep": approved["keep"],
         "exclude": approved["exclude_from_training"],
         "manual": approved["manual_review"],
-        "recommended_exclude": sum(
-            count
-            for action, count in recommended.items()
-            if action.startswith("exclude_from_training")
-        ),
-        "recommended_keep": recommended["keep"],
     }
+
+
+def semantic_review_blocked(counts: dict[str, int]) -> bool:
+    """A pending or explicitly manual disposition still blocks this review gate."""
+    return counts["pending"] > 0 or counts["manual"] > 0
 
 
 def card_html(
@@ -259,8 +257,8 @@ def write_html(
     <div><strong>{counts['high']}</strong>high-risk rows</div>
     <div><strong>{counts['medium']}</strong>medium-risk rows</div>
     <div><strong>{counts['pending']}</strong>pending rows</div>
-    <div><strong>{counts['recommended_exclude']}</strong>recommended exclude rows</div>
-    <div><strong>{counts['recommended_keep']}</strong>recommended keep rows</div>
+    <div><strong>{counts['keep']}</strong>keep rows</div>
+    <div><strong>{counts['exclude']}</strong>exclude_from_training rows</div>
   </section>
   {' '.join(sections)}
 </body>
@@ -305,6 +303,13 @@ It does not authorize image deletion, relabeling, dataset copying, or apply.
 
 def write_progress(path: Path, counts: dict[str, int]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    blocked = semantic_review_blocked(counts)
+    status = "yes" if blocked else "no"
+    detail = (
+        "Pending or manual dispositions remain in the six-class semantic review."
+        if blocked
+        else "All six-class semantic review rows have a final keep or exclusion disposition."
+    )
     path.write_text(
         "\n".join(
             [
@@ -316,10 +321,10 @@ def write_progress(path: Path, counts: dict[str, int]) -> None:
                 f"- Exclude from training rows: {counts['exclude']}",
                 f"- Manual review rows: {counts['manual']}",
                 f"- High-risk pending rows: {counts['high'] if counts['pending'] else 0}",
-                "- Six-class apply still blocked: yes",
+                f"- Six-class semantic review blocked: {status}",
                 "",
-                "All rows remain pending. This page does not modify approvals. "
-                "The fixed-test and duplicate approval gates remain separate blockers.",
+                detail + " This page does not modify approvals. The fixed-test and "
+                "duplicate approval gates remain separate blockers.",
                 "",
             ]
         ),
@@ -345,6 +350,7 @@ def main() -> int:
     write_guide(repo_path(args.guide_output))
     write_progress(repo_path(args.progress_output), counts)
     print(f"Review rows: {counts['total']}")
+    print(f"Semantic review blocked: {'yes' if semantic_review_blocked(counts) else 'no'}")
     print(f"Image references: {counts['total']}")
     print(f"HTML written: {display_path(html_output)}")
     return 0
