@@ -4,8 +4,13 @@
 
 import Foundation
 
-// MARK: - 主估算器
+// MARK: - Legacy baseline estimator
 
+/// Historical Route A / Route B baseline retained for regression tests and offline comparison.
+///
+/// Production scans must use `ScanFusionYieldBuilder`, which preserves scan diagnostics
+/// and only treats `.fused` evidence as reliable yield input.
+@available(*, deprecated, message: "Use ScanFusionYieldBuilder for production yield estimation.")
 class YieldEstimator {
 
     var regressionCoef: [Float] = [0, 0, 0, 0, 0, 0]
