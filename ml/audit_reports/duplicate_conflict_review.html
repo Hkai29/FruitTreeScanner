@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Duplicate Conflict Review</title>
+  <style>
+    :root { color: #1c252b; background: #f4f6f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0 auto; max-width: 1380px; padding: 28px; }
+    h1, h2, p { margin-top: 0; } p, dd { line-height: 1.45; }
+    .notice { background: #fff3cd; border: 1px solid #d5a520; border-radius: 8px; padding: 14px; }
+    .conflict-group { border-top: 4px solid #ba3a32; margin: 30px 0; padding-top: 16px; }
+    h2 span { color: #5e6a73; font-size: 1rem; font-weight: 500; }
+    .cards { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+    .review-card { background: #fff; border: 1px solid #d7dce1; border-radius: 8px; padding: 16px; }
+    .review-card img { background: #e6eaed; display: block; height: 310px; object-fit: contain; width: 100%; }
+    dl { display: grid; gap: 8px 14px; grid-template-columns: 165px minmax(0, 1fr); margin: 16px 0 0; }
+    dt { color: #53616a; font-weight: 650; } dd { margin: 0; overflow-wrap: anywhere; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; }
+    @media (max-width: 640px) { body { padding: 16px; } dl { grid-template-columns: 1fr; gap: 3px; } dt { margin-top: 8px; } }
+  </style>
+</head>
+<body>
+  <h1>Duplicate Conflict Review</h1>
+  <p class="notice">This static page is for human curation only. It does not change decisions, labels, source images, or dataset membership. Record any future decision only through the controlled duplicate approval process.</p>
+  <section class="conflict-group">
+  <h2>dup_005 <span>2 unresolved rows</span></h2>
+  <div class="cards">
+<article class="review-card">
+  <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/lychee_Image_1.jpg" alt="Duplicate conflict: ml/datasets/fruit_dataset_26/images/train/lychee_Image_1.jpg">
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/lychee_Image_1.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/lychee_Image_1.txt</code></dd>
+    <dt>class_names</dt><dd>lychee</dd>
+    <dt>duplicate_group_id</dt><dd><code>dup_005</code></dd>
+    <dt>hash_group_id</dt><dd><code>ba9b1bb6de90bc9cae6f2c730822766eb44a063170784b659775d66a45704d06</code></dd>
+    <dt>current_decision</dt><dd><code>review_label_conflict</code></dd>
+    <dt>recommended_action</dt><dd><code>remove_duplicate_candidate</code></dd>
+    <dt>conflict_reason</dt><dd>human review found unexpected content; block cleanup and training use pending curation review</dd>
+    <dt>involves_six_class_core</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+<article class="review-card">
+  <img loading="lazy" src="../datasets/fruit_dataset_26/images/train/lychee_Image_2.jpg" alt="Duplicate conflict: ml/datasets/fruit_dataset_26/images/train/lychee_Image_2.jpg">
+  <dl>
+    <dt>image_path</dt><dd><code>ml/datasets/fruit_dataset_26/images/train/lychee_Image_2.jpg</code></dd>
+    <dt>label_path</dt><dd><code>ml/datasets/fruit_dataset_26/labels/train/lychee_Image_2.txt</code></dd>
+    <dt>class_names</dt><dd>lychee</dd>
+    <dt>duplicate_group_id</dt><dd><code>dup_005</code></dd>
+    <dt>hash_group_id</dt><dd><code>ba9b1bb6de90bc9cae6f2c730822766eb44a063170784b659775d66a45704d06</code></dd>
+    <dt>current_decision</dt><dd><code>review_label_conflict</code></dd>
+    <dt>recommended_action</dt><dd><code>remove_duplicate_candidate</code></dd>
+    <dt>conflict_reason</dt><dd>human review found unexpected content; block cleanup and training use pending curation review</dd>
+    <dt>involves_six_class_core</dt><dd><code>no</code></dd>
+  </dl>
+</article>
+  </div>
+</section>
+</body>
+</html>
