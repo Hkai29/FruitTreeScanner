@@ -490,3 +490,18 @@ strict Vision non-fruit candidates), four canonical duplicate `keep` rows, and
 animal, three document, two bedding, and two clothing signals without fruit
 evidence. The 750 manual rows remain a triage queue, not confirmed invalid
 images.
+
+### Six-Class Manual Review Boundary
+
+The six-core-class experiment (apple, orange, pear, persimmon, grape, and
+strawberry) uses `core_class_review_gate.csv` to isolate manual-review rows
+whose source labels can enter `fruit_dataset_6_core_v1`. Only the corresponding
+rows in `core_class_manual_review_decisions.csv` need human disposition for
+this semantic gate; rows containing only non-core labels can be deferred
+because the six-class copy excludes them naturally.
+
+This narrowing does not approve a six-class apply by itself: duplicate and
+fixed-test decision gates remain separate, and the narrowed rows retain
+`pending_review` until a human records a final disposition. Full 26-class
+training still requires the complete semantic review queue; deferred non-core
+exceptions must not be treated as approved 26-class training data.

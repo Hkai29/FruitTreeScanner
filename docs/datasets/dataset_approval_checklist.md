@@ -40,6 +40,22 @@ The current recommendation is a six-class test only: apple, orange, pear,
 persimmon, grape, and strawberry. The CSV still contains `pending_review` for
 all rows until a human explicitly decides otherwise.
 
+## Decision 3: Six-Class Semantic Review Boundary
+
+`ml/audit_reports/core_class_review_gate.csv` distinguishes the semantic
+manual-review rows that can enter `fruit_dataset_6_core_v1` from rows that
+contain only non-core labels and are naturally excluded from that copied
+dataset. Review the blocking subset through
+`ml/audit_reports/core_class_manual_review_decisions.csv`; its
+`approved_action` values must be set through documented human review before a
+six-class apply task is considered.
+
+This is a scope boundary, not an approval for the 26-class dataset. Non-core
+semantic exceptions may be deferred only for the six-class experiment; they
+remain unresolved and must not be used to justify 26-class model training.
+The narrowed semantic review does not replace the duplicate or fixed-test
+approval gates above.
+
 ## Why Six-Class Testing Does Not Represent a 26-Class Model
 
 The current fixed-test plan deliberately protects weak or unsupported classes.
@@ -52,6 +68,8 @@ all 26 current App categories.
 
 - [ ] Every duplicate row has a final `approved_action`.
 - [ ] Every fixed split row has a final `approved_action`.
+- [ ] Every blocking row in `core_class_manual_review_decisions.csv` has a
+  documented final approval before a six-class apply task.
 - [ ] The six-class scope is recorded as an experiment limitation.
 - [ ] No source image, label, or `data.yaml` has been edited during review.
 - [ ] A separate explicit approval is obtained before any apply task.
