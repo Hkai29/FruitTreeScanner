@@ -38,11 +38,18 @@ final class FruitParametersStore: ObservableObject {
     
     @Published var params: [FruitVarietyParams] = []
     
-    nonisolated private static let userDefaultsKey = "fruitVarietyParams"
+    nonisolated static let userDefaultsKey = "fruitVarietyParams"
+    private let defaults: UserDefaults
+    private let commitDelayNanoseconds: @Sendable (Int) -> UInt64
     private var saveTask: Task<Void, Never>?
     private var saveGeneration = 0
     
-    private init() {
+    init(
+        defaults: UserDefaults = .standard,
+        commitDelayNanoseconds: @escaping @Sendable (Int) -> UInt64 = { _ in 0 }
+    ) {
+        self.defaults = defaults
+        self.commitDelayNanoseconds = commitDelayNanoseconds
         loadParams()
         normalizeParams()
     }
@@ -53,7 +60,7 @@ final class FruitParametersStore: ObservableObject {
     }
     
     func loadParams() {
-        guard let data = UserDefaults.standard.data(forKey: Self.userDefaultsKey) else { return }
+        guard let data = defaults.data(forKey: Self.userDefaultsKey) else { return }
         do {
             params = try JSONDecoder().decode([FruitVarietyParams].self, from: data)
         } catch {
@@ -65,14 +72,19 @@ final class FruitParametersStore: ObservableObject {
         saveGeneration += 1
         let generation = saveGeneration
         let snapshot = params
+        let commitDelayNanoseconds = commitDelayNanoseconds(generation)
         saveTask?.cancel()
         saveTask = Task.detached(priority: .utility) { [weak self] in
             do {
                 try Task.checkCancellation()
                 let encoded = try JSONEncoder().encode(snapshot)
                 try Task.checkCancellation()
-                UserDefaults.standard.set(encoded, forKey: Self.userDefaultsKey)
-                await self?.finishSaving(generation: generation)
+                if commitDelayNanoseconds > 0 {
+                    await Task.detached {
+                        try? await Task.sleep(nanoseconds: commitDelayNanoseconds)
+                    }.value
+                }
+                await self?.commitSave(encoded, generation: generation)
             } catch is CancellationError {
                 await self?.finishSaving(generation: generation)
             } catch {
@@ -82,10 +94,26 @@ final class FruitParametersStore: ObservableObject {
         }
     }
 
+    private func commitSave(_ encoded: Data, generation: Int) {
+        guard saveGeneration == generation else { return }
+        defaults.set(encoded, forKey: Self.userDefaultsKey)
+        saveTask = nil
+    }
+
     private func finishSaving(generation: Int) {
         if saveGeneration == generation {
             saveTask = nil
         }
+    }
+
+    func waitForPendingSave() async {
+        if let saveTask {
+            await saveTask.value
+        }
+    }
+
+    var hasPendingSave: Bool {
+        saveTask != nil
     }
 
     private func normalizeParams() {

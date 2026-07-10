@@ -17,9 +17,10 @@ final class TagStore: ObservableObject {
     @Published private(set) var assignments: [TreeAssignment] = []
 
     static let didUpdateNotification = Notification.Name("TagStoreDidUpdate")
+    nonisolated static let snapshotUserDefaultsKey = "TagStore.snapshot.v1"
 
     private enum StorageKeys {
-        static let snapshot = "TagStore.snapshot.v1"
+        static let snapshot = TagStore.snapshotUserDefaultsKey
         // Legacy keys are retained only to migrate installations that used the
         // earlier three-record layout.
         static let plots = "TagStore.plots"
@@ -27,10 +28,17 @@ final class TagStore: ObservableObject {
         static let assignments = "TagStore.assignments"
     }
 
+    private let defaults: UserDefaults
+    private let commitDelayNanoseconds: @Sendable (Int) -> UInt64
     private var saveTask: Task<Void, Never>?
     private var saveGeneration = 0
 
-    private init() {
+    init(
+        defaults: UserDefaults = .standard,
+        commitDelayNanoseconds: @escaping @Sendable (Int) -> UInt64 = { _ in 0 }
+    ) {
+        self.defaults = defaults
+        self.commitDelayNanoseconds = commitDelayNanoseconds
         loadData()
     }
 
@@ -38,7 +46,7 @@ final class TagStore: ObservableObject {
 
     private func loadData() {
         do {
-            if let snapshot: TagStoreSnapshot = try UserDefaults.standard.getObject(forKey: StorageKeys.snapshot) {
+            if let snapshot: TagStoreSnapshot = try defaults.getObject(forKey: StorageKeys.snapshot) {
                 plots = snapshot.plots
                 tags = snapshot.tags
                 assignments = snapshot.assignments
@@ -50,17 +58,17 @@ final class TagStore: ObservableObject {
 
         // One-time migration from the legacy independently-written keys.
         do {
-            plots = try UserDefaults.standard.getObject(forKey: StorageKeys.plots) ?? []
+            plots = try defaults.getObject(forKey: StorageKeys.plots) ?? []
         } catch {
             plots = []
         }
         do {
-            tags = try UserDefaults.standard.getObject(forKey: StorageKeys.tags) ?? []
+            tags = try defaults.getObject(forKey: StorageKeys.tags) ?? []
         } catch {
             tags = []
         }
         do {
-            assignments = try UserDefaults.standard.getObject(forKey: StorageKeys.assignments) ?? []
+            assignments = try defaults.getObject(forKey: StorageKeys.assignments) ?? []
         } catch {
             assignments = []
         }
@@ -74,13 +82,19 @@ final class TagStore: ObservableObject {
         saveGeneration += 1
         let generation = saveGeneration
         let snapshot = TagStoreSnapshot(plots: plots, tags: tags, assignments: assignments)
+        let commitDelayNanoseconds = commitDelayNanoseconds(generation)
         saveTask?.cancel()
         saveTask = Task.detached(priority: .utility) { [weak self] in
             do {
                 try Task.checkCancellation()
-                try Self.writeSnapshot(snapshot)
+                let encoded = try JSONEncoder().encode(snapshot)
                 try Task.checkCancellation()
-                await self?.finishPersisting(generation: generation)
+                if commitDelayNanoseconds > 0 {
+                    await Task.detached {
+                        try? await Task.sleep(nanoseconds: commitDelayNanoseconds)
+                    }.value
+                }
+                await self?.commitSnapshot(encoded, generation: generation)
             } catch is CancellationError {
                 await self?.finishPersisting(generation: generation)
             } catch {
@@ -91,17 +105,26 @@ final class TagStore: ObservableObject {
         notifyUpdate()
     }
 
+    private func commitSnapshot(_ encoded: Data, generation: Int) {
+        guard saveGeneration == generation else { return }
+        defaults.set(encoded, forKey: StorageKeys.snapshot)
+        saveTask = nil
+    }
+
     private func finishPersisting(generation: Int) {
         if saveGeneration == generation {
             saveTask = nil
         }
     }
 
-    nonisolated private static func writeSnapshot(_ snapshot: TagStoreSnapshot) throws {
-        // A single encoded value makes plots, tags, and assignments one logical
-        // commit. Cancelling a newer save can no longer leave the three sets at
-        // different generations.
-        try UserDefaults.standard.setObject(snapshot, forKey: StorageKeys.snapshot)
+    func waitForPendingSave() async {
+        if let saveTask {
+            await saveTask.value
+        }
+    }
+
+    var hasPendingSave: Bool {
+        saveTask != nil
     }
 
     private func notifyUpdate() {

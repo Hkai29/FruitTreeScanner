@@ -281,6 +281,8 @@
 		TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTBATCH778899 /* BatchExportServiceTests.swift */; };
 		TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTPCPR778899 /* PointCloudProcessingTests.swift */; };
 		TESTDETDBG001 /* DetectionDebugStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDETDBG002 /* DetectionDebugStateTests.swift */; };
+		TESTFRUITPARAM001 /* FruitParametersStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTFRUITPARAM002 /* FruitParametersStoreTests.swift */; };
+		TESTTAGSTORE001 /* TagStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTTAGSTORE002 /* TagStoreTests.swift */; };
 		APPSHORTCUTS002 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPSHORTCUTS001 /* AppShortcuts.swift */; };
 		NAVROUTER002 /* NavigationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAVROUTER001 /* NavigationRouter.swift */; };
 /* End PBXBuildFile section */
@@ -576,6 +578,8 @@
 		TESTBATCH778899 /* BatchExportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportServiceTests.swift; sourceTree = "<group>"; };
 		TESTPCPR778899 /* PointCloudProcessingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudProcessingTests.swift; sourceTree = "<group>"; };
 		TESTDETDBG002 /* DetectionDebugStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugStateTests.swift; sourceTree = "<group>"; };
+		TESTFRUITPARAM002 /* FruitParametersStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitParametersStoreTests.swift; sourceTree = "<group>"; };
+		TESTTAGSTORE002 /* TagStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagStoreTests.swift; sourceTree = "<group>"; };
 		APPSHORTCUTS001 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
 		NAVROUTER001 /* NavigationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRouter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -639,6 +643,8 @@
 				TESTBATCH778899 /* BatchExportServiceTests.swift */,
 				TESTPCPR778899 /* PointCloudProcessingTests.swift */,
 				TESTDETDBG002 /* DetectionDebugStateTests.swift */,
+				TESTFRUITPARAM002 /* FruitParametersStoreTests.swift */,
+				TESTTAGSTORE002 /* TagStoreTests.swift */,
 			);
 			path = FruitTreeScannerTests;
 			sourceTree = "<group>";
@@ -1332,6 +1338,8 @@
 				TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */,
 				TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */,
 				TESTDETDBG001 /* DetectionDebugStateTests.swift in Sources */,
+				TESTFRUITPARAM001 /* FruitParametersStoreTests.swift in Sources */,
+				TESTTAGSTORE001 /* TagStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
