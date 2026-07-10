@@ -16,12 +16,14 @@ extension ImageDetector {
         let unmappedLabels: [String]
         let rawPredictions: [DetectionPredictionDebug]
         let filteredPredictions: [DetectionPredictionDebug]
+        let labelMappingFailureReason: String?
     }
 
     static func parseYOLOMultiArray(
         _ multiArray: MLMultiArray,
         timestamp: TimeInterval,
         config: FruitScanConfig,
+        labelDiagnostics: ModelLabelCompatibilityDiagnostics,
         lowConfidenceFloor: Float = 0.05,
         nmsThreshold: Float = 0.45
     ) -> YOLOParsingResult {
@@ -57,6 +59,8 @@ extension ImageDetector {
         var confidenceFilteredCount = 0
         var thresholdPassedCount = 0
         var unmappedObservationCount = 0
+        let blocksFixedClassIndexMapping = labelDiagnostics.blocksFixedClassIndexMapping
+        let runtimeLabels = labelDiagnostics.runtimeModelLabels
 
         for anchorIndex in 0..<anchorCount {
             let (classIndex, confidence) = YOLOParserSupport.bestClassScore(
@@ -83,7 +87,10 @@ extension ImageDetector {
 
             if let boundingBox {
                 rawDebugPredictions.append(DetectionPredictionDebug(
-                    label: YOLOParserSupport.debugLabel(forClassIndex: classIndex),
+                    label: YOLOParserSupport.debugLabel(
+                        forClassIndex: classIndex,
+                        runtimeLabels: runtimeLabels
+                    ),
                     confidence: confidence,
                     boundingBox: boundingBox
                 ))
@@ -101,11 +108,20 @@ extension ImageDetector {
             }
 
             let debugPrediction = DetectionPredictionDebug(
-                label: YOLOParserSupport.debugLabel(forClassIndex: classIndex),
+                label: YOLOParserSupport.debugLabel(
+                    forClassIndex: classIndex,
+                    runtimeLabels: runtimeLabels
+                ),
                 confidence: confidence,
                 boundingBox: boundingBox
             )
             filteredDebugPredictions.append(debugPrediction)
+
+            guard !blocksFixedClassIndexMapping else {
+                unmappedObservationCount += 1
+                unmappedLabels.append(debugPrediction.label)
+                continue
+            }
 
             guard let category = FruitCategory.fromCustomModel(classIndex) else {
                 unmappedObservationCount += 1
@@ -142,7 +158,8 @@ extension ImageDetector {
             mappedCategories: mappedCategories,
             unmappedLabels: unmappedLabels,
             rawPredictions: rawDebugPredictions,
-            filteredPredictions: filteredDebugPredictions
+            filteredPredictions: filteredDebugPredictions,
+            labelMappingFailureReason: labelDiagnostics.fixedClassIndexMappingFailureReason
         )
     }
 }

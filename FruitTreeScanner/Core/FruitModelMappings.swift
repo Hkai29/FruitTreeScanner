@@ -4,13 +4,11 @@
 enum COCOFruit: Int, CaseIterable {
     case apple = 77
     case orange = 78
-    case banana = 52
 
     var fruitCategory: FruitCategory? {
         switch self {
         case .apple: return .apple
         case .orange: return .orange
-        case .banana: return .pear
         }
     }
 }

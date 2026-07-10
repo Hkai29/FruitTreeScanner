@@ -162,7 +162,7 @@ struct DetectionDebugState: Sendable, Equatable {
         self.runtimeModelLabelsAvailable = labelDiagnostics.runtimeModelLabelsAvailable
         self.modelLabelCompatibilityStatus = labelDiagnostics.modelLabelCompatibilityStatus
         self.modelLabelCompatibilityWarnings = labelDiagnostics.modelLabelCompatibilityWarnings
-        self.lastErrorMessage = nil
+        self.lastErrorMessage = labelDiagnostics.fixedClassIndexMappingFailureReason
         self.lastUpdatedAt = Date()
     }
 

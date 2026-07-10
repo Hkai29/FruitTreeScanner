@@ -73,7 +73,6 @@ struct FruitCategoryMapper {
         "blueberry": .blueberry,
         "strawberry": .strawberry,
         "coconut": .coconut,
-        "banana": .pear,
     ]
 
     func category(for identifier: String) -> FruitCategory? {
@@ -117,6 +116,18 @@ struct ModelLabelCompatibilityDiagnostics: Sendable, Equatable {
     ]
 
     static let unavailable = ModelLabelCompatibilityDiagnostics()
+
+    /// A YOLO MultiArray exposes class scores by index. If the model supplied a
+    /// label list that differs from the App's fixed order, mapping that index
+    /// would silently assign detections to the wrong fruit category.
+    var blocksFixedClassIndexMapping: Bool {
+        runtimeModelLabelsAvailable && modelLabelCompatibilityStatus != "compatible"
+    }
+
+    var fixedClassIndexMappingFailureReason: String? {
+        guard blocksFixedClassIndexMapping else { return nil }
+        return "Runtime model labels mismatch; fixed YOLO class-index mapping is disabled."
+    }
 }
 
 struct ImageDetectionDiagnostics: Sendable, Equatable {
@@ -162,6 +173,9 @@ struct ImageDetectorDiagnosticsRecorder {
         snapshot.runtimeModelLabelsAvailable = labelDiagnostics.runtimeModelLabelsAvailable
         snapshot.modelLabelCompatibilityStatus = labelDiagnostics.modelLabelCompatibilityStatus
         snapshot.modelLabelCompatibilityWarnings = labelDiagnostics.modelLabelCompatibilityWarnings
+        if let failureReason = labelDiagnostics.fixedClassIndexMappingFailureReason {
+            snapshot.modelFailureReason = failureReason
+        }
     }
 
     mutating func reset(modelStatus: ImageDetectorModelStatus) {

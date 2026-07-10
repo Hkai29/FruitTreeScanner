@@ -109,6 +109,11 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertNil(FruitCategoryMapper.standard.category(for: "dragon fruit"))
     }
 
+    func testFruitCategoryMapperDoesNotMapBananaToPear() {
+        XCTAssertNil(FruitCategoryMapper.standard.category(for: "banana"))
+        XCTAssertNil(FruitCategory.fromCOCO(52))
+    }
+
     func testCustomModelOrderMatchesFruitCategoryCases() {
         XCTAssertEqual(FruitCategory.customModelLabelOrder, FruitCategory.allCases.map(\.rawValue))
         for (index, category) in FruitCategory.allCases.enumerated() {

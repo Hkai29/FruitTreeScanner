@@ -161,7 +161,8 @@ struct ImageDetectorInference: Sendable {
             let parsed = ImageDetector.parseYOLOMultiArray(
                 multiArray,
                 timestamp: timestamp,
-                config: config
+                config: config,
+                labelDiagnostics: detector.modelLabelDiagnosticsSnapshot()
             )
             detector.recordCoreMLDetection(
                 observationCount: parsed.modelCandidateCount,
@@ -178,8 +179,13 @@ struct ImageDetectorInference: Sendable {
                 filteredObservationCount: parsed.thresholdPassedCount,
                 rawPredictions: parsed.rawPredictions,
                 filteredPredictions: parsed.filteredPredictions,
-                threshold: config.minConfidence
+                threshold: config.minConfidence,
+                errorMessage: parsed.labelMappingFailureReason
             )
+            if let failureReason = parsed.labelMappingFailureReason {
+                Log.detection.error("\(failureReason)")
+                detector.captureDetectionFailureSample(note: failureReason)
+            }
             completion(parsed.fruits)
         }
 

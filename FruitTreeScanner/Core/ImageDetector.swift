@@ -46,6 +46,7 @@ final class ImageDetector: @unchecked Sendable {
     // CoreML 模型 (由初始化时注入)
     var coreMLModel: VNCoreMLModel?
     private(set) var modelStatus: ImageDetectorModelStatus = .fallback(reason: "模型尚未加载")
+    private var modelLabelDiagnostics = ModelLabelCompatibilityDiagnostics.unavailable
     var diagnosticsRecorder = ImageDetectorDiagnosticsRecorder()
     var detectionDebugState = DetectionDebugState()
     var detectionFailureSamples: [DetectionFailureSample] = []
@@ -85,13 +86,15 @@ final class ImageDetector: @unchecked Sendable {
             Log.detection.info(
                 "CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))"
             )
-            updateModelDiagnostics(labelDiagnostics: loadedModel.labelDiagnostics)
+            modelLabelDiagnostics = loadedModel.labelDiagnostics
+            updateModelDiagnostics()
             updateModelDebugStateLoaded(loadedModel)
             return
         }
 
         let failureMessage = loadState.failureMessage ?? "Unknown model load failure"
         Log.detection.error("CoreML model not available, using fallback: \(failureMessage)")
+        modelLabelDiagnostics = .unavailable
         updateModelDiagnostics()
         updateModelDebugStateFailure(
             modelName: loadState.failureModelName ?? "FruitsDetector",
@@ -106,13 +109,22 @@ final class ImageDetector: @unchecked Sendable {
         return diagnosticsRecorder.snapshot
     }
 
-    private func updateModelDiagnostics(
-        labelDiagnostics: ModelLabelCompatibilityDiagnostics = .unavailable
-    ) {
+    func modelLabelDiagnosticsSnapshot() -> ModelLabelCompatibilityDiagnostics {
+        lock.lock()
+        defer { lock.unlock() }
+        return modelLabelDiagnostics
+    }
+
+    private func updateModelDiagnostics() {
         lock.lock()
         defer { lock.unlock() }
         applyModelStatusToDiagnosticsLocked()
-        diagnosticsRecorder.apply(labelDiagnostics: labelDiagnostics)
+        applyModelLabelDiagnosticsToDiagnosticsLocked()
+    }
+
+    /// Caller must hold `lock` so a queue reset cannot race with diagnostics updates.
+    func applyModelLabelDiagnosticsToDiagnosticsLocked() {
+        diagnosticsRecorder.apply(labelDiagnostics: modelLabelDiagnostics)
     }
 
     private func applyModelStatusToDiagnosticsLocked() {

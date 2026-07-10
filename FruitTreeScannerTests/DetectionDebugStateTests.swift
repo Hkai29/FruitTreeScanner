@@ -90,6 +90,34 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertTrue(diagnostics.runtimeModelLabelsAvailable)
         XCTAssertEqual(diagnostics.modelLabelCompatibilityStatus, "mismatch")
         XCTAssertFalse(diagnostics.modelLabelCompatibilityWarnings.isEmpty)
+        XCTAssertTrue(diagnostics.blocksFixedClassIndexMapping)
+        XCTAssertEqual(
+            diagnostics.fixedClassIndexMappingFailureReason,
+            "Runtime model labels mismatch; fixed YOLO class-index mapping is disabled."
+        )
+    }
+
+    func testModelLabelMismatchRecordsDiagnosticsAndDebugFailureReason() throws {
+        var labels = FruitCategory.customModelLabelOrder
+        labels.swapAt(0, 1)
+        let labelDiagnostics = ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: labels)
+        let failureReason = try XCTUnwrap(labelDiagnostics.fixedClassIndexMappingFailureReason)
+
+        var recorder = ImageDetectorDiagnosticsRecorder()
+        recorder.apply(modelStatus: .coreML(resourceName: "FruitsDetector", bundleExtension: "mlmodelc"))
+        recorder.apply(labelDiagnostics: labelDiagnostics)
+        XCTAssertEqual(recorder.snapshot.modelLabelCompatibilityStatus, "mismatch")
+        XCTAssertEqual(recorder.snapshot.effectiveFailureReason, failureReason)
+
+        var state = DetectionDebugState(currentThreshold: 0.5)
+        state.markModelLoaded(
+            modelName: "FruitsDetector",
+            modelURLFound: true,
+            supportedClasses: labelDiagnostics.runtimeModelLabels,
+            labelDiagnostics: labelDiagnostics
+        )
+        XCTAssertEqual(state.modelLabelCompatibilityStatus, "mismatch")
+        XCTAssertEqual(state.lastErrorMessage, failureReason)
     }
 
     func testModelLabelDiagnosticsParseUltralyticsNamesMetadata() {

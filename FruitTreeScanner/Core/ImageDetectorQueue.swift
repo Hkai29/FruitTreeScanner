@@ -149,6 +149,7 @@ extension ImageDetector {
         queueGeneration &+= 1
         preparingFrameGeneration = nil
         diagnosticsRecorder.reset(modelStatus: modelStatus)
+        applyModelLabelDiagnosticsToDiagnosticsLocked()
         lock.unlock()
     }
 

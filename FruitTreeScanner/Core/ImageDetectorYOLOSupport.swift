@@ -22,12 +22,19 @@ enum YOLOParserSupport {
             mappedCategories: [],
             unmappedLabels: [],
             rawPredictions: [],
-            filteredPredictions: []
+            filteredPredictions: [],
+            labelMappingFailureReason: nil
         )
     }
 
-    static func debugLabel(forClassIndex classIndex: Int) -> String {
-        FruitCategory.fromCustomModel(classIndex)?.displayName ?? "class \(classIndex)"
+    static func debugLabel(
+        forClassIndex classIndex: Int,
+        runtimeLabels: [String] = []
+    ) -> String {
+        if runtimeLabels.indices.contains(classIndex) {
+            return runtimeLabels[classIndex]
+        }
+        return FruitCategory.fromCustomModel(classIndex)?.displayName ?? "class \(classIndex)"
     }
 
     static func bestClassScore(
