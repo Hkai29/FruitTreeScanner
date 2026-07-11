@@ -68,7 +68,8 @@ final class ScanHistoryStore: ObservableObject {
                         gpsLon: result.gpsLon,
                         fruitType: result.fruitType,
                         confidence: result.confidence,
-                        fileSizeBytes: fileSizeBytes
+                        fileSizeBytes: fileSizeBytes,
+                        persistenceState: result.persistenceState
                     )
                 }
                 .sorted { $0.scanDate > $1.scanDate }
@@ -131,6 +132,15 @@ final class ScanHistoryStore: ObservableObject {
                 deletedAllAvailableFiles = false
             }
         }
+        let manifestURL = record.fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
+        if fileExists(manifestURL.path) {
+            do {
+                try removeItem(manifestURL)
+            } catch {
+                deletedAllAvailableFiles = false
+            }
+        }
         return deletedAllAvailableFiles
     }
 
@@ -151,8 +161,9 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
     let fruitType: String
     let confidence: String
     let fileSizeBytes: Int
+    let persistenceState: ScanPersistenceState
 
-    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple", confidence: String = "low", fileSizeBytes: Int = 0) {
+    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "apple", confidence: String = "low", fileSizeBytes: Int = 0, persistenceState: ScanPersistenceState = .complete) {
         self.id = id
         self.treeID = treeID
         self.fileURL = fileURL
@@ -164,6 +175,7 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
         self.fruitType = fruitType
         self.confidence = confidence
         self.fileSizeBytes = fileSizeBytes
+        self.persistenceState = persistenceState
     }
 
     private static func nonNegativeFinite(_ value: Float) -> Float {

@@ -191,7 +191,8 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.gpsLon, 116.4074, accuracy: 0.0001)
         XCTAssertEqual(parsed.fruitCount, 0)
         XCTAssertEqual(parsed.yieldKg, 0)
-        XCTAssertEqual(parsed.fruitType, "apple")
+        XCTAssertEqual(parsed.fruitType, "")
+        XCTAssertEqual(parsed.persistenceState, .incomplete)
     }
 
     func testPLYParserReadsCRLFHeaderMetadataFromRendererStyleExport() throws {
@@ -305,7 +306,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.gpsLon, 139.444444, accuracy: 0.000001)
     }
 
-    func testPLYParserMissingCSVReturnsDefaults() throws {
+    func testPLYParserMissingCompanionIsIncompleteInsteadOfAppleZeroResult() throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -316,8 +317,9 @@ final class FruitModelsTests: XCTestCase {
         let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
         XCTAssertEqual(parsed.fruitCount, 0, "缺失CSV时fruitCount应为0")
         XCTAssertEqual(parsed.yieldKg, 0, "缺失CSV时yieldKg应为0")
-        XCTAssertEqual(parsed.fruitType, "apple", "缺失CSV时fruitType默认apple")
-        XCTAssertEqual(parsed.confidence, "low", "缺失CSV时confidence默认low")
+        XCTAssertEqual(parsed.fruitType, "")
+        XCTAssertEqual(parsed.confidence, "")
+        XCTAssertEqual(parsed.persistenceState, .incomplete)
     }
 
     func testPLYParserResultJSONCompanion() throws {
@@ -338,6 +340,21 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.yieldKg, 8.75, accuracy: 0.01)
         XCTAssertEqual(parsed.fruitType, "orange")
         XCTAssertEqual(parsed.confidence, "high")
+        XCTAssertEqual(parsed.persistenceState, .complete)
+    }
+
+    func testPLYParserCorruptJSONIsInvalid() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let plyURL = tempDir.appendingPathComponent("corrupt.ply")
+        try Data().write(to: plyURL)
+        try Data("not-json".utf8).write(to: tempDir.appendingPathComponent("corrupt_result.json"))
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+        XCTAssertEqual(parsed.persistenceState, .invalid)
+        XCTAssertEqual(parsed.fruitCount, 0)
+        XCTAssertEqual(parsed.fruitType, "")
     }
 
     func testPLYParserRejectsNonFiniteCompanionYield() throws {
@@ -633,6 +650,8 @@ final class FruitModelsTests: XCTestCase {
         let baseName = fileURL.deletingPathExtension().lastPathComponent
         let jsonURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
 
         let record = ScanFileRecord(
             id: "test_record.ply",
@@ -644,7 +663,7 @@ final class FruitModelsTests: XCTestCase {
         var removed: [URL] = []
         let removeItem: (URL) throws -> Void = { removed.append($0) }
         let fileExists: (String) -> Bool = {
-            $0 == csvURL.path || $0 == jsonURL.path
+            $0 == csvURL.path || $0 == jsonURL.path || $0 == manifestURL.path
         }
 
         let result = ScanHistoryStore.deleteFiles(
@@ -654,9 +673,10 @@ final class FruitModelsTests: XCTestCase {
         )
 
         XCTAssertTrue(result, "Should return true when companions are cleaned")
-        XCTAssertEqual(removed.count, 2, "Should clean both CSV and JSON companions")
+        XCTAssertEqual(removed.count, 3, "Should clean CSV, JSON, and completion manifest")
         XCTAssertEqual(removed[0], csvURL, "CSV companion should be removed first")
         XCTAssertEqual(removed[1], jsonURL, "JSON companion should be removed second")
+        XCTAssertEqual(removed[2], manifestURL, "Completion manifest should be removed third")
     }
 
     func testDeleteFilesCompanionFailureReturnsFalseAndContinuesCleanup() {
@@ -665,6 +685,8 @@ final class FruitModelsTests: XCTestCase {
         let baseName = fileURL.deletingPathExtension().lastPathComponent
         let jsonURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
 
         let record = ScanFileRecord(
             id: "test_record.ply",
@@ -689,10 +711,11 @@ final class FruitModelsTests: XCTestCase {
         )
 
         XCTAssertFalse(result, "Should return false when any companion removal throws")
-        XCTAssertEqual(removed.count, 3, "Should still attempt JSON cleanup after CSV removal fails")
+        XCTAssertEqual(removed.count, 4, "Should still attempt JSON and manifest cleanup after CSV removal fails")
         XCTAssertEqual(removed[0], fileURL, "First removal must be primary PLY")
         XCTAssertEqual(removed[1], csvURL, "Second removal must be CSV companion")
         XCTAssertEqual(removed[2], jsonURL, "Third removal must be JSON companion")
+        XCTAssertEqual(removed[3], manifestURL, "Fourth removal must be completion manifest")
     }
 
     func testDeleteFilesOrderPLYThenCSVThenJSON() {
@@ -701,6 +724,8 @@ final class FruitModelsTests: XCTestCase {
         let baseName = fileURL.deletingPathExtension().lastPathComponent
         let jsonURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
 
         let record = ScanFileRecord(
             id: "test_record.ply",
@@ -720,10 +745,11 @@ final class FruitModelsTests: XCTestCase {
         )
 
         XCTAssertTrue(result, "Should return true when all files exist and removal succeeds")
-        XCTAssertEqual(removed.count, 3, "Should attempt removal of all three files")
+        XCTAssertEqual(removed.count, 4, "Should attempt removal of PLY and all companions")
         XCTAssertEqual(removed[0], fileURL, "First removal must be primary PLY")
         XCTAssertEqual(removed[1], csvURL, "Second removal must be CSV companion")
         XCTAssertEqual(removed[2], jsonURL, "Third removal must be JSON companion")
+        XCTAssertEqual(removed[3], manifestURL, "Fourth removal must be completion manifest")
     }
 
     // MARK: - Calibration input parsing

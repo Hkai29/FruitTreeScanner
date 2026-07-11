@@ -1,5 +1,11 @@
 import Foundation
 
+enum ScanPersistenceState: String, Sendable {
+    case complete
+    case incomplete
+    case invalid
+}
+
 // MARK: - Result type returned by PLYParserHelper
 struct PLYParserResult: Sendable {
     let treeID: String
@@ -10,6 +16,7 @@ struct PLYParserResult: Sendable {
     let yieldKg: Float
     let fruitType: String
     let confidence: String
+    let persistenceState: ScanPersistenceState
 }
 
 // MARK: - Shared PLY filename + result parsing
@@ -25,17 +32,18 @@ enum PLYParserHelper {
         let metadata = parseHeaderMetadata(from: url)
             ?? parseFilenameMetadata(from: url)
             ?? fallbackMetadata(from: url)
-        let result = readCompanionResult(for: url)
+        let companion = readCompanionResult(for: url)
 
         return PLYParserResult(
             treeID: metadata.treeID,
             scanDate: metadata.scanDate,
             gpsLat: metadata.gpsLat,
             gpsLon: metadata.gpsLon,
-            fruitCount: result.fruitCount,
-            yieldKg: result.yieldKg,
-            fruitType: result.fruitType,
-            confidence: result.confidence
+            fruitCount: companion.result?.fruitCount ?? 0,
+            yieldKg: companion.result?.yieldKg ?? 0,
+            fruitType: companion.result?.fruitType ?? "",
+            confidence: companion.result?.confidence ?? "",
+            persistenceState: companion.state
         )
     }
 

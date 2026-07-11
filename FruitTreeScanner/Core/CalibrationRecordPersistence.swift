@@ -29,3 +29,41 @@ enum CalibrationRecordPersistence {
         try data.write(to: url, options: .atomic)
     }
 }
+
+actor CalibrationRecordPersistenceController {
+    typealias Writer = @Sendable ([CalibrationRecord], URL) throws -> Void
+
+    static let shared = CalibrationRecordPersistenceController()
+
+    private let url: URL
+    private let writer: Writer
+    private var latestGeneration = 0
+    private(set) var lastErrorDescription: String?
+
+    init(
+        url: URL = CalibrationRecordPersistence.defaultURL(),
+        writer: @escaping Writer = { records, url in
+            try CalibrationRecordPersistence.save(records, to: url)
+        }
+    ) {
+        self.url = url
+        self.writer = writer
+    }
+
+    @discardableResult
+    func save(_ records: [CalibrationRecord], generation: Int) -> Bool {
+        guard generation >= latestGeneration else { return false }
+        latestGeneration = generation
+        do {
+            try writer(records, url)
+            guard generation == latestGeneration else { return false }
+            lastErrorDescription = nil
+            return true
+        } catch {
+            if generation == latestGeneration {
+                lastErrorDescription = error.localizedDescription
+            }
+            return false
+        }
+    }
+}

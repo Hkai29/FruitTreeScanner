@@ -12,7 +12,8 @@ final class BatchExportServiceTests: XCTestCase {
         gpsLat: Double = 36.123456,
         gpsLon: Double = 139.654321,
         fruitType: String = "apple",
-        fileURL: URL? = nil
+        fileURL: URL? = nil,
+        persistenceState: ScanPersistenceState = .complete
     ) -> ScanFileRecord {
         ScanFileRecord(
             id: id,
@@ -23,7 +24,8 @@ final class BatchExportServiceTests: XCTestCase {
             yieldKg: yieldKg,
             gpsLat: gpsLat,
             gpsLon: gpsLon,
-            fruitType: fruitType
+            fruitType: fruitType,
+            persistenceState: persistenceState
         )
     }
 
@@ -1112,7 +1114,7 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(yieldKg.doubleValue, 0, accuracy: 0.000001)
     }
 
-    func testScanResultExportPreservesExistingCSVAndRefreshesMetadata() throws {
+    func testScanResultRepeatedExportUpdatesCSVAndMetadataTogether() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
         let firstRequest = ScanResultExportService.ExportRequest(
             treeID: "T-first",
@@ -1149,14 +1151,148 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(firstCSVURL, secondCSVURL)
 
         let csv = try String(contentsOf: firstCSVURL, encoding: .utf8)
-        XCTAssertTrue(csv.contains("T-first"))
-        XCTAssertFalse(csv.contains("T-second"))
+        XCTAssertFalse(csv.contains("T-first"))
+        XCTAssertTrue(csv.contains("T-second"))
 
         let metadataURL = try XCTUnwrap(secondExport.metadataURL)
         let data = try Data(contentsOf: metadataURL)
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(payload["treeID"] as? String, "T-second")
         XCTAssertEqual(payload["fruitCount"] as? Int, 21)
+        let jsonRevision = try XCTUnwrap(payload["exportRevision"] as? String)
+        XCTAssertTrue(csv.contains(jsonRevision))
+    }
+
+    func testBatchExportExcludesIncompleteRecordsAndReportsCount() async throws {
+        let complete = makeRecord(id: "complete.ply", fruitCount: 7)
+        let incomplete = makeRecord(
+            id: "orphan.ply",
+            fruitCount: 99,
+            persistenceState: .incomplete
+        )
+
+        let result = try await BatchExportService.shared.export(
+            records: [complete, incomplete],
+            format: .csv,
+            options: .init()
+        )
+        defer { try? FileManager.default.removeItem(at: result.url) }
+
+        XCTAssertEqual(result.recordCount, 1)
+        XCTAssertEqual(result.totalFruitCount, 7)
+        XCTAssertEqual(result.excludedIncompleteCount, 1)
+        let csv = try String(contentsOf: result.url, encoding: .utf8)
+        XCTAssertTrue(csv.contains("T-001"))
+        XCTAssertFalse(csv.contains("orphan"))
+    }
+
+    func testScanResultJSONStagingFailureLeavesNoPublishedCompanions() throws {
+        let directory = temporaryScanDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = ScanResultExportService(
+            scansDirectory: directory,
+            writeData: { _, url in
+                if url.lastPathComponent.hasSuffix("_result.json") {
+                    throw CocoaError(.fileWriteNoPermission)
+                }
+            }
+        )
+
+        XCTAssertThrowsError(try service.exportIfNeeded(transactionRequest(sourceFilename: "json-fail.ply")))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("json-fail_result.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("json-fail.csv").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("json-fail_complete.json").path))
+    }
+
+    func testScanResultCSVStagingFailureLeavesNoPublishedCompanions() throws {
+        let directory = temporaryScanDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = ScanResultExportService(scansDirectory: directory) { data, url in
+            if url.pathExtension == "csv" { throw CocoaError(.fileWriteNoPermission) }
+            try data.write(to: url, options: .atomic)
+        }
+
+        XCTAssertThrowsError(try service.exportIfNeeded(transactionRequest(sourceFilename: "csv-fail.ply")))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("csv-fail_result.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("csv-fail.csv").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("csv-fail_complete.json").path))
+    }
+
+    func testScanResultRevisionMismatchIsInvalid() throws {
+        let directory = temporaryScanDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = directory.appendingPathComponent("mismatch.ply")
+        try Data().write(to: plyURL)
+        let service = ScanResultExportService(scansDirectory: directory)
+        _ = try service.exportIfNeeded(transactionRequest(sourceFilename: plyURL.lastPathComponent))
+        let csvURL = directory.appendingPathComponent("mismatch.csv")
+        var csv = try String(contentsOf: csvURL, encoding: .utf8)
+        csv = csv.replacingOccurrences(of: "ExportRevision", with: "ExportRevision")
+        let lines = csv.components(separatedBy: .newlines)
+        let corrupted = lines.enumerated().map { index, line in
+            index == 1 ? line.replacingOccurrences(of: line.split(separator: ",").last.map(String.init) ?? "", with: "wrong-revision") : line
+        }.joined(separator: "\n")
+        try corrupted.write(to: csvURL, atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: plyURL).state, .invalid)
+    }
+
+    func testTransactionalZeroYieldResultIsComplete() throws {
+        let directory = temporaryScanDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = directory.appendingPathComponent("zero.ply")
+        try Data().write(to: plyURL)
+        let service = ScanResultExportService(scansDirectory: directory)
+        _ = try service.exportIfNeeded(transactionRequest(sourceFilename: plyURL.lastPathComponent, count: 0))
+
+        let companion = PLYParserHelper.readCompanionResult(for: plyURL)
+        XCTAssertEqual(companion.state, .complete)
+        XCTAssertEqual(companion.result?.fruitCount, 0)
+        XCTAssertEqual(companion.result?.yieldKg, 0)
+    }
+
+    func testFailedReplacementRestoresOldCompleteResult() throws {
+        let directory = temporaryScanDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceFilename = "rollback.ply"
+        let firstService = ScanResultExportService(scansDirectory: directory)
+        _ = try firstService.exportIfNeeded(transactionRequest(sourceFilename: sourceFilename, count: 7))
+        let failingService = ScanResultExportService(
+            scansDirectory: directory,
+            publishFile: { source, destination in
+                if destination.pathExtension == "csv" { throw CocoaError(.fileWriteNoPermission) }
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.moveItem(at: source, to: destination)
+            }
+        )
+
+        XCTAssertThrowsError(try failingService.exportIfNeeded(transactionRequest(sourceFilename: sourceFilename, count: 21)))
+        let plyURL = directory.appendingPathComponent(sourceFilename)
+        try Data().write(to: plyURL)
+        let companion = PLYParserHelper.readCompanionResult(for: plyURL)
+        XCTAssertEqual(companion.state, .complete)
+        XCTAssertEqual(companion.result?.fruitCount, 7)
+    }
+
+    private func temporaryScanDirectory() -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func transactionRequest(sourceFilename: String, count: Int = 12) -> ScanResultExportService.ExportRequest {
+        ScanResultExportService.ExportRequest(
+            treeID: "T-transaction",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1_717_200_000),
+            gpsLat: 35,
+            gpsLon: 139,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: count, yieldKg: Float(count) / 2),
+            includeCSV: true
+        )
     }
 
     func testScanResultExportSkipsCSVWhenDisabledButWritesMetadata() throws {
