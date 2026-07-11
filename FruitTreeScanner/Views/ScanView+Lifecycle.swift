@@ -10,6 +10,25 @@ extension ScanView {
             guard isViewActive else { return }
             categoryMismatch = mismatch
         }
+        coordinator.onLifecycleStateChange = { snapshot in
+            guard isViewActive else { return }
+            lifecycleSnapshot = snapshot
+            switch snapshot.state {
+            case .systemInterrupted, .failed:
+                isRecording = false
+                isEstimating = false
+                clearMeasurementState()
+                showLifecycleRecovery = true
+            case .recovering:
+                isRecording = false
+                isEstimating = false
+                clearMeasurementState()
+                refreshScanReadiness()
+                showLifecycleRecovery = true
+            default:
+                break
+            }
+        }
         #if DEBUG
         coordinator.onDetectionDebugStateChange = { state in
             detectionDebugState = state
@@ -29,6 +48,16 @@ extension ScanView {
     }
 
     func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .inactive:
+            coordinator.handleSystemInterruption(.appInactive)
+        case .background:
+            coordinator.handleSystemInterruption(.appBackgrounded)
+        case .active:
+            coordinator.handleSessionInterruptionEnded()
+        @unknown default:
+            break
+        }
         refreshScanReadinessWhenActive(phase)
     }
 
@@ -57,6 +86,13 @@ extension ScanView {
         guard !isEstimating && !showResult else { return }
         guard scanReadiness.blocksScanning || !isRecording else { return }
         refreshScanReadiness()
+    }
+
+    var lifecycleAlertTitle: String {
+        if case .failed = lifecycleSnapshot.state {
+            return L10n.Scan.sessionFailureTitle
+        }
+        return L10n.Scan.interruptionTitle
     }
 
     func openAppSettings() {

@@ -37,6 +37,14 @@ struct ScanView: View {
     @State var isCheckingScanReadiness = false
     @State var showCancelConfirmation = false
     @State var categoryMismatch: FruitCategoryMismatch?
+    @State var lifecycleSnapshot = ScanLifecycleSnapshot(
+        state: .idle,
+        scanIdentity: UUID(),
+        generation: 0,
+        interruptionCount: 0,
+        lastInterruptionTimestamp: nil
+    )
+    @State var showLifecycleRecovery = false
 
     var body: some View {
         ZStack {
@@ -109,6 +117,18 @@ struct ScanView: View {
                         cancelScan()
                     }
                 )
+            }
+            .alert(lifecycleAlertTitle, isPresented: $showLifecycleRecovery) {
+                Button(L10n.Scan.restartAfterInterruption) {
+                    restartAfterInterruption()
+                }
+                .accessibilityHint(L10n.Scan.interruptionAccessibilityHint)
+                Button(L10n.Scan.discardAfterInterruption, role: .destructive) {
+                    discardAfterInterruption()
+                }
+                .accessibilityHint(L10n.Scan.interruptionAccessibilityHint)
+            } message: {
+                Text(L10n.Scan.interruptionMessage)
             }
     }
 

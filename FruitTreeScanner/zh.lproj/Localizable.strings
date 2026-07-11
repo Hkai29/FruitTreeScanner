@@ -7,6 +7,12 @@
 "scan.coverage_complete" = "覆盖完成";
 "scan.scanning" = "扫描中";
 "scan.detecting" = "检测中...";
+"scan.interruption_title" = "扫描已中断";
+"scan.interruption_message" = "相机或 AR 跟踪在扫描过程中被中断。为避免混合不连续的扫描数据，请重新开始本次扫描。";
+"scan.session_failure_title" = "扫描会话发生错误";
+"scan.restart_after_interruption" = "重新开始";
+"scan.discard_after_interruption" = "放弃扫描";
+"scan.interruption_accessibility_hint" = "重新开始会清除本次扫描数据；放弃不会生成扫描结果。";
 
 /* Result */
 "result.yield_title" = "估算产量";

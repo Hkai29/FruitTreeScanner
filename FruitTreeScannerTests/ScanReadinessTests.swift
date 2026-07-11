@@ -43,6 +43,62 @@ final class ScanReadinessTests: XCTestCase {
     }
 }
 
+final class ScanLifecycleControllerTests: XCTestCase {
+    func testRecordingToInactiveStopsReliableEvidenceAndDoesNotAutoResume() {
+        let controller = ScanLifecycleController()
+        let recording = controller.startNewScan()
+        XCTAssertTrue(recording.acceptsReliableEvidence)
+        let interrupted = controller.interrupt(.appInactive)
+        XCTAssertEqual(interrupted.state, .systemInterrupted(.appInactive))
+        XCTAssertFalse(interrupted.acceptsReliableEvidence)
+        XCTAssertGreaterThan(interrupted.generation, recording.generation)
+        XCTAssertEqual(controller.interruptionEnded().state, .recovering)
+    }
+
+    func testInactiveThenBackgroundDoesNotDuplicateInterruption() {
+        let controller = ScanLifecycleController()
+        _ = controller.startNewScan()
+        let first = controller.interrupt(.appInactive)
+        let second = controller.interrupt(.appBackgrounded)
+        XCTAssertEqual(second.state, .systemInterrupted(.appInactive))
+        XCTAssertEqual(second.interruptionCount, 1)
+        XCTAssertEqual(second.generation, first.generation)
+    }
+
+    func testUserPauseAndSystemInterruptionHaveDifferentRecoveryPolicies() {
+        let controller = ScanLifecycleController()
+        _ = controller.startNewScan()
+        XCTAssertEqual(controller.userPaused().state, .userPaused)
+        XCTAssertEqual(controller.resumeUserPaused().state, .recording)
+        _ = controller.interrupt(.arSessionInterrupted)
+        XCTAssertEqual(controller.resumeUserPaused().state, .systemInterrupted(.arSessionInterrupted))
+        XCTAssertEqual(controller.interruptionEnded().state, .recovering)
+    }
+
+    func testRestartCreatesNewIdentityAndClearsInterruptionDiagnostics() {
+        let controller = ScanLifecycleController()
+        let first = controller.startNewScan()
+        _ = controller.interrupt(.appBackgrounded)
+        let restarted = controller.startNewScan()
+        XCTAssertNotEqual(restarted.scanIdentity, first.scanIdentity)
+        XCTAssertEqual(restarted.state, .recording)
+        XCTAssertEqual(restarted.interruptionCount, 0)
+        XCTAssertNil(restarted.lastInterruptionTimestamp)
+    }
+
+    func testLateEventsCannotReplaceCompletedOrCancelledState() {
+        let controller = ScanLifecycleController()
+        _ = controller.startNewScan()
+        _ = controller.beginFinishing()
+        XCTAssertEqual(controller.complete().state, .completed)
+        XCTAssertEqual(controller.interrupt(.arSessionInterrupted).state, .completed)
+        let second = ScanLifecycleController()
+        _ = second.startNewScan()
+        XCTAssertEqual(second.cancel().state, .cancelled)
+        XCTAssertEqual(second.fail(.sessionFailed("camera")).state, .cancelled)
+    }
+}
+
 final class ScanCompletionEvaluatorTests: XCTestCase {
     func testAngleCoverageContributesToCompletionScore() {
         let evaluator = ScanCompletionEvaluator()
