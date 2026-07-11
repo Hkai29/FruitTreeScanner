@@ -264,7 +264,8 @@ enum DetectionDepthCandidateBuilder {
         from detection: DetectedFruit,
         clusterConfig: ClusterConfig
     ) -> FruitCandidate? {
-        guard let depthMap = detection.depthMap,
+        guard detection.hasAlignedDepthContext,
+              let depthMap = detection.depthMap,
               let cameraIntrinsics = detection.cameraIntrinsics,
               let cameraTransform = detection.cameraTransform,
               let imageSize = detection.imageSize,

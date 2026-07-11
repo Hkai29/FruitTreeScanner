@@ -20,9 +20,10 @@ enum ImageDetectorQueue {
         cameraIntrinsics: simd_float3x3,
         imageSize: CGSize,
         depthMap: CVPixelBuffer?,
-        depthConfidenceMap: CVPixelBuffer?
+        depthConfidenceMap: CVPixelBuffer?,
+        pixelBufferCopier: (CVPixelBuffer) -> CVPixelBuffer? = { duplicatePixelBuffer(input: $0) }
     ) -> FrameCopyResult {
-        guard let copiedPixelBuffer = duplicatePixelBuffer(input: pixelBuffer) else {
+        guard let copiedPixelBuffer = pixelBufferCopier(pixelBuffer) else {
             return FrameCopyResult(
                 queuedFrame: nil,
                 failedToCopyPixelBuffer: true,
@@ -31,12 +32,21 @@ enum ImageDetectorQueue {
             )
         }
 
-        let copiedDepthMap = depthMap.flatMap { duplicatePixelBuffer(input: $0) }
-        let copiedDepthConfidenceMap = depthConfidenceMap.flatMap { duplicatePixelBuffer(input: $0) }
+        let copiedDepthMap = depthMap.flatMap(pixelBufferCopier)
+        let copiedDepthConfidenceMap = depthConfidenceMap.flatMap(pixelBufferCopier)
+        let depthConfidenceProvenance: DepthConfidenceProvenance
+        if depthConfidenceMap == nil {
+            depthConfidenceProvenance = .unavailable
+        } else if copiedDepthConfidenceMap == nil {
+            depthConfidenceProvenance = .copyFailed
+        } else {
+            depthConfidenceProvenance = .available
+        }
         let queuedFrame = ImageDetector.QueuedFrame(
             pixelBuffer: copiedPixelBuffer,
             depthMap: copiedDepthMap,
             depthConfidenceMap: copiedDepthConfidenceMap,
+            depthConfidenceProvenance: depthConfidenceProvenance,
             timestamp: timestamp,
             cameraTransform: cameraTransform,
             cameraIntrinsics: cameraIntrinsics,
@@ -65,7 +75,8 @@ enum ImageDetectorQueue {
                 cameraIntrinsics: frame.cameraIntrinsics,
                 imageSize: frame.imageSize,
                 depthMap: frame.depthMap,
-                depthConfidenceMap: frame.depthConfidenceMap
+                depthConfidenceMap: frame.depthConfidenceMap,
+                depthConfidenceProvenance: frame.depthConfidenceProvenance
             )
         }
     }

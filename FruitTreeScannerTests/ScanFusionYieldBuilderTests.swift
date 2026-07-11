@@ -1772,6 +1772,43 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         )
     }
 
+    func testBuildFailsClosedAndPreservesReasonWhenConfidenceCopyFailed() async throws {
+        let depthMap = try XCTUnwrap(makeDepthMap(width: 256, height: 192, fillValue: 2.0))
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540),
+            imageSize: CGSize(width: 1920, height: 1080),
+            depthMap: depthMap,
+            depthConfidenceProvenance: .copyFailed
+        )
+        let input = ScanFusionYieldBuilder.Input(
+            points: makeAppleSphere(center: SIMD3<Float>(0, 0, 2)),
+            savedDetections: [detection],
+            imageDiagnostics: emptyImageDiagnostics(),
+            fruitType: "苹果",
+            fruitCategory: .apple,
+            paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+            defaultParams: appleParams(),
+            clusterConfig: .default,
+            fusionConfig: .default,
+            colorFilter: nil
+        )
+
+        let (yield, countResult) = await ScanFusionYieldBuilder.build(from: input)
+
+        XCTAssertEqual(yield.diagnostics.imageDetectionCount, 1)
+        XCTAssertEqual(yield.diagnostics.detectionDepthCandidateCount, 0)
+        XCTAssertEqual(yield.diagnostics.fusedFruitCount, 0)
+        XCTAssertTrue(yield.diagnostics.cloudOnlyConservativeMode)
+        XCTAssertEqual(yield.diagnostics.depthConfidenceFailureReason, DepthConfidenceProvenance.copyFailureReason)
+        XCTAssertTrue(yield.diagnostics.zeroYieldReasons.contains(DepthConfidenceProvenance.copyFailureReason))
+        XCTAssertTrue(countResult.validatedFruits.isEmpty)
+        XCTAssertEqual(yield.yieldFinalKg, 0, accuracy: 0.001)
+    }
+
     // MARK: - A.5 fruitCategory / fruitType in result
 
     func testBuildWritesFruitCategoryToResult() async {

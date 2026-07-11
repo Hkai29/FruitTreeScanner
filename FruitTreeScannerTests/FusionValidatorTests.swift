@@ -226,6 +226,29 @@ final class FusionValidatorTests: XCTestCase {
         )
     }
 
+    func testValidateRejectsDepthWhenConfidenceCopyFailed() {
+        let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.9,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap,
+            depthConfidenceProvenance: .copyFailed
+        )
+
+        let result = FusionValidator().validate(
+            detections: [detection],
+            candidates: [appleCandidate(at: SIMD3<Float>(0, 0, 2))]
+        )
+
+        XCTAssertTrue(result.isEmpty)
+    }
+
     // MARK: - B.2 fused match (candidate at projected position)
 
     func testValidateFusedWhenCandidateWithinTolerance() {

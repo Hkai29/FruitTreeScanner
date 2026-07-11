@@ -6,6 +6,9 @@ enum ScanFusionDiagnosticsUpdater {
             imageDiagnostics: input.imageDiagnostics
         )
         diagnostics.imageDetectionCount = input.savedDetections.count
+        if input.savedDetections.contains(where: { $0.depthConfidenceProvenance == .copyFailed }) {
+            diagnostics.depthConfidenceFailureReason = DepthConfidenceProvenance.copyFailureReason
+        }
         return diagnostics
     }
 

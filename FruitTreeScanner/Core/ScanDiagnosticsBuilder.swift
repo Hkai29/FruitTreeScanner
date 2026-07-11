@@ -38,6 +38,9 @@ struct ScanDiagnosticsBuilder {
         if !diagnostics.depthAvailable {
             reasons.append(L10n.Diagnostics.depthUnavailable)
         }
+        if !diagnostics.depthConfidenceFailureReason.isEmpty {
+            reasons.append(diagnostics.depthConfidenceFailureReason)
+        }
         if diagnostics.pointCloudPointCount < pointCloudMinimum {
             reasons.append(L10n.Diagnostics.insufficientPoints)
         }

@@ -91,6 +91,7 @@ struct ScanYieldDiagnostics: Sendable, Equatable {
     var scanAngleCoverage: Float = 0
     var cloudOnlyConservativeMode: Bool = false
     var depthAvailable: Bool = false
+    var depthConfidenceFailureReason: String = ""
     var imageFramesProcessed: Int = 0
     var imageObservationCount: Int = 0
     var imageConfidenceFilteredCount: Int = 0

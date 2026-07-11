@@ -19,6 +19,7 @@ final class ImageDetector: @unchecked Sendable {
         let pixelBuffer: CVPixelBuffer
         let depthMap: CVPixelBuffer?
         let depthConfidenceMap: CVPixelBuffer?
+        let depthConfidenceProvenance: DepthConfidenceProvenance
         let timestamp: TimeInterval
         let cameraTransform: simd_float4x4
         let cameraIntrinsics: simd_float3x3

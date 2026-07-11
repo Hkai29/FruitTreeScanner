@@ -350,10 +350,59 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertEqual(depthValue(copiedDepth), 2.0, accuracy: 0.001)
         XCTAssertEqual(confidenceValue(confidenceMap), 0)
         XCTAssertEqual(confidenceValue(copiedConfidence), 2)
+        XCTAssertEqual(queuedFrame.depthConfidenceProvenance, .available)
         XCTAssertEqual(queuedFrame.timestamp, 12.5, accuracy: 0.001)
         XCTAssertEqual(queuedFrame.imageSize.width, 1920)
         XCTAssertEqual(queuedFrame.cameraIntrinsics[0][0], 500, accuracy: 0.001)
         XCTAssertEqual(queuedFrame.cameraIntrinsics[1][1], 480, accuracy: 0.001)
+    }
+
+    func testQueuedFrameDistinguishesUnavailableConfidenceFromCopyFailure() throws {
+        let imageBuffer = try makePixelBuffer(width: 4, height: 4, pixelFormat: kCVPixelFormatType_32BGRA)
+        let depthMap = try makeDepthMap(width: 4, height: 4, fillValue: 2.0)
+
+        let result = ImageDetectorQueue.makeQueuedFrame(
+            pixelBuffer: imageBuffer,
+            timestamp: 1,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: matrix_identity_float3x3,
+            imageSize: CGSize(width: 4, height: 4),
+            depthMap: depthMap,
+            depthConfidenceMap: nil
+        )
+
+        XCTAssertEqual(result.queuedFrame?.depthConfidenceProvenance, .unavailable)
+        XCTAssertFalse(result.droppedDepthConfidenceMap)
+    }
+
+    func testConfidenceCopyFailurePreservesDetectionButRejectsAlignedDepthContext() throws {
+        let imageBuffer = try makePixelBuffer(width: 4, height: 4, pixelFormat: kCVPixelFormatType_32BGRA)
+        let depthMap = try makeDepthMap(width: 4, height: 4, fillValue: 2.0)
+        let confidenceMap = try makeConfidenceMap(width: 4, height: 4, fillValue: 2)
+        let result = ImageDetectorQueue.makeQueuedFrame(
+            pixelBuffer: imageBuffer,
+            timestamp: 1,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: matrix_identity_float3x3,
+            imageSize: CGSize(width: 4, height: 4),
+            depthMap: depthMap,
+            depthConfidenceMap: confidenceMap,
+            pixelBufferCopier: { buffer in
+                buffer === confidenceMap ? nil : duplicatePixelBuffer(input: buffer)
+            }
+        )
+        let frame = try XCTUnwrap(result.queuedFrame)
+        let detections = ImageDetectorQueue.enrich(
+            [DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.9)],
+            with: frame
+        )
+        let detection = try XCTUnwrap(detections.first)
+
+        XCTAssertTrue(result.droppedDepthConfidenceMap)
+        XCTAssertEqual(frame.depthConfidenceProvenance, .copyFailed)
+        XCTAssertNil(frame.depthConfidenceMap)
+        XCTAssertEqual(detection.depthConfidenceProvenance, .copyFailed)
+        XCTAssertFalse(detection.hasAlignedDepthContext)
     }
 
     func testClearQueueDropsFramePreparedForPreviousGeneration() throws {
@@ -365,6 +414,7 @@ final class DetectionDebugStateTests: XCTestCase {
             pixelBuffer: try makePixelBuffer(width: 4, height: 4, pixelFormat: kCVPixelFormatType_32BGRA),
             depthMap: nil,
             depthConfidenceMap: nil,
+            depthConfidenceProvenance: .unavailable,
             timestamp: 1,
             cameraTransform: matrix_identity_float4x4,
             cameraIntrinsics: matrix_identity_float3x3,

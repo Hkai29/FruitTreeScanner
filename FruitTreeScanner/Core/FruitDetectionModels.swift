@@ -6,6 +6,14 @@ import Foundation
 @preconcurrency import CoreVideo
 import simd
 
+enum DepthConfidenceProvenance: String, Sendable {
+    case available
+    case unavailable
+    case copyFailed
+
+    static let copyFailureReason = "Depth confidence unavailable because buffer copy failed"
+}
+
 // MARK: - 图像检测结果
 /// A detection and the AR frame data required to place it in world space.
 ///
@@ -23,9 +31,14 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
     let imageSize: CGSize?
     let depthMap: CVPixelBuffer?
     let depthConfidenceMap: CVPixelBuffer?
+    let depthConfidenceProvenance: DepthConfidenceProvenance
 
     var hasAlignedDepthContext: Bool {
-        depthMap != nil && cameraTransform != nil && cameraIntrinsics != nil && imageSize != nil
+        depthMap != nil
+            && cameraTransform != nil
+            && cameraIntrinsics != nil
+            && imageSize != nil
+            && depthConfidenceProvenance != .copyFailed
     }
 
     init(
@@ -37,7 +50,8 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
         cameraIntrinsics: simd_float3x3? = nil,
         imageSize: CGSize? = nil,
         depthMap: CVPixelBuffer? = nil,
-        depthConfidenceMap: CVPixelBuffer? = nil
+        depthConfidenceMap: CVPixelBuffer? = nil,
+        depthConfidenceProvenance: DepthConfidenceProvenance? = nil
     ) {
         self.id = UUID()
         self.category = category
@@ -49,6 +63,8 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
         self.imageSize = imageSize
         self.depthMap = depthMap
         self.depthConfidenceMap = depthConfidenceMap
+        self.depthConfidenceProvenance = depthConfidenceProvenance
+            ?? (depthConfidenceMap == nil ? .unavailable : .available)
     }
 }
 

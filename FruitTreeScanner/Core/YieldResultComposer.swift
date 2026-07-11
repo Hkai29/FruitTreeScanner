@@ -255,7 +255,8 @@ struct YieldResultComposer {
     }
 
     private static func projectedDetectionPosition(for detection: DetectedFruit) -> SIMD3<Float>? {
-        guard let depthMap = detection.depthMap,
+        guard detection.hasAlignedDepthContext,
+              let depthMap = detection.depthMap,
               let cameraIntrinsics = detection.cameraIntrinsics,
               let cameraTransform = detection.cameraTransform,
               let imageSize = detection.imageSize else {

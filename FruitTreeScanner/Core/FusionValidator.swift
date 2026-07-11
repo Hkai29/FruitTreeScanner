@@ -32,7 +32,8 @@ final class FusionValidator: Sendable {
         imageSize: CGSize
     ) -> [ValidatedFruit] {
         validate(detections: detections, candidates: candidates) { detection in
-            FusionProjectionContext(
+            guard detection.depthConfidenceProvenance != .copyFailed else { return nil }
+            return FusionProjectionContext(
                 depthMap: depthMap,
                 depthConfidenceMap: depthConfidenceMap,
                 cameraIntrinsics: detection.cameraIntrinsics ?? cameraIntrinsics,
@@ -50,7 +51,8 @@ final class FusionValidator: Sendable {
         candidates: [FruitCandidate]
     ) -> [ValidatedFruit] {
         validate(detections: detections, candidates: candidates) { detection in
-            guard let depthMap = detection.depthMap,
+            guard detection.hasAlignedDepthContext,
+                  let depthMap = detection.depthMap,
                   let cameraIntrinsics = detection.cameraIntrinsics,
                   let cameraTransform = detection.cameraTransform,
                   let imageSize = detection.imageSize
