@@ -52,7 +52,7 @@ extension ScanView {
         let scanMetadata = savedScanMetadata(for: filename)
         let request = ScanResultExportService.ExportRequest(
             treeID: treeID,
-            fruitType: SettingsStore.shared.fruitType,
+            fruitType: selectedFruitCategory.rawValue,
             scanDate: scanMetadata.scanDate,
             gpsLat: scanMetadata.gpsLat,
             gpsLon: scanMetadata.gpsLon,

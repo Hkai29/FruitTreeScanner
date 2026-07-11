@@ -150,6 +150,7 @@ extension DashboardView {
         let existing = TagStore.shared.getAssignment(treeId: normalizedTreeID)
         let request = ScanLaunchRequest(
             treeID: normalizedTreeID,
+            selectedFruitCategory: FruitCategory.scanCategory(for: SettingsStore.shared.fruitType),
             season: .mature,
             gps: GPSRecorder(),
             plotId: existing?.plotId,

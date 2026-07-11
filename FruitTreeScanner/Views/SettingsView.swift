@@ -170,7 +170,7 @@ struct SettingsView: View {
     private func refreshDraftsFromSettings() {
         maxPointCountDraft = Double(settings.maxPointCount)
         scanPrecisionDraft = settings.scanPrecision
-        selectedFruitCategory = FruitCategory(rawValue: settings.fruitType) ?? .apple
+        selectedFruitCategory = FruitCategory.scanCategory(for: settings.fruitType)
     }
 
     private func commitDrafts() {

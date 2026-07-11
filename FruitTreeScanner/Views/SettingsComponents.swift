@@ -74,7 +74,7 @@ struct FruitCategorySettingsRow: View {
             Spacer()
 
             Picker("当前水果类型", selection: $selection) {
-                ForEach(FruitCategory.allCases, id: \.self) { category in
+                ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
                     Text(category.displayName).tag(category)
                 }
             }

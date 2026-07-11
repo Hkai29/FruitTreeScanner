@@ -5,6 +5,26 @@ import simd
 @testable import FruitTreeScanner
 
 final class DetectionDebugStateTests: XCTestCase {
+
+    @MainActor
+    func testScanFruitConfigurationRemainsStableWhenGlobalSettingChanges() {
+        let settings = SettingsStore.shared
+        let originalFruitType = settings.fruitType
+        defer { settings.fruitType = originalFruitType }
+
+        settings.fruitType = FruitCategory.apple.rawValue
+        let coordinator = ScanCoordinator(settings: settings)
+        coordinator.startRecording(selectedCategory: .apple)
+
+        settings.fruitType = FruitCategory.pear.rawValue
+        XCTAssertEqual(coordinator.activeFruitConfiguration?.selectedCategory, .apple)
+
+        coordinator.resumeRecordingPreservingCapture()
+        XCTAssertEqual(coordinator.activeFruitConfiguration?.selectedCategory, .apple)
+
+        coordinator.startRecording(selectedCategory: .pear)
+        XCTAssertEqual(coordinator.activeFruitConfiguration?.selectedCategory, .pear)
+    }
     func testDebugThresholdKeepsConfiguredThreshold() {
         let threshold = DetectionDebugConfiguration.effectiveThreshold(for: 0.5, debugEnabled: true)
 

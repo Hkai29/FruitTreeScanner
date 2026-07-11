@@ -70,6 +70,7 @@ extension ScanCoordinator {
         await MainActor.run {
             guard !self.isTornDown else { return }
             self.detectedFruits.append(contentsOf: detected)
+            self.publishFruitCategoryMismatchIfNeeded()
             self.archiveStableFusionEvidence(detectorConfig: detectorConfig)
             self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
         }
@@ -126,7 +127,7 @@ extension ScanCoordinator {
     }
 
     @MainActor
-    func startRecording() {
+    func startRecording(selectedCategory: FruitCategory = .apple) {
         detectionTask?.cancel()
         detectionTask = nil
         yieldEstimationController.cancel()
@@ -139,6 +140,11 @@ extension ScanCoordinator {
         scanCompletion = ScanCompletion()
         detectedFruits.removeAll()
         archivedFusionEvidenceDetections.removeAll()
+        activeFruitConfiguration = ScanFruitConfiguration.capture(
+            selectedCategory: selectedCategory,
+            settings: settings
+        )
+        hasPublishedCategoryMismatch = false
         hudState?.resetForNewScan()
         publishImageDetectorStatus()
         hudState?.update(fusionStatus: "扫描中")
@@ -193,19 +199,14 @@ extension ScanCoordinator {
 
     @MainActor
     private func makeYieldEstimationSnapshot(season: Season) -> ScanYieldEstimationController.Snapshot? {
-        guard !isTornDown else { return nil }
+        guard !isTornDown, let scanConfiguration = activeFruitConfiguration else { return nil }
 
-        let fruitType = settings.fruitType
-        let fruitCategory = FruitCategory(rawValue: fruitType)
-        let paramsSnapshot = FruitParametersStore.shared.parameterSnapshot()
-        let defaultParams = fruitCategory.flatMap { paramsSnapshot[$0.rawValue] }
-            ?? FruitVarietyParams(category: fruitCategory ?? .apple)
-        let clusterConfig = settings.clusterConfig(for: defaultParams)
-        let fusionConfig = settings.fruitScanConfig
-        let colorFilter = fruitCategory.map { settings.colorFilter(for: $0) }
-
-        archiveStableFusionEvidence(detectorConfig: fusionConfig)
+        archiveStableFusionEvidence(detectorConfig: scanConfiguration.fusionConfig)
         let savedDetections = fusionEstimateDetectionsSnapshot()
+        let categoryVerification = FruitCategoryVerificationSummary.make(
+            selectedCategory: scanConfiguration.selectedCategory,
+            detections: savedDetections
+        )
         detectedFruits.removeAll()
         archivedFusionEvidenceDetections.removeAll()
 
@@ -214,16 +215,32 @@ extension ScanCoordinator {
                 points: extractColoredPoints(),
                 savedDetections: savedDetections,
                 imageDiagnostics: imageDetector.diagnosticsSnapshot(),
-                fruitType: fruitType,
-                fruitCategory: fruitCategory,
-                paramsSnapshot: paramsSnapshot,
-                defaultParams: defaultParams,
-                clusterConfig: clusterConfig,
-                fusionConfig: fusionConfig,
-                colorFilter: colorFilter,
-                season: season
+                fruitType: scanConfiguration.selectedCategory.rawValue,
+                fruitCategory: scanConfiguration.selectedCategory,
+                paramsSnapshot: scanConfiguration.parametersSnapshot,
+                defaultParams: scanConfiguration.defaultParams,
+                clusterConfig: scanConfiguration.clusterConfig,
+                fusionConfig: scanConfiguration.fusionConfig,
+                colorFilter: scanConfiguration.colorFilter,
+                season: season,
+                calibrationCorrection: scanConfiguration.calibrationCorrection,
+                categoryVerification: categoryVerification
             )
         )
+    }
+
+    @MainActor
+    private func publishFruitCategoryMismatchIfNeeded() {
+        guard !hasPublishedCategoryMismatch,
+              let selectedCategory = activeFruitConfiguration?.selectedCategory,
+              let mismatch = FruitCategoryVerification.mismatch(
+                selectedCategory: selectedCategory,
+                detections: detectedFruits
+              ) else {
+            return
+        }
+        hasPublishedCategoryMismatch = true
+        onFruitCategoryMismatch?(mismatch)
     }
 
     /// 多模态融合产量估算（新 pipeline）

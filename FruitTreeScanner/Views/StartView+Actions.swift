@@ -33,11 +33,14 @@ extension StartView {
             }
             let request = ScanLaunchRequest(
                 treeID: normalizedTreeID,
+                selectedFruitCategory: selectedFruitCategory,
                 season: season,
                 gps: gps,
                 plotId: selectedPlotId,
                 tagIds: Array(selectedTagIds)
             )
+
+            SettingsStore.shared.fruitType = selectedFruitCategory.rawValue
 
             onLaunchScan(request)
         }

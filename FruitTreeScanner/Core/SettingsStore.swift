@@ -45,9 +45,9 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - 水果参数
     var fruitType: String {
-        get { defaults.string(forKey: SettingsStoreKey.fruitType) ?? "apple" }
+        get { FruitCategory.scanCategory(for: defaults.string(forKey: SettingsStoreKey.fruitType) ?? "apple").rawValue }
         set {
-            let normalized = FruitCategory(rawValue: newValue)?.rawValue ?? FruitCategory.apple.rawValue
+            let normalized = FruitCategory.scanCategory(for: newValue).rawValue
             setIfChanged(normalized, forKey: SettingsStoreKey.fruitType)
         }
     }

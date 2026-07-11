@@ -39,7 +39,8 @@ struct DashboardView: View {
             ScanView(
                 treeID: request.treeID,
                 gps: request.gps,
-                season: request.season
+                season: request.season,
+                selectedFruitCategory: request.selectedFruitCategory
             )
         }
         .onReceive(router.$pendingDestination) { nav in

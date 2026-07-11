@@ -11,6 +11,37 @@ enum ScanDepthRuntimeStatus: String {
     case activeDepth = "LiDAR"
 }
 
+struct ScanFruitConfiguration {
+    let selectedCategory: FruitCategory
+    let parametersSnapshot: [String: FruitVarietyParams]
+    let defaultParams: FruitVarietyParams
+    let clusterConfig: ClusterConfig
+    let fusionConfig: FruitScanConfig
+    let colorFilter: ColorFilter
+    let calibrationCorrection: YieldCalibrationCorrection
+
+    @MainActor
+    static func capture(selectedCategory: FruitCategory, settings: ScanSettingsProviding) -> ScanFruitConfiguration {
+        let parametersSnapshot = FruitParametersStore.shared.parameterSnapshot()
+        let defaultParams = parametersSnapshot[selectedCategory.rawValue]
+            ?? FruitVarietyParams(category: selectedCategory)
+        let calibrationRecords = (try? CalibrationRecordPersistence.load()) ?? []
+        return ScanFruitConfiguration(
+            selectedCategory: selectedCategory,
+            parametersSnapshot: parametersSnapshot,
+            defaultParams: defaultParams,
+            clusterConfig: settings.clusterConfig(for: defaultParams),
+            fusionConfig: settings.fruitScanConfig,
+            colorFilter: settings.colorFilter(for: selectedCategory),
+            calibrationCorrection: YieldCalibrationCorrector.correction(
+                from: calibrationRecords,
+                fruitCategory: selectedCategory,
+                fruitType: selectedCategory.rawValue
+            )
+        )
+    }
+}
+
 class ScanCoordinator: NSObject {
     let settings: ScanSettingsProviding
 
@@ -33,10 +64,13 @@ class ScanCoordinator: NSObject {
 
     var detectedFruits: [DetectedFruit] = []
     var archivedFusionEvidenceDetections: [DetectedFruit] = []
+    var activeFruitConfiguration: ScanFruitConfiguration?
+    var hasPublishedCategoryMismatch = false
 
     var onMeasurementReady: ((Renderer) -> Void)?
     var onQualitySampleUpdate: ((ScanQualitySample) -> Void)?
     var onCoveragePercentChange: ((Int) -> Void)?
+    var onFruitCategoryMismatch: ((FruitCategoryMismatch) -> Void)?
     #if DEBUG
     var onDetectionDebugStateChange: ((DetectionDebugState) -> Void)?
     #endif
@@ -204,11 +238,14 @@ class ScanCoordinator: NSObject {
         onMeasurementReady = nil
         onQualitySampleUpdate = nil
         onCoveragePercentChange = nil
+        onFruitCategoryMismatch = nil
         #if DEBUG
         onDetectionDebugStateChange = nil
         #endif
         detectedFruits.removeAll()
         archivedFusionEvidenceDetections.removeAll()
+        activeFruitConfiguration = nil
+        hasPublishedCategoryMismatch = false
     }
 
     // MARK: - 图像检测定时器

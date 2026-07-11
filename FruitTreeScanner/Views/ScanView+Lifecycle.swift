@@ -6,6 +6,10 @@ extension ScanView {
         refreshScanReadiness()
         coordinator.hudState = hudState
         coordinator.onCoveragePercentChange = handleCoveragePercentChange
+        coordinator.onFruitCategoryMismatch = { mismatch in
+            guard isViewActive else { return }
+            categoryMismatch = mismatch
+        }
         #if DEBUG
         coordinator.onDetectionDebugStateChange = { state in
             detectionDebugState = state

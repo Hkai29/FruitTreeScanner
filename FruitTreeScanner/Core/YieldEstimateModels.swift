@@ -107,6 +107,14 @@ struct ScanYieldDiagnostics: Sendable, Equatable {
     var imageMappedCategories: [String] = []
     var imageUnmappedLabels: [String] = []
     var filteredBySelectedFruitTypeCount: Int = 0
+    var selectedCategory: String = ""
+    var detectedCategoryCounts: [String: Int] = [:]
+    var nonTargetDetectionCount: Int = 0
+    var dominantNonTargetCategory: String = ""
+    var categoryMismatchDetected: Bool = false
+    var automaticSuggestionCategory: String = ""
+    var automaticSuggestionConfidence: Float = 0
+    var automaticSuggestionFrameCount: Int = 0
     var zeroYieldReasons: [String] = []
 
     var shortStatus: String {

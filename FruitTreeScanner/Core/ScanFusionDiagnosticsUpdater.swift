@@ -6,6 +6,16 @@ enum ScanFusionDiagnosticsUpdater {
             imageDiagnostics: input.imageDiagnostics
         )
         diagnostics.imageDetectionCount = input.savedDetections.count
+        if let verification = input.categoryVerification {
+            diagnostics.selectedCategory = verification.selectedCategory.rawValue
+            diagnostics.detectedCategoryCounts = verification.detectedCategoryCounts
+            diagnostics.nonTargetDetectionCount = verification.nonTargetDetectionCount
+            diagnostics.dominantNonTargetCategory = verification.dominantNonTargetCategory?.rawValue ?? ""
+            diagnostics.categoryMismatchDetected = verification.categoryMismatchDetected
+            diagnostics.automaticSuggestionCategory = verification.automaticSuggestion?.category.rawValue ?? ""
+            diagnostics.automaticSuggestionConfidence = verification.automaticSuggestion?.confidence ?? 0
+            diagnostics.automaticSuggestionFrameCount = verification.automaticSuggestion?.supportingFrameCount ?? 0
+        }
         if input.savedDetections.contains(where: { $0.depthConfidenceProvenance == .copyFailed }) {
             diagnostics.depthConfidenceFailureReason = DepthConfidenceProvenance.copyFailureReason
         }

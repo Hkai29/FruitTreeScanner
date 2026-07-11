@@ -46,13 +46,7 @@ final class ScanYieldEstimationController {
             }
 
             let builderTask = Task.detached(priority: .userInitiated) { [weak self, snapshot] in
-                let calibrationRecords = (try? CalibrationRecordPersistence.load()) ?? []
-                var input = snapshot.input
-                input.calibrationCorrection = YieldCalibrationCorrector.correction(
-                    from: calibrationRecords,
-                    fruitCategory: input.fruitCategory,
-                    fruitType: input.fruitType
-                )
+                let input = snapshot.input
                 guard !Task.isCancelled else { return }
 
                 Log.fusion.info("Starting yield estimation: \(input.points.count) points, \(input.savedDetections.count) detections")

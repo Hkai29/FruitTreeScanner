@@ -3,6 +3,44 @@ import XCTest
 
 final class FruitModelsTests: XCTestCase {
 
+    func testFruitCategorySuggestionRequiresStableDominantFrames() {
+        let stableApple = (0..<3).map { offset in
+            DetectedFruit(
+                category: .apple,
+                boundingBox: .zero,
+                confidence: 0.9,
+                timestamp: TimeInterval(offset)
+            )
+        }
+        let suggestion = FruitCategoryVerification.suggestion(from: stableApple)
+
+        XCTAssertEqual(suggestion?.category, .apple)
+        XCTAssertEqual(suggestion?.supportingFrameCount, 3)
+        XCTAssertNil(FruitCategoryVerification.suggestion(from: [stableApple[0]]))
+    }
+
+    func testFruitCategorySuggestionRejectsAmbiguousEvidence() {
+        let detections = (0..<3).flatMap { offset in
+            [
+                DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.9, timestamp: TimeInterval(offset)),
+                DetectedFruit(category: .pear, boundingBox: .zero, confidence: 0.9, timestamp: TimeInterval(offset))
+            ]
+        }
+
+        XCTAssertNil(FruitCategoryVerification.suggestion(from: detections))
+        XCTAssertNil(FruitCategoryVerification.mismatch(selectedCategory: .pear, detections: detections))
+    }
+
+    func testFruitCategoryMismatchDoesNotChangeSelectedCategory() {
+        let detections = (0..<3).map { offset in
+            DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.9, timestamp: TimeInterval(offset))
+        }
+
+        let mismatch = FruitCategoryVerification.mismatch(selectedCategory: .pear, detections: detections)
+        XCTAssertEqual(mismatch?.selectedCategory, .pear)
+        XCTAssertEqual(mismatch?.dominantDetectedCategory, .apple)
+    }
+
     func testAllCategoriesHaveSizeRange() {
         for category in FruitCategory.allCases {
             XCTAssertGreaterThan(category.sizeRange.lowerBound, 0,

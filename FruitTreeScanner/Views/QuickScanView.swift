@@ -12,6 +12,7 @@ struct QuickScanView: View {
     @State private var treeID: String = QuickScanView.makeDefaultTreeID()
     @State private var isTreeIDValid = true
     @State private var isLaunchingScan = false
+    @State private var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
 
     private var canLaunch: Bool {
         !isLaunchingScan && isTreeIDValid
@@ -40,6 +41,7 @@ struct QuickScanView: View {
                                 treeID = value
                                 isTreeIDValid = isValid
                             }
+                            fruitCategoryPicker
                             gpsStatusRow
                         }
                         .padding(.horizontal, Design.Space.md)
@@ -62,6 +64,29 @@ struct QuickScanView: View {
                 }
             }
         }
+    }
+
+    private var fruitCategoryPicker: some View {
+        HStack {
+            Image(systemName: "leaf.fill")
+                .foregroundColor(Design.Colors.harvest)
+            Text("目标水果")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+            Spacer()
+            Picker("目标水果", selection: $selectedFruitCategory) {
+                ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
+                    Text(category.displayName).tag(category)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Design.Colors.harvest)
+            .accessibilityLabel("目标水果")
+            .accessibilityHint("选择后将固定用于本次扫描")
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 48)
+        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 
     private var gpsStatusRow: some View {
@@ -119,11 +144,13 @@ struct QuickScanView: View {
             }
             let request = ScanLaunchRequest(
                 treeID: normalizedTreeID,
+                selectedFruitCategory: selectedFruitCategory,
                 season: .mature,
                 gps: gps,
                 plotId: nil,
                 tagIds: []
             )
+            SettingsStore.shared.fruitType = selectedFruitCategory.rawValue
             onLaunchScan(request)
         }
 

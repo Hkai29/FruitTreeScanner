@@ -7,6 +7,7 @@ struct ScanView: View {
     let treeID: String
     @ObservedObject var gps: GPSRecorder
     let season: Season
+    let selectedFruitCategory: FruitCategory
 
     @State var coordinator = ScanCoordinator()
     @StateObject var hudState = ScanHUDState()
@@ -35,6 +36,7 @@ struct ScanView: View {
     @State var scanReadiness: ScanReadiness = .checking
     @State var isCheckingScanReadiness = false
     @State var showCancelConfirmation = false
+    @State var categoryMismatch: FruitCategoryMismatch?
 
     var body: some View {
         ZStack {
@@ -93,6 +95,17 @@ struct ScanView: View {
                 }
             } message: {
                 Text("已采集的点云不会保存。若要保留本次采集，请点击完成。")
+            }
+            .alert(item: $categoryMismatch) { mismatch in
+                Alert(
+                    title: Text("水果类别需要确认"),
+                    message: Text("当前选择：\(mismatch.selectedCategory.displayName)。连续识别结果更像\(mismatch.dominantDetectedCategory.displayName)。"),
+                    primaryButton: .default(Text("继续按当前类别扫描")),
+                    secondaryButton: .destructive(Text("停止并切换")) {
+                        SettingsStore.shared.fruitType = mismatch.dominantDetectedCategory.rawValue
+                        cancelScan()
+                    }
+                )
             }
     }
 

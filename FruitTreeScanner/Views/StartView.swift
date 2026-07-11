@@ -15,6 +15,7 @@ struct StartView: View {
     @State var selectedPlotId: UUID?
     @State var season: Season = .mature
     @State var selectedTagIds: Set<UUID> = []
+    @State var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
     @State var isLaunchingScan = false
     @State var presentedSheet: StartViewSheet?
     @State var gps = GPSRecorder()
@@ -72,6 +73,7 @@ struct StartView: View {
                 treeID: treeID,
                 plot: selectedPlot,
                 season: season,
+                selectedFruitCategory: $selectedFruitCategory,
                 tags: selectedTags,
                 gps: gps
             )

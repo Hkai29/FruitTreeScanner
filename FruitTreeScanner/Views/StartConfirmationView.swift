@@ -7,6 +7,7 @@ struct Step5_Confirmation: View {
     let treeID: String
     let plot: Plot?
     let season: Season
+    @Binding var selectedFruitCategory: FruitCategory
     let tags: [GroupTag]
     @ObservedObject var gps: GPSRecorder
 
@@ -21,6 +22,10 @@ struct Step5_Confirmation: View {
 
             VStack(spacing: Design.Space.md) {
                 ConfirmationRow(icon: "number", label: "编号", value: treeID)
+
+                Divider().background(Design.Colors.Dark.glassBorder)
+
+                fruitCategoryPicker
 
                 Divider().background(Design.Colors.Dark.glassBorder)
 
@@ -56,6 +61,33 @@ struct Step5_Confirmation: View {
                 text: "开始后请围绕树体缓慢移动，尽量让树冠与果实进入稳定视野。",
                 tint: Design.Colors.harvest
             )
+        }
+    }
+
+    private var fruitCategoryPicker: some View {
+        HStack(spacing: Design.Space.md) {
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 16))
+                .foregroundColor(Design.Colors.harvest)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("目标水果")
+                    .font(.system(size: 14))
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                Text("本次扫描固定使用此类别；识别结果只作校验。")
+                    .font(.system(size: 11))
+                    .foregroundColor(Design.Colors.Dark.textMuted)
+            }
+            Spacer()
+            Picker("目标水果", selection: $selectedFruitCategory) {
+                ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
+                    Text(category.displayName).tag(category)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Design.Colors.harvest)
+            .accessibilityLabel("目标水果")
+            .accessibilityHint("选择后将固定用于本次扫描，不会被自动识别结果替换")
         }
     }
 

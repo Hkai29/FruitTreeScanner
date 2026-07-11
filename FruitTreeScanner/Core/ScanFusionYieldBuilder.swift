@@ -15,6 +15,7 @@ enum ScanFusionYieldBuilder {
         let colorFilter: ColorFilter?
         var season: Season = .mature
         var calibrationCorrection: YieldCalibrationCorrection = .neutral
+        var categoryVerification: FruitCategoryVerificationSummary? = nil
     }
 
     static func build(from input: Input) async -> (YieldResult, FruitCountResult) {

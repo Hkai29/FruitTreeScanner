@@ -106,7 +106,7 @@ extension ScanView {
         }
         clearMeasurementState()
         createDirectory(folder: "scans")
-        coordinator.startRecording()
+        coordinator.startRecording(selectedCategory: selectedFruitCategory)
         isRecording = true
         showGuide = false
     }
