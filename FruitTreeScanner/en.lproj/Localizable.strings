@@ -128,3 +128,24 @@
 "common.delete" = "Delete";
 "common.save" = "Save";
 "common.share" = "Share";
+
+/* Fruit Category Verification */
+"fruit_category_selection_title" = "Fruit Type";
+"fruit_category_current_selection" = "Current selection";
+"fruit_category_auto_detect_action" = "Detect and Suggest";
+"fruit_category_suggestion_title" = "Suggested Fruit Type";
+"fruit_category_suggestion_message" = "The detected fruit may be %@.";
+"fruit_category_suggestion_use_action" = "Use %@";
+"fruit_category_suggestion_insufficient" = "The fruit type could not be determined reliably. Select it manually.";
+"fruit_category_manual_selection_required" = "Select a fruit type manually.";
+"fruit_category_fixed_for_scan" = "This fruit type stays fixed for this scan; recognition is used only for verification.";
+"fruit_category_mismatch_title" = "Fruit Type May Not Match";
+"fruit_category_mismatch_message" = "Current selection: %@\n\nRecent detections appear more consistent with %@. Continue scanning as %@, or stop and switch to %@?";
+"fruit_category_continue_action" = "Continue Scanning";
+"fruit_category_stop_and_switch_action" = "Stop and Switch";
+"fruit_category_switch_requires_new_scan" = "Switching requires a new scan. Data from the current scan will not be reused for the new fruit type.";
+"fruit_category_selected_accessibility_label" = "Fruit type";
+"fruit_category_selected_accessibility_value" = "%@, selected";
+"fruit_category_selected_accessibility_hint" = "The selected fruit type remains fixed for this scan and will not be replaced automatically.";
+"fruit_category_suggestion_accessibility_label" = "Suggested fruit type: %@";
+"fruit_category_mismatch_accessibility_hint" = "Stops the current scan, clears its scan data, and sets %@ for the next scan.";

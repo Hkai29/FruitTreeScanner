@@ -122,6 +122,48 @@ enum L10n {
         }
     }
 
+    // MARK: - Fruit Category Verification
+    enum FruitCategoryVerification {
+        static let selectionTitle = NSLocalizedString("fruit_category_selection_title", value: "目标水果", comment: "Fruit category selection title")
+        static let currentSelection = NSLocalizedString("fruit_category_current_selection", value: "当前选择", comment: "Current fruit category selection")
+        static let fixedForScan = NSLocalizedString("fruit_category_fixed_for_scan", value: "本次扫描固定使用此类别；识别结果只作校验。", comment: "Selected category remains fixed during a scan")
+        static let mismatchTitle = NSLocalizedString("fruit_category_mismatch_title", value: "水果种类可能不一致", comment: "Fruit category mismatch alert title")
+        static let continueAction = NSLocalizedString("fruit_category_continue_action", value: "继续扫描", comment: "Continue scanning action")
+        static let stopAndSwitchAction = NSLocalizedString("fruit_category_stop_and_switch_action", value: "停止并切换", comment: "Stop and switch fruit category action")
+        static let selectedAccessibilityLabel = NSLocalizedString("fruit_category_selected_accessibility_label", value: "水果种类", comment: "Fruit category picker accessibility label")
+        static let selectedAccessibilityHint = NSLocalizedString("fruit_category_selected_accessibility_hint", value: "选择后将固定用于本次扫描，不会被自动识别结果替换。", comment: "Fruit category picker accessibility hint")
+        static let mismatchAccessibilityHint = NSLocalizedString("fruit_category_mismatch_accessibility_hint", value: "停止当前扫描、清除本次扫描数据，并为下一次扫描设置为 %@。", comment: "Stop and switch accessibility hint")
+
+        static func mismatchMessage(selected: FruitCategory, detected: FruitCategory) -> String {
+            String(
+                format: NSLocalizedString(
+                    "fruit_category_mismatch_message",
+                    value: "当前选择：%@\n\n连续识别结果更像%@。继续按%@扫描，还是停止并切换为%@？",
+                    comment: "Fruit category mismatch message"
+                ),
+                Fruit.name(for: selected),
+                Fruit.name(for: detected),
+                Fruit.name(for: selected),
+                Fruit.name(for: detected)
+            )
+        }
+
+        static func selectionAccessibilityValue(_ category: FruitCategory) -> String {
+            String(
+                format: NSLocalizedString(
+                    "fruit_category_selected_accessibility_value",
+                    value: "%@, selected",
+                    comment: "Selected fruit category accessibility value"
+                ),
+                Fruit.name(for: category)
+            )
+        }
+
+        static func switchAccessibilityHint(to category: FruitCategory) -> String {
+            String(format: mismatchAccessibilityHint, Fruit.name(for: category))
+        }
+    }
+
     // MARK: - Common
     enum Common {
         static let cancel = NSLocalizedString("common.cancel", value: "取消", comment: "Cancel button")

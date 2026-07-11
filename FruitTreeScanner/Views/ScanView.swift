@@ -98,10 +98,13 @@ struct ScanView: View {
             }
             .alert(item: $categoryMismatch) { mismatch in
                 Alert(
-                    title: Text("水果类别需要确认"),
-                    message: Text("当前选择：\(mismatch.selectedCategory.displayName)。连续识别结果更像\(mismatch.dominantDetectedCategory.displayName)。"),
-                    primaryButton: .default(Text("继续按当前类别扫描")),
-                    secondaryButton: .destructive(Text("停止并切换")) {
+                    title: Text(L10n.FruitCategoryVerification.mismatchTitle),
+                    message: Text(L10n.FruitCategoryVerification.mismatchMessage(
+                        selected: mismatch.selectedCategory,
+                        detected: mismatch.dominantDetectedCategory
+                    )),
+                    primaryButton: .default(Text(L10n.FruitCategoryVerification.continueAction)),
+                    secondaryButton: .destructive(Text(L10n.FruitCategoryVerification.stopAndSwitchAction)) {
                         SettingsStore.shared.fruitType = mismatch.dominantDetectedCategory.rawValue
                         cancelScan()
                     }

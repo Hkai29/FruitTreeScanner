@@ -41,6 +41,26 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(mismatch?.dominantDetectedCategory, .apple)
     }
 
+    func testSupportedFruitDisplayNamesAreLocalizedAndNonEmpty() {
+        for category in FruitCategory.scanSupportedCategories {
+            let name = L10n.Fruit.name(for: category)
+            XCTAssertFalse(name.isEmpty)
+            XCTAssertNotEqual(name, category.rawValue)
+        }
+    }
+
+    func testLocalizedMismatchMessageUsesDisplayNamesInsteadOfRawValues() {
+        let message = L10n.FruitCategoryVerification.mismatchMessage(
+            selected: .pear,
+            detected: .apple
+        )
+
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.contains(FruitCategory.pear.rawValue))
+        XCTAssertFalse(message.contains(FruitCategory.apple.rawValue))
+        XCTAssertFalse(L10n.FruitCategoryVerification.switchAccessibilityHint(to: .apple).isEmpty)
+    }
+
     func testAllCategoriesHaveSizeRange() {
         for category in FruitCategory.allCases {
             XCTAssertGreaterThan(category.sizeRange.lowerBound, 0,

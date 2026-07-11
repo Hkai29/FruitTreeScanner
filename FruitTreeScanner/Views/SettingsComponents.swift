@@ -75,7 +75,7 @@ struct FruitCategorySettingsRow: View {
 
             Picker("当前水果类型", selection: $selection) {
                 ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
-                    Text(category.displayName).tag(category)
+                    Text(L10n.Fruit.name(for: category)).tag(category)
                 }
             }
             .pickerStyle(.menu)

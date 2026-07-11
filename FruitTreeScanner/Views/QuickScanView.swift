@@ -70,19 +70,20 @@ struct QuickScanView: View {
         HStack {
             Image(systemName: "leaf.fill")
                 .foregroundColor(Design.Colors.harvest)
-            Text("目标水果")
+            Text(L10n.FruitCategoryVerification.selectionTitle)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
             Spacer()
-            Picker("目标水果", selection: $selectedFruitCategory) {
+            Picker(L10n.FruitCategoryVerification.selectionTitle, selection: $selectedFruitCategory) {
                 ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
-                    Text(category.displayName).tag(category)
+                    Text(L10n.Fruit.name(for: category)).tag(category)
                 }
             }
             .pickerStyle(.menu)
             .tint(Design.Colors.harvest)
-            .accessibilityLabel("目标水果")
-            .accessibilityHint("选择后将固定用于本次扫描")
+            .accessibilityLabel(L10n.FruitCategoryVerification.selectedAccessibilityLabel)
+            .accessibilityValue(L10n.FruitCategoryVerification.selectionAccessibilityValue(selectedFruitCategory))
+            .accessibilityHint(L10n.FruitCategoryVerification.selectedAccessibilityHint)
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 48)

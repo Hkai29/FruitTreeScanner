@@ -71,23 +71,24 @@ struct Step5_Confirmation: View {
                 .foregroundColor(Design.Colors.harvest)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text("目标水果")
+                Text(L10n.FruitCategoryVerification.selectionTitle)
                     .font(.system(size: 14))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
-                Text("本次扫描固定使用此类别；识别结果只作校验。")
+                Text(L10n.FruitCategoryVerification.fixedForScan)
                     .font(.system(size: 11))
                     .foregroundColor(Design.Colors.Dark.textMuted)
             }
             Spacer()
-            Picker("目标水果", selection: $selectedFruitCategory) {
+            Picker(L10n.FruitCategoryVerification.selectionTitle, selection: $selectedFruitCategory) {
                 ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
-                    Text(category.displayName).tag(category)
+                    Text(L10n.Fruit.name(for: category)).tag(category)
                 }
             }
             .pickerStyle(.menu)
             .tint(Design.Colors.harvest)
-            .accessibilityLabel("目标水果")
-            .accessibilityHint("选择后将固定用于本次扫描，不会被自动识别结果替换")
+            .accessibilityLabel(L10n.FruitCategoryVerification.selectedAccessibilityLabel)
+            .accessibilityValue(L10n.FruitCategoryVerification.selectionAccessibilityValue(selectedFruitCategory))
+            .accessibilityHint(L10n.FruitCategoryVerification.selectedAccessibilityHint)
         }
     }
 

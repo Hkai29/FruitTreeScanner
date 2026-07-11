@@ -128,3 +128,24 @@
 "common.delete" = "删除";
 "common.save" = "保存";
 "common.share" = "分享";
+
+/* 水果类别校验 */
+"fruit_category_selection_title" = "目标水果";
+"fruit_category_current_selection" = "当前选择";
+"fruit_category_auto_detect_action" = "自动识别并推荐";
+"fruit_category_suggestion_title" = "推荐水果种类";
+"fruit_category_suggestion_message" = "检测到的主要水果可能是：%@";
+"fruit_category_suggestion_use_action" = "使用%@";
+"fruit_category_suggestion_insufficient" = "暂时无法可靠判断，请手动选择水果种类。";
+"fruit_category_manual_selection_required" = "请手动选择水果种类。";
+"fruit_category_fixed_for_scan" = "本次扫描固定使用此类别；识别结果只作校验。";
+"fruit_category_mismatch_title" = "水果种类可能不一致";
+"fruit_category_mismatch_message" = "当前选择：%@\n\n连续识别结果更像%@。继续按%@扫描，还是停止并切换为%@？";
+"fruit_category_continue_action" = "继续扫描";
+"fruit_category_stop_and_switch_action" = "停止并切换";
+"fruit_category_switch_requires_new_scan" = "切换后需要重新开始扫描，当前扫描数据不会用于新的水果种类。";
+"fruit_category_selected_accessibility_label" = "水果种类";
+"fruit_category_selected_accessibility_value" = "%@，已选择";
+"fruit_category_selected_accessibility_hint" = "选择后将固定用于本次扫描，不会被自动识别结果替换。";
+"fruit_category_suggestion_accessibility_label" = "推荐水果种类：%@";
+"fruit_category_mismatch_accessibility_hint" = "停止当前扫描、清除本次扫描数据，并为下一次扫描设置为%@。";
