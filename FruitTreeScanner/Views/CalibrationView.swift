@@ -17,6 +17,7 @@ struct CalibrationView: View {
     @State private var showAddRecord = false
     @State private var recordPendingDeletion: CalibrationRecord?
     @State private var recordsTask: Task<Void, Never>?
+    @State private var saveGeneration = 0
     @State private var maxDiameter: Double = SettingsStore.shared.clusterMaxDiameter
     @State private var minClusterPoints: Double = Double(SettingsStore.shared.clusterMinPoints)
     @State private var sphericity: Double = SettingsStore.shared.sphericityThreshold
@@ -150,10 +151,16 @@ struct CalibrationView: View {
 
     private func saveRecords() {
         let records = calibrationRecords
-        Task.detached(priority: .utility) {
-            do {
-                try CalibrationRecordPersistence.save(records)
-            } catch {
+        saveGeneration += 1
+        let generation = saveGeneration
+        Task(priority: .utility) {
+            let saved = await CalibrationRecordPersistenceController.shared.save(
+                records,
+                generation: generation
+            )
+            if !saved,
+               let error = await CalibrationRecordPersistenceController.shared.lastErrorDescription {
+                Log.general.error("Calibration save failed: \(error)")
             }
         }
     }

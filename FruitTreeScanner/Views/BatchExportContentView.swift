@@ -29,7 +29,9 @@ struct BatchExportContentView: View {
     }
 
     private var selectedSummary: (totalYield: Float, totalFruitCount: Int) {
-        let selectedFiles = records.filter { selectedRecords.contains($0.id) }
+        let selectedFiles = records.filter {
+            selectedRecords.contains($0.id) && $0.persistenceState == .complete
+        }
         let totalYield = selectedFiles.reduce(0) { $0 + $1.yieldKg }
         let totalFruitCount = selectedFiles.reduce(0) { $0 + $1.fruitCount }
         return (totalYield, totalFruitCount)

@@ -8,10 +8,11 @@ struct YieldReportSheet: View {
     @ObservedObject private var historyStore = ScanHistoryStore.shared
     var onStartScan: (() -> Void)? = nil
 
-    private var totalScans: Int { historyStore.scanFiles.count }
-    private var totalYield: Float { historyStore.scanFiles.reduce(0) { $0 + $1.yieldKg } }
+    private var completeRecords: [ScanFileRecord] { historyStore.scanFiles.filter { $0.persistenceState == .complete } }
+    private var totalScans: Int { completeRecords.count }
+    private var totalYield: Float { completeRecords.reduce(0) { $0 + $1.yieldKg } }
     private var avgYield: Float { totalScans > 0 ? totalYield / Float(totalScans) : 0 }
-    private var totalFruit: Int { historyStore.scanFiles.reduce(0) { $0 + $1.fruitCount } }
+    private var totalFruit: Int { completeRecords.reduce(0) { $0 + $1.fruitCount } }
 
     var body: some View {
         NavigationView {

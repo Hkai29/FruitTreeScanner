@@ -57,6 +57,7 @@ final class BatchExportService {
         let recordCount: Int
         let totalYield: Float
         let totalFruitCount: Int
+        let excludedIncompleteCount: Int
     }
     
     func export(
@@ -66,7 +67,8 @@ final class BatchExportService {
     ) async throws -> ExportResult {
         let exportTask = Task.detached(priority: .utility) {
             try Task.checkCancellation()
-            guard !records.isEmpty else {
+            let completeRecords = records.filter { $0.persistenceState == .complete }
+            guard !completeRecords.isEmpty else {
                 throw BatchExportError.noRecords
             }
 
@@ -80,25 +82,26 @@ final class BatchExportService {
                 }
             }
 
-            let totalYield = records.reduce(0) { $0 + $1.yieldKg }
-            let totalFruitCount = records.reduce(0) { $0 + $1.fruitCount }
+            let totalYield = completeRecords.reduce(0) { $0 + $1.yieldKg }
+            let totalFruitCount = completeRecords.reduce(0) { $0 + $1.fruitCount }
 
             switch format {
             case .csv:
-                try BatchExportCSVWriter.write(records: records, options: options, to: tempURL)
+                try BatchExportCSVWriter.write(records: completeRecords, options: options, to: tempURL)
             case .excel:
-                try BatchExportExcelWriter.write(records: records, options: options, to: tempURL)
+                try BatchExportExcelWriter.write(records: completeRecords, options: options, to: tempURL)
             case .json:
-                try BatchExportJSONWriter.write(records: records, options: options, to: tempURL)
+                try BatchExportJSONWriter.write(records: completeRecords, options: options, to: tempURL)
             }
 
             try Task.checkCancellation()
             shouldKeepFile = true
             return ExportResult(
                 url: tempURL,
-                recordCount: records.count,
+                recordCount: completeRecords.count,
                 totalYield: totalYield,
-                totalFruitCount: totalFruitCount
+                totalFruitCount: totalFruitCount,
+                excludedIncompleteCount: records.count - completeRecords.count
             )
         }
 

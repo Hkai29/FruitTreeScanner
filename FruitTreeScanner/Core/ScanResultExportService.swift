@@ -18,13 +18,32 @@ final class ScanResultExportService: @unchecked Sendable {
     struct ExportedFiles: Sendable {
         let csvURL: URL?
         let metadataURL: URL?
+        let manifestURL: URL?
     }
 
     private let fileManager: FileManager
+    private let scansDirectoryOverride: URL?
+    private let writeData: (Data, URL) throws -> Void
+    private let publishFile: (URL, URL) throws -> Void
     private let exportQueue = DispatchQueue(label: "com.fruittreescanner.scan-result-export")
 
-    private init(fileManager: FileManager = .default) {
+    init(
+        fileManager: FileManager = .default,
+        scansDirectory: URL? = nil,
+        writeData: @escaping (Data, URL) throws -> Void = { data, url in
+            try data.write(to: url, options: .atomic)
+        },
+        publishFile: ((URL, URL) throws -> Void)? = nil
+    ) {
         self.fileManager = fileManager
+        self.scansDirectoryOverride = scansDirectory
+        self.writeData = writeData
+        self.publishFile = publishFile ?? { source, destination in
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.moveItem(at: source, to: destination)
+        }
     }
 
     @discardableResult
@@ -36,6 +55,7 @@ final class ScanResultExportService: @unchecked Sendable {
 
     @discardableResult
     private func exportIfNeededOnQueue(_ request: ExportRequest) throws -> ExportedFiles? {
+        try Task.checkCancellation()
         let scansDir = try scansDirectory()
         guard LocalFileStorage.isSafeLeafFilename(request.sourceFilename) else {
             throw LocalFileStorageError.invalidFilename
@@ -45,26 +65,79 @@ final class ScanResultExportService: @unchecked Sendable {
             throw LocalFileStorageError.invalidFilename
         }
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
+        let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = scansDir.appendingPathComponent("\(baseName)_complete.json")
+        let unsignedMetadata = try makeMetadataData(for: request, baseName: baseName, revision: "")
+        let revision = transactionRevision(for: unsignedMetadata, includeCSV: request.includeCSV)
 
-        let metadataURL = try writeMetadata(for: request, baseName: baseName, scansDir: scansDir)
-
-        if request.includeCSV && !fileManager.fileExists(atPath: csvURL.path) {
-            let csvContent = makeCSVContent(for: request)
-            try csvContent.write(to: csvURL, atomically: true, encoding: .utf8)
-            Log.export.info("CSV exported: \(baseName).csv")
+        if isCommittedTransaction(
+            metadataURL: metadataURL,
+            csvURL: csvURL,
+            manifestURL: manifestURL,
+            revision: revision,
+            includeCSV: request.includeCSV
+        ) {
+            return ExportedFiles(
+                csvURL: request.includeCSV ? csvURL : nil,
+                metadataURL: metadataURL,
+                manifestURL: manifestURL
+            )
         }
 
-        Log.export.info("Export complete for \(request.treeID)")
+        let stagingDirectory = scansDir.appendingPathComponent(
+            ".\(baseName).\(revision).staging",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: stagingDirectory, withIntermediateDirectories: false)
+        defer { try? fileManager.removeItem(at: stagingDirectory) }
 
-        let exportedCSVURL = fileManager.fileExists(atPath: csvURL.path) ? csvURL : nil
-        return ExportedFiles(csvURL: exportedCSVURL, metadataURL: metadataURL)
+        let stagedMetadata = stagingDirectory.appendingPathComponent(metadataURL.lastPathComponent)
+        let stagedCSV = stagingDirectory.appendingPathComponent(csvURL.lastPathComponent)
+        let stagedManifest = stagingDirectory.appendingPathComponent(manifestURL.lastPathComponent)
+
+        try writeData(try makeMetadataData(for: request, baseName: baseName, revision: revision), stagedMetadata)
+        if request.includeCSV {
+            try writeData(Data(makeCSVContent(for: request, revision: revision).utf8), stagedCSV)
+        }
+
+        let requiredFiles = request.includeCSV
+            ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
+            : [metadataURL.lastPathComponent]
+        let manifestData = try JSONSerialization.data(withJSONObject: [
+            "schemaVersion": 1,
+            "scanID": baseName,
+            "exportRevision": revision,
+            "requiredFiles": requiredFiles
+        ], options: [.prettyPrinted, .sortedKeys])
+        try writeData(manifestData, stagedManifest)
+        try Task.checkCancellation()
+        try publishTransaction(
+            stagedMetadata: stagedMetadata,
+            stagedCSV: request.includeCSV ? stagedCSV : nil,
+            stagedManifest: stagedManifest,
+            metadataURL: metadataURL,
+            csvURL: csvURL,
+            manifestURL: manifestURL,
+            stagingDirectory: stagingDirectory
+        )
+
+        Log.export.info("Export complete for \(request.treeID)")
+        return ExportedFiles(
+            csvURL: request.includeCSV ? csvURL : nil,
+            metadataURL: metadataURL,
+            manifestURL: manifestURL
+        )
     }
 
     private func scansDirectory() throws -> URL {
-        try LocalFileStorage.directoryURL(folder: "scans", fileManager: fileManager)
+        if let scansDirectoryOverride {
+            try fileManager.createDirectory(at: scansDirectoryOverride, withIntermediateDirectories: true)
+            return scansDirectoryOverride
+        }
+        return try LocalFileStorage.directoryURL(folder: "scans", fileManager: fileManager)
     }
 
-    private func makeCSVContent(for request: ExportRequest) -> String {
+    private func makeCSVContent(for request: ExportRequest, revision: String) -> String {
         let result = request.result
         let formatter = StableDataFormatting.dateFormatter(dateFormat: "yyyy-MM-dd HH:mm:ss")
 
@@ -83,7 +156,8 @@ final class ScanResultExportService: @unchecked Sendable {
             "点云大小",
             "置信度",
             "方法",
-            "备注"
+            "备注",
+            "ExportRevision"
         ]
 
         let row = [
@@ -103,17 +177,19 @@ final class ScanResultExportService: @unchecked Sendable {
             "\(result.pointCloudSize)",
             SpreadsheetTextSafety.neutralizingFormula(result.confidence),
             SpreadsheetTextSafety.neutralizingFormula(result.methodUsed),
-            SpreadsheetTextSafety.neutralizingFormula(result.note)
+            SpreadsheetTextSafety.neutralizingFormula(result.note),
+            revision
         ]
 
         return csvLine(header) + csvLine(row)
     }
 
-    private func writeMetadata(for request: ExportRequest, baseName: String, scansDir: URL) throws -> URL {
+    private func makeMetadataData(for request: ExportRequest, baseName: String, revision: String) throws -> Data {
         let result = request.result
-        let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
         let diagnostics = result.diagnostics
         let payload: [String: Any] = [
+            "schemaVersion": 1,
+            "exportRevision": revision,
             "scanID": baseName,
             "sourceFilename": request.sourceFilename,
             "treeID": request.treeID,
@@ -209,9 +285,83 @@ final class ScanResultExportService: @unchecked Sendable {
             "timestamp": ISO8601DateFormatter().string(from: request.scanDate)
         ]
 
-        let data = try JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
-        try data.write(to: metadataURL, options: .atomic)
-        return metadataURL
+        return try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    private func transactionRevision(for snapshotData: Data, includeCSV: Bool) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in snapshotData {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        hash ^= includeCSV ? 1 : 0
+        return String(format: "v1-%016llx", hash)
+    }
+
+    private func isCommittedTransaction(
+        metadataURL: URL,
+        csvURL: URL,
+        manifestURL: URL,
+        revision: String,
+        includeCSV: Bool
+    ) -> Bool {
+        guard let manifestData = try? Data(contentsOf: manifestURL),
+              let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
+              manifest["exportRevision"] as? String == revision,
+              let requiredFiles = manifest["requiredFiles"] as? [String],
+              requiredFiles.contains(metadataURL.lastPathComponent),
+              requiredFiles.contains(csvURL.lastPathComponent) == includeCSV,
+              let metadataData = try? Data(contentsOf: metadataURL),
+              let metadata = try? JSONSerialization.jsonObject(with: metadataData) as? [String: Any],
+              metadata["exportRevision"] as? String == revision
+        else { return false }
+
+        guard includeCSV,
+              let csv = try? String(contentsOf: csvURL, encoding: .utf8)
+        else { return !includeCSV }
+        let rows = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        guard let header = rows.first,
+              let row = rows.dropFirst().first else { return false }
+        return header.hasSuffix("ExportRevision") && row.hasSuffix(",\(revision)")
+    }
+
+    private func publishTransaction(
+        stagedMetadata: URL,
+        stagedCSV: URL?,
+        stagedManifest: URL,
+        metadataURL: URL,
+        csvURL: URL,
+        manifestURL: URL,
+        stagingDirectory: URL
+    ) throws {
+        let destinations = [metadataURL, csvURL, manifestURL]
+        var backups: [(backup: URL, destination: URL)] = []
+        for destination in destinations where fileManager.fileExists(atPath: destination.path) {
+            let backup = stagingDirectory.appendingPathComponent("backup-\(destination.lastPathComponent)")
+            try fileManager.copyItem(at: destination, to: backup)
+            backups.append((backup, destination))
+        }
+
+        do {
+            if fileManager.fileExists(atPath: manifestURL.path) {
+                try fileManager.removeItem(at: manifestURL)
+            }
+            try publishFile(stagedMetadata, metadataURL)
+            if let stagedCSV {
+                try publishFile(stagedCSV, csvURL)
+            } else if fileManager.fileExists(atPath: csvURL.path) {
+                try fileManager.removeItem(at: csvURL)
+            }
+            try publishFile(stagedManifest, manifestURL)
+        } catch {
+            for destination in destinations where fileManager.fileExists(atPath: destination.path) {
+                try? fileManager.removeItem(at: destination)
+            }
+            for pair in backups {
+                try? fileManager.copyItem(at: pair.backup, to: pair.destination)
+            }
+            throw error
+        }
     }
 
     private func recognitionDiagnosticsPayload(_ diagnostics: ScanYieldDiagnostics) -> [String: Any] {

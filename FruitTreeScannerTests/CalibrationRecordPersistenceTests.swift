@@ -39,6 +39,48 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
         XCTAssertEqual(loaded[0].fruitType, "apple")
     }
 
+    func testStaleCalibrationGenerationCannotOverwriteNewerRecords() async throws {
+        let url = temporaryDirectory().appendingPathComponent("records.json")
+        let old = makeRecord(fruitType: "apple", estimatedCount: 1, manualCount: 1, estimatedYield: 1, actualYield: 1)
+        let newer = makeRecord(fruitType: "pear", estimatedCount: 2, manualCount: 2, estimatedYield: 2, actualYield: 2)
+        let controller = CalibrationRecordPersistenceController(url: url)
+
+        let newerSaved = await controller.save([newer], generation: 2)
+        let staleSaved = await controller.save([old], generation: 1)
+        XCTAssertTrue(newerSaved)
+        XCTAssertFalse(staleSaved)
+        XCTAssertEqual(try CalibrationRecordPersistence.load(from: url).map(\.id), [newer.id])
+    }
+
+    func testRapidCalibrationAddAddDeletePersistsLatestSnapshot() async throws {
+        let url = temporaryDirectory().appendingPathComponent("records.json")
+        let a = makeRecord(fruitType: "apple", estimatedCount: 1, manualCount: 1, estimatedYield: 1, actualYield: 1)
+        let b = makeRecord(fruitType: "pear", estimatedCount: 2, manualCount: 2, estimatedYield: 2, actualYield: 2)
+        let controller = CalibrationRecordPersistenceController(url: url)
+
+        _ = await controller.save([a], generation: 1)
+        _ = await controller.save([a, b], generation: 2)
+        _ = await controller.save([b], generation: 3)
+
+        XCTAssertEqual(try CalibrationRecordPersistence.load(from: url).map(\.id), [b.id])
+    }
+
+    func testCalibrationWriteFailurePreservesExistingCompleteFileAndReportsError() async throws {
+        let url = temporaryDirectory().appendingPathComponent("records.json")
+        let existing = makeRecord(fruitType: "apple", estimatedCount: 1, manualCount: 1, estimatedYield: 1, actualYield: 1)
+        let replacement = makeRecord(fruitType: "pear", estimatedCount: 2, manualCount: 2, estimatedYield: 2, actualYield: 2)
+        try CalibrationRecordPersistence.save([existing], to: url)
+        let controller = CalibrationRecordPersistenceController(url: url) { _, _ in
+            throw CocoaError(.fileWriteNoPermission)
+        }
+
+        let saved = await controller.save([replacement], generation: 1)
+        let error = await controller.lastErrorDescription
+        XCTAssertFalse(saved)
+        XCTAssertNotNil(error)
+        XCTAssertEqual(try CalibrationRecordPersistence.load(from: url).map(\.id), [existing.id])
+    }
+
     func testYieldCalibrationCorrectionUsesMatchingFruitTypeMedianRatios() {
         let records = [
             makeRecord(fruitType: "苹果", estimatedCount: 10, manualCount: 8, estimatedYield: 5, actualYield: 4),

@@ -10,7 +10,7 @@ struct DashboardDailySummary {
         var todaysYield: Float = 0
         var treeIDs = Set<String>()
 
-        for record in records where calendar.isDateInToday(record.scanDate) {
+        for record in records where calendar.isDateInToday(record.scanDate) && record.persistenceState == .complete {
             todaysScanCount += 1
             todaysYield += record.yieldKg
             treeIDs.insert(record.treeID)
