@@ -118,8 +118,17 @@ struct ModelLabelCompatibilityDiagnostics: Sendable, Equatable {
     var modelLabelCompatibilityWarnings: [String] = [
         "Runtime model labels unavailable; requires runtime confirmation."
     ]
+    var legacyFixedOrderContractConfirmed: Bool = false
 
     static let unavailable = ModelLabelCompatibilityDiagnostics()
+
+    static let confirmedLegacy26ClassContract = ModelLabelCompatibilityDiagnostics(
+        runtimeModelLabels: [],
+        runtimeModelLabelsAvailable: false,
+        modelLabelCompatibilityStatus: "legacyFixedOrderConfirmed",
+        modelLabelCompatibilityWarnings: [],
+        legacyFixedOrderContractConfirmed: true
+    )
 
     var usesRuntimeLabelMapping: Bool {
         runtimeModelLabelsAvailable

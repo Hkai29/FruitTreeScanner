@@ -49,6 +49,22 @@ extension ImageDetector {
             return YOLOParserSupport.emptyResult()
         }
 
+        let runtimeLabels = labelDiagnostics.runtimeModelLabels
+        let usesLegacyFixedOrder = labelDiagnostics.legacyFixedOrderContractConfirmed
+        if labelDiagnostics.runtimeModelLabelsAvailable {
+            guard runtimeLabels.count == classCount else {
+                return YOLOParserSupport.emptyResult(
+                    labelMappingFailureReason: "YOLO label contract rejected: runtime label count \(runtimeLabels.count) does not match output class count \(classCount)."
+                )
+            }
+        } else {
+            guard usesLegacyFixedOrder, classCount == FruitCategory.customModelLabelOrder.count else {
+                return YOLOParserSupport.emptyResult(
+                    labelMappingFailureReason: "YOLO label contract rejected: runtime labels are unavailable and no confirmed legacy 26-class contract exists."
+                )
+            }
+        }
+
         var predictions: [YOLOPrediction] = []
         var rawDebugPredictions: [DetectionPredictionDebug] = []
         var filteredDebugPredictions: [DetectionPredictionDebug] = []
@@ -59,7 +75,6 @@ extension ImageDetector {
         var confidenceFilteredCount = 0
         var thresholdPassedCount = 0
         var unmappedObservationCount = 0
-        let runtimeLabels = labelDiagnostics.runtimeModelLabels
 
         for anchorIndex in 0..<anchorCount {
             let (classIndex, confidence) = YOLOParserSupport.bestClassScore(
@@ -88,7 +103,8 @@ extension ImageDetector {
                 rawDebugPredictions.append(DetectionPredictionDebug(
                     label: YOLOParserSupport.debugLabel(
                         forClassIndex: classIndex,
-                        runtimeLabels: runtimeLabels
+                        runtimeLabels: runtimeLabels,
+                        usesLegacyFixedOrder: usesLegacyFixedOrder
                     ),
                     confidence: confidence,
                     boundingBox: boundingBox
@@ -109,7 +125,8 @@ extension ImageDetector {
             let debugPrediction = DetectionPredictionDebug(
                 label: YOLOParserSupport.debugLabel(
                     forClassIndex: classIndex,
-                    runtimeLabels: runtimeLabels
+                    runtimeLabels: runtimeLabels,
+                    usesLegacyFixedOrder: usesLegacyFixedOrder
                 ),
                 confidence: confidence,
                 boundingBox: boundingBox

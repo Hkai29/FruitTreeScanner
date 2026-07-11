@@ -12,7 +12,7 @@ struct YOLOPrediction {
 }
 
 enum YOLOParserSupport {
-    static func emptyResult() -> ImageDetector.YOLOParsingResult {
+    static func emptyResult(labelMappingFailureReason: String? = nil) -> ImageDetector.YOLOParsingResult {
         ImageDetector.YOLOParsingResult(
             fruits: [],
             modelCandidateCount: 0,
@@ -23,13 +23,14 @@ enum YOLOParserSupport {
             unmappedLabels: [],
             rawPredictions: [],
             filteredPredictions: [],
-            labelMappingFailureReason: nil
+            labelMappingFailureReason: labelMappingFailureReason
         )
     }
 
     static func debugLabel(
         forClassIndex classIndex: Int,
-        runtimeLabels: [String] = []
+        runtimeLabels: [String] = [],
+        usesLegacyFixedOrder: Bool = false
     ) -> String {
         if runtimeLabels.indices.contains(classIndex) {
             return runtimeLabels[classIndex]
@@ -37,6 +38,7 @@ enum YOLOParserSupport {
         if !runtimeLabels.isEmpty {
             return "class \(classIndex)"
         }
+        guard usesLegacyFixedOrder else { return "class \(classIndex)" }
         return FruitCategory.fromCustomModel(classIndex)?.displayName ?? "class \(classIndex)"
     }
 
