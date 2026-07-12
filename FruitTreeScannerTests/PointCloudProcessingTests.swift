@@ -612,7 +612,7 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(result[0].color, SIMD3<Float>(0, 1, 0), "Higher-confidence particle's color should be kept")
     }
 
-    func testAnalysisVoxelSizeUsesPaperFiveMillimeterSpatialHash() throws {
+    func testFinalExportAndAnalysisUsePaperFiveMillimeterSpatialHash() throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
             try XCTSkipIf(true, "Metal device not available")
             return
@@ -645,11 +645,11 @@ final class PointCloudProcessingTests: XCTestCase {
             currentPointCount: 2,
             currentPointIndex: 2,
             maxPoints: 2,
-            voxelSize: Renderer.analysisVoxelSizeMeters,
+            voxelSize: Renderer.finalPointCloudVoxelSizeMeters,
             confidenceThreshold: 10
         )
 
-        XCTAssertEqual(Renderer.analysisVoxelSizeMeters, 0.005, accuracy: 0.0001)
+        XCTAssertEqual(Renderer.finalPointCloudVoxelSizeMeters, 0.005, accuracy: 0.0001)
         XCTAssertEqual(coarseSnapshotSamples.count, 1)
         XCTAssertEqual(analysisSamples.count, 2)
     }

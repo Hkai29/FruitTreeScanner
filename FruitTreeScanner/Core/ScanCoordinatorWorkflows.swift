@@ -37,16 +37,19 @@ extension ScanCoordinator {
     }
 
     func processDetectionQueue() {
-        guard renderer?.isRecording == true else { return }
+        guard renderer?.isRecording == true,
+              acceptsReliableEvidence() else { return }
         guard beginDetectionProcessing() else { return }
+        let evidenceGeneration = evidenceGenerationSnapshot()
 
         detectionTask = Task { [weak self] in
             guard let self = self else { return }
             defer { self.finishDetectionProcessing() }
             let detected = await self.imageDetector.processQueue()
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled,
+                  self.acceptsReliableEvidence(generation: evidenceGeneration) else { return }
 
-            await self.appendDetectedFruits(detected)
+            await self.appendDetectedFruits(detected, evidenceGeneration: evidenceGeneration)
         }
     }
 
@@ -54,21 +57,49 @@ extension ScanCoordinator {
         if let detectionTask {
             await detectionTask.value
         }
-        guard !Task.isCancelled, !isTornDown else { return }
+        guard !Task.isCancelled, !isTornDown,
+              lifecycleSnapshot().state == .finishing else { return }
         guard beginDetectionProcessing() else { return }
         defer { finishDetectionProcessing() }
 
         let detected = await imageDetector.processQueue()
-        guard !Task.isCancelled else { return }
-        await appendDetectedFruits(detected)
+        guard !Task.isCancelled,
+              lifecycleSnapshot().state == .finishing else { return }
+        await appendDetectedFruits(detected, evidenceGeneration: nil)
     }
 
+    /// Compatibility entry point used by existing diagnostics tests. Production
+    /// frame paths always pass an evidence generation below.
     func appendDetectedFruits(_ detected: [DetectedFruit]) async {
+        await appendDetectedFruits(detected, evidenceGeneration: nil, enforceLifecycle: false)
+    }
+
+    func appendDetectedFruits(_ detected: [DetectedFruit], evidenceGeneration: Int?) async {
+        await appendDetectedFruits(detected, evidenceGeneration: evidenceGeneration, enforceLifecycle: true)
+    }
+
+    private func appendDetectedFruits(
+        _ detected: [DetectedFruit],
+        evidenceGeneration: Int?,
+        enforceLifecycle: Bool
+    ) async {
         guard !detected.isEmpty else { return }
         let detectorConfig = imageDetector.configSnapshot()
 
         await MainActor.run {
             guard !self.isTornDown else { return }
+            guard enforceLifecycle else {
+                self.detectedFruits.append(contentsOf: detected)
+                self.publishFruitCategoryMismatchIfNeeded()
+                self.archiveStableFusionEvidence(detectorConfig: detectorConfig)
+                self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
+                return
+            }
+            if let evidenceGeneration {
+                guard self.acceptsReliableEvidence(generation: evidenceGeneration) else { return }
+            } else {
+                guard self.lifecycleSnapshot().state == .finishing else { return }
+            }
             self.detectedFruits.append(contentsOf: detected)
             self.publishFruitCategoryMismatchIfNeeded()
             self.archiveStableFusionEvidence(detectorConfig: detectorConfig)
@@ -152,7 +183,10 @@ extension ScanCoordinator {
         lastCameraSpeedTime = 0
         smoothedCameraSpeed = 0
         renderer?.currentFolder = "scans"
+        let lifecycle = scanLifecycle.startNewScan()
+        _ = setReliableEvidenceAcceptance(true)
         renderer?.isRecording = true
+        publishLifecycleSnapshot(lifecycle)
     }
 
     @MainActor
@@ -160,17 +194,69 @@ extension ScanCoordinator {
         // This is the same logical scan. Keep the in-flight detection task and
         // queued frames so stopping briefly does not discard image evidence
         // that still needs to be fused with the preserved point cloud.
+        let lifecycle = scanLifecycle.resumeUserPaused()
+        guard lifecycle.state == .recording else { return }
         yieldEstimationController.cancel()
         publishImageDetectorStatus()
         hudState?.update(fusionStatus: "补扫中")
         renderer?.currentFolder = "scans"
+        _ = setReliableEvidenceAcceptance(true)
         renderer?.resumeRecordingPreservingPointCloud()
+        publishLifecycleSnapshot(lifecycle)
     }
 
     func stopRecording() {
         Log.scan.info("Stopping recording, flushing detection queue")
-        processDetectionQueue()
+        let lifecycle = scanLifecycle.userPaused()
+        _ = setReliableEvidenceAcceptance(false)
         renderer?.isRecording = false
+        publishLifecycleSnapshot(lifecycle)
+    }
+
+    @discardableResult
+    func beginFinishingScan() -> Bool {
+        let lifecycle = scanLifecycle.beginFinishing()
+        guard lifecycle.state == .finishing else { return false }
+        _ = setReliableEvidenceAcceptance(false)
+        renderer?.isRecording = false
+        publishLifecycleSnapshot(lifecycle)
+        return true
+    }
+
+    func markScanCompleted() {
+        publishLifecycleSnapshot(scanLifecycle.complete())
+    }
+
+    @MainActor
+    func handleSystemInterruption(_ reason: ScanInterruptionReason) {
+        guard !isTornDown else { return }
+        invalidateReliableEvidenceImmediately()
+        publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
+        hudState?.update(fusionStatus: "Interrupted")
+        publishLifecycleSnapshot(scanLifecycle.interrupt(reason))
+    }
+
+    @MainActor
+    func handleSessionInterruptionEnded() {
+        guard !isTornDown else { return }
+        publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
+        publishLifecycleSnapshot(scanLifecycle.interruptionEnded())
+    }
+
+    @MainActor
+    func handleSessionFailure(_ error: Error) {
+        guard !isTornDown else { return }
+        invalidateReliableEvidenceImmediately()
+        session?.pause()
+        publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
+        hudState?.update(fusionStatus: "Failed")
+        publishLifecycleSnapshot(scanLifecycle.fail(.sessionFailed(error.localizedDescription)))
+    }
+
+    @MainActor
+    func discardInterruptedScan() {
+        invalidateReliableEvidenceImmediately()
+        publishLifecycleSnapshot(scanLifecycle.cancel())
     }
 
     func exportPLY(treeID: String, lat: Double, lon: Double,
@@ -249,6 +335,8 @@ extension ScanCoordinator {
         season: Season = .mature,
         completion: @escaping (YieldResult, FruitCountResult?) -> Void
     ) {
+        let lifecycle = lifecycleSnapshot()
+        guard lifecycle.state == .finishing else { return }
         yieldEstimationController.start(
             season: season,
             flushPendingDetections: { [weak self] in
@@ -258,7 +346,9 @@ extension ScanCoordinator {
                 self?.makeYieldEstimationSnapshot(season: season)
             },
             completion: { [weak self] result, countResult in
-                guard let self, !self.isTornDown else { return }
+                guard let self, !self.isTornDown,
+                      self.lifecycleSnapshot().generation == lifecycle.generation,
+                      self.lifecycleSnapshot().state == .finishing else { return }
                 self.hudState?.update(
                     detectedFruitCount: result.diagnostics.fusedFruitCount,
                     fusionStatus: result.diagnostics.fusedFruitCount > 0 ? "OK" : "0kg"

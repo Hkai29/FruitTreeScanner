@@ -3,16 +3,25 @@ import SwiftUI
 extension ScanView {
     func finishScan() {
         guard !isEstimating else { return }
+        guard canExportScan else {
+            showTemporaryNotice(exportBlockedReason)
+            return
+        }
         if isRecording {
             stopRecording()
         }
+        guard coordinator.beginFinishingScan() else {
+            showTemporaryNotice(L10n.Scan.interruptionTitle)
+            return
+        }
+        lifecycleSnapshot = coordinator.lifecycleSnapshot()
         exportAndEstimate()
     }
 
     func exportAndEstimate() {
         guard !isEstimating else { return }
-        guard canExportScan else {
-            showTemporaryNotice(exportBlockedReason)
+        guard lifecycleSnapshot.state == .finishing else {
+            showTemporaryNotice(L10n.Scan.interruptionTitle)
             return
         }
 
@@ -40,6 +49,10 @@ extension ScanView {
 
                     self.isEstimating = false
                     self.yieldResult = result
+                    if didPersist {
+                        self.coordinator.markScanCompleted()
+                        self.lifecycleSnapshot = self.coordinator.lifecycleSnapshot()
+                    }
                     withAnimation(.easeInOut(duration: 0.3)) { self.showResult = true }
                 }
             }

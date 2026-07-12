@@ -79,7 +79,7 @@ extension Renderer {
     }
 
     func makeAnalysisPoints() -> [ColoredPoint] {
-        let analysisVoxelSize = Renderer.analysisVoxelSizeMeters
+        let analysisVoxelSize = Renderer.finalPointCloudVoxelSizeMeters
         let signature = currentSnapshotSignature(voxelSize: analysisVoxelSize)
         if let cachedPoints = cachedAnalysisPoints(for: signature) {
             return cachedPoints

@@ -4,6 +4,8 @@ import UIKit
 // MARK: - ARSessionDelegate
 extension ScanCoordinator: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        let lifecycleState = lifecycleSnapshot().state
+        guard acceptsReliableEvidence() || lifecycleState == .idle else { return }
         publishDepthStatusIfNeeded(frame)
         enqueueDetectionFrameIfRecording(frame)
         publishCameraResolutionIfNeeded(frame)
@@ -18,7 +20,7 @@ extension ScanCoordinator: ARSessionDelegate {
     }
 
     private func enqueueDetectionFrameIfRecording(_ frame: ARFrame) {
-        guard renderer?.isRecording == true else { return }
+        guard renderer?.isRecording == true, acceptsReliableEvidence() else { return }
         let imageSize = CGSize(
             width: CGFloat(frame.camera.imageResolution.width),
             height: CGFloat(frame.camera.imageResolution.height)
@@ -46,6 +48,7 @@ extension ScanCoordinator: ARSessionDelegate {
     }
 
     private func publishQualitySampleIfNeeded(_ frame: ARFrame) {
+        guard acceptsReliableEvidence() else { return }
         let now = CACurrentMediaTime()
         guard now - lastQualitySampleTime >= qualitySampleInterval else { return }
         lastQualitySampleTime = now
@@ -53,7 +56,7 @@ extension ScanCoordinator: ARSessionDelegate {
     }
 
     private func updateCameraSpeedAndGuidance(_ frame: ARFrame) {
-        guard renderer?.isRecording == true else {
+        guard renderer?.isRecording == true, acceptsReliableEvidence() else {
             lastCameraPosition = nil
             return
         }
@@ -92,6 +95,26 @@ extension ScanCoordinator: ARSessionDelegate {
                 medianDepth: medianDepth,
                 guidanceHint: hint
             )
+        }
+    }
+
+    func sessionWasInterrupted(_ session: ARSession) {
+        invalidateReliableEvidenceImmediately()
+        Task { @MainActor [weak self] in
+            self?.handleSystemInterruption(.arSessionInterrupted)
+        }
+    }
+
+    func sessionInterruptionEnded(_ session: ARSession) {
+        Task { @MainActor [weak self] in
+            self?.handleSessionInterruptionEnded()
+        }
+    }
+
+    func session(_ session: ARSession, didFailWithError error: Error) {
+        invalidateReliableEvidenceImmediately()
+        Task { @MainActor [weak self] in
+            self?.handleSessionFailure(error)
         }
     }
 }

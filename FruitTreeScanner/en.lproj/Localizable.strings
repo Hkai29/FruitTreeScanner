@@ -7,6 +7,12 @@
 "scan.coverage_complete" = "Coverage Complete";
 "scan.scanning" = "Scanning";
 "scan.detecting" = "Detecting...";
+"scan.interruption_title" = "Scan Interrupted";
+"scan.interruption_message" = "Camera or AR tracking was interrupted during the scan. Restart the scan to avoid combining discontinuous scan data.";
+"scan.session_failure_title" = "Scan Session Error";
+"scan.restart_after_interruption" = "Restart Scan";
+"scan.discard_after_interruption" = "Discard Scan";
+"scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
 
 /* Result */
 "result.yield_title" = "Estimated Yield";

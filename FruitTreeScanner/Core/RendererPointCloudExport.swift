@@ -214,7 +214,7 @@ extension Renderer {
                 return
             }
             let rawSamples = makeFilteredPointSamples(
-                voxelSize: snapshotVoxelSize,
+                voxelSize: Renderer.finalPointCloudVoxelSizeMeters,
                 inputSampleLimit: analysisInputSampleLimit
             )
             let pointsCopy = PointCloudDenoiser.statisticalOutlierRemoval(samples: rawSamples)
@@ -225,7 +225,9 @@ extension Renderer {
                 return
             }
             let analysisPoints = RendererPointCloudSnapshot.makeColoredPoints(from: pointsCopy)
-            let analysisSignature = currentSnapshotSignature()
+            let analysisSignature = currentSnapshotSignature(
+                voxelSize: Renderer.finalPointCloudVoxelSizeMeters
+            )
             storeSnapshot(points: analysisPoints, fullSignature: analysisSignature)
 
             do {

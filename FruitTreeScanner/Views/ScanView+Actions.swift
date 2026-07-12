@@ -107,6 +107,7 @@ extension ScanView {
         clearMeasurementState()
         createDirectory(folder: "scans")
         coordinator.startRecording(selectedCategory: selectedFruitCategory)
+        lifecycleSnapshot = coordinator.lifecycleSnapshot()
         isRecording = true
         showGuide = false
     }
@@ -117,6 +118,10 @@ extension ScanView {
             showTemporaryNotice(scanReadiness.title)
             return
         }
+        guard lifecycleSnapshot.state == .userPaused else {
+            showTemporaryNotice(L10n.Scan.interruptionTitle)
+            return
+        }
         guard coordinator.pointCount > 0 || hudState.pointCount > 0 else {
             startRecording()
             return
@@ -124,12 +129,14 @@ extension ScanView {
         clearMeasurementState()
         createDirectory(folder: "scans")
         coordinator.resumeRecordingPreservingCapture()
+        lifecycleSnapshot = coordinator.lifecycleSnapshot()
         isRecording = true
         showGuide = false
     }
 
     func stopRecording() {
         coordinator.stopRecording()
+        lifecycleSnapshot = coordinator.lifecycleSnapshot()
         isRecording = false
     }
 
@@ -148,6 +155,28 @@ extension ScanView {
             stopRecording()
         }
         clearMeasurementState()
+        coordinator.discardInterruptedScan()
+        coordinator.teardown()
+        dismiss()
+    }
+
+    func restartAfterInterruption() {
+        guard scanReadiness == .ready else {
+            showTemporaryNotice(scanReadiness.title)
+            return
+        }
+        clearMeasurementState()
+        coordinator.startRecording(selectedCategory: selectedFruitCategory)
+        lifecycleSnapshot = coordinator.lifecycleSnapshot()
+        isRecording = true
+        showGuide = false
+        showLifecycleRecovery = false
+    }
+
+    func discardAfterInterruption() {
+        showLifecycleRecovery = false
+        isEstimating = false
+        coordinator.discardInterruptedScan()
         coordinator.teardown()
         dismiss()
     }

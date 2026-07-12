@@ -2,7 +2,8 @@ import SwiftUI
 
 extension ScanView {
     var shouldShowPostCapturePanel: Bool {
-        !isRecording && !isEstimating && !showResult && hudState.pointCount > 0
+        lifecycleSnapshot.state == .userPaused
+            && !isRecording && !isEstimating && !showResult && hudState.pointCount > 0
     }
 
     var currentDetectionDebugState: DetectionDebugState? {
@@ -20,7 +21,10 @@ extension ScanView {
     }
 
     var canExportScan: Bool {
-        ScanExportReadiness.canExport(
+        guard lifecycleSnapshot.state == .recording || lifecycleSnapshot.state == .userPaused else {
+            return false
+        }
+        return ScanExportReadiness.canExport(
             scanIsReady: scanReadiness == .ready,
             depthRuntimeStatus: hudState.depthRuntimeStatus,
             exportablePointStatus: hudState.exportablePointStatus,
