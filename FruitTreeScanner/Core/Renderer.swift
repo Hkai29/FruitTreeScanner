@@ -54,7 +54,10 @@ final class Renderer: NSObject {
     static let cameraTranslationThresholdMeters: Float = 0.05
     static let cameraTranslationThresholdSquared: Float =
         cameraTranslationThresholdMeters * cameraTranslationThresholdMeters
-    static let analysisVoxelSizeMeters: Float = 0.005
+    /// One frozen spatial resolution shared by final PLY export and yield analysis.
+    /// Keeping this centralized guarantees that persisted scans can reproduce the
+    /// point-cloud evidence used by the fusion pipeline.
+    static let finalPointCloudVoxelSizeMeters: Float = 0.005
     let cameraRotationThreshold = cos(Renderer.cameraRotationThresholdDegrees * Float.degreesToRadian)
     let cameraTranslationThreshold: Float = Renderer.cameraTranslationThresholdSquared
     let maxInFlightBuffers = 3
