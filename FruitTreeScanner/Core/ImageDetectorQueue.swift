@@ -23,6 +23,7 @@ enum ImageDetectorQueue {
         depthConfidenceMap: CVPixelBuffer?,
         pixelBufferCopier: (CVPixelBuffer) -> CVPixelBuffer? = { duplicatePixelBuffer(input: $0) }
     ) -> FrameCopyResult {
+        // ARKit 会复用帧缓冲区，必须先复制再交给异步推理队列。
         guard let copiedPixelBuffer = pixelBufferCopier(pixelBuffer) else {
             return FrameCopyResult(
                 queuedFrame: nil,
@@ -32,6 +33,7 @@ enum ImageDetectorQueue {
             )
         }
 
+        // 深度复制失败时允许图像诊断继续，但不会形成对齐深度证据。
         let copiedDepthMap = depthMap.flatMap(pixelBufferCopier)
         let copiedDepthConfidenceMap = depthConfidenceMap.flatMap(pixelBufferCopier)
         let depthConfidenceProvenance: DepthConfidenceProvenance
@@ -65,6 +67,7 @@ enum ImageDetectorQueue {
         _ fruits: [DetectedFruit],
         with frame: ImageDetector.QueuedFrame
     ) -> [DetectedFruit] {
+        // 所有检测结果都绑定产生它的帧上下文，禁止使用当前帧补配旧检测。
         fruits.map { fruit in
             DetectedFruit(
                 category: fruit.category,
@@ -105,6 +108,7 @@ extension ImageDetector {
         )
         frameCounter += 1
 
+        // 同时按帧间隔和时间间隔限流，给 Metal 点云采集保留资源。
         let detectionInterval = max(config.imageDetectionInterval, 1)
         if frameCounter % detectionInterval != 0 {
             lock.unlock()
@@ -116,6 +120,7 @@ extension ImageDetector {
             return
         }
 
+        // 队列只保留一个待处理帧，避免高帧率下堆积大尺寸缓冲区。
         if !pendingFrames.isEmpty || preparingFrameGeneration != nil {
             lock.unlock()
             return
@@ -157,6 +162,7 @@ extension ImageDetector {
         pendingFrames.removeAll()
         frameCounter = 0
         lastQueuedTimestamp = 0
+        // 推进队列代次，使正在复制的旧帧无法重新进入已清空的队列。
         queueGeneration &+= 1
         preparingFrameGeneration = nil
         diagnosticsRecorder.reset(modelStatus: modelStatus)
@@ -185,6 +191,7 @@ extension ImageDetector {
     }
 
     func drainPendingFrames() async -> [QueuedFrame] {
+        // 给已被选中的异步帧复制留出短暂完成窗口，不阻塞主线程。
         let maxAttempts = 6
         for _ in 0..<maxAttempts {
             let drainResult = drainPendingFramesIfReady()

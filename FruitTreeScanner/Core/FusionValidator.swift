@@ -8,6 +8,7 @@ import simd
 
 // MARK: - Fusion Validator
 
+/// 使用同帧 RGB、可靠深度与点云候选决定水果证据来源。
 final class FusionValidator: Sendable {
 
     // MARK: - Properties
@@ -74,6 +75,7 @@ final class FusionValidator: Sendable {
         candidates: [FruitCandidate],
         projectionContext: (DetectedFruit) -> FusionProjectionContext?
     ) -> [ValidatedFruit] {
+        // 每个点云候选最多匹配一次，防止多个 2D 框重复计算同一果实。
         let projectionService = DepthProjectionService(validator: self)
         let candidateMatcher = CandidateMatcher(validator: self)
         let decisionPolicy = FusionDecisionPolicy()
@@ -95,6 +97,7 @@ final class FusionValidator: Sendable {
                 detection: detection,
                 context: context
             )
+            // 被深度规则否决的候选不能通过图像回退重新升级为 fused。
             let rejectedByDepthCandidate = projection.depthProjectedPosition.map { depthProjectedPosition in
                 candidateMatcher.hasRejectedDetectionDepthCandidate(
                     near: depthProjectedPosition,
@@ -111,6 +114,7 @@ final class FusionValidator: Sendable {
                 rejectedByDepthCandidate: rejectedByDepthCandidate
             ) {
             case let .fused(candidate):
+                // 只有决策策略明确返回 fused 的证据才进入可靠产量链路。
                 usedCandidateIDs.insert(candidate.id)
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
@@ -120,6 +124,7 @@ final class FusionValidator: Sendable {
                 )
                 validatedFruits.append(validatedFruit)
             case let .imageOnly(position):
+                // imageOnly 仅用于诊断和可视化，后续产量管线会继续过滤。
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: position,

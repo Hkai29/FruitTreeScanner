@@ -11,6 +11,7 @@ struct PointCloudCandidatePipelineOutput {
 
 struct PointCloudCandidatePipeline {
     func run(_ input: ScanFusionYieldBuilder.Input) async -> PointCloudCandidatePipelineOutput {
+        // 点云分支依次执行颜色筛选、离群点抑制和有界聚类。
         let colorFilteredPoints = Self.colorFilteredPoints(from: input)
         let denoising = Self.denoiseClusteringPoints(
             colorFilteredPoints,
@@ -42,6 +43,7 @@ struct PointCloudCandidatePipeline {
         _ points: [ColoredPoint],
         clusterConfig: ClusterConfig
     ) -> PointCloudDenoisingResult<ColoredPoint> {
+        // 小样本跳过去噪，避免邻域统计在点数不足时误删有效果实点。
         let experimentConfig = FruitScanExperimentConfig.default.pointCloud
         let minimumDenoisingPointCount = max(
             clusterConfig.minPoints * experimentConfig.denoisingMinPointMultiplier,
@@ -67,6 +69,7 @@ struct DetectionDepthCandidatePipelineOutput {
 
 struct DetectionDepthCandidatePipeline {
     func run(_ input: ScanFusionYieldBuilder.Input) -> DetectionDepthCandidatePipelineOutput {
+        // 深度候选先在检测框内构建，再去重并按本次扫描类别过滤。
         let rawCandidates = DetectionDepthCandidateBuilder.makeCandidates(
             from: input.savedDetections,
             clusterConfig: input.clusterConfig
@@ -102,6 +105,7 @@ enum ScanFusionCategoryFilter {
         _ detections: [DetectedFruit],
         targetCategory: FruitCategory?
     ) -> DetectionFilterResult {
+        // 类别过滤发生在融合前，防止其他水果检测参与目标品类产量。
         guard let targetCategory else {
             return DetectionFilterResult(
                 detections: detections,
@@ -140,16 +144,19 @@ struct FusionEvidencePipeline {
         detections: [DetectedFruit],
         candidates: [FruitCandidate]
     ) -> FusionEvidencePipelineOutput {
+        // 没有图像证据时保持 cloud-only 保守模式，不输出可靠产量。
         guard !detections.isEmpty else {
             return conservativeOutput()
         }
 
+        // 仅同帧 RGB、深度、内参与位姿齐全的检测允许进入融合。
         let alignedDetections = detections.filter(\.hasAlignedDepthContext)
         guard !alignedDetections.isEmpty else {
             Log.fusion.warning("Skipping \(detections.count) image detections because none carried aligned depth context")
             return conservativeOutput()
         }
 
+        // 跨帧稳定性过滤可排除单帧误检和短暂遮挡造成的跳变。
         let stableEvidenceDetections = DetectionDeduplicator.stableEvidenceDetections(
             alignedDetections,
             minimumObservations: fusionConfig.minimumStableDetectionsForYield,
@@ -170,6 +177,7 @@ struct FusionEvidencePipeline {
             return conservativeOutput(deduplicatedDetectionCount: deduplicatedDetections.count)
         }
 
+        // 先做三维去重，再明确保留 fused，其他来源仅供诊断。
         let deduplicatedFruits = ValidatedFruit.deduplicate3D(fusedFruits)
         let reliableFruits = deduplicatedFruits.filter { $0.source == .fused }
         guard !reliableFruits.isEmpty else {
@@ -191,6 +199,7 @@ struct FusionEvidencePipeline {
         deduplicatedDetectionCount: Int = 0,
         evidenceDetections: [DetectedFruit] = []
     ) -> FusionEvidencePipelineOutput {
+        // 保守输出保留诊断计数，但可靠水果集合必须为空。
         FusionEvidencePipelineOutput(
             validatedFruits: [],
             deduplicatedDetectionCount: deduplicatedDetectionCount,
@@ -205,6 +214,7 @@ enum CandidateCombiner {
         pointCloudCandidates: [FruitCandidate],
         detectionDepthCandidates: [FruitCandidate]
     ) -> [FruitCandidate] {
+        // 合并点云与 ROI 深度证据时沿用统一的物理距离和尺寸约束。
         mergeCandidateEvidence(pointCloudCandidates + detectionDepthCandidates)
     }
 
@@ -258,6 +268,7 @@ enum CandidateCombiner {
         }
 
         mutating func add(_ candidate: FruitCandidate) {
+            // 加权累积避免低点数候选把高支持候选中心明显拉偏。
             let weight = Self.weight(for: candidate)
             weightedPosition += candidate.position * weight
             weightedDiameter += candidate.diameter * weight
@@ -284,6 +295,7 @@ enum CandidateCombiner {
 
         func mergedCandidate() -> FruitCandidate {
             let safeWeight = max(totalWeight, 1e-6)
+            // 混入独立点云证据后不再伪装为纯 ROI-depth 候选。
             let depthSupportRatio = !hasPointCloudEvidence && depthSupportWeight > 0
                 ? weightedDepthSupport / depthSupportWeight
                 : nil
@@ -315,6 +327,7 @@ enum CandidateCombiner {
     private static func mergeCandidateEvidence(_ candidates: [FruitCandidate]) -> [FruitCandidate] {
         guard candidates.count > 1 else { return candidates }
 
+        // 先处理支持度高的候选，使其成为后续弱候选的稳定合并中心。
         let sorted = candidates.sorted {
             if $0.pointCount == $1.pointCount {
                 return $0.sphericity > $1.sphericity

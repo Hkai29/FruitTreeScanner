@@ -27,6 +27,7 @@ final class ImageDetector: @unchecked Sendable {
     }
 
     struct SendablePixelBuffer: @unchecked Sendable {
+        // CVPixelBuffer 的实际跨队列安全由入队前的深拷贝保证。
         let value: CVPixelBuffer
     }
 
@@ -63,6 +64,7 @@ final class ImageDetector: @unchecked Sendable {
     }
 
     func updateConfig(_ newConfig: FruitScanConfig) {
+        // 配置与诊断阈值在同一把锁内更新，保证推理读取一致快照。
         lock.lock()
         defer { lock.unlock() }
         self.config = newConfig
@@ -79,6 +81,7 @@ final class ImageDetector: @unchecked Sendable {
     /// 加载 CoreML 模型
     /// - Important: 调用此方法前需要先将 .mlmodel 文件添加到项目
     private func loadCoreMLModel() {
+        // 模型不可用时保留可解释的降级状态，但不会伪造检测框。
         let loadState = ImageDetectorModelLoader.loadModelState(named: "FruitsDetector")
         coreMLModel = loadState.model
         modelStatus = loadState.status
@@ -168,6 +171,7 @@ final class ImageDetector: @unchecked Sendable {
         var allDetectedFruits: [DetectedFruit] = []
 
         for frame in framesToProcess {
+            // 检测完成后补回同帧位姿和深度，供融合阶段验证空间证据。
             let fruits = await inference.performDetection(
                 detector: self,
                 pixelBuffer: frame.pixelBuffer,
