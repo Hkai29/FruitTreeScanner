@@ -4,6 +4,7 @@ import UIKit
 // MARK: - ARSessionDelegate
 extension ScanCoordinator: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // 非采集状态只允许空闲页更新设备状态，禁止继续形成可靠证据。
         let lifecycleState = lifecycleSnapshot().state
         guard acceptsReliableEvidence() || lifecycleState == .idle else { return }
         publishDepthStatusIfNeeded(frame)
@@ -25,6 +26,7 @@ extension ScanCoordinator: ARSessionDelegate {
             width: CGFloat(frame.camera.imageResolution.width),
             height: CGFloat(frame.camera.imageResolution.height)
         )
+        // RGB、位姿和同帧深度必须一起入队，保证后续 2D→3D 投影对齐。
         let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
         imageDetector.enqueueFrame(
             frame.capturedImage,
@@ -49,6 +51,7 @@ extension ScanCoordinator: ARSessionDelegate {
 
     private func publishQualitySampleIfNeeded(_ frame: ARFrame) {
         guard acceptsReliableEvidence() else { return }
+        // 质量诊断限频发布，避免 ARSession 回调把主线程更新压满。
         let now = CACurrentMediaTime()
         guard now - lastQualitySampleTime >= qualitySampleInterval else { return }
         lastQualitySampleTime = now
@@ -67,6 +70,7 @@ extension ScanCoordinator: ARSessionDelegate {
             frame.camera.transform.columns.3.z
         )
 
+        // 指数平滑抑制单帧位姿抖动，提示使用稳定速度绕树采集。
         if let lastPos = lastCameraPosition, now - lastCameraSpeedTime > 0.05 {
             let dt = Float(now - lastCameraSpeedTime)
             let instantSpeed = simd_distance(pos, lastPos) / dt
@@ -100,6 +104,7 @@ extension ScanCoordinator: ARSessionDelegate {
     }
 
     func sessionWasInterrupted(_ session: ARSession) {
+        // 先同步关闭证据门，再异步更新界面状态，避免中断竞态。
         invalidateReliableEvidenceImmediately()
         Task { @MainActor [weak self] in
             self?.handleSystemInterruption(.arSessionInterrupted)

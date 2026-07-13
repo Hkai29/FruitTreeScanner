@@ -14,6 +14,7 @@ extension FusionValidator {
         cameraTransform: simd_float4x4? = nil,
         imageSize: CGSize? = nil
     ) -> FruitCandidate? {
+        // 匹配同时约束类别、物理尺寸、三维距离和检测视锥支持度。
         let experimentConfig = FruitScanExperimentConfig.default.fusion
         let positionTolerance = experimentConfig.nearestCandidateDistance
         let sizeTolerance = config.sizeTolerance
@@ -30,6 +31,7 @@ extension FusionValidator {
             let sizeDiff = abs(candidate.diameter - expectedDiameter) / expectedDiameter
             guard sizeDiff <= sizeTolerance else { continue }
 
+            // 视锥证据可容忍中心略偏，但不能替代距离和尺寸约束。
             let frustumEvidence = makeFrustumEvidence(
                 candidate: candidate,
                 detection: detection,
@@ -50,6 +52,7 @@ extension FusionValidator {
 
             guard centerMatch || frustumMatch || projectedCenterMatch else { continue }
 
+            // 以三维距离为主分数，框内点比例只提供有限奖励。
             let score = distance
                 - min(frustumEvidence.ratio, 1.0) * 0.06
                 - (frustumEvidence.centerInside ? 0.02 : 0)
@@ -70,6 +73,7 @@ extension FusionValidator {
         cameraTransform: simd_float4x4?,
         imageSize: CGSize?
     ) -> (ratio: Float, centerInside: Bool) {
+        // 缺少投影上下文时不推断视锥支持，保持保守匹配。
         guard let cameraIntrinsics,
               let cameraTransform,
               let imageSize else {
@@ -87,6 +91,7 @@ extension FusionValidator {
             imageSize: imageSize
         ).map { box.contains($0) } ?? false
 
+        // 无点集候选只能使用中心投影，不能伪造点级支持比例。
         guard !candidate.points.isEmpty else {
             return (centerInside ? 1 : 0, centerInside)
         }

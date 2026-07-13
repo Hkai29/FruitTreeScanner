@@ -16,6 +16,7 @@ struct ImageDetectorInference: Sendable {
         imageSize: CGSize,
         queue: DispatchQueue
     ) async -> [DetectedFruit] {
+        // 在专用串行队列执行 Vision/CoreML，避免阻塞 AR 帧回调和主线程。
         let sendablePixelBuffer = ImageDetector.SendablePixelBuffer(value: pixelBuffer)
         let config = detector.configSnapshot()
         let model = detector.coreMLModel
@@ -98,6 +99,7 @@ struct ImageDetectorInference: Sendable {
             }
 
             let observations = request.results ?? []
+            // 优先处理 Vision 已解码的目标框；否则再解析原始 YOLO 张量。
             let objectObservations = observations.compactMap { $0 as? VNRecognizedObjectObservation }
             if !objectObservations.isEmpty {
                 let confidenceFilteredCount = objectObservations.filter { $0.confidence < config.minConfidence }.count
@@ -139,6 +141,7 @@ struct ImageDetectorInference: Sendable {
                 return
             }
 
+            // 原始张量路径仍执行同一置信度和类别映射诊断。
             let featureObservations = observations.compactMap { $0 as? VNCoreMLFeatureValueObservation }
             guard let multiArray = featureObservations.compactMap({ $0.featureValue.multiArrayValue }).first else {
                 let reason = "CoreML 输出格式不支持：未返回目标框或 YOLO MultiArray"
@@ -221,6 +224,7 @@ struct ImageDetectorInference: Sendable {
         var detectedFruits: [DetectedFruit] = []
 
         for observation in observations {
+            // 低置信度或无法映射类别的框只计入诊断，不生成水果证据。
             guard observation.confidence >= config.minConfidence else {
                 continue
             }
@@ -248,6 +252,7 @@ struct ImageDetectorInference: Sendable {
         config: FruitScanConfig,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
+        // 分类结果没有空间框，不能升级为可参与融合的图像候选。
         let reason = "CoreML model not loaded; fallback has no 2D bounding boxes"
         detector.recordFallbackFrame(reason: detector.modelStatus.hudDetail)
         detector.recordDebugDetectionResult(

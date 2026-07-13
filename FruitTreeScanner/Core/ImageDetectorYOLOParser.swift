@@ -27,6 +27,7 @@ extension ImageDetector {
         lowConfidenceFloor: Float = 0.05,
         nmsThreshold: Float = 0.45
     ) -> YOLOParsingResult {
+        // 兼容常见 [1, channels, boxes] 与 [1, boxes, channels] 排布。
         let dimensions = multiArray.shape.map { $0.intValue }
         guard dimensions.count == 3 else {
             return YOLOParserSupport.emptyResult()
@@ -49,6 +50,7 @@ extension ImageDetector {
             return YOLOParserSupport.emptyResult()
         }
 
+        // 标签数量必须与输出通道契约一致，禁止错位映射为其他水果。
         let runtimeLabels = labelDiagnostics.runtimeModelLabels
         let usesLegacyFixedOrder = labelDiagnostics.legacyFixedOrderContractConfirmed
         if labelDiagnostics.runtimeModelLabelsAvailable {
@@ -141,6 +143,7 @@ extension ImageDetector {
                 category = FruitCategory.fromCustomModel(classIndex)
             }
 
+            // 无法映射的类别只写诊断，不回退为默认水果类别。
             guard let category else {
                 unmappedObservationCount += 1
                 unmappedLabels.append(debugPrediction.label)
@@ -155,6 +158,7 @@ extension ImageDetector {
             ))
         }
 
+        // 在类别与置信度筛选后执行 NMS，合并同一目标的重叠预测框。
         let fruits = YOLOParserSupport.nonMaximumSuppression(
             predictions,
             threshold: nmsThreshold

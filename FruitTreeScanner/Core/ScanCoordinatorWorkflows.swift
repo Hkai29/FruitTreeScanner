@@ -42,6 +42,7 @@ extension ScanCoordinator {
         guard beginDetectionProcessing() else { return }
         let evidenceGeneration = evidenceGenerationSnapshot()
 
+        // 推理可跨越多个 AR 帧；提交结果前必须再次验证扫描代次。
         detectionTask = Task { [weak self] in
             guard let self = self else { return }
             defer { self.finishDetectionProcessing() }
@@ -54,6 +55,7 @@ extension ScanCoordinator {
     }
 
     func flushPendingDetections() async {
+        // 完成扫描前排空最后一帧，避免用户点击完成时丢失有效证据。
         if let detectionTask {
             await detectionTask.value
         }
@@ -108,6 +110,7 @@ extension ScanCoordinator {
     }
 
     func archiveStableFusionEvidence(detectorConfig: FruitScanConfig) {
+        // 只归档具有对齐深度且跨帧稳定的检测，单帧命中不进入可靠产量。
         let minimumObservations = max(detectorConfig.minimumStableDetectionsForYield, 2)
         let minimumConfidence = max(detectorConfig.minConfidence, 0.85)
         let stableEvidence = DetectionDeduplicator.stableEvidenceDetections(
@@ -159,6 +162,7 @@ extension ScanCoordinator {
 
     @MainActor
     func startRecording(selectedCategory: FruitCategory = .apple) {
+        // 新扫描必须清空上一任务的点云计数、检测证据和异步估算状态。
         detectionTask?.cancel()
         detectionTask = nil
         yieldEstimationController.cancel()
@@ -217,6 +221,7 @@ extension ScanCoordinator {
     func beginFinishingScan() -> Bool {
         let lifecycle = scanLifecycle.beginFinishing()
         guard lifecycle.state == .finishing else { return false }
+        // 先关闭证据门，再冻结采集；之后仅允许显式 flush 的结果进入快照。
         _ = setReliableEvidenceAcceptance(false)
         renderer?.isRecording = false
         publishLifecycleSnapshot(lifecycle)
@@ -287,6 +292,7 @@ extension ScanCoordinator {
     private func makeYieldEstimationSnapshot(season: Season) -> ScanYieldEstimationController.Snapshot? {
         guard !isTornDown, let scanConfiguration = activeFruitConfiguration else { return nil }
 
+        // 快照建立后清空活动缓存，确保一次扫描只消费一次证据集合。
         archiveStableFusionEvidence(detectorConfig: scanConfiguration.fusionConfig)
         let savedDetections = fusionEstimateDetectionsSnapshot()
         let categoryVerification = FruitCategoryVerificationSummary.make(

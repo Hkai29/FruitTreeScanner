@@ -7,6 +7,7 @@ import simd
 
 extension FusionValidator {
     static func robustDepth(from rawDepths: [Float]) -> Float? {
+        // 优先选择近端且有足够支持的深度簇，降低叶片后方背景的干扰。
         let depths = rawDepths
             .filter { $0.isFinite && $0 > 0.1 && $0 < 10.0 }
             .sorted()
@@ -50,6 +51,7 @@ extension FusionValidator {
         cameraTransform: simd_float4x4,
         imageSize: CGSize
     ) -> CGPoint? {
+        // 先转回相机坐标，再使用内参投影到 Vision 的归一化坐标系。
         guard imageSize.width > 0, imageSize.height > 0 else { return nil }
 
         let cameraPoint4 = cameraTransform.inverse * SIMD4<Float>(
@@ -157,6 +159,7 @@ extension FusionValidator {
         cameraTransform: simd_float4x4,
         imageSize: CGSize
     ) -> SIMD3<Float>? {
+        // 可靠融合路径不允许固定深度回退；有效深度不足时必须返回 nil。
         projectDetectionTo3D(
             detection: detection,
             depthMap: depthMap,
@@ -255,6 +258,7 @@ enum DetectionDepthCandidateBuilder {
         from detections: [DetectedFruit],
         clusterConfig: ClusterConfig
     ) -> [FruitCandidate] {
+        // 每个候选必须来自检测框内的同帧深度和相机位姿。
         detections.compactMap { detection in
             makeCandidate(from: detection, clusterConfig: clusterConfig)
         }
@@ -264,6 +268,7 @@ enum DetectionDepthCandidateBuilder {
         from detection: DetectedFruit,
         clusterConfig: ClusterConfig
     ) -> FruitCandidate? {
+        // 没有对齐深度上下文时不构造 depth-backed candidate。
         guard detection.hasAlignedDepthContext,
               let depthMap = detection.depthMap,
               let cameraIntrinsics = detection.cameraIntrinsics,
@@ -299,6 +304,7 @@ enum DetectionDepthCandidateBuilder {
             }
         }
 
+        // 从 ROI 中分离近端深度簇，避免把树后背景当作果实表面。
         guard let foregroundDepth = roiForegroundDepth(from: samples.map { $0.depth }) else {
             return nil
         }
@@ -337,6 +343,7 @@ enum DetectionDepthCandidateBuilder {
             cameraIntrinsics: cameraIntrinsics,
             cameraTransform: cameraTransform
         )
+        // 仅保留空间连通且靠近检测框中心射线的主簇。
         let selectedCluster = selectDominantCluster(
             from: worldSamples,
             referencePoint: referencePoint,
@@ -356,6 +363,7 @@ enum DetectionDepthCandidateBuilder {
 
         let center = centroid(of: worldPoints)
         let depthSupportRatio = Float(worldPoints.count) / Float(roiSampleGrid * roiSampleGrid)
+        // 直径综合图像投影与三维点集，并限制在品类物理范围内。
         let diameter = estimatedDiameter(
             detection: detection,
             depth: foregroundDepth,
@@ -733,6 +741,7 @@ private final class DepthSampler {
         let clampedX = max(0, min(x, width - 1))
         let clampedY = max(0, min(y, height - 1))
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
+        // 有 confidenceMap 时，低置信度像素在读取深度值前直接拒绝。
         if let confidenceSampler,
            !confidenceSampler.isReliable(
                x: clampedX,

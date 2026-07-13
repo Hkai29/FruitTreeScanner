@@ -94,6 +94,7 @@ struct ScanFruitConfiguration {
     let calibrationCorrection: YieldCalibrationCorrection
 
     @MainActor
+    /// 固化一次扫描使用的类别、阈值与校准快照，避免扫描途中设置变化污染结果。
     static func capture(selectedCategory: FruitCategory, settings: ScanSettingsProviding) -> ScanFruitConfiguration {
         let parametersSnapshot = FruitParametersStore.shared.parameterSnapshot()
         let defaultParams = parametersSnapshot[selectedCategory.rawValue]
@@ -115,6 +116,7 @@ struct ScanFruitConfiguration {
     }
 }
 
+/// 协调 AR 会话、点云采集、图像检测与产量估算的扫描级生命周期。
 class ScanCoordinator: NSObject {
     let settings: ScanSettingsProviding
 
@@ -308,6 +310,7 @@ class ScanCoordinator: NSObject {
     }
 
     private func clearRuntimeReferences() {
+        // 同时释放回调和大对象引用，避免已退出页面继续接收扫描结果。
         mtkView = nil
         renderer = nil
         session = nil
@@ -342,12 +345,14 @@ class ScanCoordinator: NSObject {
         evidenceGateLock.lock()
         defer { evidenceGateLock.unlock() }
         guard acceptsReliableEvidence else { return false }
+        // generation 可阻止异步推理完成后把旧扫描证据写入新扫描。
         return generation.map { $0 == reliableEvidenceGeneration } ?? true
     }
 
     @discardableResult
     func setReliableEvidenceAcceptance(_ accepted: Bool) -> Int {
         evidenceGateLock.lock()
+        // 每次开关证据门都推进代次，使已在途的任务自然失效。
         reliableEvidenceGeneration &+= 1
         acceptsReliableEvidence = accepted
         let generation = reliableEvidenceGeneration
