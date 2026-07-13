@@ -7,6 +7,7 @@ struct RendererScanSettings {
     let maxDepth: Float
     let confidenceThreshold: Int
     let depthEdgeThreshold: Float
+    let minimumStableDepthNeighborCount: Int
     let snapshotVoxelSize: Float
 
     @MainActor
@@ -19,18 +20,31 @@ struct RendererScanSettings {
             scanPrecision: Float(store.scanPrecision),
             qualityPreset: store.qualityPreset
         )
+        let depthConfig = FruitScanExperimentConfig.default.depth
+        confidenceThreshold = Self.reliableConfidenceThreshold(
+            storedThreshold: store.confidenceThreshold,
+            minimumReliableConfidence: depthConfig.minimumReliableConfidence
+        )
+        minimumStableDepthNeighborCount = min(
+            max(depthConfig.minimumStableDepthNeighborCount, 0),
+            4
+        )
 
         switch store.qualityPreset {
         case "高":
-            confidenceThreshold = max(store.confidenceThreshold, 2)
             depthEdgeThreshold = 0.08
         case "低":
-            confidenceThreshold = max(store.confidenceThreshold, 1)
             depthEdgeThreshold = 0.16
         default:
-            confidenceThreshold = max(store.confidenceThreshold, 1)
             depthEdgeThreshold = 0.12
         }
+    }
+
+    static func reliableConfidenceThreshold(
+        storedThreshold: Int,
+        minimumReliableConfidence: UInt8 = FruitScanExperimentConfig.default.depth.minimumReliableConfidence
+    ) -> Int {
+        max(storedThreshold, Int(minimumReliableConfidence))
     }
 
     private static func exportVoxelSize(scanPrecision: Float, qualityPreset: String) -> Float {

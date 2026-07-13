@@ -24,6 +24,7 @@ enum ScanGuidanceHint: Equatable {
     case tooFar
     case trackingLost
     case lowLight
+    case sparseDepth
     case goodPace
 }
 

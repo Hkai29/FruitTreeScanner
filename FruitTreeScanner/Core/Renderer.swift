@@ -44,6 +44,7 @@ final class Renderer: NSObject {
         snapshotVoxelSize = settings.snapshotVoxelSize
         confidenceThreshold = settings.confidenceThreshold
         depthEdgeThreshold = settings.depthEdgeThreshold
+        minimumStableDepthNeighborCount = settings.minimumStableDepthNeighborCount
     }
 
     // MARK: - 私有属性
@@ -120,6 +121,7 @@ final class Renderer: NSObject {
         u.minDepth = minDepth
         u.maxDepth = maxDepth
         u.depthEdgeThreshold = depthEdgeThreshold
+        u.minimumStableDepthNeighborCount = Int32(minimumStableDepthNeighborCount)
         return u
     }()
     var pointCloudUniformsBuffers = [MetalBuffer<PointCloudUniforms>]()
@@ -129,7 +131,9 @@ final class Renderer: NSObject {
 
     let snapshotLock = NSLock()
     let pointBufferLock = NSLock()
+    let captureDiagnosticsLock = NSLock()
     var snapshotPoints: [ColoredPoint] = []
+    var captureDiagnostics = RendererCaptureDiagnostics()
     var fullAnalysisSnapshotSignature: RendererSnapshotSignature?
     var lastSnapshotUpdateTime = Date.distantPast
     let baseSnapshotUpdateInterval: TimeInterval = 0.9
@@ -151,6 +155,13 @@ final class Renderer: NSObject {
     }
     var depthEdgeThreshold: Float = 0.10 {
         didSet { pointCloudUniforms.depthEdgeThreshold = depthEdgeThreshold }
+    }
+    var minimumStableDepthNeighborCount = 1 {
+        didSet {
+            pointCloudUniforms.minimumStableDepthNeighborCount = Int32(
+                min(max(minimumStableDepthNeighborCount, 0), 4)
+            )
+        }
     }
     var snapshotVoxelSize: Float = 0.015
     private var sampleFrame: ARFrame? {

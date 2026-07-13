@@ -60,6 +60,16 @@ struct PointCloudExperimentConfig: Sendable {
 struct DepthExperimentConfig: Sendable {
     var projectionSampleGrid: Int = 9
     var minimumReliableConfidence: UInt8 = 1
+    /// Sparse outdoor canopies rarely fill a large fraction of the LiDAR map.
+    /// Sample broadly and accept a frame once it contains a small, bounded set
+    /// of reliable returns; the Metal shader still validates every written point.
+    var captureQualitySampleGrid: Int = 9
+    var captureQualitySampleMargin: Float = 0.08
+    var minimumCaptureValidSampleCount: Int = 4
+    var minimumCaptureValidSampleRatio: Float = 0.04
+    /// One coherent neighbour keeps thin branches and fruit boundaries while
+    /// still rejecting isolated flying pixels.
+    var minimumStableDepthNeighborCount: Int = 1
 
     static let `default` = DepthExperimentConfig()
 }

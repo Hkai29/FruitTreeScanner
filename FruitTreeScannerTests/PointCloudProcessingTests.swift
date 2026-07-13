@@ -1,4 +1,6 @@
 import XCTest
+import ARKit
+import CoreVideo
 import Metal
 import SceneKit
 import simd
@@ -197,6 +199,105 @@ final class PointCloudProcessingTests: XCTestCase {
                 translationSquaredThreshold: Renderer.cameraTranslationThresholdSquared
             ),
             "首帧没有历史点云时仍应允许累积"
+        )
+    }
+
+    func testSparseOutdoorCanopyDepthQualityIsAcceptedWithoutAcceptingEmptyDepth() {
+        let sparseCanopy = RendererDepthQuality(
+            validSampleCount: 4,
+            totalSampleCount: 81,
+            medianDepth: 2.4
+        )
+        let belowMinimum = RendererDepthQuality(
+            validSampleCount: 3,
+            totalSampleCount: 81,
+            medianDepth: 2.4
+        )
+
+        XCTAssertTrue(RendererDepthCoverage.acceptsCaptureDepthQuality(sparseCanopy))
+        XCTAssertFalse(RendererDepthCoverage.acceptsCaptureDepthQuality(belowMinimum))
+        XCTAssertFalse(
+            RendererDepthCoverage.acceptsCaptureDepthQuality(
+                RendererDepthQuality(validSampleCount: 0, totalSampleCount: 81, medianDepth: 0)
+            )
+        )
+    }
+
+    func testCaptureUsesMediumAndHighConfidenceButStillRejectsLowConfidence() throws {
+        let depthMap = try makeDepthMap(width: 90, height: 90, value: 2.0)
+        let mediumConfidenceMap = try makeConfidenceMap(width: 90, height: 90, value: 1)
+        let lowConfidenceMap = try makeConfidenceMap(width: 90, height: 90, value: 0)
+
+        let mediumQuality = RendererDepthCoverage.sampleDepthQuality(
+            from: depthMap,
+            confidenceMap: mediumConfidenceMap,
+            minDepth: 0.5,
+            maxDepth: 5.0,
+            confidenceThreshold: 1
+        )
+        let lowQuality = RendererDepthCoverage.sampleDepthQuality(
+            from: depthMap,
+            confidenceMap: lowConfidenceMap,
+            minDepth: 0.5,
+            maxDepth: 5.0,
+            confidenceThreshold: 1
+        )
+
+        XCTAssertEqual(
+            RendererScanSettings.reliableConfidenceThreshold(storedThreshold: 0),
+            1,
+            "ARKit low confidence (0) must remain excluded"
+        )
+        XCTAssertEqual(RendererScanSettings.reliableConfidenceThreshold(storedThreshold: 1), 1)
+        XCTAssertEqual(mediumQuality.validSampleCount, 81)
+        XCTAssertTrue(RendererDepthCoverage.acceptsCaptureDepthQuality(mediumQuality))
+        XCTAssertEqual(lowQuality.validSampleCount, 0)
+        XCTAssertFalse(RendererDepthCoverage.acceptsCaptureDepthQuality(lowQuality))
+    }
+
+    func testOutdoorCaptureDiagnosticsRetainRejectionReasonAndRecoverAfterAcceptedFrame() {
+        let sparse = RendererDepthQuality(validSampleCount: 2, totalSampleCount: 81, medianDepth: 2.1)
+        let recovered = RendererDepthQuality(validSampleCount: 7, totalSampleCount: 81, medianDepth: 2.0)
+        var diagnostics = RendererCaptureDiagnostics()
+
+        diagnostics.record(.rejectedSparseReliableDepth(sparse))
+        diagnostics.record(.accepted(recovered))
+
+        XCTAssertEqual(diagnostics.sparseDepthRejectedFrameCount, 1)
+        XCTAssertEqual(diagnostics.acceptedFrameCount, 1)
+        XCTAssertEqual(diagnostics.latestDepthQuality, recovered)
+    }
+
+    func testThinCanopyEdgePolicyRequiresOneStableNeighbor() {
+        let depthConfig = FruitScanExperimentConfig.default.depth
+
+        XCTAssertEqual(depthConfig.minimumReliableConfidence, 1)
+        XCTAssertEqual(depthConfig.minimumStableDepthNeighborCount, 1)
+    }
+
+    func testGuidanceReportsSparseCanopyDepthAndClearsAfterRecovery() {
+        let sparse = RendererDepthQuality(validSampleCount: 2, totalSampleCount: 81, medianDepth: 2.2)
+        let recovered = RendererDepthQuality(validSampleCount: 8, totalSampleCount: 81, medianDepth: 2.2)
+
+        XCTAssertEqual(
+            ScanGuidanceHelper.evaluate(
+                speed: 0.1,
+                medianDepth: 2.2,
+                trackingState: .normal,
+                lightIntensity: 1_000,
+                captureDepthQuality: sparse
+            ),
+            .sparseDepth
+        )
+        XCTAssertEqual(
+            ScanGuidanceHelper.evaluate(
+                speed: 0.1,
+                medianDepth: 2.2,
+                trackingState: .normal,
+                lightIntensity: 1_000,
+                captureDepthQuality: recovered
+            ),
+            .goodPace
         )
     }
 
@@ -1668,6 +1769,54 @@ final class PointCloudProcessingTests: XCTestCase {
         let url = tempDir.appendingPathComponent(name)
         try data.write(to: url)
         return url
+    }
+
+    private func makeDepthMap(width: Int, height: Int, value: Float) throws -> CVPixelBuffer {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_OneComponent32Float,
+            nil,
+            &pixelBuffer
+        )
+        XCTAssertEqual(status, kCVReturnSuccess)
+        let buffer = try XCTUnwrap(pixelBuffer)
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        let stride = CVPixelBufferGetBytesPerRow(buffer) / MemoryLayout<Float>.size
+        let values = try XCTUnwrap(CVPixelBufferGetBaseAddress(buffer)).assumingMemoryBound(to: Float.self)
+        for row in 0..<height {
+            for column in 0..<width {
+                values[row * stride + column] = value
+            }
+        }
+        return buffer
+    }
+
+    private func makeConfidenceMap(width: Int, height: Int, value: UInt8) throws -> CVPixelBuffer {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_OneComponent8,
+            nil,
+            &pixelBuffer
+        )
+        XCTAssertEqual(status, kCVReturnSuccess)
+        let buffer = try XCTUnwrap(pixelBuffer)
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        let stride = CVPixelBufferGetBytesPerRow(buffer)
+        let values = try XCTUnwrap(CVPixelBufferGetBaseAddress(buffer)).assumingMemoryBound(to: UInt8.self)
+        for row in 0..<height {
+            for column in 0..<width {
+                values[row * stride + column] = value
+            }
+        }
+        return buffer
     }
 
     private func binaryPLYData(

@@ -56,10 +56,18 @@ vertex void unprojectVertex(uint vertexID [[vertex_id]],
     const auto texCoord = gridPoint / uniforms.cameraResolution;
     // Sample the depth map to get the depth value
     const auto depth = depthTexture.sample(colorSampler, texCoord).r;
+    const auto confidence = confidenceTexture.sample(nearestSampler, texCoord).r;
 
-    // Filter: skip points outside depth range (0.5m - 5m) or zero depth
+    // Filter: skip points outside the configured depth range or zero depth.
     if (depth < uniforms.minDepth || depth > uniforms.maxDepth || depth <= 0.0) {
         particleUniforms[currentPointIndex].confidence = 0.0f;  // Mark as invalid
+        return;
+    }
+
+    // ARKit confidence 0 is explicitly excluded from point-cloud evidence.
+    // Medium/high returns remain eligible for the outdoor canopy pipeline.
+    if (confidence < uint(uniforms.confidenceThreshold)) {
+        particleUniforms[currentPointIndex].confidence = 0.0f;
         return;
     }
 
@@ -97,7 +105,7 @@ vertex void unprojectVertex(uint vertexID [[vertex_id]],
             stableNeighbors += 1;
         }
 
-        if (stableNeighbors < 2) {
+        if (stableNeighbors < uniforms.minimumStableDepthNeighborCount) {
             particleUniforms[currentPointIndex].confidence = 0.0f;
             return;
         }
@@ -109,9 +117,6 @@ vertex void unprojectVertex(uint vertexID [[vertex_id]],
     // Sample Y and CbCr textures to get the YCbCr color at the given texture coordinate
     const auto ycbcr = float4(capturedImageTextureY.sample(colorSampler, texCoord).r, capturedImageTextureCbCr.sample(colorSampler, texCoord.xy).rg, 1);
     const auto sampledColor = (yCbCrToRGB * ycbcr).rgb;
-    // Sample the confidence map to get the confidence value
-    const auto confidence = confidenceTexture.sample(nearestSampler, texCoord).r;
-
     // Write the data to the buffer
     particleUniforms[currentPointIndex].position = position.xyz;
     particleUniforms[currentPointIndex].color = sampledColor;
