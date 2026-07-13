@@ -142,7 +142,7 @@ struct Step5_Confirmation: View {
 
             Spacer()
 
-            Text(gps.isAvailable ? "已获取" : "获取中...")
+            Text(gps.statusMessage)
                 .font(.system(size: 13, design: .monospaced))
                 .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
         }

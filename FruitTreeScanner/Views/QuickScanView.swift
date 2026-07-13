@@ -97,7 +97,7 @@ struct QuickScanView: View {
                 .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
                 .frame(width: 24)
 
-            Text(gps.isAvailable ? "已记录当前位置" : "未锁定 GPS，仍可先扫描")
+            Text(gps.isAvailable ? gps.statusMessage : "\(gps.statusMessage)，仍可先扫描")
                 .font(.system(size: 13))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 

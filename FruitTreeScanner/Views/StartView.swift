@@ -18,7 +18,7 @@ struct StartView: View {
     @State var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
     @State var isLaunchingScan = false
     @State var presentedSheet: StartViewSheet?
-    @State var gps = GPSRecorder()
+    @StateObject var gps = GPSRecorder()
 
     let totalSteps = 5
 

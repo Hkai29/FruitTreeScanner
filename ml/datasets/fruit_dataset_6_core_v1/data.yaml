@@ -1,0 +1,13 @@
+path: ml/datasets/fruit_dataset_6_core_v1
+train: images/train
+val: images/val
+test: images/test
+
+nc: 6
+names:
+  0: apple
+  1: orange
+  2: pear
+  3: persimmon
+  4: grape
+  5: strawberry

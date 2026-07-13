@@ -271,6 +271,7 @@
 		TESTYIELD001122 /* YieldEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTYIELD778899 /* YieldEstimatorTests.swift */; };
 		TESTDEDUP001122 /* DetectionDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */; };
 		TESTMODEL001122 /* FruitModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTMODEL778899 /* FruitModelsTests.swift */; };
+		TESTGPS001122 /* GPSRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTGPS778899 /* GPSRecorderTests.swift */; };
 		TESTSCANDIAG001 /* ScanDiagnosticsBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTSCANDIAG002 /* ScanDiagnosticsBuilderTests.swift */; };
 		TESTSCANEXPORTREADY001 /* ScanExportReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTSCANEXPORTREADY002 /* ScanExportReadinessTests.swift */; };
 			TESTSCANREADY001 /* ScanReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTSCANREADY002 /* ScanReadinessTests.swift */; };
@@ -570,6 +571,7 @@
 		TESTYIELD778899 /* YieldEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimatorTests.swift; sourceTree = "<group>"; };
 		TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDeduplicatorTests.swift; sourceTree = "<group>"; };
 		TESTMODEL778899 /* FruitModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitModelsTests.swift; sourceTree = "<group>"; };
+		TESTGPS778899 /* GPSRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSRecorderTests.swift; sourceTree = "<group>"; };
 		TESTSCANDIAG002 /* ScanDiagnosticsBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanDiagnosticsBuilderTests.swift; sourceTree = "<group>"; };
 			TESTSCANEXPORTREADY002 /* ScanExportReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExportReadinessTests.swift; sourceTree = "<group>"; };
 			TESTSCANREADY002 /* ScanReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanReadinessTests.swift; sourceTree = "<group>"; };
@@ -641,6 +643,7 @@
 					TESTCALPERSIST002 /* CalibrationRecordPersistenceTests.swift */,
 					TESTDEDUP778899 /* DetectionDeduplicatorTests.swift */,
 				TESTMODEL778899 /* FruitModelsTests.swift */,
+				TESTGPS778899 /* GPSRecorderTests.swift */,
 				TESTFUSVAL002 /* FusionValidatorTests.swift */,
 				TESTFUSYLD002 /* ScanFusionYieldBuilderTests.swift */,
 				TESTDASHSUM002 /* DashboardSummaryTests.swift */,
@@ -1334,6 +1337,7 @@
 				TESTYIELD001122 /* YieldEstimatorTests.swift in Sources */,
 				TESTDEDUP001122 /* DetectionDeduplicatorTests.swift in Sources */,
 				TESTMODEL001122 /* FruitModelsTests.swift in Sources */,
+				TESTGPS001122 /* GPSRecorderTests.swift in Sources */,
 				TESTSCANDIAG001 /* ScanDiagnosticsBuilderTests.swift in Sources */,
 				TESTSCANEXPORTREADY001 /* ScanExportReadinessTests.swift in Sources */,
 					TESTSCANREADY001 /* ScanReadinessTests.swift in Sources */,

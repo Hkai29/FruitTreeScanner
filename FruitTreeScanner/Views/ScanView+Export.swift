@@ -27,7 +27,12 @@ extension ScanView {
 
         clearMeasurementState()
         withAnimation(.easeInOut(duration: 0.2)) { isEstimating = true }
-        coordinator.exportPLY(treeID: treeID, lat: gps.latitude, lon: gps.longitude) { filename in
+        let gpsSnapshot = gps.reliableLocationSnapshot()
+        coordinator.exportPLY(
+            treeID: treeID,
+            lat: gpsSnapshot?.latitude ?? 0,
+            lon: gpsSnapshot?.longitude ?? 0
+        ) { filename in
             guard self.isViewActive else { return }
             guard let filename else {
                 self.isEstimating = false
@@ -106,7 +111,8 @@ extension ScanView {
             .appendingPathComponent("scans", isDirectory: true)
             .appendingPathComponent(filename)
         guard let parsed = PLYParserHelper.parsePLYFile(at: fileURL) else {
-            return (Date(), gps.latitude, gps.longitude)
+            let gpsSnapshot = gps.reliableLocationSnapshot()
+            return (Date(), gpsSnapshot?.latitude ?? 0, gpsSnapshot?.longitude ?? 0)
         }
         return (parsed.scanDate, parsed.gpsLat, parsed.gpsLon)
     }
