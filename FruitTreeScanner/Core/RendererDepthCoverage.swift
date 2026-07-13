@@ -11,9 +11,58 @@ struct RendererCameraRegionKey: Hashable {
     let forwardZ: Int
 }
 
+struct RendererDepthQuality: Equatable, Sendable {
+    let validSampleCount: Int
+    let totalSampleCount: Int
+    let medianDepth: Float
+
+    var validRatio: Float {
+        guard totalSampleCount > 0 else { return 0 }
+        return Float(validSampleCount) / Float(totalSampleCount)
+    }
+}
+
+enum RendererCaptureFrameDecision: Sendable {
+    case accepted(RendererDepthQuality)
+    case skippedForMotion
+    case rejectedMissingDepth
+    case rejectedSparseReliableDepth(RendererDepthQuality)
+    case skippedDuplicateRegion
+}
+
+struct RendererCaptureDiagnostics: Equatable, Sendable {
+    private(set) var acceptedFrameCount = 0
+    private(set) var motionSkippedFrameCount = 0
+    private(set) var missingDepthRejectedFrameCount = 0
+    private(set) var sparseDepthRejectedFrameCount = 0
+    private(set) var duplicateRegionSkippedFrameCount = 0
+    private(set) var latestDepthQuality: RendererDepthQuality?
+
+    mutating func record(_ decision: RendererCaptureFrameDecision) {
+        switch decision {
+        case let .accepted(quality):
+            acceptedFrameCount += 1
+            latestDepthQuality = quality
+        case .skippedForMotion:
+            motionSkippedFrameCount += 1
+        case .rejectedMissingDepth:
+            missingDepthRejectedFrameCount += 1
+            latestDepthQuality = nil
+        case let .rejectedSparseReliableDepth(quality):
+            sparseDepthRejectedFrameCount += 1
+            latestDepthQuality = quality
+        case .skippedDuplicateRegion:
+            duplicateRegionSkippedFrameCount += 1
+        }
+    }
+
+}
+
 enum RendererDepthCoverage {
-    static func minimumDepthQualityRatio(confidenceThreshold: Int) -> Float {
-        confidenceThreshold >= 2 ? 0.22 : 0.30
+    static func acceptsCaptureDepthQuality(_ quality: RendererDepthQuality) -> Bool {
+        let config = FruitScanExperimentConfig.default.depth
+        return quality.validSampleCount >= config.minimumCaptureValidSampleCount
+            && quality.validRatio >= config.minimumCaptureValidSampleRatio
     }
 
     static func estimateHorizontalAngleCoverage(
@@ -191,13 +240,17 @@ enum RendererDepthCoverage {
         minDepth: Float,
         maxDepth: Float,
         confidenceThreshold: Int
-    ) -> (validRatio: Float, medianDepth: Float) {
+    ) -> RendererDepthQuality {
         let width = CVPixelBufferGetWidth(depthMap)
         let height = CVPixelBufferGetHeight(depthMap)
-        guard width > 0, height > 0 else { return (0, 0) }
+        guard width > 0, height > 0 else {
+            return RendererDepthQuality(validSampleCount: 0, totalSampleCount: 0, medianDepth: 0)
+        }
         let confidenceWidth = CVPixelBufferGetWidth(confidenceMap)
         let confidenceHeight = CVPixelBufferGetHeight(confidenceMap)
-        guard confidenceWidth > 0, confidenceHeight > 0 else { return (0, 0) }
+        guard confidenceWidth > 0, confidenceHeight > 0 else {
+            return RendererDepthQuality(validSampleCount: 0, totalSampleCount: 0, medianDepth: 0)
+        }
 
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
@@ -206,8 +259,17 @@ enum RendererDepthCoverage {
             CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
         }
 
+        let config = FruitScanExperimentConfig.default.depth
+        let sampleGrid = max(config.captureQualitySampleGrid, 2)
+        let sampleCount = sampleGrid * sampleGrid
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap),
-              let confidenceBaseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else { return (0, 0) }
+              let confidenceBaseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else {
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
+        }
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
         let stride = bytesPerRow / MemoryLayout<Float>.size
         let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
@@ -215,15 +277,16 @@ enum RendererDepthCoverage {
         let confidenceBuffer = confidenceBaseAddress.assumingMemoryBound(to: UInt8.self)
 
         var validDepths: [Float] = []
-        let sampleCount = 49
         validDepths.reserveCapacity(sampleCount)
+        let margin = min(max(config.captureQualitySampleMargin, 0), 0.45)
+        let usableSpan = 1 - margin * 2
 
-        for row in 0..<7 {
-            let ratioY = 0.18 + Float(row) * 0.106
+        for row in 0..<sampleGrid {
+            let ratioY = margin + Float(row) / Float(sampleGrid - 1) * usableSpan
             let y = Int(Float(height - 1) * ratioY)
             let confidenceY = min(Int(Float(confidenceHeight - 1) * ratioY), confidenceHeight - 1)
-            for col in 0..<7 {
-                let ratioX = 0.18 + Float(col) * 0.106
+            for col in 0..<sampleGrid {
+                let ratioX = margin + Float(col) / Float(sampleGrid - 1) * usableSpan
                 let x = Int(Float(width - 1) * ratioX)
                 let confidenceX = min(Int(Float(confidenceWidth - 1) * ratioX), confidenceWidth - 1)
                 let depth = floatBuffer[y * stride + x]
@@ -237,11 +300,19 @@ enum RendererDepthCoverage {
             }
         }
 
-        guard !validDepths.isEmpty else { return (0, 0) }
+        guard !validDepths.isEmpty else {
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
+        }
         validDepths.sort()
-        let ratio = Float(validDepths.count) / Float(sampleCount)
-        let median = validDepths[validDepths.count / 2]
-        return (ratio, median)
+        return RendererDepthQuality(
+            validSampleCount: validDepths.count,
+            totalSampleCount: sampleCount,
+            medianDepth: validDepths[validDepths.count / 2]
+        )
     }
 
     static func makeCoverageVoxels(

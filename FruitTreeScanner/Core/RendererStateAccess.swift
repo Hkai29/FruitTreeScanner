@@ -13,6 +13,9 @@ extension Renderer {
 
     func resetPointCloudCapture() {
         scannedRegions.removeAll()
+        captureDiagnosticsLock.lock()
+        captureDiagnostics = RendererCaptureDiagnostics()
+        captureDiagnosticsLock.unlock()
         do {
             pointBufferLock.lock()
             defer { pointBufferLock.unlock() }
@@ -33,6 +36,18 @@ extension Renderer {
     // MARK: - 当前点数（供 UI 显示）
     var currentPointCountPublic: Int {
         pointBufferSnapshot().count
+    }
+
+    var captureDiagnosticsPublic: RendererCaptureDiagnostics {
+        captureDiagnosticsLock.lock()
+        defer { captureDiagnosticsLock.unlock() }
+        return captureDiagnostics
+    }
+
+    func recordCaptureDecision(_ decision: RendererCaptureFrameDecision) {
+        captureDiagnosticsLock.lock()
+        captureDiagnostics.record(decision)
+        captureDiagnosticsLock.unlock()
     }
 
     func pointBufferSnapshot() -> (count: Int, index: Int) {

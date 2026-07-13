@@ -97,11 +97,17 @@ extension Renderer {
             translationSquaredThreshold: cameraTranslationThreshold
         )
 
-        guard cameraMoved else { return false }
+        guard cameraMoved else {
+            recordCaptureDecision(.skippedForMotion)
+            return false
+        }
 
         let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
         guard let depthMap = depthData?.depthMap,
-              let confidenceMap = depthData?.confidenceMap else { return false }
+              let confidenceMap = depthData?.confidenceMap else {
+            recordCaptureDecision(.rejectedMissingDepth)
+            return false
+        }
 
         let depthQuality = RendererDepthCoverage.sampleDepthQuality(
             from: depthMap,
@@ -110,16 +116,18 @@ extension Renderer {
             maxDepth: maxDepth,
             confidenceThreshold: confidenceThreshold
         )
-        guard depthQuality.validRatio >= RendererDepthCoverage.minimumDepthQualityRatio(
-            confidenceThreshold: confidenceThreshold
-        ) else { return false }
-        guard depthQuality.medianDepth >= minDepth && depthQuality.medianDepth <= maxDepth else { return false }
+        guard RendererDepthCoverage.acceptsCaptureDepthQuality(depthQuality) else {
+            recordCaptureDecision(.rejectedSparseReliableDepth(depthQuality))
+            return false
+        }
 
         let cameraRegion = RendererDepthCoverage.makeCameraRegionKey(frame: frame)
         if scannedRegions.contains(cameraRegion) && currentCount > 5000 {
+            recordCaptureDecision(.skippedDuplicateRegion)
             return false
         }
         scannedRegions.insert(cameraRegion)
+        recordCaptureDecision(.accepted(depthQuality))
 
         return true
     }

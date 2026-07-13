@@ -135,6 +135,7 @@ extension ScanGuidanceHint {
         case .tooFar: return "arrow.down.forward.and.arrow.up.backward"
         case .trackingLost: return "exclamationmark.triangle.fill"
         case .lowLight: return "sun.min.fill"
+        case .sparseDepth: return "viewfinder.trianglebadge.exclamationmark"
         case .goodPace: return "checkmark.circle.fill"
         }
     }
@@ -143,7 +144,7 @@ extension ScanGuidanceHint {
         switch self {
         case .none: return .clear
         case .tooFast: return Design.Colors.apple
-        case .tooClose, .tooFar: return Design.Colors.harvest
+        case .tooClose, .tooFar, .sparseDepth: return Design.Colors.harvest
         case .trackingLost: return Design.Colors.apple
         case .lowLight: return Design.Colors.harvest
         case .goodPace: return Design.Colors.forest
@@ -158,6 +159,7 @@ extension ScanGuidanceHint {
         case .tooFar: return "距离太远"
         case .trackingLost: return "追踪丢失"
         case .lowLight: return "光线不足"
+        case .sparseDepth: return "树冠深度稀疏"
         case .goodPace: return "速度良好"
         }
     }
@@ -170,6 +172,7 @@ extension ScanGuidanceHint {
         case .tooFar: return "靠近果树，优先补主干和果实密集区"
         case .trackingLost: return "对准树干、地面或纹理清晰的枝条恢复追踪"
         case .lowLight: return "光线偏暗，果实检测和纹理质量会下降"
+        case .sparseDepth: return "减少天空占比，靠近树冠并放慢移动速度"
         case .goodPace: return "保持速度，继续绕树补齐背面盲区"
         }
     }
@@ -178,7 +181,7 @@ extension ScanGuidanceHint {
         switch self {
         case .none: return .clear
         case .tooFast, .trackingLost: return Design.Colors.apple.opacity(0.24)
-        case .tooClose, .tooFar, .lowLight: return Design.Colors.harvest.opacity(0.20)
+        case .tooClose, .tooFar, .lowLight, .sparseDepth: return Design.Colors.harvest.opacity(0.20)
         case .goodPace: return Design.Colors.forest.opacity(0.16)
         }
     }
@@ -187,7 +190,7 @@ extension ScanGuidanceHint {
         switch self {
         case .none: return .clear
         case .tooFast, .trackingLost: return Design.Colors.apple.opacity(0.42)
-        case .tooClose, .tooFar, .lowLight: return Design.Colors.harvest.opacity(0.34)
+        case .tooClose, .tooFar, .lowLight, .sparseDepth: return Design.Colors.harvest.opacity(0.34)
         case .goodPace: return Design.Colors.forest.opacity(0.30)
         }
     }

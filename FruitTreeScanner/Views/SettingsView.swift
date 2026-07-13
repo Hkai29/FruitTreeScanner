@@ -101,7 +101,7 @@ struct SettingsView: View {
                                 options: SettingsStore.qualityPresetOptions
                             )
                             SettingsInlineHint(
-                                text: "高质量会提高深度置信度门槛，点云更干净但弱光或快速移动时更容易提示补扫。"
+                                text: "所有预设都会拒绝低置信度深度；高质量使用更细采样和更严格的边缘一致性，适合保留果实与枝叶细节。"
                             )
 
                             GlassDivider()

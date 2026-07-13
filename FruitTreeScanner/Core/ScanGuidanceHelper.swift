@@ -8,7 +8,8 @@ enum ScanGuidanceHelper {
         speed: Float,
         medianDepth: Float,
         trackingState: ARCamera.TrackingState,
-        lightIntensity: CGFloat?
+        lightIntensity: CGFloat?,
+        captureDepthQuality: RendererDepthQuality? = nil
     ) -> ScanGuidanceHint {
         // 优先级：追踪丢失 > 光线 > 速度 > 距离 > 正常
         switch trackingState {
@@ -27,6 +28,11 @@ enum ScanGuidanceHelper {
 
         if let lux = lightIntensity, lux < 120 {
             return .lowLight
+        }
+
+        if let captureDepthQuality,
+           !RendererDepthCoverage.acceptsCaptureDepthQuality(captureDepthQuality) {
+            return .sparseDepth
         }
 
         if speed > 0.6 {
