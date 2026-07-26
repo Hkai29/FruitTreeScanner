@@ -84,6 +84,18 @@ enum ScanDepthRuntimeStatus: String {
     case activeDepth = "LiDAR"
 }
 
+struct ScanSessionRuntime {
+    let isWorldTrackingSupported: () -> Bool
+    let run: (ARSession, ARWorldTrackingConfiguration, ARSession.RunOptions) -> Void
+
+    static let live = ScanSessionRuntime(
+        isWorldTrackingSupported: { ARWorldTrackingConfiguration.isSupported },
+        run: { session, configuration, options in
+            session.run(configuration, options: options)
+        }
+    )
+}
+
 struct ScanFruitConfiguration {
     let selectedCategory: FruitCategory
     let parametersSnapshot: [String: FruitVarietyParams]
@@ -119,13 +131,18 @@ struct ScanFruitConfiguration {
 /// 协调 AR 会话、点云采集、图像检测与产量估算的扫描级生命周期。
 class ScanCoordinator: NSObject {
     let settings: ScanSettingsProviding
+    private let sessionRuntime: ScanSessionRuntime
 
     var renderer: Renderer?
     var session: ARSession?
     weak var mtkView: MTKView?
 
-    init(settings: ScanSettingsProviding = SettingsStore.shared) {
+    init(
+        settings: ScanSettingsProviding = SettingsStore.shared,
+        sessionRuntime: ScanSessionRuntime = .live
+    ) {
         self.settings = settings
+        self.sessionRuntime = sessionRuntime
         super.init()
     }
 
@@ -236,10 +253,13 @@ class ScanCoordinator: NSObject {
         }
     }
 
-    private func configureAndRunSession(_ session: ARSession) -> ScanDepthRuntimeStatus {
+    private func configureAndRunSession(
+        _ session: ARSession,
+        options: ARSession.RunOptions = []
+    ) -> ScanDepthRuntimeStatus {
         requestedSceneDepth = false
 
-        guard ARWorldTrackingConfiguration.isSupported else {
+        guard sessionRuntime.isWorldTrackingSupported() else {
             return .unsupportedAR
         }
 
@@ -252,9 +272,20 @@ class ScanCoordinator: NSObject {
             config.videoFormat = videoFormat
         }
         // 实时产量估计依赖 sceneDepth 点云，避免开启高负载的 ARKit mesh 重建。
-        session.run(config)
+        sessionRuntime.run(session, config, options)
 
         return requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth
+    }
+
+    @MainActor
+    func restartBoundSessionWithResetTracking() -> Bool {
+        guard !isTornDown, let session else { return false }
+        let depthStatus = configureAndRunSession(
+            session,
+            options: [.resetTracking, .removeExistingAnchors]
+        )
+        publishDepthRuntimeStatus(depthStatus)
+        return depthStatus != .unsupportedAR
     }
 
     @MainActor

@@ -259,6 +259,31 @@ extension ScanCoordinator {
     }
 
     @MainActor
+    @discardableResult
+    func restartInterruptedScan(selectedCategory: FruitCategory) -> Bool {
+        guard !isTornDown else { return false }
+        switch lifecycleSnapshot().state {
+        case .systemInterrupted, .recovering, .failed:
+            break
+        default:
+            return false
+        }
+
+        invalidateReliableEvidenceImmediately()
+        guard restartBoundSessionWithResetTracking() else {
+            let failed = scanLifecycle.fail(
+                .sessionFailed("AR session unavailable during restart")
+            )
+            publishLifecycleSnapshot(failed)
+            return false
+        }
+
+        startRecording(selectedCategory: selectedCategory)
+        let restarted = lifecycleSnapshot()
+        return restarted.state == .recording && acceptsReliableEvidence()
+    }
+
+    @MainActor
     func discardInterruptedScan() {
         invalidateReliableEvidenceImmediately()
         publishLifecycleSnapshot(scanLifecycle.cancel())
