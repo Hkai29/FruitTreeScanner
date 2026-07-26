@@ -943,6 +943,174 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(remaining.map(\.id), [second.id])
     }
 
+    func testDeleteFilesWithResultReportsPrimaryAndBlockedCompanionRemnants() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let jsonURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
+        let record = ScanFileRecord(
+            id: "test_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        var removed: [URL] = []
+        let result = ScanHistoryStore.deleteFilesWithResult(
+            for: record,
+            fileExists: { _ in true },
+            removeItem: { url in
+                removed.append(url)
+                throw NSError(domain: "TestError", code: 3)
+            }
+        )
+
+        XCTAssertFalse(result.isComplete)
+        XCTAssertEqual(removed, [fileURL], "Primary failure must keep companion deletion blocked")
+        XCTAssertEqual(
+            result.residualArtifacts.map(\.kind),
+            [.pointCloud, .csv, .resultJSON, .completionManifest]
+        )
+        XCTAssertEqual(
+            result.residualArtifacts.map(\.url),
+            [fileURL, csvURL, jsonURL, manifestURL]
+        )
+        guard case .removalFailed(let message) = result.residualArtifacts[0].reason else {
+            return XCTFail("Primary residual should include the removal error")
+        }
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertTrue(
+            result.residualArtifacts.dropFirst().allSatisfy {
+                $0.reason == .notAttemptedAfterPrimaryFailure
+            }
+        )
+    }
+
+    func testDeleteFilesWithResultReportsEachFailedCompanionAndContinuesCleanup() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let jsonURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
+        let record = ScanFileRecord(
+            id: "test_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        var removed: [URL] = []
+        let result = ScanHistoryStore.deleteFilesWithResult(
+            for: record,
+            fileExists: { _ in true },
+            removeItem: { url in
+                removed.append(url)
+                if url == csvURL || url == manifestURL {
+                    throw NSError(domain: "TestError", code: 4)
+                }
+            }
+        )
+
+        XCTAssertFalse(result.isComplete)
+        XCTAssertEqual(
+            removed,
+            [fileURL, csvURL, jsonURL, manifestURL],
+            "Companion failures must not prevent later cleanup attempts"
+        )
+        XCTAssertEqual(result.residualArtifacts.map(\.kind), [.csv, .completionManifest])
+        XCTAssertEqual(result.residualArtifacts.map(\.url), [csvURL, manifestURL])
+        for artifact in result.residualArtifacts {
+            guard case .removalFailed(let message) = artifact.reason else {
+                return XCTFail("Failed companion should include its removal error")
+            }
+            XCTAssertFalse(message.isEmpty)
+        }
+
+        let batchResult = ScanHistoryBatchDeletionResult(
+            records: [
+                ScanHistoryRecordDeletionResult(recordID: "complete.ply", residualArtifacts: []),
+                result
+            ]
+        )
+        XCTAssertFalse(batchResult.isComplete)
+        XCTAssertEqual(batchResult.failedRecordCount, 1)
+        XCTAssertEqual(batchResult.records.map(\.recordID), ["complete.ply", record.id])
+    }
+
+    @MainActor
+    func testDeleteRecordsWithResultReturnsStructuredBatchAndSupportsRepeat() async throws {
+        let emptyResult = await ScanHistoryStore.shared.deleteRecordsWithResult([])
+        XCTAssertTrue(emptyResult.isComplete)
+        XCTAssertEqual(emptyResult.failedRecordCount, 0)
+        XCTAssertTrue(emptyResult.records.isEmpty)
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("test_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let jsonURL = tempDir.appendingPathComponent("test_record_result.json")
+        let manifestURL = tempDir.appendingPathComponent("test_record_complete.json")
+        let artifactURLs = [fileURL, csvURL, jsonURL, manifestURL]
+        for url in artifactURLs {
+            try Data("test".utf8).write(to: url)
+        }
+        let record = ScanFileRecord(
+            id: "test_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        let firstResult = await ScanHistoryStore.shared.deleteRecordsWithResult([record])
+
+        XCTAssertTrue(firstResult.isComplete)
+        XCTAssertEqual(firstResult.failedRecordCount, 0)
+        XCTAssertEqual(firstResult.records.map(\.recordID), [record.id])
+        XCTAssertTrue(artifactURLs.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
+
+        let repeatedResult = await ScanHistoryStore.shared.deleteRecordsWithResult([record])
+
+        XCTAssertTrue(repeatedResult.isComplete, "Deleting an already absent record should stay idempotent")
+        XCTAssertEqual(repeatedResult.records.map(\.recordID), [record.id])
+    }
+
+    @MainActor
+    func testDeleteRecordsWithResultCompletesStartedDeletionAfterCallerCancellation() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("cancelled_record.ply")
+        try Data("test".utf8).write(to: fileURL)
+        let record = ScanFileRecord(
+            id: "cancelled_record.ply",
+            treeID: "test",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        let task = Task {
+            await ScanHistoryStore.shared.deleteRecordsWithResult([record])
+        }
+        task.cancel()
+        let result = await task.value
+
+        XCTAssertTrue(result.isComplete)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: fileURL.path),
+            "A started irreversible deletion should not stop halfway after caller cancellation"
+        )
+    }
+
     // MARK: - Calibration input parsing
 
     func testCalibrationInputParserRequiresNonNegativeEstimatedFruitCount() {

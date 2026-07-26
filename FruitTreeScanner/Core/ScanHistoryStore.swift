@@ -1,6 +1,45 @@
 import Foundation
 import Combine
 
+struct ScanHistoryDeletionArtifact: Equatable, Sendable {
+    enum Kind: String, Equatable, Sendable {
+        case pointCloud
+        case csv
+        case resultJSON
+        case completionManifest
+    }
+
+    enum ResidualReason: Equatable, Sendable {
+        case removalFailed(String)
+        case notAttemptedAfterPrimaryFailure
+    }
+
+    let kind: Kind
+    let url: URL
+    let reason: ResidualReason
+}
+
+struct ScanHistoryRecordDeletionResult: Equatable, Sendable {
+    let recordID: String
+    let residualArtifacts: [ScanHistoryDeletionArtifact]
+
+    var isComplete: Bool {
+        residualArtifacts.isEmpty
+    }
+}
+
+struct ScanHistoryBatchDeletionResult: Equatable, Sendable {
+    let records: [ScanHistoryRecordDeletionResult]
+
+    var isComplete: Bool {
+        records.allSatisfy(\.isComplete)
+    }
+
+    var failedRecordCount: Int {
+        records.lazy.filter { !$0.isComplete }.count
+    }
+}
+
 @MainActor
 final class ScanHistoryStore: ObservableObject {
     static let shared = ScanHistoryStore()
@@ -86,18 +125,25 @@ final class ScanHistoryStore: ObservableObject {
 
     func deleteRecords(_ records: [ScanFileRecord]) {
         let recordsToDelete = records
-        Task.detached(priority: .utility) { [weak self] in
-            let failedCount = recordsToDelete.reduce(into: 0) { count, record in
-                if !Self.deleteFiles(for: record) {
-                    count += 1
-                }
-            }
-            if failedCount > 0 {
-                Log.general.error("Failed to fully delete \(failedCount) scan record(s); some primary or companion files may remain")
-            }
-            guard !Task.isCancelled else { return }
-            await self?.loadRecords(postNotification: true)
+        Task { [weak self] in
+            _ = await self?.deleteRecordsWithResult(recordsToDelete)
         }
+    }
+
+    func deleteRecordsWithResult(_ records: [ScanFileRecord]) async -> ScanHistoryBatchDeletionResult {
+        let recordsToDelete = records
+        let result = await Task.detached(priority: .utility) {
+            ScanHistoryBatchDeletionResult(
+                records: recordsToDelete.map { Self.deleteFilesWithResult(for: $0) }
+            )
+        }.value
+        if result.failedRecordCount > 0 {
+            Log.general.error(
+                "Failed to fully delete \(result.failedRecordCount) scan record(s); structured result identifies residual files"
+            )
+        }
+        loadRecords(postNotification: true)
+        return result
     }
 
     @discardableResult
@@ -106,30 +152,78 @@ final class ScanHistoryStore: ObservableObject {
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
         removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
     ) -> Bool {
-        var deletedAllAvailableFiles = true
-        let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
-        let baseName = record.fileURL.deletingPathExtension().lastPathComponent
-        let jsonURL = record.fileURL.deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)_result.json")
-        let manifestURL = record.fileURL.deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)_complete.json")
+        deleteFilesWithResult(
+            for: record,
+            fileExists: fileExists,
+            removeItem: removeItem
+        ).isComplete
+    }
 
-        for companionURL in [csvURL, jsonURL, manifestURL] where fileExists(companionURL.path) {
+    nonisolated static func deleteFilesWithResult(
+        for record: ScanFileRecord,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
+    ) -> ScanHistoryRecordDeletionResult {
+        let baseName = record.fileURL.deletingPathExtension().lastPathComponent
+        let companionArtifacts: [(ScanHistoryDeletionArtifact.Kind, URL)] = [
+            (.csv, record.fileURL.deletingPathExtension().appendingPathExtension("csv")),
+            (
+                .resultJSON,
+                record.fileURL.deletingLastPathComponent()
+                    .appendingPathComponent("\(baseName)_result.json")
+            ),
+            (
+                .completionManifest,
+                record.fileURL.deletingLastPathComponent()
+                    .appendingPathComponent("\(baseName)_complete.json")
+            )
+        ]
+        var residualArtifacts: [ScanHistoryDeletionArtifact] = []
+
+        if fileExists(record.fileURL.path) {
             do {
-                try removeItem(companionURL)
+                try removeItem(record.fileURL)
             } catch {
-                deletedAllAvailableFiles = false
+                residualArtifacts.append(
+                    ScanHistoryDeletionArtifact(
+                        kind: .pointCloud,
+                        url: record.fileURL,
+                        reason: .removalFailed(error.localizedDescription)
+                    )
+                )
+                for (kind, url) in companionArtifacts where fileExists(url.path) {
+                    residualArtifacts.append(
+                        ScanHistoryDeletionArtifact(
+                            kind: kind,
+                            url: url,
+                            reason: .notAttemptedAfterPrimaryFailure
+                        )
+                    )
+                }
+                return ScanHistoryRecordDeletionResult(
+                    recordID: record.id,
+                    residualArtifacts: residualArtifacts
+                )
             }
         }
-        guard deletedAllAvailableFiles else { return false }
 
-        guard fileExists(record.fileURL.path) else { return true }
-        do {
-            try removeItem(record.fileURL)
-            return true
-        } catch {
-            return false
+        for (kind, url) in companionArtifacts where fileExists(url.path) {
+            do {
+                try removeItem(url)
+            } catch {
+                residualArtifacts.append(
+                    ScanHistoryDeletionArtifact(
+                        kind: kind,
+                        url: url,
+                        reason: .removalFailed(error.localizedDescription)
+                    )
+                )
+            }
         }
+        return ScanHistoryRecordDeletionResult(
+            recordID: record.id,
+            residualArtifacts: residualArtifacts
+        )
     }
 
     func notifyRecordsUpdated() {
