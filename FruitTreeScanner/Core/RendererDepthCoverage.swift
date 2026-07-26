@@ -11,6 +11,17 @@ struct RendererCameraRegionKey: Hashable {
     let forwardZ: Int
 }
 
+struct RendererDepthQuality: Equatable, Sendable {
+    let validSampleCount: Int
+    let totalSampleCount: Int
+    let medianDepth: Float
+
+    var validRatio: Float {
+        guard totalSampleCount > 0 else { return 0 }
+        return Float(validSampleCount) / Float(totalSampleCount)
+    }
+}
+
 enum RendererDepthCoverage {
     static func minimumDepthQualityRatio(confidenceThreshold: Int) -> Float {
         confidenceThreshold >= 2 ? 0.22 : 0.30
@@ -191,13 +202,27 @@ enum RendererDepthCoverage {
         minDepth: Float,
         maxDepth: Float,
         confidenceThreshold: Int
-    ) -> (validRatio: Float, medianDepth: Float) {
+    ) -> RendererDepthQuality {
+        let sampleGridSize = 7
+        let sampleCount = sampleGridSize * sampleGridSize
         let width = CVPixelBufferGetWidth(depthMap)
         let height = CVPixelBufferGetHeight(depthMap)
-        guard width > 0, height > 0 else { return (0, 0) }
+        guard width > 0, height > 0 else {
+            return RendererDepthQuality(validSampleCount: 0, totalSampleCount: 0, medianDepth: 0)
+        }
         let confidenceWidth = CVPixelBufferGetWidth(confidenceMap)
         let confidenceHeight = CVPixelBufferGetHeight(confidenceMap)
-        guard confidenceWidth > 0, confidenceHeight > 0 else { return (0, 0) }
+        guard confidenceWidth > 0, confidenceHeight > 0 else {
+            return RendererDepthQuality(validSampleCount: 0, totalSampleCount: 0, medianDepth: 0)
+        }
+        guard RendererMetalHelpers.depthMetalPixelFormat(for: depthMap) != nil,
+              RendererMetalHelpers.confidenceMetalPixelFormat(for: confidenceMap) != nil else {
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
+        }
 
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
@@ -207,7 +232,13 @@ enum RendererDepthCoverage {
         }
 
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap),
-              let confidenceBaseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else { return (0, 0) }
+              let confidenceBaseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else {
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
+        }
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthMap)
         let stride = bytesPerRow / MemoryLayout<Float>.size
         let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
@@ -215,15 +246,14 @@ enum RendererDepthCoverage {
         let confidenceBuffer = confidenceBaseAddress.assumingMemoryBound(to: UInt8.self)
 
         var validDepths: [Float] = []
-        let sampleCount = 49
         validDepths.reserveCapacity(sampleCount)
 
-        for row in 0..<7 {
-            let ratioY = 0.18 + Float(row) * 0.106
+        for row in 0..<sampleGridSize {
+            let ratioY = (Float(row) + 0.5) / Float(sampleGridSize)
             let y = Int(Float(height - 1) * ratioY)
             let confidenceY = min(Int(Float(confidenceHeight - 1) * ratioY), confidenceHeight - 1)
-            for col in 0..<7 {
-                let ratioX = 0.18 + Float(col) * 0.106
+            for col in 0..<sampleGridSize {
+                let ratioX = (Float(col) + 0.5) / Float(sampleGridSize)
                 let x = Int(Float(width - 1) * ratioX)
                 let confidenceX = min(Int(Float(confidenceWidth - 1) * ratioX), confidenceWidth - 1)
                 let depth = floatBuffer[y * stride + x]
@@ -237,11 +267,19 @@ enum RendererDepthCoverage {
             }
         }
 
-        guard !validDepths.isEmpty else { return (0, 0) }
+        guard !validDepths.isEmpty else {
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
+        }
         validDepths.sort()
-        let ratio = Float(validDepths.count) / Float(sampleCount)
-        let median = validDepths[validDepths.count / 2]
-        return (ratio, median)
+        return RendererDepthQuality(
+            validSampleCount: validDepths.count,
+            totalSampleCount: sampleCount,
+            medianDepth: validDepths[validDepths.count / 2]
+        )
     }
 
     static func makeCoverageVoxels(

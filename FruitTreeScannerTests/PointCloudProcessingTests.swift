@@ -1,4 +1,5 @@
 import XCTest
+import CoreVideo
 import Metal
 import SceneKit
 import simd
@@ -197,6 +198,156 @@ final class PointCloudProcessingTests: XCTestCase {
                 translationSquaredThreshold: Renderer.cameraTranslationThresholdSquared
             ),
             "首帧没有历史点云时仍应允许累积"
+        )
+    }
+
+    func testDepthQualitySamplingCoversReliableOuterFrameBands() throws {
+        let depthMap = try makeDepthMap(width: 70, height: 70) { _, row in
+            row < 10 || row >= 60 ? 2.0 : 0
+        }
+        let confidenceMap = try makeConfidenceMap(width: 70, height: 70, value: 2)
+
+        let quality = RendererDepthCoverage.sampleDepthQuality(
+            from: depthMap,
+            confidenceMap: confidenceMap,
+            minDepth: 0.5,
+            maxDepth: 5,
+            confidenceThreshold: 2
+        )
+
+        XCTAssertEqual(quality.validSampleCount, 14)
+        XCTAssertEqual(quality.totalSampleCount, 49)
+        XCTAssertEqual(quality.validRatio, 14.0 / 49.0, accuracy: 0.0001)
+        XCTAssertGreaterThanOrEqual(
+            quality.validRatio,
+            RendererDepthCoverage.minimumDepthQualityRatio(confidenceThreshold: 2)
+        )
+        XCTAssertEqual(quality.medianDepth, 2, accuracy: 0.0001)
+    }
+
+    func testDepthQualitySamplingRejectsLowConfidenceOuterFrameBands() throws {
+        let depthMap = try makeDepthMap(width: 70, height: 70) { _, row in
+            row < 10 || row >= 60 ? 2.0 : 0
+        }
+        let confidenceMap = try makeConfidenceMap(width: 70, height: 70, value: 1)
+
+        let quality = RendererDepthCoverage.sampleDepthQuality(
+            from: depthMap,
+            confidenceMap: confidenceMap,
+            minDepth: 0.5,
+            maxDepth: 5,
+            confidenceThreshold: 2
+        )
+
+        XCTAssertEqual(quality.validSampleCount, 0)
+        XCTAssertEqual(quality.validRatio, 0)
+        XCTAssertEqual(quality.medianDepth, 0)
+    }
+
+    func testDepthQualitySamplingRejectsInvalidOuterFrameDepth() throws {
+        let depthMap = try makeDepthMap(width: 70, height: 70) { column, row in
+            if row < 10 {
+                return .nan
+            }
+            if row >= 60 {
+                return column.isMultiple(of: 2) ? .infinity : 0
+            }
+            return 0
+        }
+        let confidenceMap = try makeConfidenceMap(width: 70, height: 70, value: 2)
+
+        let quality = RendererDepthCoverage.sampleDepthQuality(
+            from: depthMap,
+            confidenceMap: confidenceMap,
+            minDepth: 0.5,
+            maxDepth: 5,
+            confidenceThreshold: 2
+        )
+
+        XCTAssertEqual(quality.validSampleCount, 0)
+        XCTAssertEqual(quality.validRatio, 0)
+    }
+
+    func testDepthTextureFormatsMatchDocumentedARKitBuffers() throws {
+        let depthMap = try makePixelBuffer(
+            width: 8,
+            height: 8,
+            pixelFormat: kCVPixelFormatType_DepthFloat32
+        )
+        let confidenceMap = try makePixelBuffer(
+            width: 8,
+            height: 8,
+            pixelFormat: kCVPixelFormatType_OneComponent8
+        )
+
+        XCTAssertEqual(RendererMetalHelpers.depthMetalPixelFormat(for: depthMap), .r32Float)
+        XCTAssertEqual(RendererMetalHelpers.confidenceMetalPixelFormat(for: confidenceMap), .r8Uint)
+
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            throw XCTSkip("Metal device unavailable")
+        }
+        let textureCache = RendererMetalHelpers.makeTextureCache(device: device)
+        XCTAssertNotNil(
+            RendererMetalHelpers.makeDepthTexturePair(
+                depthMap: depthMap,
+                confidenceMap: confidenceMap,
+                textureCache: textureCache
+            )
+        )
+    }
+
+    func testDepthTexturePairFailsClosedForUnsupportedPixelFormats() throws {
+        let unsupportedDepth = try makePixelBuffer(
+            width: 8,
+            height: 8,
+            pixelFormat: kCVPixelFormatType_OneComponent8
+        )
+        let unsupportedConfidence = try makePixelBuffer(
+            width: 8,
+            height: 8,
+            pixelFormat: kCVPixelFormatType_32BGRA
+        )
+        let supportedDepth = try makePixelBuffer(
+            width: 8,
+            height: 8,
+            pixelFormat: kCVPixelFormatType_DepthFloat32
+        )
+        let supportedConfidence = try makePixelBuffer(
+            width: 8,
+            height: 8,
+            pixelFormat: kCVPixelFormatType_OneComponent8
+        )
+
+        XCTAssertNil(RendererMetalHelpers.depthMetalPixelFormat(for: unsupportedDepth))
+        XCTAssertNil(RendererMetalHelpers.confidenceMetalPixelFormat(for: unsupportedConfidence))
+        XCTAssertEqual(
+            RendererDepthCoverage.sampleDepthQuality(
+                from: unsupportedDepth,
+                confidenceMap: supportedConfidence,
+                minDepth: 0.5,
+                maxDepth: 5,
+                confidenceThreshold: 1
+            ),
+            RendererDepthQuality(validSampleCount: 0, totalSampleCount: 49, medianDepth: 0)
+        )
+
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            throw XCTSkip("Metal device unavailable")
+        }
+        let textureCache = RendererMetalHelpers.makeTextureCache(device: device)
+        XCTAssertNil(
+            RendererMetalHelpers.makeDepthTexturePair(
+                depthMap: unsupportedDepth,
+                confidenceMap: supportedConfidence,
+                textureCache: textureCache
+            )
+        )
+        XCTAssertNil(
+            RendererMetalHelpers.makeDepthTexturePair(
+                depthMap: supportedDepth,
+                confidenceMap: unsupportedConfidence,
+                textureCache: textureCache
+            )
         )
     }
 
@@ -1643,6 +1794,74 @@ final class PointCloudProcessingTests: XCTestCase {
     }
 
     // MARK: - PLY test helpers
+
+    private func makeDepthMap(
+        width: Int,
+        height: Int,
+        valueAt: (Int, Int) -> Float
+    ) throws -> CVPixelBuffer {
+        let pixelBuffer = try makePixelBuffer(
+            width: width,
+            height: height,
+            pixelFormat: kCVPixelFormatType_DepthFloat32
+        )
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        let stride = CVPixelBufferGetBytesPerRow(pixelBuffer) / MemoryLayout<Float>.size
+        let values = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixelBuffer))
+            .assumingMemoryBound(to: Float.self)
+        for row in 0..<height {
+            for column in 0..<width {
+                values[row * stride + column] = valueAt(column, row)
+            }
+        }
+        return pixelBuffer
+    }
+
+    private func makeConfidenceMap(
+        width: Int,
+        height: Int,
+        value: UInt8
+    ) throws -> CVPixelBuffer {
+        let pixelBuffer = try makePixelBuffer(
+            width: width,
+            height: height,
+            pixelFormat: kCVPixelFormatType_OneComponent8
+        )
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        let stride = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let values = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixelBuffer))
+            .assumingMemoryBound(to: UInt8.self)
+        for row in 0..<height {
+            for column in 0..<width {
+                values[row * stride + column] = value
+            }
+        }
+        return pixelBuffer
+    }
+
+    private func makePixelBuffer(
+        width: Int,
+        height: Int,
+        pixelFormat: OSType
+    ) throws -> CVPixelBuffer {
+        var pixelBuffer: CVPixelBuffer?
+        let attributes: [CFString: Any] = [
+            kCVPixelBufferMetalCompatibilityKey: true,
+            kCVPixelBufferIOSurfacePropertiesKey: [:]
+        ]
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            pixelFormat,
+            attributes as CFDictionary,
+            &pixelBuffer
+        )
+        XCTAssertEqual(status, kCVReturnSuccess)
+        return try XCTUnwrap(pixelBuffer)
+    }
 
     private func parsePLY(_ content: String, name: String = "point_cloud.ply") throws -> PointCloudData? {
         try parsePLY(data: Data(content.utf8), name: name)

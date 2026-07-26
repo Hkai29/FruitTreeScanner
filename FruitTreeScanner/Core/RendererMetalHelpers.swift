@@ -85,8 +85,9 @@ enum RendererMetalHelpers {
     ) -> CVMetalTexture? {
         let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, planeIndex)
         let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, planeIndex)
+        guard width > 0, height > 0 else { return nil }
         var texture: CVMetalTexture?
-        CVMetalTextureCacheCreateTextureFromImage(
+        let status = CVMetalTextureCacheCreateTextureFromImage(
             nil,
             textureCache,
             pixelBuffer,
@@ -97,6 +98,47 @@ enum RendererMetalHelpers {
             planeIndex,
             &texture
         )
+        guard status == kCVReturnSuccess else { return nil }
         return texture
+    }
+
+    static func depthMetalPixelFormat(for pixelBuffer: CVPixelBuffer) -> MTLPixelFormat? {
+        switch CVPixelBufferGetPixelFormatType(pixelBuffer) {
+        case kCVPixelFormatType_DepthFloat32, kCVPixelFormatType_OneComponent32Float:
+            return .r32Float
+        default:
+            return nil
+        }
+    }
+
+    static func confidenceMetalPixelFormat(for pixelBuffer: CVPixelBuffer) -> MTLPixelFormat? {
+        guard CVPixelBufferGetPixelFormatType(pixelBuffer) == kCVPixelFormatType_OneComponent8 else {
+            return nil
+        }
+        return .r8Uint
+    }
+
+    static func makeDepthTexturePair(
+        depthMap: CVPixelBuffer,
+        confidenceMap: CVPixelBuffer,
+        textureCache: CVMetalTextureCache
+    ) -> (depth: CVMetalTexture, confidence: CVMetalTexture)? {
+        guard let depthFormat = depthMetalPixelFormat(for: depthMap),
+              let confidenceFormat = confidenceMetalPixelFormat(for: confidenceMap),
+              let depth = makeTexture(
+                  fromPixelBuffer: depthMap,
+                  pixelFormat: depthFormat,
+                  planeIndex: 0,
+                  textureCache: textureCache
+              ),
+              let confidence = makeTexture(
+                  fromPixelBuffer: confidenceMap,
+                  pixelFormat: confidenceFormat,
+                  planeIndex: 0,
+                  textureCache: textureCache
+              ) else {
+            return nil
+        }
+        return (depth, confidence)
     }
 }

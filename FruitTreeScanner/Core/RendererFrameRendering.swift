@@ -119,7 +119,6 @@ extension Renderer {
         if scannedRegions.contains(cameraRegion) && currentCount > 5000 {
             return false
         }
-        scannedRegions.insert(cameraRegion)
 
         return true
     }
@@ -160,6 +159,7 @@ extension Renderer {
         currentPointCount = min(currentPointCount + gridPointsBuffer.count, maxPoints)
         pointBufferLock.unlock()
         lastCameraTransform = frame.camera.transform
+        scannedRegions.insert(RendererDepthCoverage.makeCameraRegionKey(frame: frame))
         updateCoverageVoxels(frame: frame)
     }
 
