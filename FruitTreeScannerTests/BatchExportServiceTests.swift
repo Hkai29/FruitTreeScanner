@@ -1278,6 +1278,85 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(read.result?.fruitCount, 7)
     }
 
+    func testScanResultExportDoesNotExposeReplacementAsCompleteBeforeAllRequiredFilesPublish() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceFilename = "scan.ply"
+        let plyURL = directory.appendingPathComponent(sourceFilename)
+        try Data().write(to: plyURL)
+        let original = ScanResultExportService.ExportRequest(
+            treeID: "T-old", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25), includeCSV: true
+        )
+        let replacement = ScanResultExportService.ExportRequest(
+            treeID: "T-new", fruitType: "pear", scanDate: Date(timeIntervalSince1970: 2),
+            gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 21, yieldKg: 4.5), includeCSV: true
+        )
+        try ScanResultExportService(scansDirectory: directory).exportIfNeeded(original)
+        var observedState: ScanPersistenceState?
+        let interruptedService = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: source, to: destination)
+            if destination.lastPathComponent == "scan_result.json" {
+                observedState = PLYParserHelper.readCompanionResult(for: plyURL).state
+                throw CocoaError(.fileWriteNoPermission)
+            }
+        })
+
+        XCTAssertThrowsError(try interruptedService.exportIfNeeded(replacement))
+        XCTAssertEqual(observedState, .invalid)
+        let restored = PLYParserHelper.readCompanionResult(for: plyURL)
+        XCTAssertEqual(restored.state, .complete)
+        XCTAssertEqual(restored.result?.fruitCount, 7)
+        XCTAssertEqual(restored.result?.fruitType, "apple")
+    }
+
+    func testScanResultExportRemovesObsoleteCSVBeforeNoCSVRevisionBecomesComplete() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceFilename = "scan.ply"
+        let plyURL = directory.appendingPathComponent(sourceFilename)
+        let csvURL = directory.appendingPathComponent("scan.csv")
+        try Data().write(to: plyURL)
+        let original = ScanResultExportService.ExportRequest(
+            treeID: "T-old", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25), includeCSV: true
+        )
+        let replacement = ScanResultExportService.ExportRequest(
+            treeID: "T-new", fruitType: "pear", scanDate: Date(timeIntervalSince1970: 2),
+            gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 21, yieldKg: 4.5), includeCSV: false
+        )
+        try ScanResultExportService(scansDirectory: directory).exportIfNeeded(original)
+        var obsoleteCSVExistsWhenComplete: Bool?
+        let interruptedService = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: source, to: destination)
+            if destination.lastPathComponent == "scan_result.json" {
+                let read = PLYParserHelper.readCompanionResult(for: plyURL)
+                XCTAssertEqual(read.state, .complete)
+                obsoleteCSVExistsWhenComplete = FileManager.default.fileExists(atPath: csvURL.path)
+                throw CocoaError(.fileWriteNoPermission)
+            }
+        })
+
+        XCTAssertThrowsError(try interruptedService.exportIfNeeded(replacement))
+        XCTAssertEqual(obsoleteCSVExistsWhenComplete, false)
+        let restored = PLYParserHelper.readCompanionResult(for: plyURL)
+        XCTAssertEqual(restored.state, .complete)
+        XCTAssertEqual(restored.result?.fruitCount, 7)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: csvURL.path))
+    }
+
     func testTransactionalReaderRejectsCSVRevisionMismatch() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
