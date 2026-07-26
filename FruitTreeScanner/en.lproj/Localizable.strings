@@ -189,6 +189,25 @@
 "common.save" = "Save";
 "common.share" = "Share";
 
+/* Scan History Deletion */
+"history.delete.record.title" = "Delete Scan Record";
+"history.delete.record.message" = "This deletes the record's PLY point cloud, CSV, result JSON, and completion manifest.";
+"history.delete.all.title" = "Delete All Scan Records";
+"history.delete.all.message" = "This permanently deletes all scan records and their associated files.";
+"history.delete.all.menu" = "Delete All";
+"history.delete.all.action" = "Delete All";
+"history.delete.progress" = "Deleting associated files…";
+"history.delete.failure.title" = "Some Files Weren't Deleted";
+"history.delete.failure.message.one" = "Files for 1 record remain on this device: %@. Try again.";
+"history.delete.failure.message.many" = "Files for %d records remain on this device: %@. Try again.";
+"history.delete.retry" = "Try Again";
+"history.delete.dismiss" = "Close";
+"history.delete.artifact.point_cloud" = "PLY point cloud";
+"history.delete.artifact.csv" = "CSV";
+"history.delete.artifact.result_json" = "result JSON";
+"history.delete.artifact.completion_manifest" = "completion manifest";
+"history.delete.artifact.separator" = ", ";
+
 /* Fruit Category Verification */
 "fruit_category_selection_title" = "Fruit Type";
 "fruit_category_current_selection" = "Current selection";

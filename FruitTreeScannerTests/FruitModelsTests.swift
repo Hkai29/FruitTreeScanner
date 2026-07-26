@@ -1111,6 +1111,225 @@ final class FruitModelsTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testHistoryDeletionControllerReportsResidualKindsAndRetriesOnlyFailedRecords() async throws {
+        let firstRecord = ScanFileRecord(
+            id: "first.ply",
+            treeID: "first",
+            fileURL: URL(fileURLWithPath: "/tmp/first.ply"),
+            scanDate: Date()
+        )
+        let secondRecord = ScanFileRecord(
+            id: "second.ply",
+            treeID: "second",
+            fileURL: URL(fileURLWithPath: "/tmp/second.ply"),
+            scanDate: Date()
+        )
+        let driver = ScanHistoryDeletionTestDriver()
+        let controller = ScanHistoryDeletionController { records in
+            await driver.delete(records)
+        }
+
+        let firstOperation = Task {
+            await controller.delete([firstRecord, secondRecord])
+        }
+        let firstCall = await driver.nextCall()
+        XCTAssertEqual(firstCall, [firstRecord, secondRecord])
+        XCTAssertTrue(controller.isDeleting)
+
+        await driver.completeNext(
+            with: ScanHistoryBatchDeletionResult(
+                records: [
+                    ScanHistoryRecordDeletionResult(
+                        recordID: firstRecord.id,
+                        residualArtifacts: []
+                    ),
+                    ScanHistoryRecordDeletionResult(
+                        recordID: secondRecord.id,
+                        residualArtifacts: [
+                            ScanHistoryDeletionArtifact(
+                                kind: .csv,
+                                url: secondRecord.fileURL.deletingPathExtension()
+                                    .appendingPathExtension("csv"),
+                                reason: .removalFailed("permission denied")
+                            ),
+                            ScanHistoryDeletionArtifact(
+                                kind: .completionManifest,
+                                url: secondRecord.fileURL.deletingLastPathComponent()
+                                    .appendingPathComponent("second_complete.json"),
+                                reason: .removalFailed("permission denied")
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+        await firstOperation.value
+
+        let failure = try XCTUnwrap(controller.failure)
+        XCTAssertEqual(failure.recordsToRetry, [secondRecord])
+        XCTAssertEqual(failure.residualKinds, [.csv, .completionManifest])
+        XCTAssertEqual(failure.failedRecordCount, 1)
+        XCTAssertFalse(controller.isDeleting)
+
+        let retryOperation = Task {
+            await controller.retry()
+        }
+        let retryCall = await driver.nextCall()
+        XCTAssertEqual(retryCall, [secondRecord])
+        await driver.completeNext(
+            with: ScanHistoryBatchDeletionResult(
+                records: [
+                    ScanHistoryRecordDeletionResult(
+                        recordID: secondRecord.id,
+                        residualArtifacts: []
+                    )
+                ]
+            )
+        )
+        await retryOperation.value
+
+        XCTAssertNil(controller.failure)
+        XCTAssertFalse(controller.isDeleting)
+    }
+
+    @MainActor
+    func testHistoryDeletionControllerIgnoresLateResultAfterInvalidation() async {
+        let record = ScanFileRecord(
+            id: "late.ply",
+            treeID: "late",
+            fileURL: URL(fileURLWithPath: "/tmp/late.ply"),
+            scanDate: Date()
+        )
+        let driver = ScanHistoryDeletionTestDriver()
+        let controller = ScanHistoryDeletionController { records in
+            await driver.delete(records)
+        }
+
+        let operation = Task {
+            await controller.delete([record])
+        }
+        _ = await driver.nextCall()
+        controller.invalidate()
+        await driver.completeNext(
+            with: ScanHistoryBatchDeletionResult(
+                records: [
+                    ScanHistoryRecordDeletionResult(
+                        recordID: record.id,
+                        residualArtifacts: [
+                            ScanHistoryDeletionArtifact(
+                                kind: .pointCloud,
+                                url: record.fileURL,
+                                reason: .removalFailed("late failure")
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+        await operation.value
+
+        XCTAssertFalse(controller.isDeleting)
+        XCTAssertNil(controller.failure)
+    }
+
+    @MainActor
+    func testHistoryDeletionControllerSuppressesResultAfterCallerCancellation() async {
+        let record = ScanFileRecord(
+            id: "cancelled.ply",
+            treeID: "cancelled",
+            fileURL: URL(fileURLWithPath: "/tmp/cancelled.ply"),
+            scanDate: Date()
+        )
+        let driver = ScanHistoryDeletionTestDriver()
+        let controller = ScanHistoryDeletionController { records in
+            await driver.delete(records)
+        }
+
+        let operation = Task {
+            await controller.delete([record])
+        }
+        _ = await driver.nextCall()
+        operation.cancel()
+        await driver.completeNext(
+            with: ScanHistoryBatchDeletionResult(
+                records: [
+                    ScanHistoryRecordDeletionResult(
+                        recordID: record.id,
+                        residualArtifacts: [
+                            ScanHistoryDeletionArtifact(
+                                kind: .pointCloud,
+                                url: record.fileURL,
+                                reason: .removalFailed("cancelled result")
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+        await operation.value
+
+        XCTAssertFalse(controller.isDeleting)
+        XCTAssertNil(controller.failure)
+    }
+
+    @MainActor
+    func testHistoryDeletionControllerRejectsOverlappingDeletion() async {
+        let firstRecord = ScanFileRecord(
+            id: "first.ply",
+            treeID: "first",
+            fileURL: URL(fileURLWithPath: "/tmp/first.ply"),
+            scanDate: Date()
+        )
+        let secondRecord = ScanFileRecord(
+            id: "second.ply",
+            treeID: "second",
+            fileURL: URL(fileURLWithPath: "/tmp/second.ply"),
+            scanDate: Date()
+        )
+        let driver = ScanHistoryDeletionTestDriver()
+        let controller = ScanHistoryDeletionController { records in
+            await driver.delete(records)
+        }
+
+        let firstOperation = Task {
+            await controller.delete([firstRecord])
+        }
+        _ = await driver.nextCall()
+
+        await controller.delete([secondRecord])
+        let callCount = await driver.callCount()
+        XCTAssertEqual(callCount, 1)
+
+        await driver.completeNext(
+            with: ScanHistoryBatchDeletionResult(
+                records: [
+                    ScanHistoryRecordDeletionResult(
+                        recordID: firstRecord.id,
+                        residualArtifacts: []
+                    )
+                ]
+            )
+        )
+        await firstOperation.value
+        XCTAssertFalse(controller.isDeleting)
+    }
+
+    @MainActor
+    func testHistoryDeletionControllerIgnoresEmptyDeletion() async {
+        let driver = ScanHistoryDeletionTestDriver()
+        let controller = ScanHistoryDeletionController { records in
+            await driver.delete(records)
+        }
+
+        await controller.delete([])
+
+        let callCount = await driver.callCount()
+        XCTAssertEqual(callCount, 0)
+        XCTAssertFalse(controller.isDeleting)
+        XCTAssertNil(controller.failure)
+    }
+
     // MARK: - Calibration input parsing
 
     func testCalibrationInputParserRequiresNonNegativeEstimatedFruitCount() {
@@ -1143,5 +1362,42 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsedActualYield, 1.25, accuracy: 0.001)
         XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("-1.25"))
         XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("inf"))
+    }
+}
+
+private actor ScanHistoryDeletionTestDriver {
+    private var queuedCalls: [[ScanFileRecord]] = []
+    private var callWaiters: [CheckedContinuation<[ScanFileRecord], Never>] = []
+    private var resultWaiters: [CheckedContinuation<ScanHistoryBatchDeletionResult, Never>] = []
+    private var totalCallCount = 0
+
+    func delete(_ records: [ScanFileRecord]) async -> ScanHistoryBatchDeletionResult {
+        totalCallCount += 1
+        if callWaiters.isEmpty {
+            queuedCalls.append(records)
+        } else {
+            callWaiters.removeFirst().resume(returning: records)
+        }
+        return await withCheckedContinuation { continuation in
+            resultWaiters.append(continuation)
+        }
+    }
+
+    func nextCall() async -> [ScanFileRecord] {
+        if !queuedCalls.isEmpty {
+            return queuedCalls.removeFirst()
+        }
+        return await withCheckedContinuation { continuation in
+            callWaiters.append(continuation)
+        }
+    }
+
+    func completeNext(with result: ScanHistoryBatchDeletionResult) {
+        precondition(!resultWaiters.isEmpty, "No pending deletion to complete")
+        resultWaiters.removeFirst().resume(returning: result)
+    }
+
+    func callCount() -> Int {
+        totalCallCount
     }
 }
