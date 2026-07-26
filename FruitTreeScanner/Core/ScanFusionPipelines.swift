@@ -162,16 +162,17 @@ struct FusionEvidencePipeline {
 
         let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(stableEvidenceDetections)
         let fusionValidator = FusionValidator(config: fusionConfig)
-        let fusedFruits = fusionValidator.validate(
+        let validationResults = fusionValidator.validate(
             detections: deduplicatedDetections,
             candidates: candidates
         )
-        if fusedFruits.isEmpty {
+        if validationResults.isEmpty {
             return conservativeOutput(deduplicatedDetectionCount: deduplicatedDetections.count)
         }
 
-        let deduplicatedFruits = ValidatedFruit.deduplicate3D(fusedFruits)
-        let reliableFruits = deduplicatedFruits.filter { $0.source == .fused }
+        let reliableFruits = ValidatedFruit.deduplicate3D(
+            validationResults.filter { $0.source == .fused }
+        )
         guard !reliableFruits.isEmpty else {
             return conservativeOutput(
                 deduplicatedDetectionCount: deduplicatedDetections.count,

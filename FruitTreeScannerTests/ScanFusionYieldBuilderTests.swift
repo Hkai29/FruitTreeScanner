@@ -1590,6 +1590,86 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         XCTAssertEqual(yield.yieldFinalKg, 0, accuracy: 0.001)
     }
 
+    func testBuildDoesNotLetImageOnlyObservationBoostReliableFusionConfidence() async throws {
+        let depthMap = try XCTUnwrap(makeDepthMap(width: 90, height: 90, fillValue: 2.0))
+        let imageSize = CGSize(width: 900, height: 900)
+        let intrinsics = pinholeIntrinsics(fx: 1000, fy: 1000, cx: 450, cy: 450)
+        let primaryDetection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.48, y: 0.48, width: 0.04, height: 0.04),
+            confidence: 0.9,
+            timestamp: 10,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+        let laterImageOnlyObservation = DetectedFruit(
+            category: .apple,
+            boundingBox: primaryDetection.boundingBox,
+            confidence: 0.8,
+            timestamp: 13,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+        let fusionConfig = FruitScanConfig(
+            imageDetectionInterval: 10,
+            minConfidence: 0.5,
+            sizeTolerance: 0.35,
+            sphericityThreshold: 0.5,
+            minimumStableDetectionsForYield: 1,
+            stableDetectionTimeWindow: 4.0
+        )
+
+        func makeInput(detections: [DetectedFruit]) -> ScanFusionYieldBuilder.Input {
+            ScanFusionYieldBuilder.Input(
+                points: [],
+                savedDetections: detections,
+                imageDiagnostics: emptyImageDiagnostics(),
+                fruitType: "苹果",
+                fruitCategory: .apple,
+                paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+                defaultParams: appleParams(),
+                clusterConfig: ClusterConfig(
+                    minPoints: 3,
+                    minDiameter: 0.015,
+                    maxDiameter: 0.20,
+                    baseEps: 0.1,
+                    sphericityThreshold: 0.5
+                ),
+                fusionConfig: fusionConfig,
+                colorFilter: nil
+            )
+        }
+
+        let (singleEvidenceYield, _) = await ScanFusionYieldBuilder.build(
+            from: makeInput(detections: [primaryDetection])
+        )
+        let (mixedEvidenceYield, _) = await ScanFusionYieldBuilder.build(
+            from: makeInput(detections: [primaryDetection, laterImageOnlyObservation])
+        )
+
+        XCTAssertEqual(mixedEvidenceYield.diagnostics.deduplicatedImageDetectionCount, 2)
+        XCTAssertEqual(singleEvidenceYield.diagnostics.fusedFruitCount, 1)
+        XCTAssertEqual(mixedEvidenceYield.diagnostics.fusedFruitCount, 1)
+        XCTAssertEqual(singleEvidenceYield.validatedFruits.count, 1)
+        XCTAssertEqual(mixedEvidenceYield.validatedFruits.count, 1)
+        XCTAssertEqual(
+            mixedEvidenceYield.validatedFruits[0].confidence,
+            singleEvidenceYield.validatedFruits[0].confidence,
+            accuracy: 0.0001,
+            "imageOnly 观测不能提高可靠 fused 轨迹的置信度"
+        )
+        XCTAssertEqual(
+            mixedEvidenceYield.yieldBVisibleKg,
+            singleEvidenceYield.yieldBVisibleKg,
+            accuracy: 0.0001,
+            "imageOnly 观测不能进入可靠可见产量权重"
+        )
+    }
+
     func testTrackedImageEvidenceDoesNotExpandCameraAngleCoverageForOcclusion() async {
         let depthMap = makeDepthMap(width: 90, height: 90, fillValue: 3.0)
         XCTAssertNotNil(depthMap)
