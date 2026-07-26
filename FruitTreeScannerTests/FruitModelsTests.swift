@@ -854,6 +854,95 @@ final class FruitModelsTests: XCTestCase {
         )
     }
 
+    // MARK: - Scan history persistence presentation
+
+    func testScanHistoryPresentationTreatsCompleteZeroYieldAsReliableResult() {
+        let record = ScanFileRecord(
+            id: "zero-yield.ply",
+            treeID: "T-zero",
+            fileURL: URL(fileURLWithPath: "/tmp/zero-yield.ply"),
+            scanDate: Date(),
+            fruitCount: 0,
+            yieldKg: 0,
+            persistenceState: .complete
+        )
+
+        let presentation = ScanHistoryRecordPresentation(record: record)
+
+        XCTAssertEqual(presentation.state, .complete)
+        XCTAssertTrue(presentation.showsReliableResult)
+    }
+
+    func testScanHistoryPresentationExplainsIncompleteOrphanPLY() {
+        let record = ScanFileRecord(
+            id: "orphan.ply",
+            treeID: "T-orphan",
+            fileURL: URL(fileURLWithPath: "/tmp/orphan.ply"),
+            scanDate: Date(),
+            persistenceState: .incomplete,
+            persistenceFailureReason: "orphanPLYDetected"
+        )
+
+        let presentation = ScanHistoryRecordPresentation(record: record)
+
+        XCTAssertEqual(presentation.state, .incomplete(.missingResult))
+        XCTAssertFalse(presentation.showsReliableResult)
+    }
+
+    func testScanHistoryPresentationDistinguishesInvalidCompanionFailures() {
+        let jsonRecord = ScanFileRecord(
+            id: "invalid-json.ply",
+            treeID: "T-json",
+            fileURL: URL(fileURLWithPath: "/tmp/invalid-json.ply"),
+            scanDate: Date(),
+            persistenceState: .invalid,
+            persistenceFailureReason: "scanResultJSONFailed"
+        )
+        let revisionRecord = ScanFileRecord(
+            id: "invalid-revision.ply",
+            treeID: "T-revision",
+            fileURL: URL(fileURLWithPath: "/tmp/invalid-revision.ply"),
+            scanDate: Date(),
+            persistenceState: .invalid,
+            persistenceFailureReason: "scanResultRevisionMismatch"
+        )
+
+        XCTAssertEqual(
+            ScanHistoryRecordPresentation(record: jsonRecord).state,
+            .invalid(.unreadableJSON)
+        )
+        XCTAssertEqual(
+            ScanHistoryRecordPresentation(record: revisionRecord).state,
+            .invalid(.revisionMismatch)
+        )
+    }
+
+    func testScanHistoryDeletionAttemptOnlyRetriesRecordsStillPresent() {
+        let first = ScanFileRecord(
+            id: "first.ply",
+            treeID: "T-first",
+            fileURL: URL(fileURLWithPath: "/tmp/first.ply"),
+            scanDate: Date()
+        )
+        let second = ScanFileRecord(
+            id: "second.ply",
+            treeID: "T-second",
+            fileURL: URL(fileURLWithPath: "/tmp/second.ply"),
+            scanDate: Date()
+        )
+        let unrelated = ScanFileRecord(
+            id: "unrelated.ply",
+            treeID: "T-unrelated",
+            fileURL: URL(fileURLWithPath: "/tmp/unrelated.ply"),
+            scanDate: Date()
+        )
+
+        let attempt = ScanHistoryDeletionAttempt(records: [first, second])
+        let remaining = attempt.remainingRecords(in: [second, unrelated])
+
+        XCTAssertEqual(remaining.map(\.id), [second.id])
+    }
+
     // MARK: - Calibration input parsing
 
     func testCalibrationInputParserRequiresNonNegativeEstimatedFruitCount() {

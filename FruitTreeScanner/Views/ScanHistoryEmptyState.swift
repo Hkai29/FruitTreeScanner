@@ -14,8 +14,16 @@ struct ScanHistoryEmptyState: View {
                 title: title,
                 message: message,
                 accent: Design.Colors.harvest,
-                primaryAction: action(title: "开始扫描", icon: "viewfinder", handler: onStartScan),
-                secondaryAction: action(title: "导入 PLY", icon: "square.and.arrow.down", handler: onImportFile)
+                primaryAction: action(
+                    title: ScanHistoryText.startScan,
+                    icon: "viewfinder",
+                    handler: onStartScan
+                ),
+                secondaryAction: action(
+                    title: ScanHistoryText.importPLY,
+                    icon: "square.and.arrow.down",
+                    handler: onImportFile
+                )
             )
 
             Spacer()
