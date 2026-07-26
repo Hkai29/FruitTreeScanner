@@ -169,17 +169,18 @@ struct FusionEvidencePipeline {
 
         let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(stableEvidenceDetections)
         let fusionValidator = FusionValidator(config: fusionConfig)
-        let fusedFruits = fusionValidator.validate(
+        let validationResults = fusionValidator.validate(
             detections: deduplicatedDetections,
             candidates: candidates
         )
-        if fusedFruits.isEmpty {
+        if validationResults.isEmpty {
             return conservativeOutput(deduplicatedDetectionCount: deduplicatedDetections.count)
         }
 
-        // 先做三维去重，再明确保留 fused，其他来源仅供诊断。
-        let deduplicatedFruits = ValidatedFruit.deduplicate3D(fusedFruits)
-        let reliableFruits = deduplicatedFruits.filter { $0.source == .fused }
+        // 先隔离唯一可靠的 fused 证据，再做三维去重，避免诊断候选占用可靠轨迹。
+        let reliableFruits = ValidatedFruit.deduplicate3D(
+            validationResults.filter { $0.source == .fused }
+        )
         guard !reliableFruits.isEmpty else {
             return conservativeOutput(
                 deduplicatedDetectionCount: deduplicatedDetections.count,
