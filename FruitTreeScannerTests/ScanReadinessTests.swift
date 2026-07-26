@@ -99,6 +99,138 @@ final class ScanLifecycleControllerTests: XCTestCase {
     }
 }
 
+@MainActor
+final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
+    func testFinishingFlushCommitsInFlightCapturedEvidence() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        let gate = ScanCapturedEvidenceTestGate()
+        let detection = makeDetection(timestamp: 1)
+        XCTAssertTrue(coordinator.beginDetectionProcessing())
+        let inFlightTask = Task {
+            await gate.wait()
+            defer { coordinator.finishDetectionProcessing() }
+            await coordinator.appendDetectedFruits(
+                [detection],
+                evidenceToken: token
+            )
+        }
+        coordinator.detectionTask = inFlightTask
+
+        coordinator.stopRecording()
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        await gate.open()
+        await coordinator.flushPendingDetections()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .finishing)
+        XCTAssertEqual(coordinator.detectedFruits.count, 1)
+    }
+
+    func testCapturedEvidenceCanCommitDuringUserPause() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+
+        coordinator.stopRecording()
+        await coordinator.appendDetectedFruits(
+            [makeDetection(timestamp: 2)],
+            evidenceToken: token
+        )
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .userPaused)
+        XCTAssertEqual(coordinator.detectedFruits.count, 1)
+    }
+
+    func testCapturedEvidenceCanCommitAfterRapidPauseResumeOfSameScan() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+
+        coordinator.stopRecording()
+        coordinator.resumeRecordingPreservingCapture()
+        await coordinator.appendDetectedFruits(
+            [makeDetection(timestamp: 3)],
+            evidenceToken: token
+        )
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertEqual(coordinator.detectedFruits.count, 1)
+    }
+
+    func testHardInvalidationRejectsCapturedEvidenceBeforeLifecycleCallback() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        coordinator.stopRecording()
+
+        coordinator.invalidateReliableEvidenceImmediately()
+        await coordinator.appendDetectedFruits(
+            [makeDetection(timestamp: 4)],
+            evidenceToken: token
+        )
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .userPaused)
+        XCTAssertTrue(coordinator.detectedFruits.isEmpty)
+    }
+
+    func testReplacementScanRejectsCapturedEvidenceFromPreviousIdentity() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+
+        coordinator.startRecording(selectedCategory: .apple)
+        await coordinator.appendDetectedFruits(
+            [makeDetection(timestamp: 5)],
+            evidenceToken: token
+        )
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertTrue(coordinator.detectedFruits.isEmpty)
+    }
+
+    func testTeardownRejectsCapturedEvidence() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+
+        coordinator.teardown()
+        await coordinator.appendDetectedFruits(
+            [makeDetection(timestamp: 6)],
+            evidenceToken: token
+        )
+
+        XCTAssertTrue(coordinator.detectedFruits.isEmpty)
+    }
+
+    private func makeDetection(timestamp: TimeInterval) -> DetectedFruit {
+        DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.1, y: 0.1, width: 0.2, height: 0.2),
+            confidence: 0.95,
+            timestamp: timestamp
+        )
+    }
+}
+
+private actor ScanCapturedEvidenceTestGate {
+    private var isOpen = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func open() {
+        isOpen = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 final class ScanCompletionEvaluatorTests: XCTestCase {
     func testAngleCoverageContributesToCompletionScore() {
         let evaluator = ScanCompletionEvaluator()

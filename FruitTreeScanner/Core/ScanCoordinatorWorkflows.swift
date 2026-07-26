@@ -38,18 +38,16 @@ extension ScanCoordinator {
 
     func processDetectionQueue() {
         guard renderer?.isRecording == true,
-              acceptsReliableEvidence() else { return }
+              let evidenceToken = capturedEvidenceToken() else { return }
         guard beginDetectionProcessing() else { return }
-        let evidenceGeneration = evidenceGenerationSnapshot()
 
         detectionTask = Task { [weak self] in
             guard let self = self else { return }
             defer { self.finishDetectionProcessing() }
             let detected = await self.imageDetector.processQueue()
-            guard !Task.isCancelled,
-                  self.acceptsReliableEvidence(generation: evidenceGeneration) else { return }
+            guard !Task.isCancelled else { return }
 
-            await self.appendDetectedFruits(detected, evidenceGeneration: evidenceGeneration)
+            await self.appendDetectedFruits(detected, evidenceToken: evidenceToken)
         }
     }
 
@@ -65,22 +63,29 @@ extension ScanCoordinator {
         let detected = await imageDetector.processQueue()
         guard !Task.isCancelled,
               lifecycleSnapshot().state == .finishing else { return }
-        await appendDetectedFruits(detected, evidenceGeneration: nil)
+        await appendDetectedFruits(detected, evidenceToken: nil)
     }
 
     /// Compatibility entry point used by existing diagnostics tests. Production
-    /// frame paths always pass an evidence generation below.
+    /// frame paths always pass a captured-evidence token below.
     func appendDetectedFruits(_ detected: [DetectedFruit]) async {
-        await appendDetectedFruits(detected, evidenceGeneration: nil, enforceLifecycle: false)
+        await appendDetectedFruits(detected, evidenceToken: nil, enforceLifecycle: false)
     }
 
-    func appendDetectedFruits(_ detected: [DetectedFruit], evidenceGeneration: Int?) async {
-        await appendDetectedFruits(detected, evidenceGeneration: evidenceGeneration, enforceLifecycle: true)
+    func appendDetectedFruits(
+        _ detected: [DetectedFruit],
+        evidenceToken: ScanCapturedEvidenceToken?
+    ) async {
+        await appendDetectedFruits(
+            detected,
+            evidenceToken: evidenceToken,
+            enforceLifecycle: true
+        )
     }
 
     private func appendDetectedFruits(
         _ detected: [DetectedFruit],
-        evidenceGeneration: Int?,
+        evidenceToken: ScanCapturedEvidenceToken?,
         enforceLifecycle: Bool
     ) async {
         guard !detected.isEmpty else { return }
@@ -95,8 +100,8 @@ extension ScanCoordinator {
                 self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
                 return
             }
-            if let evidenceGeneration {
-                guard self.acceptsReliableEvidence(generation: evidenceGeneration) else { return }
+            if let evidenceToken {
+                guard self.acceptsCapturedEvidence(evidenceToken) else { return }
             } else {
                 guard self.lifecycleSnapshot().state == .finishing else { return }
             }

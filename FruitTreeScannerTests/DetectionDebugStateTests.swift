@@ -452,6 +452,103 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertTrue(frames.isEmpty)
     }
 
+    func testStaleInferenceGenerationCannotMutateResetDiagnostics() async throws {
+        let detector = ImageDetector(
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5)
+        )
+        let pixelBuffer = try makePixelBuffer(
+            width: 4,
+            height: 4,
+            pixelFormat: kCVPixelFormatType_32BGRA
+        )
+        let staleGeneration = detector.queueGenerationSnapshot()
+        ImageDetectorQueue.attachQueueGeneration(
+            staleGeneration,
+            to: pixelBuffer
+        )
+        detector.clearQueue()
+
+        let fruits = await ImageDetectorInference().performDetection(
+            detector: detector,
+            pixelBuffer: pixelBuffer,
+            timestamp: 1,
+            imageSize: CGSize(width: 4, height: 4),
+            queue: DispatchQueue(label: "test.stale-inference")
+        )
+        let diagnostics = detector.diagnosticsSnapshot()
+
+        XCTAssertTrue(fruits.isEmpty)
+        XCTAssertEqual(diagnostics.processedFrameCount, 0)
+        XCTAssertEqual(diagnostics.observationCount, 0)
+        XCTAssertEqual(diagnostics.mappedFruitCount, 0)
+        XCTAssertTrue(diagnostics.lastDetectionError.isEmpty)
+    }
+
+    func testCurrentInferenceGenerationCanCommitDiagnostics() {
+        let detector = ImageDetector(
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5)
+        )
+        let generation = detector.queueGenerationSnapshot()
+
+        XCTAssertTrue(detector.recordCoreMLDetection(
+            observationCount: 2,
+            confidenceFilteredCount: 1,
+            unmappedObservationCount: 0,
+            mappedFruitCount: 1,
+            rawDetectedLabels: ["apple"],
+            mappedCategories: [FruitCategory.apple.rawValue],
+            unmappedLabels: [],
+            expectedQueueGeneration: generation
+        ))
+
+        let diagnostics = detector.diagnosticsSnapshot()
+        XCTAssertEqual(diagnostics.processedFrameCount, 1)
+        XCTAssertEqual(diagnostics.observationCount, 2)
+        XCTAssertEqual(diagnostics.mappedFruitCount, 1)
+    }
+
+    func testDrainedFrameKeepsOriginalGenerationAcrossQueueReset() async throws {
+        let detector = ImageDetector(
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5)
+        )
+        let pixelBuffer = try makePixelBuffer(
+            width: 4,
+            height: 4,
+            pixelFormat: kCVPixelFormatType_32BGRA
+        )
+        let queuedFrame = ImageDetector.QueuedFrame(
+            pixelBuffer: pixelBuffer,
+            depthMap: nil,
+            depthConfidenceMap: nil,
+            depthConfidenceProvenance: .unavailable,
+            timestamp: 1,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: matrix_identity_float3x3,
+            imageSize: CGSize(width: 4, height: 4)
+        )
+        let originalGeneration = detector.queueGenerationSnapshot()
+        detector.finishPreparingFrame(queuedFrame, generation: originalGeneration)
+        let drainedFrame = try XCTUnwrap(
+            detector.drainPendingFramesIfReady().frames.first
+        )
+        detector.clearQueue()
+
+        let fruits = await ImageDetectorInference().performDetection(
+            detector: detector,
+            pixelBuffer: drainedFrame.pixelBuffer,
+            timestamp: drainedFrame.timestamp,
+            imageSize: drainedFrame.imageSize,
+            queue: DispatchQueue(label: "test.drained-stale-inference")
+        )
+        let diagnostics = detector.diagnosticsSnapshot()
+
+        XCTAssertTrue(fruits.isEmpty)
+        XCTAssertEqual(diagnostics.processedFrameCount, 0)
+        XCTAssertEqual(diagnostics.observationCount, 0)
+        XCTAssertEqual(diagnostics.mappedFruitCount, 0)
+        XCTAssertTrue(diagnostics.lastDetectionError.isEmpty)
+    }
+
     @MainActor
     func testFusionEvidenceArchiveKeepsStableDetectionsAfterRuntimeRetentionTrimsWindow() async throws {
         let coordinator = ScanCoordinator()

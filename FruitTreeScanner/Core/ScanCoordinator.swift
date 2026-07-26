@@ -25,6 +25,11 @@ struct ScanLifecycleSnapshot: Equatable, Sendable {
     var acceptsReliableEvidence: Bool { state == .recording }
 }
 
+struct ScanCapturedEvidenceToken: Equatable, Sendable {
+    let scanIdentity: UUID
+    let invalidationEpoch: UInt64
+}
+
 /// Serializes scan-local lifecycle transitions and deliberately never resumes
 /// a system-interrupted scan without a new identity.
 final class ScanLifecycleController {
@@ -184,6 +189,7 @@ class ScanCoordinator: NSObject {
     private let evidenceGateLock = NSLock()
     private var reliableEvidenceGeneration = 0
     private var acceptsReliableEvidence = false
+    private var capturedEvidenceInvalidationEpoch: UInt64 = 0
 
     // MARK: - 相机速度追踪
     var lastCameraPosition: SIMD3<Float>?
@@ -259,6 +265,7 @@ class ScanCoordinator: NSObject {
     func teardown() {
         Log.scan.info("Tearing down scan session")
         isTornDown = true
+        invalidateReliableEvidenceGate()
         stopRuntimeServices()
         clearRuntimeReferences()
         UIApplication.shared.isIdleTimerDisabled = false
@@ -267,7 +274,7 @@ class ScanCoordinator: NSObject {
     private func resetRuntimeState() {
         isTornDown = false
         hasPublishedCameraResolution = false
-        setReliableEvidenceAcceptance(false)
+        invalidateReliableEvidenceGate()
     }
 
     private func publishPendingCameraResolution() {
@@ -355,6 +362,50 @@ class ScanCoordinator: NSObject {
         return generation
     }
 
+    func capturedEvidenceToken() -> ScanCapturedEvidenceToken? {
+        let lifecycle = lifecycleSnapshot()
+        guard lifecycle.state == .recording else { return nil }
+
+        evidenceGateLock.lock()
+        defer { evidenceGateLock.unlock() }
+        guard acceptsReliableEvidence else { return nil }
+        return ScanCapturedEvidenceToken(
+            scanIdentity: lifecycle.scanIdentity,
+            invalidationEpoch: capturedEvidenceInvalidationEpoch
+        )
+    }
+
+    @MainActor
+    func acceptsCapturedEvidence(_ token: ScanCapturedEvidenceToken) -> Bool {
+        guard !isTornDown else { return false }
+        let lifecycle = lifecycleSnapshot()
+        guard lifecycle.scanIdentity == token.scanIdentity else { return false }
+
+        evidenceGateLock.lock()
+        let invalidationEpochMatches =
+            token.invalidationEpoch == capturedEvidenceInvalidationEpoch
+        let acceptsActiveEvidence = acceptsReliableEvidence
+        evidenceGateLock.unlock()
+        guard invalidationEpochMatches else { return false }
+
+        switch lifecycle.state {
+        case .recording:
+            return acceptsActiveEvidence
+        case .userPaused, .finishing:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func invalidateReliableEvidenceGate() {
+        evidenceGateLock.lock()
+        reliableEvidenceGeneration &+= 1
+        acceptsReliableEvidence = false
+        capturedEvidenceInvalidationEpoch &+= 1
+        evidenceGateLock.unlock()
+    }
+
     func publishLifecycleSnapshot(_ snapshot: ScanLifecycleSnapshot) {
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.isTornDown else { return }
@@ -365,7 +416,7 @@ class ScanCoordinator: NSObject {
     /// This is safe to call from ARSession's callback queue. It closes the
     /// evidence gate before the MainActor updates presentation state.
     func invalidateReliableEvidenceImmediately() {
-        _ = setReliableEvidenceAcceptance(false)
+        invalidateReliableEvidenceGate()
         renderer?.isRecording = false
         imageDetector.clearQueue()
         detectionTask?.cancel()
