@@ -166,8 +166,16 @@ extension ScanView {
             return
         }
         clearMeasurementState()
-        coordinator.startRecording(selectedCategory: selectedFruitCategory)
+        let restarted = coordinator.restartInterruptedScan(
+            selectedCategory: selectedFruitCategory
+        )
         lifecycleSnapshot = coordinator.lifecycleSnapshot()
+        guard restarted else {
+            isRecording = false
+            showLifecycleRecovery = true
+            showTemporaryNotice(L10n.Scan.sessionFailureTitle)
+            return
+        }
         isRecording = true
         showGuide = false
         showLifecycleRecovery = false

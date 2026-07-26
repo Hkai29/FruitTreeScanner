@@ -99,6 +99,155 @@ final class ScanLifecycleControllerTests: XCTestCase {
     }
 }
 
+@MainActor
+final class ScanCoordinatorSessionRestartTests: XCTestCase {
+    func testFailureRestartResetsSessionBeforeOpeningReliableEvidence() {
+        let recorder = ScanSessionRuntimeRecorder()
+        var coordinator: ScanCoordinator!
+        recorder.beforeRun = {
+            XCTAssertFalse(coordinator.acceptsReliableEvidence())
+            if case .failed = coordinator.lifecycleSnapshot().state {
+                // Expected: session reset happens while the failed generation is still closed.
+            } else {
+                XCTFail("Expected failed lifecycle state while restarting ARSession")
+            }
+        }
+        coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
+        coordinator.session = ARSession()
+
+        let original = coordinator.scanLifecycle.startNewScan()
+        _ = coordinator.setReliableEvidenceAcceptance(true)
+        coordinator.handleSessionFailure(ScanSessionTestError.camera)
+
+        XCTAssertTrue(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertEqual(recorder.runOptions.count, 1)
+        XCTAssertTrue(recorder.runOptions[0].contains(.resetTracking))
+        XCTAssertTrue(recorder.runOptions[0].contains(.removeExistingAnchors))
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+
+        let restarted = coordinator.lifecycleSnapshot()
+        XCTAssertEqual(restarted.state, .recording)
+        XCTAssertNotEqual(restarted.scanIdentity, original.scanIdentity)
+        XCTAssertEqual(restarted.interruptionCount, 0)
+    }
+
+    func testRestartWithoutBoundSessionFailsClosed() {
+        let recorder = ScanSessionRuntimeRecorder()
+        let coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
+        _ = coordinator.scanLifecycle.startNewScan()
+        _ = coordinator.setReliableEvidenceAcceptance(true)
+        coordinator.handleSystemInterruption(.appInactive)
+        coordinator.handleSessionInterruptionEnded()
+
+        XCTAssertFalse(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertEqual(recorder.runOptions.count, 0)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        if case .failed = coordinator.lifecycleSnapshot().state {
+            // Expected: a missing bound ARSession remains a recoverable UI failure.
+        } else {
+            XCTFail("Expected restart without ARSession to remain fail-closed")
+        }
+    }
+
+    func testUserPausedResumeDoesNotResetARSession() {
+        let recorder = ScanSessionRuntimeRecorder()
+        let coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
+        coordinator.session = ARSession()
+
+        coordinator.startRecording(selectedCategory: .apple)
+        coordinator.stopRecording()
+
+        XCTAssertFalse(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .userPaused)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertEqual(recorder.runOptions.count, 0)
+
+        coordinator.resumeRecordingPreservingCapture()
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertEqual(recorder.runOptions.count, 0)
+    }
+
+    func testRepeatedRestartDoesNotResetActiveReplacementScan() {
+        let recorder = ScanSessionRuntimeRecorder()
+        let coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
+        coordinator.session = ARSession()
+        _ = coordinator.scanLifecycle.startNewScan()
+        _ = coordinator.setReliableEvidenceAcceptance(true)
+        coordinator.handleSystemInterruption(.appBackgrounded)
+        coordinator.handleSessionInterruptionEnded()
+
+        XCTAssertTrue(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertFalse(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertEqual(recorder.runOptions.count, 1)
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+    }
+
+    func testUnsupportedRestartFailsClosedWithoutCallingSessionRun() {
+        let recorder = ScanSessionRuntimeRecorder(isSupported: false)
+        let coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
+        coordinator.session = ARSession()
+        _ = coordinator.scanLifecycle.startNewScan()
+        _ = coordinator.setReliableEvidenceAcceptance(true)
+        coordinator.handleSessionFailure(ScanSessionTestError.camera)
+
+        XCTAssertFalse(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertEqual(recorder.runOptions.count, 0)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        if case .failed = coordinator.lifecycleSnapshot().state {
+            // Expected.
+        } else {
+            XCTFail("Expected unsupported AR restart to remain failed")
+        }
+    }
+
+    func testRestartAfterTeardownFailsClosedWithoutCallingSessionRun() {
+        let recorder = ScanSessionRuntimeRecorder()
+        let coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
+        coordinator.session = ARSession()
+        _ = coordinator.scanLifecycle.startNewScan()
+        _ = coordinator.setReliableEvidenceAcceptance(true)
+        coordinator.handleSessionFailure(ScanSessionTestError.camera)
+        coordinator.teardown()
+
+        XCTAssertFalse(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertEqual(recorder.runOptions.count, 0)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        if case .failed = coordinator.lifecycleSnapshot().state {
+            // Expected: teardown preserves the failure while permanently closing evidence.
+        } else {
+            XCTFail("Expected teardown restart to preserve failed lifecycle state")
+        }
+    }
+}
+
+private final class ScanSessionRuntimeRecorder {
+    var runOptions: [ARSession.RunOptions] = []
+    var beforeRun: (() -> Void)?
+    private let isSupported: Bool
+
+    init(isSupported: Bool = true) {
+        self.isSupported = isSupported
+    }
+
+    lazy var runtime = ScanSessionRuntime(
+        isWorldTrackingSupported: { [isSupported] in isSupported },
+        run: { [weak self] _, _, options in
+            self?.beforeRun?()
+            self?.runOptions.append(options)
+        }
+    )
+}
+
+private enum ScanSessionTestError: LocalizedError {
+    case camera
+
+    var errorDescription: String? {
+        "Camera session failed"
+    }
+}
+
 final class ScanCompletionEvaluatorTests: XCTestCase {
     func testAngleCoverageContributesToCompletionScore() {
         let evaluator = ScanCompletionEvaluator()
