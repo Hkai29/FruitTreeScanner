@@ -106,43 +106,30 @@ final class ScanHistoryStore: ObservableObject {
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
         removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
     ) -> Bool {
-        if fileExists(record.fileURL.path) {
-            do {
-                try removeItem(record.fileURL)
-            } catch {
-                return false
-            }
-        }
-
         var deletedAllAvailableFiles = true
         let csvURL = record.fileURL.deletingPathExtension().appendingPathExtension("csv")
-        if fileExists(csvURL.path) {
-            do {
-                try removeItem(csvURL)
-            } catch {
-                deletedAllAvailableFiles = false
-            }
-        }
         let baseName = record.fileURL.deletingPathExtension().lastPathComponent
         let jsonURL = record.fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_result.json")
-        if fileExists(jsonURL.path) {
-            do {
-                try removeItem(jsonURL)
-            } catch {
-                deletedAllAvailableFiles = false
-            }
-        }
         let manifestURL = record.fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_complete.json")
-        if fileExists(manifestURL.path) {
+
+        for companionURL in [csvURL, jsonURL, manifestURL] where fileExists(companionURL.path) {
             do {
-                try removeItem(manifestURL)
+                try removeItem(companionURL)
             } catch {
                 deletedAllAvailableFiles = false
             }
         }
-        return deletedAllAvailableFiles
+        guard deletedAllAvailableFiles else { return false }
+
+        guard fileExists(record.fileURL.path) else { return true }
+        do {
+            try removeItem(record.fileURL)
+            return true
+        } catch {
+            return false
+        }
     }
 
     func notifyRecordsUpdated() {

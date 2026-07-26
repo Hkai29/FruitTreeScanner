@@ -26,12 +26,18 @@ extension PLYParserHelper {
         let jsonExists = FileManager.default.fileExists(atPath: urls.metadata.path)
         let csvExists = FileManager.default.fileExists(atPath: urls.csv.path)
         if let metadata = readCompanionMetadata(at: urls.metadata) {
+            guard !metadata.hasRevisionField else {
+                return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultManifestMissing")
+            }
             return CompanionReadResult(state: .complete, result: metadata.result, failureReason: nil)
         }
         if jsonExists {
             return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultJSONFailed")
         }
         if let csv = readCompanionCSV(at: urls.csv) {
+            guard !csv.hasRevisionField else {
+                return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultManifestMissing")
+            }
             return CompanionReadResult(state: .complete, result: csv.result, failureReason: nil)
         }
         if csvExists {
@@ -82,7 +88,9 @@ extension PLYParserHelper {
         )
     }
 
-    private static func readCompanionMetadata(at url: URL) -> (result: CompanionResult, revision: String?)? {
+    private static func readCompanionMetadata(
+        at url: URL
+    ) -> (result: CompanionResult, revision: String?, hasRevisionField: Bool)? {
         guard let data = try? Data(contentsOf: url),
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let fruitCount = nonNegativeIntValue(payload["fruitCount"]),
@@ -95,16 +103,20 @@ extension PLYParserHelper {
                 fruitType: payload["fruitType"] as? String ?? "",
                 confidence: payload["confidence"] as? String ?? ""
             ),
-            payload["exportRevision"] as? String
+            payload["exportRevision"] as? String,
+            payload.keys.contains("exportRevision")
         )
     }
 
-    private static func readCompanionCSV(at url: URL) -> (result: CompanionResult, revision: String?)? {
+    private static func readCompanionCSV(
+        at url: URL
+    ) -> (result: CompanionResult, revision: String?, hasRevisionField: Bool)? {
         guard let csvContent = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         let records = csvRecords(csvContent)
         guard let headerLine = records.first, let dataLine = records.dropFirst().first else { return nil }
         let header = parseCSVLine(headerLine)
         let values = parseCSVLine(dataLine)
+        let revisionHeaders = Set(["ExportRevision", "exportRevision"].map(normalizedCSVHeader))
         guard let countValue = csvValue(in: values, header: header, named: ["果实数量", "fruitCount", "fruit_count"], fallbackIndex: 3),
               let yieldValue = csvValue(in: values, header: header, named: ["产量(kg)", "yieldKg", "yield_kg"], fallbackIndex: 4),
               let fruitCount = nonNegativeIntValue(countValue),
@@ -117,7 +129,8 @@ extension PLYParserHelper {
                 fruitType: csvValue(in: values, header: header, named: ["水果类型", "fruitType", "fruit_type"], fallbackIndex: 1) ?? "",
                 confidence: csvValue(in: values, header: header, named: ["置信度", "confidence"], fallbackIndex: 12) ?? ""
             ),
-            csvValue(in: values, header: header, named: ["ExportRevision", "exportRevision"], fallbackIndex: .max)
+            csvValue(in: values, header: header, named: ["ExportRevision", "exportRevision"], fallbackIndex: .max),
+            header.contains { revisionHeaders.contains(normalizedCSVHeader($0)) }
         )
     }
 
