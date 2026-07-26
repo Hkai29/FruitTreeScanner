@@ -157,6 +157,62 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertEqual(labels, ["apple", "orange", "mandarin"])
     }
 
+    func testModelLabelDiagnosticsSortCompleteUltralyticsNamesMetadata() {
+        let labels = ImageDetectorModelLoader.labels(
+            fromNamesMetadata: "{2: 'mandarin', 0: 'apple', 1: 'orange'}"
+        )
+
+        XCTAssertEqual(labels, ["apple", "orange", "mandarin"])
+    }
+
+    func testModelLabelDiagnosticsRejectGappedUltralyticsNamesMetadata() {
+        let labels = ImageDetectorModelLoader.labels(
+            fromNamesMetadata: "{0: 'apple', 2: 'orange'}"
+        )
+
+        XCTAssertTrue(labels.isEmpty)
+    }
+
+    func testModelLabelDiagnosticsRejectDuplicateUltralyticsNamesIndex() {
+        let labels = ImageDetectorModelLoader.labels(
+            fromNamesMetadata: "{0: 'apple', 0: 'orange'}"
+        )
+
+        XCTAssertTrue(labels.isEmpty)
+    }
+
+    func testModelLabelDiagnosticsRejectMalformedUltralyticsNamesEntry() {
+        let labels = ImageDetectorModelLoader.labels(
+            fromNamesMetadata: "{0: 'apple', invalid, 1: 'orange'}"
+        )
+        let labelsWithEmptyEntry = ImageDetectorModelLoader.labels(
+            fromNamesMetadata: "{0: 'apple',, 1: 'orange'}"
+        )
+
+        XCTAssertTrue(labels.isEmpty)
+        XCTAssertTrue(labelsWithEmptyEntry.isEmpty)
+    }
+
+    func testRecognizedObjectLabelMappingRejectsUnconfirmedNumericIdentifiers() {
+        let mapper = FruitCategoryMapper.standard
+
+        XCTAssertNil(ImageDetectorInference.categoryForRecognizedObjectLabel(
+            "0",
+            categoryMapper: mapper
+        ))
+        XCTAssertNil(ImageDetectorInference.categoryForRecognizedObjectLabel(
+            "77",
+            categoryMapper: mapper
+        ))
+        XCTAssertEqual(
+            ImageDetectorInference.categoryForRecognizedObjectLabel(
+                " APPLE ",
+                categoryMapper: mapper
+            ),
+            .apple
+        )
+    }
+
     func testDebugStateStoresModelLabelDiagnostics() {
         var state = DetectionDebugState(currentThreshold: 0.5)
         let diagnostics = ImageDetectorModelLoader.labelDiagnostics(

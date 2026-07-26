@@ -183,19 +183,32 @@ enum ImageDetectorModelLoader {
         let trimmed = names.trimmingCharacters(in: .whitespacesAndNewlines)
         let body = trimmed
             .trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
-        let pairs: [(index: Int, label: String)] = body
-            .split(separator: ",")
-            .compactMap { component in
-                let pieces = component.split(separator: ":", maxSplits: 1)
-                guard pieces.count == 2 else { return nil }
-                let indexText = pieces[0].trimmingCharacters(in: .whitespacesAndNewlines)
-                let labelText = pieces[1]
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
-                guard let index = Int(indexText), !labelText.isEmpty else { return nil }
-                return (index, labelText)
-            }
-        return pairs.sorted { $0.index < $1.index }.map(\.label)
+        let components = body.split(
+            separator: ",",
+            omittingEmptySubsequences: false
+        )
+        guard !components.isEmpty else { return [] }
+
+        var pairs: [(index: Int, label: String)] = []
+        pairs.reserveCapacity(components.count)
+        for component in components {
+            let pieces = component.split(separator: ":", maxSplits: 1)
+            guard pieces.count == 2 else { return [] }
+            let indexText = pieces[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let labelText = pieces[1]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+            guard let index = Int(indexText), !labelText.isEmpty else { return [] }
+            pairs.append((index, labelText))
+        }
+
+        let sortedPairs = pairs.sorted { $0.index < $1.index }
+        guard sortedPairs.enumerated().allSatisfy({ offset, pair in
+            pair.index == offset
+        }) else {
+            return []
+        }
+        return sortedPairs.map(\.label)
     }
 
     private static func supportedClasses(from mlModel: MLModel) -> [String] {
