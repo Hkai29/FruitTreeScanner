@@ -346,13 +346,15 @@ final class ScanResultExportService: @unchecked Sendable {
             if fileManager.fileExists(atPath: manifestURL.path) {
                 try fileManager.removeItem(at: manifestURL)
             }
+            // Readers fail closed until every required file matches this revision.
+            try publishFile(stagedManifest, manifestURL)
+            if stagedCSV == nil, fileManager.fileExists(atPath: csvURL.path) {
+                try fileManager.removeItem(at: csvURL)
+            }
             try publishFile(stagedMetadata, metadataURL)
             if let stagedCSV {
                 try publishFile(stagedCSV, csvURL)
-            } else if fileManager.fileExists(atPath: csvURL.path) {
-                try fileManager.removeItem(at: csvURL)
             }
-            try publishFile(stagedManifest, manifestURL)
         } catch {
             for destination in destinations where fileManager.fileExists(atPath: destination.path) {
                 try? fileManager.removeItem(at: destination)
