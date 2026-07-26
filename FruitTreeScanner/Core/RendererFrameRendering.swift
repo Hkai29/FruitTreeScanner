@@ -126,7 +126,6 @@ extension Renderer {
             recordCaptureDecision(.skippedDuplicateRegion)
             return false
         }
-        scannedRegions.insert(cameraRegion)
         recordCaptureDecision(.accepted(depthQuality))
 
         return true
@@ -168,6 +167,7 @@ extension Renderer {
         currentPointCount = min(currentPointCount + gridPointsBuffer.count, maxPoints)
         pointBufferLock.unlock()
         lastCameraTransform = frame.camera.transform
+        scannedRegions.insert(RendererDepthCoverage.makeCameraRegionKey(frame: frame))
         updateCoverageVoxels(frame: frame)
     }
 

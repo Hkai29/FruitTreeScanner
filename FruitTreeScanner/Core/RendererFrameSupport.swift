@@ -48,37 +48,42 @@ extension Renderer {
 
     func updateCapturedImageTextures(frame: ARFrame) {
         let pb = frame.capturedImage
-        guard CVPixelBufferGetPlaneCount(pb) >= 2 else { return }
-        capturedImageTextureY = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: pb,
-            pixelFormat: .r8Unorm,
-            planeIndex: 0,
-            textureCache: textureCache
-        )
-        capturedImageTextureCbCr = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: pb,
-            pixelFormat: .rg8Unorm,
-            planeIndex: 1,
-            textureCache: textureCache
-        )
+        guard CVPixelBufferGetPlaneCount(pb) >= 2,
+              let nextY = RendererMetalHelpers.makeTexture(
+                  fromPixelBuffer: pb,
+                  pixelFormat: .r8Unorm,
+                  planeIndex: 0,
+                  textureCache: textureCache
+              ),
+              let nextCbCr = RendererMetalHelpers.makeTexture(
+                  fromPixelBuffer: pb,
+                  pixelFormat: .rg8Unorm,
+                  planeIndex: 1,
+                  textureCache: textureCache
+              ) else {
+            capturedImageTextureY = nil
+            capturedImageTextureCbCr = nil
+            return
+        }
+        capturedImageTextureY = nextY
+        capturedImageTextureCbCr = nextCbCr
     }
 
     func updateDepthTextures(frame: ARFrame) -> Bool {
         let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
         guard let depthMap = depthData?.depthMap,
-              let confidenceMap = depthData?.confidenceMap else { return false }
-        depthTexture = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: depthMap,
-            pixelFormat: .r32Float,
-            planeIndex: 0,
-            textureCache: textureCache
-        )
-        confidenceTexture = RendererMetalHelpers.makeTexture(
-            fromPixelBuffer: confidenceMap,
-            pixelFormat: .r8Uint,
-            planeIndex: 0,
-            textureCache: textureCache
-        )
+              let confidenceMap = depthData?.confidenceMap,
+              let nextTextures = RendererMetalHelpers.makeDepthTexturePair(
+                  depthMap: depthMap,
+                  confidenceMap: confidenceMap,
+                  textureCache: textureCache
+              ) else {
+            depthTexture = nil
+            confidenceTexture = nil
+            return false
+        }
+        depthTexture = nextTextures.depth
+        confidenceTexture = nextTextures.confidence
         return true
     }
 

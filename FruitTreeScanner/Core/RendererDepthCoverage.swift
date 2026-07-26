@@ -55,7 +55,6 @@ struct RendererCaptureDiagnostics: Equatable, Sendable {
             duplicateRegionSkippedFrameCount += 1
         }
     }
-
 }
 
 enum RendererDepthCoverage {
@@ -241,15 +240,34 @@ enum RendererDepthCoverage {
         maxDepth: Float,
         confidenceThreshold: Int
     ) -> RendererDepthQuality {
+        let config = FruitScanExperimentConfig.default.depth
+        let sampleGrid = max(config.captureQualitySampleGrid, 2)
+        let sampleCount = sampleGrid * sampleGrid
         let width = CVPixelBufferGetWidth(depthMap)
         let height = CVPixelBufferGetHeight(depthMap)
         guard width > 0, height > 0 else {
-            return RendererDepthQuality(validSampleCount: 0, totalSampleCount: 0, medianDepth: 0)
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
         }
         let confidenceWidth = CVPixelBufferGetWidth(confidenceMap)
         let confidenceHeight = CVPixelBufferGetHeight(confidenceMap)
         guard confidenceWidth > 0, confidenceHeight > 0 else {
-            return RendererDepthQuality(validSampleCount: 0, totalSampleCount: 0, medianDepth: 0)
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
+        }
+        guard RendererMetalHelpers.depthMetalPixelFormat(for: depthMap) != nil,
+              RendererMetalHelpers.confidenceMetalPixelFormat(for: confidenceMap) != nil else {
+            return RendererDepthQuality(
+                validSampleCount: 0,
+                totalSampleCount: sampleCount,
+                medianDepth: 0
+            )
         }
 
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
@@ -259,9 +277,6 @@ enum RendererDepthCoverage {
             CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
         }
 
-        let config = FruitScanExperimentConfig.default.depth
-        let sampleGrid = max(config.captureQualitySampleGrid, 2)
-        let sampleCount = sampleGrid * sampleGrid
         guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap),
               let confidenceBaseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else {
             return RendererDepthQuality(
