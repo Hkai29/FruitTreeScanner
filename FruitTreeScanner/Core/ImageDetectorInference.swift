@@ -17,13 +17,21 @@ struct ImageDetectorInference: Sendable {
         queue: DispatchQueue
     ) async -> [DetectedFruit] {
         // 在专用串行队列执行 Vision/CoreML，避免阻塞 AR 帧回调和主线程。
+        let queueGeneration =
+            ImageDetectorQueue.attachedQueueGeneration(to: pixelBuffer)
+            ?? detector.queueGenerationSnapshot()
+        guard !Task.isCancelled,
+              detector.isQueueGenerationCurrent(queueGeneration) else {
+            return []
+        }
         let sendablePixelBuffer = ImageDetector.SendablePixelBuffer(value: pixelBuffer)
         let config = detector.configSnapshot()
         let model = detector.coreMLModel
 
         return await withCheckedContinuation { continuation in
-            queue.async { [sendablePixelBuffer, config, weak detector] in
-                guard let detector else {
+            queue.async { [sendablePixelBuffer, config, queueGeneration, weak detector] in
+                guard let detector,
+                      detector.isQueueGenerationCurrent(queueGeneration) else {
                     continuation.resume(returning: [])
                     return
                 }
@@ -46,6 +54,7 @@ struct ImageDetectorInference: Sendable {
                         inferenceStart: inferenceStart,
                         model: model,
                         config: config,
+                        queueGeneration: queueGeneration,
                         completion: { fruits in
                             continuation.resume(returning: fruits)
                         }
@@ -55,6 +64,7 @@ struct ImageDetectorInference: Sendable {
                         detector: detector,
                         inferenceStart: inferenceStart,
                         config: config,
+                        queueGeneration: queueGeneration,
                         completion: { fruits in
                             continuation.resume(returning: fruits)
                         }
@@ -72,18 +82,26 @@ struct ImageDetectorInference: Sendable {
         inferenceStart: Date,
         model: VNCoreMLModel,
         config: FruitScanConfig,
+        queueGeneration: Int,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
         let request = VNCoreMLRequest(model: model) { [weak detector] request, error in
-            guard let detector else {
+            guard let detector,
+                  detector.isQueueGenerationCurrent(queueGeneration) else {
                 completion([])
                 return
             }
 
             if let error {
                 let reason = error.localizedDescription
+                guard detector.recordDetectionFailure(
+                    reason,
+                    expectedQueueGeneration: queueGeneration
+                ) else {
+                    completion([])
+                    return
+                }
                 Log.detection.error("CoreML detection failed: \(reason)")
-                detector.recordDetectionFailure(reason)
                 detector.recordDebugDetectionResult(
                     startedAt: inferenceStart,
                     rawObservationCount: 0,
@@ -120,15 +138,19 @@ struct ImageDetectorInference: Sendable {
                 let unmappedLabels = highConfidenceLabels.filter {
                     detector.categoryMapper.category(for: $0) == nil
                 }
-                detector.recordCoreMLDetection(
+                guard detector.recordCoreMLDetection(
                     observationCount: objectObservations.count,
                     confidenceFilteredCount: confidenceFilteredCount,
                     unmappedObservationCount: max(objectObservations.count - detectedFruits.count - confidenceFilteredCount, 0),
                     mappedFruitCount: detectedFruits.count,
                     rawDetectedLabels: rawPredictions.map(\.label),
                     mappedCategories: detectedFruits.map(\.category.rawValue),
-                    unmappedLabels: unmappedLabels
-                )
+                    unmappedLabels: unmappedLabels,
+                    expectedQueueGeneration: queueGeneration
+                ) else {
+                    completion([])
+                    return
+                }
                 detector.recordDebugDetectionResult(
                     startedAt: inferenceStart,
                     rawObservationCount: objectObservations.count,
@@ -137,7 +159,12 @@ struct ImageDetectorInference: Sendable {
                     filteredPredictions: filteredPredictions,
                     threshold: config.minConfidence
                 )
-                completion(detectedFruits)
+                completeIfCurrent(
+                    detectedFruits,
+                    detector: detector,
+                    queueGeneration: queueGeneration,
+                    completion: completion
+                )
                 return
             }
 
@@ -145,8 +172,14 @@ struct ImageDetectorInference: Sendable {
             let featureObservations = observations.compactMap { $0 as? VNCoreMLFeatureValueObservation }
             guard let multiArray = featureObservations.compactMap({ $0.featureValue.multiArrayValue }).first else {
                 let reason = "CoreML 输出格式不支持：未返回目标框或 YOLO MultiArray"
+                guard detector.recordDetectionFailure(
+                    reason,
+                    expectedQueueGeneration: queueGeneration
+                ) else {
+                    completion([])
+                    return
+                }
                 Log.detection.error("\(reason)")
-                detector.recordDetectionFailure(reason)
                 detector.recordDebugDetectionResult(
                     startedAt: inferenceStart,
                     rawObservationCount: 0,
@@ -167,15 +200,19 @@ struct ImageDetectorInference: Sendable {
                 config: config,
                 labelDiagnostics: detector.modelLabelDiagnosticsSnapshot()
             )
-            detector.recordCoreMLDetection(
+            guard detector.recordCoreMLDetection(
                 observationCount: parsed.modelCandidateCount,
                 confidenceFilteredCount: parsed.confidenceFilteredCount,
                 unmappedObservationCount: parsed.unmappedObservationCount,
                 mappedFruitCount: parsed.fruits.count,
                 rawDetectedLabels: parsed.rawPredictions.map(\.label),
                 mappedCategories: parsed.mappedCategories,
-                unmappedLabels: parsed.unmappedLabels
-            )
+                unmappedLabels: parsed.unmappedLabels,
+                expectedQueueGeneration: queueGeneration
+            ) else {
+                completion([])
+                return
+            }
             detector.recordDebugDetectionResult(
                 startedAt: inferenceStart,
                 rawObservationCount: parsed.modelCandidateCount,
@@ -189,7 +226,12 @@ struct ImageDetectorInference: Sendable {
                 Log.detection.error("\(failureReason)")
                 detector.captureDetectionFailureSample(note: failureReason)
             }
-            completion(parsed.fruits)
+            completeIfCurrent(
+                parsed.fruits,
+                detector: detector,
+                queueGeneration: queueGeneration,
+                completion: completion
+            )
         }
 
         request.imageCropAndScaleOption = .scaleFill
@@ -199,8 +241,14 @@ struct ImageDetectorInference: Sendable {
         do {
             try handler.perform([request])
         } catch {
+            guard detector.recordDetectionFailure(
+                error.localizedDescription,
+                expectedQueueGeneration: queueGeneration
+            ) else {
+                completion([])
+                return
+            }
             Log.detection.error("VNImageRequestHandler failed: \(error.localizedDescription)")
-            detector.recordDetectionFailure(error.localizedDescription)
             detector.recordDebugDetectionResult(
                 startedAt: inferenceStart,
                 rawObservationCount: 0,
@@ -246,15 +294,35 @@ struct ImageDetectorInference: Sendable {
         return detectedFruits
     }
 
+    private func completeIfCurrent(
+        _ fruits: [DetectedFruit],
+        detector: ImageDetector,
+        queueGeneration: Int,
+        completion: @escaping ([DetectedFruit]) -> Void
+    ) {
+        guard detector.isQueueGenerationCurrent(queueGeneration) else {
+            completion([])
+            return
+        }
+        completion(fruits)
+    }
+
     private func performVisionClassification(
         detector: ImageDetector,
         inferenceStart: Date,
         config: FruitScanConfig,
+        queueGeneration: Int,
         completion: @escaping ([DetectedFruit]) -> Void
     ) {
         // 分类结果没有空间框，不能升级为可参与融合的图像候选。
         let reason = "CoreML model not loaded; fallback has no 2D bounding boxes"
-        detector.recordFallbackFrame(reason: detector.modelStatus.hudDetail)
+        guard detector.recordFallbackFrame(
+            reason: detector.modelStatus.hudDetail,
+            expectedQueueGeneration: queueGeneration
+        ) else {
+            completion([])
+            return
+        }
         detector.recordDebugDetectionResult(
             startedAt: inferenceStart,
             rawObservationCount: 0,

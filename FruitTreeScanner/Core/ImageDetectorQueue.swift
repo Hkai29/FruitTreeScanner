@@ -6,6 +6,9 @@ import Foundation
 import simd
 
 enum ImageDetectorQueue {
+    private static let queueGenerationAttachmentKey =
+        "com.fruittreescanner.image-detector.queue-generation" as CFString
+
     struct FrameCopyResult {
         let queuedFrame: ImageDetector.QueuedFrame?
         let failedToCopyPixelBuffer: Bool
@@ -82,6 +85,26 @@ enum ImageDetectorQueue {
                 depthConfidenceProvenance: frame.depthConfidenceProvenance
             )
         }
+    }
+
+    static func attachQueueGeneration(_ generation: Int, to pixelBuffer: CVPixelBuffer) {
+        CVBufferSetAttachment(
+            pixelBuffer,
+            queueGenerationAttachmentKey,
+            NSNumber(value: generation),
+            .shouldNotPropagate
+        )
+    }
+
+    static func attachedQueueGeneration(to pixelBuffer: CVPixelBuffer) -> Int? {
+        guard let value = CVBufferCopyAttachment(
+            pixelBuffer,
+            queueGenerationAttachmentKey,
+            nil
+        ) as? NSNumber else {
+            return nil
+        }
+        return value.intValue
     }
 }
 
@@ -170,6 +193,68 @@ extension ImageDetector {
         lock.unlock()
     }
 
+    func queueGenerationSnapshot() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return queueGeneration
+    }
+
+    func isQueueGenerationCurrent(_ expectedQueueGeneration: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return queueGeneration == expectedQueueGeneration
+    }
+
+    @discardableResult
+    func recordCoreMLDetection(
+        observationCount: Int,
+        confidenceFilteredCount: Int,
+        unmappedObservationCount: Int,
+        mappedFruitCount: Int,
+        rawDetectedLabels: [String],
+        mappedCategories: [String],
+        unmappedLabels: [String],
+        expectedQueueGeneration: Int
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard queueGeneration == expectedQueueGeneration else { return false }
+        diagnosticsRecorder.recordCoreMLDetection(
+            observationCount: observationCount,
+            confidenceFilteredCount: confidenceFilteredCount,
+            unmappedObservationCount: unmappedObservationCount,
+            mappedFruitCount: mappedFruitCount,
+            rawDetectedLabels: rawDetectedLabels,
+            mappedCategories: mappedCategories,
+            unmappedLabels: unmappedLabels
+        )
+        return true
+    }
+
+    @discardableResult
+    func recordDetectionFailure(
+        _ reason: String,
+        expectedQueueGeneration: Int
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard queueGeneration == expectedQueueGeneration else { return false }
+        diagnosticsRecorder.recordDetectionFailure(reason)
+        return true
+    }
+
+    @discardableResult
+    func recordFallbackFrame(
+        reason: String,
+        expectedQueueGeneration: Int
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard queueGeneration == expectedQueueGeneration else { return false }
+        diagnosticsRecorder.recordFallbackFrame(reason: reason)
+        return true
+    }
+
     func finishPreparingFrame(_ queuedFrame: QueuedFrame, generation: Int) {
         lock.lock()
         defer { lock.unlock() }
@@ -214,6 +299,12 @@ extension ImageDetector {
 
         let framesToProcess = pendingFrames
         pendingFrames.removeAll()
+        for frame in framesToProcess {
+            ImageDetectorQueue.attachQueueGeneration(
+                queueGeneration,
+                to: frame.pixelBuffer
+            )
+        }
         return (framesToProcess, preparingFrameGeneration != nil)
     }
 }
