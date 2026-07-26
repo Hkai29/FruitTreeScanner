@@ -136,7 +136,10 @@ struct ImageDetectorInference: Sendable {
                     .filter { $0.confidence >= config.minConfidence }
                     .compactMap { $0.labels.first?.identifier }
                 let unmappedLabels = highConfidenceLabels.filter {
-                    detector.categoryMapper.category(for: $0) == nil
+                    Self.categoryForRecognizedObjectLabel(
+                        $0,
+                        categoryMapper: detector.categoryMapper
+                    ) == nil
                 }
                 guard detector.recordCoreMLDetection(
                     observationCount: objectObservations.count,
@@ -281,7 +284,10 @@ struct ImageDetectorInference: Sendable {
                 continue
             }
 
-            if let fruitCategory = categoryMapper.category(for: topLabel.identifier) {
+            if let fruitCategory = Self.categoryForRecognizedObjectLabel(
+                topLabel.identifier,
+                categoryMapper: categoryMapper
+            ) {
                 detectedFruits.append(DetectedFruit(
                     category: fruitCategory,
                     boundingBox: observation.boundingBox,
@@ -305,6 +311,13 @@ struct ImageDetectorInference: Sendable {
             return
         }
         completion(fruits)
+    }
+
+    static func categoryForRecognizedObjectLabel(
+        _ identifier: String,
+        categoryMapper: FruitCategoryMapper
+    ) -> FruitCategory? {
+        categoryMapper.category(forRuntimeModelLabel: identifier)
     }
 
     private func performVisionClassification(
