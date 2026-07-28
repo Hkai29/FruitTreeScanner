@@ -52,6 +52,47 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
         XCTAssertEqual(try CalibrationRecordPersistence.load(from: url).map(\.id), [newer.id])
     }
 
+    @MainActor
+    func testSaveRevisionRemainsMonotonicWhenCalibrationViewIsRecreated() async throws {
+        let url = temporaryDirectory().appendingPathComponent("records.json")
+        let firstViewRecord = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 1,
+            manualCount: 1,
+            estimatedYield: 1,
+            actualYield: 1
+        )
+        let reopenedViewRecord = makeRecord(
+            fruitType: "pear",
+            estimatedCount: 2,
+            manualCount: 2,
+            estimatedYield: 2,
+            actualYield: 2
+        )
+        let revisions = CalibrationSaveRevisionSource()
+        let controller = CalibrationRecordPersistenceController(url: url)
+
+        let firstViewRevisions = (0..<3).map { _ in revisions.nextRevision() }
+        let firstViewSaved = await controller.save(
+            [firstViewRecord],
+            generation: try XCTUnwrap(firstViewRevisions.last)
+        )
+
+        let reopenedViewFirstRevision = revisions.nextRevision()
+        let reopenedViewSaved = await controller.save(
+            [reopenedViewRecord],
+            generation: reopenedViewFirstRevision
+        )
+
+        XCTAssertTrue(firstViewSaved)
+        XCTAssertGreaterThan(reopenedViewFirstRevision, try XCTUnwrap(firstViewRevisions.last))
+        XCTAssertTrue(reopenedViewSaved)
+        XCTAssertEqual(
+            try CalibrationRecordPersistence.load(from: url).map(\.id),
+            [reopenedViewRecord.id]
+        )
+    }
+
     func testRapidCalibrationAddAddDeletePersistsLatestSnapshot() async throws {
         let url = temporaryDirectory().appendingPathComponent("records.json")
         let a = makeRecord(fruitType: "apple", estimatedCount: 1, manualCount: 1, estimatedYield: 1, actualYield: 1)
