@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -135,6 +136,45 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(SettingsStore.normalizedHue(.infinity, fallback: 25), 25)
         XCTAssertEqual(SettingsStore.normalizedUnit(.nan, fallback: 0.3), 0.3)
         XCTAssertEqual(SettingsStore.normalizedUnit(-.infinity, fallback: 0.4), 0.4)
+    }
+
+    func testSettingsStorePublishesFruitTypeChanges() {
+        let suiteName = "FruitModelsTests.SettingsStore.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let settings = SettingsStore(defaults: defaults)
+        var publicationCount = 0
+        let cancellable = settings.objectWillChange.sink {
+            publicationCount += 1
+        }
+        defer {
+            cancellable.cancel()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        settings.fruitType = FruitCategory.pear.rawValue
+
+        XCTAssertEqual(publicationCount, 1)
+        XCTAssertEqual(settings.fruitType, FruitCategory.pear.rawValue)
+        XCTAssertEqual(defaults.string(forKey: SettingsStoreKey.fruitType), FruitCategory.pear.rawValue)
+    }
+
+    func testSettingsStoreDoesNotPublishUnchangedFruitType() {
+        let suiteName = "FruitModelsTests.SettingsStore.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(FruitCategory.apple.rawValue, forKey: SettingsStoreKey.fruitType)
+        let settings = SettingsStore(defaults: defaults)
+        var publicationCount = 0
+        let cancellable = settings.objectWillChange.sink {
+            publicationCount += 1
+        }
+        defer {
+            cancellable.cancel()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        settings.fruitType = FruitCategory.apple.rawValue
+
+        XCTAssertEqual(publicationCount, 0)
     }
 
     func testIsFruitColor() {

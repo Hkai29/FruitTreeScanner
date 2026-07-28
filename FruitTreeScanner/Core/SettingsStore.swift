@@ -5,10 +5,11 @@ import Foundation
 import Combine
 
 final class SettingsStore: ObservableObject {
-    static let shared = SettingsStore()
-    private let defaults = UserDefaults.standard
+    static let shared = SettingsStore(defaults: .standard)
+    private let defaults: UserDefaults
 
-    private init() {
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
         // 初始化所有 @Published 属性
         autoExportCSV = (defaults.object(forKey: SettingsStoreKey.autoExportCSV) as? Bool) ?? false
         cameraResolution = Self.validOption(
@@ -242,6 +243,7 @@ final class SettingsStore: ObservableObject {
         if let current = defaults.object(forKey: key) as? T, current == value {
             return
         }
+        objectWillChange.send()
         defaults.set(value, forKey: key)
     }
 
