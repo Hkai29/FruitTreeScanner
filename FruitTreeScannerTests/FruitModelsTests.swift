@@ -750,6 +750,15 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(presentation.showsRecoveryAction)
     }
 
+    func testHistoryStatusVisualPolicyReservesSemanticColorForNonTextAccents() {
+        let policy = ScanHistoryStatusVisualPolicy()
+
+        XCTAssertEqual(policy.symbolForeground, .semanticAccent)
+        XCTAssertEqual(policy.titleForeground, .primaryText)
+        XCTAssertEqual(policy.recoverySymbolForeground, .semanticAccent)
+        XCTAssertEqual(policy.recoveryTextForeground, .primaryText)
+    }
+
     private func makeHistoryRecord(
         fruitCount: Int = 0,
         yieldKg: Float = 0,
