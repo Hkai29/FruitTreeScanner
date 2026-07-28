@@ -645,6 +645,129 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(boundaryRecord.gpsLon, 180, accuracy: 0.000001)
     }
 
+    func testHistoryPresentationTreatsCompleteZeroAsReliableResult() {
+        let presentation = ScanHistoryRecordPresentation(
+            record: makeHistoryRecord(
+                fruitCount: 0,
+                yieldKg: 0,
+                persistenceState: .complete
+            )
+        )
+
+        XCTAssertEqual(presentation.integrity, .complete)
+        XCTAssertEqual(presentation.detail, .none)
+        XCTAssertEqual(presentation.fruitCount, 0)
+        XCTAssertEqual(presentation.yieldKg, 0)
+        XCTAssertTrue(presentation.hasReliableResult)
+        XCTAssertFalse(presentation.showsRecoveryAction)
+    }
+
+    func testHistoryPresentationHidesMetricsForOrphanPLYAndOffersRecovery() {
+        let presentation = ScanHistoryRecordPresentation(
+            record: makeHistoryRecord(
+                fruitCount: 99,
+                yieldKg: 42.5,
+                persistenceState: .incomplete,
+                persistenceFailureReason: "orphanPLYDetected"
+            )
+        )
+
+        XCTAssertEqual(presentation.integrity, .incomplete)
+        XCTAssertEqual(presentation.detail, .missingResult)
+        XCTAssertNil(presentation.fruitCount)
+        XCTAssertNil(presentation.yieldKg)
+        XCTAssertFalse(presentation.hasReliableResult)
+        XCTAssertTrue(presentation.showsRecoveryAction)
+    }
+
+    func testHistoryPresentationMapsKnownInvalidCompanionFailures() {
+        let expectedDetails: [(String, ScanHistoryRecordPresentation.Detail)] = [
+            ("scanResultJSONFailed", .unreadableJSON),
+            ("scanResultCSVFailed", .unreadableCSV),
+            ("scanResultRevisionMismatch", .revisionMismatch)
+        ]
+
+        for (reason, expectedDetail) in expectedDetails {
+            let presentation = ScanHistoryRecordPresentation(
+                record: makeHistoryRecord(
+                    fruitCount: 88,
+                    yieldKg: 31,
+                    persistenceState: .invalid,
+                    persistenceFailureReason: reason
+                )
+            )
+
+            XCTAssertEqual(presentation.integrity, .invalid)
+            XCTAssertEqual(presentation.detail, expectedDetail)
+            XCTAssertNil(presentation.fruitCount)
+            XCTAssertNil(presentation.yieldKg)
+            XCTAssertTrue(presentation.showsRecoveryAction)
+        }
+    }
+
+    func testHistoryPresentationUsesConservativeInvalidFallbackForUnknownReason() {
+        let presentation = ScanHistoryRecordPresentation(
+            record: makeHistoryRecord(
+                persistenceState: .invalid,
+                persistenceFailureReason: "futureInvalidReason"
+            )
+        )
+
+        XCTAssertEqual(presentation.integrity, .invalid)
+        XCTAssertEqual(presentation.detail, .invalidUnknown)
+        XCTAssertFalse(presentation.hasReliableResult)
+        XCTAssertTrue(presentation.showsRecoveryAction)
+    }
+
+    func testHistoryPresentationUsesConservativeIncompleteFallbackForUnknownReason() {
+        let presentation = ScanHistoryRecordPresentation(
+            record: makeHistoryRecord(
+                persistenceState: .incomplete,
+                persistenceFailureReason: "futureIncompleteReason"
+            )
+        )
+
+        XCTAssertEqual(presentation.integrity, .incomplete)
+        XCTAssertEqual(presentation.detail, .incompleteUnknown)
+        XCTAssertFalse(presentation.hasReliableResult)
+        XCTAssertTrue(presentation.showsRecoveryAction)
+    }
+
+    func testHistoryPresentationUsesPersistenceStateAsAuthority() {
+        let presentation = ScanHistoryRecordPresentation(
+            record: makeHistoryRecord(
+                fruitCount: 7,
+                yieldKg: 2.5,
+                persistenceState: .complete,
+                persistenceFailureReason: "scanResultJSONFailed"
+            )
+        )
+
+        XCTAssertEqual(presentation.integrity, .complete)
+        XCTAssertEqual(presentation.detail, .none)
+        XCTAssertEqual(presentation.fruitCount, 7)
+        XCTAssertEqual(presentation.yieldKg, 2.5)
+        XCTAssertFalse(presentation.showsRecoveryAction)
+    }
+
+    private func makeHistoryRecord(
+        fruitCount: Int = 0,
+        yieldKg: Float = 0,
+        persistenceState: ScanPersistenceState,
+        persistenceFailureReason: String? = nil
+    ) -> ScanFileRecord {
+        ScanFileRecord(
+            id: "history-presentation.ply",
+            treeID: "T-history",
+            fileURL: URL(fileURLWithPath: "/tmp/history-presentation.ply"),
+            scanDate: Date(timeIntervalSince1970: 1_717_200_000),
+            fruitCount: fruitCount,
+            yieldKg: yieldKg,
+            persistenceState: persistenceState,
+            persistenceFailureReason: persistenceFailureReason
+        )
+    }
+
     func testImportFileErrorClassifierRecognizesUserCancellation() {
         let cocoaCancellation = NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError)
         let urlCancellation = NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
