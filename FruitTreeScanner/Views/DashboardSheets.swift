@@ -14,7 +14,7 @@ struct HistorySheetView: View {
             ZStack {
                 Design.Colors.Dark.bgDeep.ignoresSafeArea()
                 ScanHistoryView(
-                    customTitle: "扫描历史",
+                    customTitle: L10n.History.navigationTitle,
                     onStartScan: onStartScan,
                     onRescanTree: onRescanTree,
                     onImportFile: onImportFile
@@ -27,7 +27,7 @@ struct HistorySheetView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
+                    Button(L10n.Common.done) { dismiss() }
                         .foregroundColor(Design.Colors.harvest)
                 }
             }

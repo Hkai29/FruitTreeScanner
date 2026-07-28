@@ -30,7 +30,7 @@ struct ScanHistoryRow: View {
                     .frame(width: 34, height: 34)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("预览点云")
+            .accessibilityLabel(L10n.History.previewPointCloud)
 
             actionsMenu
         }
@@ -57,11 +57,11 @@ struct ScanHistoryRow: View {
 
     private var resultSummary: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            Text(record.fruitCount > 0 ? "\(record.fruitCount) 个" : "未计数")
+            Text(record.fruitCount > 0 ? L10n.History.fruitCount(record.fruitCount) : L10n.History.uncounted)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(record.fruitCount > 0 ? Design.Colors.harvest : Design.Colors.Dark.textSecondary)
 
-            Text(record.yieldKg > 0 ? String(format: "%.1f kg", record.yieldKg) : "--")
+            Text(record.yieldKg > 0 ? L10n.History.yieldKilograms(record.yieldKg) : "--")
                 .font(Design.Typography.monoSmall)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
@@ -71,19 +71,19 @@ struct ScanHistoryRow: View {
     private var actionsMenu: some View {
         Menu {
             Button(action: onPreview) {
-                Label("预览点云", systemImage: "cube.transparent")
+                Label(L10n.History.previewPointCloud, systemImage: "cube.transparent")
             }
             Button(action: onRescan) {
-                Label("复扫这棵", systemImage: "viewfinder")
+                Label(L10n.History.rescanTree, systemImage: "viewfinder")
             }
             Button(action: onMarkReview) {
-                Label("标记待复核", systemImage: "flag")
+                Label(L10n.History.markReview, systemImage: "flag")
             }
             Button(action: onShare) {
-                Label("分享点云", systemImage: "square.and.arrow.up")
+                Label(L10n.History.sharePointCloud, systemImage: "square.and.arrow.up")
             }
             Button(role: .destructive, action: onDelete) {
-                Label("删除记录", systemImage: "trash")
+                Label(L10n.History.deleteRecord, systemImage: "trash")
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -91,18 +91,18 @@ struct ScanHistoryRow: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .frame(width: 34, height: 34)
         }
-        .accessibilityLabel("更多操作")
+        .accessibilityLabel(L10n.History.moreActions)
     }
 
     private var fileSize: String {
-        guard record.fileSizeBytes > 0 else { return "未知大小" }
+        guard record.fileSizeBytes > 0 else { return L10n.History.unknownSize }
         let mb = Double(record.fileSizeBytes) / 1_048_576
-        return String(format: "%.1f MB", mb)
+        return L10n.History.fileSizeMegabytes(mb)
     }
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate("MMddjmm")
         return formatter
     }()
 

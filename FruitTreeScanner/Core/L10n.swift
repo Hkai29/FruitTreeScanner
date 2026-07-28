@@ -71,6 +71,89 @@ enum L10n {
         static let noScans = NSLocalizedString("dashboard.no_scans", value: "暂无扫描记录", comment: "Empty scan history")
     }
 
+    // MARK: - Scan History
+    enum History {
+        static let navigationTitle = NSLocalizedString("history.navigation_title", value: "扫描历史", comment: "Scan history navigation title")
+        static let headerTitle = NSLocalizedString("history.header.title", value: "扫描记录", comment: "Scan history header")
+        static let headerSubtitle = NSLocalizedString("history.header.subtitle", value: "按时间、地块和状态查看所有扫描文件。", comment: "Scan history header description")
+        static let emptyTitle = NSLocalizedString("history.empty.title", value: "暂无扫描记录", comment: "Empty scan history title")
+        static let emptyMessage = NSLocalizedString("history.empty.message", value: "完成扫描或导入 PLY 后，点云文件、果数和产量会按时间保存在这里。", comment: "Empty scan history description")
+        static let filteredEmptyTitle = NSLocalizedString("history.filtered_empty.title", value: "没有符合筛选的记录", comment: "Filtered scan history empty title")
+        static let filteredEmptyMessage = NSLocalizedString("history.filtered_empty.message", value: "切换地块或状态筛选后再查看。", comment: "Filtered scan history empty description")
+        static let startScan = NSLocalizedString("history.action.start_scan", value: "开始扫描", comment: "Start scan action")
+        static let importPLY = NSLocalizedString("history.action.import_ply", value: "导入 PLY", comment: "Import PLY action")
+        static let clearAll = NSLocalizedString("history.action.clear_all", value: "清空全部", comment: "Clear all scan history action")
+        static let clear = NSLocalizedString("history.action.clear", value: "清空", comment: "Confirm clearing scan history action")
+        static let allPlots = NSLocalizedString("history.filter.all_plots", value: "全部地块", comment: "All plots filter")
+        static let plotFallback = NSLocalizedString("history.filter.plot_fallback", value: "地块", comment: "Missing plot filter fallback")
+        static let allStatuses = NSLocalizedString("history.filter.all_statuses", value: "全部状态", comment: "All statuses filter")
+        static let deleteAlertTitle = NSLocalizedString("history.alert.delete.title", value: "删除扫描记录", comment: "Delete scan record alert title")
+        static let deleteAlertMessage = NSLocalizedString("history.alert.delete.message", value: "将删除这条记录关联的 PLY 点云、CSV 和结果文件。", comment: "Delete scan record alert message")
+        static let clearAlertTitle = NSLocalizedString("history.alert.clear.title", value: "清空全部扫描记录", comment: "Clear scan history alert title")
+        static let clearAlertMessage = NSLocalizedString("history.alert.clear.message", value: "将删除当前所有扫描记录及其关联文件，此操作无法撤销。", comment: "Clear scan history alert message")
+        static let previewPointCloud = NSLocalizedString("history.row.preview_point_cloud", value: "预览点云", comment: "Preview point cloud action")
+        static let rescanTree = NSLocalizedString("history.row.rescan_tree", value: "复扫这棵", comment: "Rescan tree action")
+        static let markReview = NSLocalizedString("history.row.mark_review", value: "标记待复核", comment: "Mark scan record for review action")
+        static let sharePointCloud = NSLocalizedString("history.row.share_point_cloud", value: "分享点云", comment: "Share point cloud action")
+        static let deleteRecord = NSLocalizedString("history.row.delete_record", value: "删除记录", comment: "Delete scan record action")
+        static let moreActions = NSLocalizedString("history.row.more_actions", value: "更多操作", comment: "More scan record actions")
+        static let unknownSize = NSLocalizedString("history.row.unknown_size", value: "未知大小", comment: "Unknown scan file size")
+        static let uncounted = NSLocalizedString("history.row.uncounted", value: "未计数", comment: "Scan record has no fruit count")
+
+        static func statusLocalizationKey(for status: ScanStatus) -> String {
+            switch status {
+            case .notScanned:
+                return "history.filter.status.not_scanned"
+            case .scanned:
+                return "history.filter.status.scanned"
+            case .reviewing:
+                return "history.filter.status.reviewing"
+            case .completed:
+                return "history.filter.status.completed"
+            }
+        }
+
+        static func statusName(for status: ScanStatus) -> String {
+            let fallback: String
+            switch status {
+            case .notScanned:
+                fallback = "未扫描"
+            case .scanned:
+                fallback = "已扫描"
+            case .reviewing:
+                fallback = "复查中"
+            case .completed:
+                fallback = "已完成"
+            }
+            return NSLocalizedString(
+                statusLocalizationKey(for: status),
+                value: fallback,
+                comment: "Localized scan status"
+            )
+        }
+
+        static func fruitCount(_ count: Int) -> String {
+            String.localizedStringWithFormat(
+                NSLocalizedString("history.row.count_format", value: "%d 个", comment: "Fruit count in scan history"),
+                count
+            )
+        }
+
+        static func yieldKilograms(_ kilograms: Float) -> String {
+            String.localizedStringWithFormat(
+                NSLocalizedString("history.row.yield_format", value: "%.1f kg", comment: "Yield in scan history"),
+                Double(kilograms)
+            )
+        }
+
+        static func fileSizeMegabytes(_ megabytes: Double) -> String {
+            String.localizedStringWithFormat(
+                NSLocalizedString("history.row.file_size_format", value: "%.1f MB", comment: "Point cloud file size"),
+                megabytes
+            )
+        }
+    }
+
     // MARK: - Settings
     enum Settings {
         static let title = NSLocalizedString("settings.title", value: "设置", comment: "Settings title")

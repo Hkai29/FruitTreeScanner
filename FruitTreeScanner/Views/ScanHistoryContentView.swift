@@ -15,8 +15,8 @@ struct ScanHistoryContentView: View {
         VStack(spacing: 0) {
             DashboardToolHeader(
                 imageName: "FeatureScanHistory",
-                title: "扫描记录",
-                subtitle: "按时间、地块和状态查看所有扫描文件。",
+                title: L10n.History.headerTitle,
+                subtitle: L10n.History.headerSubtitle,
                 icon: "folder",
                 accent: Design.Colors.harvest
             )
@@ -34,8 +34,8 @@ struct ScanHistoryContentView: View {
             ScrollView {
                 if filteredScans.isEmpty {
                     ScanHistoryEmptyState(
-                        title: "没有符合筛选的记录",
-                        message: "切换地块或状态筛选后再查看。",
+                        title: L10n.History.filteredEmptyTitle,
+                        message: L10n.History.filteredEmptyMessage,
                         onStartScan: nil,
                         onImportFile: nil
                     )

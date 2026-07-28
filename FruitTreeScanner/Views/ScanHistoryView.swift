@@ -4,7 +4,7 @@
 import SwiftUI
 
 struct ScanHistoryView: View {
-    var customTitle: String = "扫描历史"
+    var customTitle: String = L10n.History.navigationTitle
     var onStartScan: (() -> Void)? = nil
     var onRescanTree: ((String) -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
@@ -23,8 +23,8 @@ struct ScanHistoryView: View {
 
             if historyStore.scanFiles.isEmpty {
                 ScanHistoryEmptyState(
-                    title: "暂无扫描记录",
-                    message: "完成扫描或导入 PLY 后，点云文件、果数和产量会按时间保存在这里。",
+                    title: L10n.History.emptyTitle,
+                    message: L10n.History.emptyMessage,
                     onStartScan: onStartScan,
                     onImportFile: onImportFile
                 )
@@ -51,7 +51,7 @@ struct ScanHistoryView: View {
                         Button(role: .destructive) {
                             showClearAllConfirmation = true
                         } label: {
-                            Label("清空全部", systemImage: "trash")
+                            Label(L10n.History.clearAll, systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -70,23 +70,23 @@ struct ScanHistoryView: View {
                 PointCloudSheet(initialFileURL: url)
             }
         }
-        .alert("删除扫描记录", isPresented: deleteRecordAlertBinding) {
-            Button("取消", role: .cancel) {
+        .alert(L10n.History.deleteAlertTitle, isPresented: deleteRecordAlertBinding) {
+            Button(L10n.Common.cancel, role: .cancel) {
                 recordPendingDeletion = nil
             }
-            Button("删除", role: .destructive) {
+            Button(L10n.Common.delete, role: .destructive) {
                 deletePendingRecord()
             }
         } message: {
-            Text("将删除这条记录关联的 PLY 点云、CSV 和结果文件。")
+            Text(L10n.History.deleteAlertMessage)
         }
-        .alert("清空全部扫描记录", isPresented: $showClearAllConfirmation) {
-            Button("取消", role: .cancel) {}
-            Button("清空", role: .destructive) {
+        .alert(L10n.History.clearAlertTitle, isPresented: $showClearAllConfirmation) {
+            Button(L10n.Common.cancel, role: .cancel) {}
+            Button(L10n.History.clear, role: .destructive) {
                 historyStore.deleteRecords(historyStore.scanFiles)
             }
         } message: {
-            Text("将删除当前所有扫描记录及其关联文件，此操作无法撤销。")
+            Text(L10n.History.clearAlertMessage)
         }
     }
 
