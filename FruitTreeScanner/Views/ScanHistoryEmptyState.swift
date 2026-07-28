@@ -15,12 +15,12 @@ struct ScanHistoryEmptyState: View {
                 message: message,
                 accent: Design.Colors.harvest,
                 primaryAction: action(
-                    title: ScanHistoryText.startScan,
+                    title: L10n.History.startScan,
                     icon: "viewfinder",
                     handler: onStartScan
                 ),
                 secondaryAction: action(
-                    title: ScanHistoryText.importPLY,
+                    title: L10n.History.importPLY,
                     icon: "square.and.arrow.down",
                     handler: onImportFile
                 )

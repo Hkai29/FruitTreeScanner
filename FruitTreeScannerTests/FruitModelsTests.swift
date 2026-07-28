@@ -61,6 +61,30 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(L10n.FruitCategoryVerification.switchAccessibilityHint(to: .apple).isEmpty)
     }
 
+    func testHistoryFilterLayoutPolicyStacksAccessibilitySizesAndKeepsMinimumTarget() {
+        let standard = ScanHistoryFilterLayoutPolicy(isAccessibilitySize: false)
+        XCTAssertEqual(standard.arrangement, .horizontal)
+        XCTAssertEqual(standard.minimumControlHeight, Design.Touch.minimumHeight)
+
+        let accessibility = ScanHistoryFilterLayoutPolicy(isAccessibilitySize: true)
+        XCTAssertEqual(accessibility.arrangement, .vertical)
+        XCTAssertEqual(accessibility.minimumControlHeight, Design.Touch.minimumHeight)
+    }
+
+    func testHistoryStatusLocalizationMappingIsIndependentFromPersistedRawValues() {
+        XCTAssertEqual(
+            ScanStatus.allCases.map(L10n.History.statusLocalizationKey(for:)),
+            [
+                "history.filter.status.not_scanned",
+                "history.filter.status.scanned",
+                "history.filter.status.reviewing",
+                "history.filter.status.completed"
+            ]
+        )
+
+        XCTAssertEqual(ScanStatus.allCases.map(\.rawValue), ["未扫描", "已扫描", "复查中", "已完成"])
+    }
+
     func testAllCategoriesHaveSizeRange() {
         for category in FruitCategory.allCases {
             XCTAssertGreaterThan(category.sizeRange.lowerBound, 0,

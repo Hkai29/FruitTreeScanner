@@ -6,7 +6,20 @@ import SwiftUI
 struct FilterChip<Content: View>: View {
     let title: String
     let isSelected: Bool
+    let minimumHeight: CGFloat?
     @ViewBuilder let content: () -> Content
+
+    init(
+        title: String,
+        isSelected: Bool,
+        minimumHeight: CGFloat? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.isSelected = isSelected
+        self.minimumHeight = minimumHeight
+        self.content = content
+    }
 
     var body: some View {
         Menu {
@@ -23,6 +36,8 @@ struct FilterChip<Content: View>: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .frame(minHeight: minimumHeight)
+            .contentShape(Capsule())
             .background(isSelected ? Design.Colors.earth.opacity(0.22) : Design.Colors.Dark.bgElevated)
             .overlay(
                 Capsule()

@@ -4,7 +4,7 @@
 import SwiftUI
 
 struct ScanHistoryView: View {
-    var customTitle: String = ScanHistoryText.title
+    var customTitle: String = L10n.History.navigationTitle
     var onStartScan: (() -> Void)? = nil
     var onRescanTree: ((String) -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
@@ -33,8 +33,8 @@ struct ScanHistoryView: View {
                 )
             case .empty:
                 ScanHistoryEmptyState(
-                    title: ScanHistoryText.emptyTitle,
-                    message: ScanHistoryText.emptyMessage,
+                    title: L10n.History.emptyTitle,
+                    message: L10n.History.emptyMessage,
                     onStartScan: onStartScan,
                     onImportFile: onImportFile
                 )
@@ -57,7 +57,7 @@ struct ScanHistoryView: View {
                         Button(role: .destructive) {
                             showClearAllConfirmation = true
                         } label: {
-                            Label(ScanHistoryDeletionCopy.clearMenu, systemImage: "trash")
+                            Label(L10n.History.clearAll, systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")

@@ -15,8 +15,8 @@ struct ScanHistoryContentView: View {
         VStack(spacing: 0) {
             DashboardToolHeader(
                 imageName: "FeatureScanHistory",
-                title: ScanHistoryText.headerTitle,
-                subtitle: ScanHistoryText.headerSubtitle,
+                title: L10n.History.headerTitle,
+                subtitle: L10n.History.headerSubtitle,
                 icon: "folder",
                 accent: Design.Colors.harvest
             )
@@ -34,8 +34,8 @@ struct ScanHistoryContentView: View {
             ScrollView {
                 if filteredScans.isEmpty {
                     ScanHistoryEmptyState(
-                        title: ScanHistoryText.filteredEmptyTitle,
-                        message: ScanHistoryText.filteredEmptyMessage,
+                        title: L10n.History.filteredEmptyTitle,
+                        message: L10n.History.filteredEmptyMessage,
                         onStartScan: nil,
                         onImportFile: nil
                     )

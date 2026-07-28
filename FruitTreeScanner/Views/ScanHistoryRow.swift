@@ -287,34 +287,19 @@ struct ScanHistoryRow: View {
     private var actionsMenu: some View {
         Menu {
             Button(action: onPreview) {
-                Label(
-                    localized("history.row.preview_point_cloud", value: "Preview Point Cloud"),
-                    systemImage: "cube.transparent"
-                )
+                Label(L10n.History.previewPointCloud, systemImage: "cube.transparent")
             }
             Button(action: onRescan) {
-                Label(
-                    localized("history.row.rescan_tree", value: "Rescan This Tree"),
-                    systemImage: "viewfinder"
-                )
+                Label(L10n.History.rescanTree, systemImage: "viewfinder")
             }
             Button(action: onMarkReview) {
-                Label(
-                    localized("history.row.mark_review", value: "Mark for Review"),
-                    systemImage: "flag"
-                )
+                Label(L10n.History.markReview, systemImage: "flag")
             }
             Button(action: onShare) {
-                Label(
-                    localized("history.row.share_point_cloud", value: "Share Point Cloud"),
-                    systemImage: "square.and.arrow.up"
-                )
+                Label(L10n.History.sharePointCloud, systemImage: "square.and.arrow.up")
             }
             Button(role: .destructive, action: onDelete) {
-                Label(
-                    localized("history.row.delete_record", value: "Delete Record"),
-                    systemImage: "trash"
-                )
+                Label(L10n.History.deleteRecord, systemImage: "trash")
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -322,7 +307,7 @@ struct ScanHistoryRow: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .frame(width: Design.Touch.minimumWidth, height: Design.Touch.minimumHeight)
         }
-        .accessibilityLabel(localized("history.row.more_actions", value: "More Actions"))
+        .accessibilityLabel(L10n.History.moreActions)
     }
 
     private var statusTitle: String {
@@ -428,15 +413,15 @@ struct ScanHistoryRow: View {
 
     private var fileSize: String {
         guard record.fileSizeBytes > 0 else {
-            return localized("history.row.unknown_size", value: "Unknown Size")
+            return L10n.History.unknownSize
         }
         let mb = Double(record.fileSizeBytes) / 1_048_576
-        return ScanHistoryText.fileSize(megabytes: mb)
+        return L10n.History.fileSizeMegabytes(mb)
     }
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd HH:mm"
+        formatter.setLocalizedDateFormatFromTemplate("MMddjmm")
         return formatter
     }()
 

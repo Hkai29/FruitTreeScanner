@@ -243,7 +243,29 @@
 "history.load.damaged.separator" = "、";
 "history.load.damaged.more_format" = "等 %d 条";
 
-/* 历史记录行 */
+/* 扫描历史 */
+"history.navigation_title" = "扫描历史";
+"history.header.title" = "扫描记录";
+"history.header.subtitle" = "按时间、地块和状态查看所有扫描文件。";
+"history.empty.title" = "暂无扫描记录";
+"history.empty.message" = "完成扫描或导入 PLY 后，点云文件、果数和产量会按时间保存在这里。";
+"history.filtered_empty.title" = "没有符合筛选的记录";
+"history.filtered_empty.message" = "切换地块或状态筛选后再查看。";
+"history.action.start_scan" = "开始扫描";
+"history.action.import_ply" = "导入 PLY";
+"history.action.clear_all" = "清空全部";
+"history.action.clear" = "清空";
+"history.filter.all_plots" = "全部地块";
+"history.filter.plot_fallback" = "地块";
+"history.filter.all_statuses" = "全部状态";
+"history.filter.status.not_scanned" = "未扫描";
+"history.filter.status.scanned" = "已扫描";
+"history.filter.status.reviewing" = "复查中";
+"history.filter.status.completed" = "已完成";
+"history.alert.delete.title" = "删除扫描记录";
+"history.alert.delete.message" = "将删除这条记录关联的 PLY 点云、CSV 和结果文件。";
+"history.alert.clear.title" = "清空全部扫描记录";
+"history.alert.clear.message" = "将删除当前所有扫描记录及其关联文件，此操作无法撤销。";
 "history.row.preview_point_cloud" = "预览点云";
 "history.row.rescan_action" = "复扫";
 "history.row.rescan_tree" = "复扫这棵";
@@ -253,8 +275,10 @@
 "history.row.delete_record" = "删除记录";
 "history.row.more_actions" = "更多操作";
 "history.row.unknown_size" = "未知大小";
+"history.row.uncounted" = "未计数";
 "history.row.count_format" = "%d 个";
 "history.row.yield_format" = "%.1f kg";
+"history.row.file_size_format" = "%.1f MB";
 "history.row.metrics_unavailable" = "果数与产量不可用";
 "history.integrity.complete.title" = "结果完整";
 "history.integrity.incomplete.title" = "待恢复";
