@@ -1,6 +1,20 @@
 import SwiftUI
 import MapKit
 
+struct OrchardMapData {
+    let trees: [TreeAnnotation]
+
+    init(records: [ScanFileRecord]) {
+        trees = records
+            .filter {
+                $0.persistenceState == .complete &&
+                    $0.gpsLat != 0 &&
+                    $0.gpsLon != 0
+            }
+            .map(TreeAnnotation.init(record:))
+    }
+}
+
 struct TreeAnnotation: Identifiable, Hashable {
     let id: String
     let treeID: String

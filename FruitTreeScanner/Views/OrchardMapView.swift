@@ -13,14 +13,8 @@ struct OrchardMapView: View {
     @State private var mapCameraPosition: MapCameraPosition = .automatic
     @State private var filterYieldLevel: YieldLevel?
 
-    private var realTrees: [TreeAnnotation] {
-        historyStore.scanFiles
-            .filter { $0.gpsLat != 0 && $0.gpsLon != 0 }
-            .map(TreeAnnotation.init(record:))
-    }
-
     private var trees: [TreeAnnotation] {
-        realTrees
+        OrchardMapData(records: historyStore.scanFiles).trees
     }
 
     private var filteredTrees: [TreeAnnotation] {
