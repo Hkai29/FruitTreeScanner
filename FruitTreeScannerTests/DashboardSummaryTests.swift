@@ -234,6 +234,71 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(report.visibleRecords.last?.id, "complete-19")
     }
 
+    func testTrendsDataIncludesOnlyCompleteRecordsAndSortsChronologically() {
+        let oldestDate = Date(timeIntervalSince1970: 100)
+        let middleDate = Date(timeIntervalSince1970: 200)
+        let newestDate = Date(timeIntervalSince1970: 300)
+        let records = [
+            makeRecord(
+                id: "complete-newer",
+                treeID: "T-002",
+                scanDate: newestDate,
+                fruitCount: 42,
+                yieldKg: 8.4
+            ),
+            makeRecord(
+                id: "incomplete",
+                treeID: "T-ERR-1",
+                scanDate: middleDate,
+                fruitCount: 999,
+                yieldKg: 99,
+                persistenceState: .incomplete
+            ),
+            makeRecord(
+                id: "invalid",
+                treeID: "T-ERR-2",
+                scanDate: oldestDate,
+                fruitCount: 888,
+                yieldKg: 88,
+                persistenceState: .invalid
+            ),
+            makeRecord(id: "complete-older", treeID: "T-001", scanDate: oldestDate, fruitCount: 13, yieldKg: 2.5)
+        ]
+
+        let trendsData = TrendsData(records: records)
+
+        XCTAssertEqual(trendsData.records.map(\.id), ["complete-older", "complete-newer"])
+        XCTAssertEqual(trendsData.maxYield, 8.4, accuracy: 0.001)
+        XCTAssertFalse(trendsData.isEmpty)
+    }
+
+    func testTrendsDataIsEmptyWhenOnlyIncompleteRecordsExist() {
+        let trendsData = TrendsData(records: [
+            makeRecord(
+                id: "incomplete",
+                treeID: "T-ERR",
+                scanDate: Date(),
+                fruitCount: 999,
+                yieldKg: 99,
+                persistenceState: .incomplete
+            )
+        ])
+
+        XCTAssertTrue(trendsData.records.isEmpty)
+        XCTAssertEqual(trendsData.maxYield, 1, accuracy: 0.001)
+        XCTAssertTrue(trendsData.isEmpty)
+    }
+
+    func testTrendsDataUsesOneAsMinimumScaleForZeroYieldCompleteRecords() {
+        let trendsData = TrendsData(records: [
+            makeRecord(id: "complete", treeID: "T-001", scanDate: Date(), fruitCount: 0, yieldKg: 0)
+        ])
+
+        XCTAssertEqual(trendsData.records.map(\.id), ["complete"])
+        XCTAssertEqual(trendsData.maxYield, 1, accuracy: 0.001)
+        XCTAssertFalse(trendsData.isEmpty)
+    }
+
     private func makeRecord(
         id: String,
         treeID: String,

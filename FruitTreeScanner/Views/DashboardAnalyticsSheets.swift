@@ -114,30 +114,38 @@ struct YieldReportSheet: View {
     }
 }
 
+struct TrendsData {
+    let records: [ScanFileRecord]
+    let maxYield: Float
+
+    var isEmpty: Bool { records.isEmpty }
+
+    init(records: [ScanFileRecord]) {
+        self.records = records
+            .filter { $0.persistenceState == .complete }
+            .sorted { $0.scanDate < $1.scanDate }
+        maxYield = max(self.records.map(\.yieldKg).max() ?? 1, 1)
+    }
+}
+
 struct TrendsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var historyStore = ScanHistoryStore.shared
     var onStartScan: (() -> Void)? = nil
 
-    private var sortedRecords: [ScanFileRecord] {
-        historyStore.scanFiles.sorted { $0.scanDate < $1.scanDate }
-    }
-
-    private var maxYield: Float {
-        max(sortedRecords.map(\.yieldKg).max() ?? 1, 1)
-    }
+    private var trendsData: TrendsData { TrendsData(records: historyStore.scanFiles) }
 
     var body: some View {
         NavigationView {
             ZStack {
                 Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
-                if historyStore.scanFiles.isEmpty {
+                if trendsData.isEmpty {
                     DashboardSheetEmptyState(
                         icon: "chart.xyaxis.line",
                         imageName: "FeatureTrends",
-                        title: "暂无趋势数据",
-                        message: "至少完成一次扫描后，才能显示产量随时间变化。",
+                        title: "暂无可靠趋势数据",
+                        message: "至少完成一次扫描并保存完整结果后，才能显示产量随时间变化。",
                         accent: Design.Colors.Dark.info,
                         primaryAction: action(title: "开始扫描", icon: "viewfinder", handler: onStartScan)
                     )
@@ -190,10 +198,10 @@ struct TrendsSheet: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: 10) {
-                    ForEach(sortedRecords) { record in
+                    ForEach(trendsData.records) { record in
                         TrendBar(
                             record: record,
-                            maxYield: maxYield,
+                            maxYield: trendsData.maxYield,
                             color: barColor(for: record.yieldKg)
                         )
                     }
@@ -214,9 +222,9 @@ struct TrendsSheet: View {
                 .padding(.top, 14)
                 .padding(.bottom, 8)
 
-            ForEach(Array(sortedRecords.enumerated()), id: \.element.id) { index, record in
+            ForEach(Array(trendsData.records.enumerated()), id: \.element.id) { index, record in
                 YieldRecordRow(record: record)
-                if index < sortedRecords.count - 1 {
+                if index < trendsData.records.count - 1 {
                     Divider()
                         .background(Design.Colors.Dark.glassBorder)
                         .padding(.leading, 14)
@@ -227,7 +235,7 @@ struct TrendsSheet: View {
     }
 
     private func barColor(for yield: Float) -> Color {
-        let ratio = yield / maxYield
+        let ratio = yield / trendsData.maxYield
         if ratio > 0.7 { return Design.Colors.harvest }
         if ratio > 0.4 { return Design.Colors.Dark.info }
         return Design.Colors.Dark.textMuted
