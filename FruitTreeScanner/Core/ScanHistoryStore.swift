@@ -1,83 +1,163 @@
 import Foundation
 import Combine
 
+enum ScanHistoryLoadFailure: Equatable, Sendable {
+    case directoryUnavailable
+}
+
+enum ScanHistoryLoadResult: Equatable, Sendable {
+    case success([ScanFileRecord])
+    case failure(ScanHistoryLoadFailure)
+}
+
+typealias ScanHistoryRecordsLoader = @Sendable () async -> ScanHistoryLoadResult
+
 @MainActor
 final class ScanHistoryStore: ObservableObject {
     static let shared = ScanHistoryStore()
 
     @Published private(set) var scanFiles: [ScanFileRecord] = []
+    @Published private(set) var damagedRecords: [ScanFileRecord] = []
+    @Published private(set) var loadFailure: ScanHistoryLoadFailure?
+    @Published private(set) var isLoading = false
 
     static let didUpdateNotification = Notification.Name("ScanHistoryStoreDidUpdate")
+    private let recordsLoader: ScanHistoryRecordsLoader
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = 0
 
-    private init() {
-        loadRecords()
+    private convenience init() {
+        self.init(
+            recordsLoader: {
+                await Task.detached(priority: .utility) {
+                    Self.readRecordsFromDisk()
+                }.value
+            },
+            automaticallyLoads: true
+        )
     }
 
-    func loadRecords(postNotification: Bool = false) {
+    init(
+        recordsLoader: @escaping ScanHistoryRecordsLoader,
+        automaticallyLoads: Bool = false
+    ) {
+        self.recordsLoader = recordsLoader
+        if automaticallyLoads {
+            loadRecords()
+        }
+    }
+
+    @discardableResult
+    func loadRecords(postNotification: Bool = false) -> Task<Void, Never> {
         loadGeneration += 1
         let generation = loadGeneration
         loadTask?.cancel()
-        loadTask = Task.detached(priority: .utility) { [weak self, generation, postNotification] in
-            let records = Self.readRecordsFromDisk()
+        isLoading = true
+        let recordsLoader = recordsLoader
+        let task = Task { [weak self, generation, postNotification] in
+            let result = await recordsLoader()
             guard !Task.isCancelled else { return }
-            await self?.applyLoadedRecords(records, generation: generation, postNotification: postNotification)
+            self?.applyLoadedRecords(
+                result,
+                generation: generation,
+                postNotification: postNotification
+            )
         }
+        loadTask = task
+        return task
     }
 
-    private func applyLoadedRecords(_ records: [ScanFileRecord], generation: Int, postNotification: Bool) {
+    func reloadRecords(postNotification: Bool = false) async {
+        let task = loadRecords(postNotification: postNotification)
+        await task.value
+    }
+
+    private func applyLoadedRecords(
+        _ result: ScanHistoryLoadResult,
+        generation: Int,
+        postNotification: Bool
+    ) {
         guard loadGeneration == generation else { return }
-        if scanFiles != records {
-            scanFiles = records
-        }
-        if postNotification {
-            NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
+        loadTask = nil
+        isLoading = false
+
+        switch result {
+        case .success(let records):
+            if scanFiles != records {
+                scanFiles = records
+            }
+            let invalidRecords = records.filter { $0.persistenceState == .invalid }
+            if damagedRecords != invalidRecords {
+                damagedRecords = invalidRecords
+            }
+            loadFailure = nil
+            if postNotification {
+                NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
+            }
+        case .failure(let failure):
+            loadFailure = failure
         }
     }
 
-    nonisolated private static func readRecordsFromDisk() -> [ScanFileRecord] {
+    nonisolated private static func readRecordsFromDisk() -> ScanHistoryLoadResult {
         let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("scans")
 
-        guard FileManager.default.fileExists(atPath: scansDir.path) else {
-            return []
+        return readRecords(
+            at: scansDir,
+            directoryExists: { FileManager.default.fileExists(atPath: $0) },
+            contentsOfDirectory: { directory in
+                try FileManager.default.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: [.creationDateKey],
+                    options: .skipsHiddenFiles
+                )
+            },
+            recordBuilder: makeRecord
+        )
+    }
+
+    nonisolated static func readRecords(
+        at scansDirectory: URL,
+        directoryExists: (String) -> Bool,
+        contentsOfDirectory: (URL) throws -> [URL],
+        recordBuilder: (URL) -> ScanFileRecord?
+    ) -> ScanHistoryLoadResult {
+        guard directoryExists(scansDirectory.path) else {
+            return .success([])
         }
-
         do {
-            let files = try FileManager.default.contentsOfDirectory(
-                at: scansDir,
-                includingPropertiesForKeys: [.creationDateKey],
-                options: .skipsHiddenFiles
-            )
-
-            return files
+            let files = try contentsOfDirectory(scansDirectory)
+            let records = files
                 .filter { $0.pathExtension == "ply" }
-                .compactMap { url -> ScanFileRecord? in
-                    guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
-                    let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-                    let fileSizeBytes = attributes?[.size] as? Int ?? 0
-                    return ScanFileRecord(
-                        id: url.lastPathComponent,
-                        treeID: result.treeID,
-                        fileURL: url,
-                        scanDate: result.scanDate,
-                        fruitCount: result.fruitCount,
-                        yieldKg: result.yieldKg,
-                        gpsLat: result.gpsLat,
-                        gpsLon: result.gpsLon,
-                        fruitType: result.fruitType,
-                        confidence: result.confidence,
-                        fileSizeBytes: fileSizeBytes,
-                        persistenceState: result.persistenceState,
-                        persistenceFailureReason: result.persistenceFailureReason
-                    )
-                }
+                .compactMap(recordBuilder)
                 .sorted { $0.scanDate > $1.scanDate }
+            return .success(records)
         } catch {
             Log.general.error("Failed to read scan history directory: \(error.localizedDescription)")
-            return []
+            return .failure(.directoryUnavailable)
         }
+    }
+
+    nonisolated private static func makeRecord(from url: URL) -> ScanFileRecord? {
+        guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let fileSizeBytes = attributes?[.size] as? Int ?? 0
+        return ScanFileRecord(
+            id: url.lastPathComponent,
+            treeID: result.treeID,
+            fileURL: url,
+            scanDate: result.scanDate,
+            fruitCount: result.fruitCount,
+            yieldKg: result.yieldKg,
+            gpsLat: result.gpsLat,
+            gpsLon: result.gpsLon,
+            fruitType: result.fruitType,
+            confidence: result.confidence,
+            fileSizeBytes: fileSizeBytes,
+            persistenceState: result.persistenceState,
+            persistenceFailureReason: result.persistenceFailureReason
+        )
     }
 
     func deleteRecord(_ record: ScanFileRecord) {

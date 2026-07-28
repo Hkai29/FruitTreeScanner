@@ -155,3 +155,17 @@
 "fruit_category_selected_accessibility_hint" = "The selected fruit type remains fixed for this scan and will not be replaced automatically.";
 "fruit_category_suggestion_accessibility_label" = "Suggested fruit type: %@";
 "fruit_category_mismatch_accessibility_hint" = "Stops the current scan, clears its scan data, and sets %@ for the next scan.";
+
+/* Scan History Loading */
+"history.load.loading" = "Loading scan history…";
+"history.load.failure.title" = "Scan history not updated";
+"history.load.failure.empty_message" = "The scans folder couldn’t be read. No existing files were deleted. Try again.";
+"history.load.failure.stale_message_format" = "The scans folder couldn’t be read. Showing %d records from the last successful load.";
+"history.load.retry" = "Retry";
+"history.load.retrying" = "Retrying…";
+"history.load.retry_hint" = "Reads the scans folder again.";
+"history.load.damaged.title_one" = "1 record has a damaged result file";
+"history.load.damaged.title_many_format" = "%d records have damaged result files";
+"history.load.damaged.message_format" = "The point cloud is still available, but fruit count and yield aren’t reliable: %@";
+"history.load.damaged.separator" = ", ";
+"history.load.damaged.more_format" = " and %d more";
