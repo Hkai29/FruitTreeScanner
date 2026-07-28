@@ -62,6 +62,25 @@ struct ScanHistoryRecordPresentation: Equatable, Sendable {
     }
 }
 
+struct ScanHistoryStatusVisualPolicy: Equatable, Sendable {
+    enum ForegroundRole: Equatable, Sendable {
+        case semanticAccent
+        case primaryText
+    }
+
+    let symbolForeground: ForegroundRole
+    let titleForeground: ForegroundRole
+    let recoverySymbolForeground: ForegroundRole
+    let recoveryTextForeground: ForegroundRole
+
+    init() {
+        symbolForeground = .semanticAccent
+        titleForeground = .primaryText
+        recoverySymbolForeground = .semanticAccent
+        recoveryTextForeground = .primaryText
+    }
+}
+
 struct ScanHistoryRow: View {
     let record: ScanFileRecord
     let onPreview: () -> Void
@@ -74,6 +93,8 @@ struct ScanHistoryRow: View {
     private var presentation: ScanHistoryRecordPresentation {
         ScanHistoryRecordPresentation(record: record)
     }
+
+    private let statusVisualPolicy = ScanHistoryStatusVisualPolicy()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -191,11 +212,17 @@ struct ScanHistoryRow: View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: statusIcon)
                 .font(.caption.weight(.semibold))
+                .foregroundColor(
+                    statusForegroundColor(for: statusVisualPolicy.symbolForeground)
+                )
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(statusTitle)
                     .font(.caption.weight(.semibold))
+                    .foregroundColor(
+                        statusForegroundColor(for: statusVisualPolicy.titleForeground)
+                    )
 
                 if let statusMessage {
                     Text(statusMessage)
@@ -205,7 +232,6 @@ struct ScanHistoryRow: View {
                 }
             }
         }
-        .foregroundColor(statusColor)
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background(statusColor.opacity(0.12))
@@ -230,17 +256,23 @@ struct ScanHistoryRow: View {
 
     private var recoveryButton: some View {
         Button(action: onRescan) {
-            Label(
-                localized("history.row.rescan_action", value: "Rescan"),
-                systemImage: "viewfinder"
-            )
+            Label {
+                Text(localized("history.row.rescan_action", value: "Rescan"))
+                    .foregroundColor(
+                        statusForegroundColor(for: statusVisualPolicy.recoveryTextForeground)
+                    )
+            } icon: {
+                Image(systemName: "viewfinder")
+                    .foregroundColor(
+                        statusForegroundColor(for: statusVisualPolicy.recoverySymbolForeground)
+                    )
+            }
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .frame(minHeight: Design.Touch.minimumHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundColor(statusColor)
         .background(statusColor.opacity(0.14))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .fixedSize(horizontal: true, vertical: false)
@@ -360,6 +392,17 @@ struct ScanHistoryRow: View {
             return Design.Colors.Dark.warning
         case .invalid:
             return Design.Colors.Dark.error
+        }
+    }
+
+    private func statusForegroundColor(
+        for role: ScanHistoryStatusVisualPolicy.ForegroundRole
+    ) -> Color {
+        switch role {
+        case .semanticAccent:
+            return statusColor
+        case .primaryText:
+            return Design.Colors.Dark.textPrimary
         }
     }
 
