@@ -8,8 +8,8 @@ struct HistoricalCompareEmptyState: View {
         DashboardSheetEmptyState(
             icon: "arrow.left.arrow.right",
             imageName: "FeatureCompare",
-            title: "至少需要两条扫描",
-            message: "当前只有 \(scanCount) 条记录。完成两次扫描或导入 PLY 后，就可以比较产量、果数和日期变化。",
+            title: "至少需要两条完整扫描",
+            message: "当前只有 \(scanCount) 条可用记录。完成两次扫描并保存完整结果后，就可以比较产量、果数和日期变化。",
             accent: Design.Colors.harvest,
             primaryAction: action(title: "开始扫描", icon: "viewfinder", handler: onStartScan),
             outerPadding: false

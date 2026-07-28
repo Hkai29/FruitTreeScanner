@@ -1687,6 +1687,80 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("-1.25"))
         XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("inf"))
     }
+
+    // MARK: - Historical comparison data integrity
+
+    func testHistoricalCompareItemsIncludeOnlyCompleteRecordsAndPreserveEvidence() throws {
+        let complete = historicalCompareRecord(
+            id: "complete.ply",
+            treeID: "complete",
+            fruitCount: 24,
+            yieldKg: 8.6,
+            confidence: "high",
+            persistenceState: .complete
+        )
+        let incomplete = historicalCompareRecord(
+            id: "incomplete.ply",
+            treeID: "incomplete",
+            fruitCount: 99,
+            yieldKg: 99,
+            confidence: "medium",
+            persistenceState: .incomplete
+        )
+        let invalid = historicalCompareRecord(
+            id: "invalid.ply",
+            treeID: "invalid",
+            fruitCount: 88,
+            yieldKg: 88,
+            confidence: "low",
+            persistenceState: .invalid
+        )
+
+        let items = HistoricalCompareDataSource.items(from: [incomplete, complete, invalid])
+        let item = try XCTUnwrap(items.first)
+
+        XCTAssertEqual(items.map(\.id), ["complete.ply"])
+        XCTAssertEqual(item.nLidar, 24)
+        XCTAssertEqual(item.yieldKg, 8.6, accuracy: 0.001)
+        XCTAssertEqual(item.confidence, "high")
+        XCTAssertNil(item.meanDiameterCm)
+    }
+
+    func testHistoricalCompareUnknownMetricsRemainUnavailable() throws {
+        let record = historicalCompareRecord(
+            id: "unknown.ply",
+            treeID: "unknown",
+            fruitCount: 0,
+            yieldKg: 0,
+            confidence: "",
+            persistenceState: .complete
+        )
+
+        let item = try XCTUnwrap(HistoricalCompareDataSource.items(from: [record]).first)
+
+        XCTAssertEqual(item.diameterFormatted, "--")
+        XCTAssertEqual(item.confidenceFormatted, "--")
+    }
+
+    private func historicalCompareRecord(
+        id: String,
+        treeID: String,
+        fruitCount: Int,
+        yieldKg: Float,
+        confidence: String,
+        persistenceState: ScanPersistenceState
+    ) -> ScanFileRecord {
+        ScanFileRecord(
+            id: id,
+            treeID: treeID,
+            fileURL: URL(fileURLWithPath: "/tmp/\(id)"),
+            scanDate: Date(timeIntervalSince1970: 1_722_141_200),
+            fruitCount: fruitCount,
+            yieldKg: yieldKg,
+            confidence: confidence,
+            persistenceState: persistenceState
+        )
+    }
 }
 
 private actor ScanHistoryDeletionTestDriver {
