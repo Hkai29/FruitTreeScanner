@@ -3,28 +3,44 @@
 
 import SwiftUI
 
+struct YieldReportData {
+    let completeRecords: [ScanFileRecord]
+    let totalYield: Float
+    let totalFruit: Int
+
+    var totalScans: Int { completeRecords.count }
+    var averageYield: Float { totalScans > 0 ? totalYield / Float(totalScans) : 0 }
+    var visibleRecords: [ScanFileRecord] { Array(completeRecords.prefix(20)) }
+    var isEmpty: Bool { completeRecords.isEmpty }
+
+    init(records: [ScanFileRecord]) {
+        let completeRecords = records.filter { $0.persistenceState == .complete }
+        self.completeRecords = completeRecords
+        totalYield = completeRecords.reduce(0) { $0 + $1.yieldKg }
+        totalFruit = completeRecords.reduce(0) { $0 + $1.fruitCount }
+    }
+}
+
 struct YieldReportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var historyStore = ScanHistoryStore.shared
     var onStartScan: (() -> Void)? = nil
 
-    private var completeRecords: [ScanFileRecord] { historyStore.scanFiles.filter { $0.persistenceState == .complete } }
-    private var totalScans: Int { completeRecords.count }
-    private var totalYield: Float { completeRecords.reduce(0) { $0 + $1.yieldKg } }
-    private var avgYield: Float { totalScans > 0 ? totalYield / Float(totalScans) : 0 }
-    private var totalFruit: Int { completeRecords.reduce(0) { $0 + $1.fruitCount } }
+    private var reportData: YieldReportData {
+        YieldReportData(records: historyStore.scanFiles)
+    }
 
     var body: some View {
         NavigationView {
             ZStack {
                 Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
-                if historyStore.scanFiles.isEmpty {
+                if reportData.isEmpty {
                     DashboardSheetEmptyState(
                         icon: "chart.pie",
                         imageName: "FeatureYieldReport",
-                        title: "暂无产量数据",
-                        message: "完成扫描后，这里会按树体汇总产量、果数和平均值。",
+                        title: "暂无可靠产量数据",
+                        message: "完成扫描并保存完整结果后，这里会按树体汇总产量、果数和平均值。",
                         primaryAction: action(title: "开始扫描", icon: "viewfinder", handler: onStartScan)
                     )
                 } else {
@@ -57,10 +73,10 @@ struct YieldReportSheet: View {
                 )
 
                 DashboardSheetMetricGrid(items: [
-                    .init(title: "扫描", value: "\(totalScans)", unit: "次"),
-                    .init(title: "总产量", value: String(format: "%.1f", totalYield), unit: "kg"),
-                    .init(title: "平均", value: String(format: "%.1f", avgYield), unit: "kg"),
-                    .init(title: "果实", value: "\(totalFruit)", unit: "个")
+                    .init(title: "扫描", value: "\(reportData.totalScans)", unit: "次"),
+                    .init(title: "总产量", value: String(format: "%.1f", reportData.totalYield), unit: "kg"),
+                    .init(title: "平均", value: String(format: "%.1f", reportData.averageYield), unit: "kg"),
+                    .init(title: "果实", value: "\(reportData.totalFruit)", unit: "个")
                 ])
 
                 perTreeBreakdown
@@ -70,7 +86,9 @@ struct YieldReportSheet: View {
     }
 
     private var perTreeBreakdown: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let visibleRecords = reportData.visibleRecords
+
+        return VStack(alignment: .leading, spacing: 0) {
             Text("树体明细")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
@@ -78,9 +96,9 @@ struct YieldReportSheet: View {
                 .padding(.top, 14)
                 .padding(.bottom, 8)
 
-            ForEach(Array(historyStore.scanFiles.prefix(20).enumerated()), id: \.element.id) { index, record in
+            ForEach(Array(visibleRecords.enumerated()), id: \.element.id) { index, record in
                 YieldRecordRow(record: record)
-                if index < min(historyStore.scanFiles.count, 20) - 1 {
+                if index < visibleRecords.count - 1 {
                     Divider()
                         .background(Design.Colors.Dark.glassBorder)
                         .padding(.leading, 14)
