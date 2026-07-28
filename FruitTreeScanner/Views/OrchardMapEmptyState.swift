@@ -9,7 +9,7 @@ struct OrchardMapEmptyState: View {
                 icon: "map",
                 imageName: "FeatureMap",
                 title: "暂无定位扫描",
-                message: "带 GPS 的扫描记录会显示在果园地图中，用于查看产量分布。",
+                message: "带 GPS 的完整扫描记录会显示在果园地图中，用于查看可靠产量分布。",
                 accent: Design.Colors.Dark.info,
                 primaryAction: action(title: "开始扫描", icon: "viewfinder", handler: onStartScan),
                 outerPadding: false
