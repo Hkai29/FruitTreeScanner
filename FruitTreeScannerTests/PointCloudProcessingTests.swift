@@ -1393,6 +1393,54 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertNil(PointCloudBounds(vertices: []))
     }
 
+    func testPointCloudLoadCancellationCancelsWorkerAndDiscardsResult() async {
+        let workerStarted = expectation(description: "Point-cloud parser started")
+        let workerObservedCancellation = expectation(description: "Point-cloud parser observed cancellation")
+        let allowWorkerToFinish = DispatchSemaphore(value: 0)
+        let loadedData = PointCloudData(
+            id: "cancelled-load",
+            vertices: [SCNVector3(1, 2, 3)],
+            colors: [PointCloudColor(r: 1, g: 0, b: 0, a: 1)]
+        )
+
+        let loadTask = Task {
+            await PointCloudLoadOperation.load(
+                at: URL(fileURLWithPath: "/tmp/cancelled-load.ply")
+            ) { _ in
+                workerStarted.fulfill()
+                allowWorkerToFinish.wait()
+                if Task.isCancelled {
+                    workerObservedCancellation.fulfill()
+                }
+                return loadedData
+            }
+        }
+
+        await fulfillment(of: [workerStarted], timeout: 1)
+        loadTask.cancel()
+        allowWorkerToFinish.signal()
+
+        let result = await loadTask.value
+        await fulfillment(of: [workerObservedCancellation], timeout: 1)
+        XCTAssertNil(result, "Cancelled point-cloud loads must not publish their parsed buffer")
+    }
+
+    func testPointCloudLoadReturnsParsedDataWhenNotCancelled() async throws {
+        let loadedData = PointCloudData(
+            id: "completed-load",
+            vertices: [SCNVector3(1, 2, 3)],
+            colors: [PointCloudColor(r: 1, g: 0, b: 0, a: 1)]
+        )
+
+        let result = await PointCloudLoadOperation.load(
+            at: URL(fileURLWithPath: "/tmp/completed-load.ply")
+        ) { _ in
+            loadedData
+        }
+
+        XCTAssertEqual(try XCTUnwrap(result).id, loadedData.id)
+    }
+
     // MARK: - PLYImportService reject/cleanup
 
     func testPLYImportRejectsCorruptPLYAndLeavesScansDirectoryClean() throws {
