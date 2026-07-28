@@ -13,17 +13,7 @@ struct HistoricalCompareView: View {
 
     // Use real data from historyStore
     private var availableScans: [ScanItem] {
-        historyStore.scanFiles.map { record in
-            ScanItem(
-                id: record.id,
-                treeID: record.treeID,
-                scanDate: record.scanDate,
-                yieldKg: Double(record.yieldKg),
-                nLidar: record.fruitCount,
-                meanDiameterCm: 0,
-                confidence: "medium"
-            )
-        }
+        HistoricalCompareDataSource.items(from: historyStore.scanFiles)
     }
 
     var body: some View {
@@ -184,18 +174,18 @@ struct HistoricalCompareView: View {
             // Mean Diameter
             StatCompareCard(
                 title: "平均直径",
-                value1: selectedScan1.map { String(format: "%.1f", $0.meanDiameterCm) } ?? "--",
-                value2: selectedScan2.map { String(format: "%.1f", $0.meanDiameterCm) } ?? "--",
+                value1: selectedScan1?.diameterFormatted ?? "--",
+                value2: selectedScan2?.diameterFormatted ?? "--",
                 unit: "cm",
                 icon: "circle.dotted",
-                trend: compareTrend(selectedScan1?.meanDiameterCm ?? 0, selectedScan2?.meanDiameterCm ?? 0)
+                trend: compareTrend(selectedScan1?.meanDiameterCm, selectedScan2?.meanDiameterCm)
             )
 
             // Confidence
             StatCompareCard(
                 title: "置信度",
-                value1: selectedScan1?.confidence ?? "--",
-                value2: selectedScan2?.confidence ?? "--",
+                value1: selectedScan1?.confidenceFormatted ?? "--",
+                value2: selectedScan2?.confidenceFormatted ?? "--",
                 unit: "",
                 icon: "checkmark.seal.fill",
                 trend: .neutral
@@ -217,6 +207,11 @@ struct HistoricalCompareView: View {
         if v1 < v2 { return .up }
         if v1 > v2 { return .down }
         return .neutral
+    }
+
+    private func compareTrend<T: Comparable>(_ v1: T?, _ v2: T?) -> TrendDirection {
+        guard let v1, let v2 else { return .neutral }
+        return compareTrend(v1, v2)
     }
 }
 

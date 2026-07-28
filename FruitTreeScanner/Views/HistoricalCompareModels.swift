@@ -6,7 +6,7 @@ struct ScanItem: Identifiable, Equatable {
     let scanDate: Date
     let yieldKg: Double
     let nLidar: Int
-    let meanDiameterCm: Double
+    let meanDiameterCm: Double?
     let confidence: String
 
     private static let dateFormatter: DateFormatter = {
@@ -23,11 +23,39 @@ struct ScanItem: Identifiable, Equatable {
         String(format: "%.1f kg", yieldKg)
     }
 
+    var diameterFormatted: String {
+        guard let meanDiameterCm else { return "--" }
+        return String(format: "%.1f", meanDiameterCm)
+    }
+
+    var confidenceFormatted: String {
+        confidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "--"
+            : confidence
+    }
+
     var confidenceColor: Color {
         switch confidence {
         case "high": return Design.Colors.Dark.success
         case "medium": return Design.Colors.Dark.warning
         default: return Design.Colors.Dark.error
+        }
+    }
+}
+
+enum HistoricalCompareDataSource {
+    static func items(from records: [ScanFileRecord]) -> [ScanItem] {
+        records.compactMap { record in
+            guard record.persistenceState == .complete else { return nil }
+            return ScanItem(
+                id: record.id,
+                treeID: record.treeID,
+                scanDate: record.scanDate,
+                yieldKg: Double(record.yieldKg),
+                nLidar: record.fruitCount,
+                meanDiameterCm: nil,
+                confidence: record.confidence
+            )
         }
     }
 }
