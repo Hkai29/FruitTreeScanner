@@ -228,3 +228,17 @@
 "fruit_category_selected_accessibility_hint" = "选择后将固定用于本次扫描，不会被自动识别结果替换。";
 "fruit_category_suggestion_accessibility_label" = "推荐水果种类：%@";
 "fruit_category_mismatch_accessibility_hint" = "停止当前扫描、清除本次扫描数据，并为下一次扫描设置为%@。";
+
+/* 历史记录读取 */
+"history.load.loading" = "正在读取历史记录…";
+"history.load.failure.title" = "历史记录未更新";
+"history.load.failure.empty_message" = "无法读取本机扫描目录。现有文件没有被删除，请重试。";
+"history.load.failure.stale_message_format" = "无法读取本机扫描目录，正在显示上次成功加载的 %d 条记录。";
+"history.load.retry" = "重试";
+"history.load.retrying" = "正在重试…";
+"history.load.retry_hint" = "重新读取本机扫描目录。";
+"history.load.damaged.title_one" = "1 条记录的结果文件损坏";
+"history.load.damaged.title_many_format" = "%d 条记录的结果文件损坏";
+"history.load.damaged.message_format" = "点云仍保留，但果数和产量不可作为可靠结果：%@";
+"history.load.damaged.separator" = "、";
+"history.load.damaged.more_format" = "等 %d 条";

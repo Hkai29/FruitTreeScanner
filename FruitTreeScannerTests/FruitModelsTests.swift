@@ -707,6 +707,174 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(ImportFileErrorClassifier.isUserCancellation(fileError))
     }
 
+    // MARK: - Scan history loading and recovery
+
+    func testScanHistoryDiskReadDistinguishesMissingDirectoryFromReadFailure() {
+        let scansDirectory = URL(fileURLWithPath: "/tmp/scans", isDirectory: true)
+
+        let missingDirectory = ScanHistoryStore.readRecords(
+            at: scansDirectory,
+            directoryExists: { _ in false },
+            contentsOfDirectory: { _ in
+                XCTFail("A missing directory must not be enumerated")
+                return []
+            },
+            recordBuilder: { _ in
+                XCTFail("A missing directory must not parse records")
+                return nil
+            }
+        )
+        let readFailure = ScanHistoryStore.readRecords(
+            at: scansDirectory,
+            directoryExists: { _ in true },
+            contentsOfDirectory: { _ in
+                throw NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileReadNoPermission.rawValue)
+            },
+            recordBuilder: { _ in
+                XCTFail("A failed directory enumeration must not parse records")
+                return nil
+            }
+        )
+
+        XCTAssertEqual(missingDirectory, .success([]))
+        XCTAssertEqual(readFailure, .failure(.directoryUnavailable))
+    }
+
+    @MainActor
+    func testScanHistoryLoadFailurePreservesLastSuccessfulSnapshotAndRetryClearsFailure() async {
+        let initialRecord = makeScanHistoryRecord(id: "initial.ply")
+        let repairedRecord = makeScanHistoryRecord(id: "repaired.ply")
+        let driver = ScanHistoryLoadSequenceDriver(results: [
+            .success([initialRecord]),
+            .failure(.directoryUnavailable),
+            .success([repairedRecord])
+        ])
+        let store = ScanHistoryStore(recordsLoader: { await driver.next() })
+
+        await store.reloadRecords()
+        XCTAssertEqual(store.scanFiles, [initialRecord])
+        XCTAssertNil(store.loadFailure)
+
+        await store.reloadRecords()
+        XCTAssertEqual(
+            store.scanFiles,
+            [initialRecord],
+            "A transient read failure must not replace a valid snapshot with false-empty history"
+        )
+        XCTAssertEqual(store.loadFailure, .directoryUnavailable)
+
+        await store.reloadRecords()
+        XCTAssertEqual(store.scanFiles, [repairedRecord])
+        XCTAssertNil(store.loadFailure)
+        XCTAssertFalse(store.isLoading)
+    }
+
+    @MainActor
+    func testScanHistoryLoadSeparatesDamagedResultsWithoutDroppingTheirPointCloudRecords() async {
+        let validRecord = makeScanHistoryRecord(id: "valid.ply")
+        let damagedRecord = makeScanHistoryRecord(
+            id: "damaged.ply",
+            persistenceState: .invalid,
+            persistenceFailureReason: "scanResultJSONFailed"
+        )
+        let driver = ScanHistoryLoadSequenceDriver(results: [
+            .success([validRecord, damagedRecord])
+        ])
+        let store = ScanHistoryStore(recordsLoader: { await driver.next() })
+
+        await store.reloadRecords()
+
+        XCTAssertEqual(store.scanFiles, [validRecord, damagedRecord])
+        XCTAssertEqual(store.damagedRecords, [damagedRecord])
+        XCTAssertNil(store.loadFailure)
+    }
+
+    @MainActor
+    func testScanHistorySupersededLateLoadCannotOverwriteNewerResult() async {
+        let olderRecord = makeScanHistoryRecord(id: "older.ply")
+        let newerRecord = makeScanHistoryRecord(id: "newer.ply")
+        let driver = ScanHistoryControlledLoadDriver()
+        let store = ScanHistoryStore(recordsLoader: { await driver.load() })
+
+        let olderTask = store.loadRecords()
+        await driver.waitForPendingCount(1)
+        let newerTask = store.loadRecords()
+        await driver.waitForPendingCount(2)
+
+        await driver.resume(request: 1, with: .success([newerRecord]))
+        await newerTask.value
+        XCTAssertEqual(store.scanFiles, [newerRecord])
+
+        await driver.resume(request: 0, with: .success([olderRecord]))
+        await olderTask.value
+        XCTAssertEqual(
+            store.scanFiles,
+            [newerRecord],
+            "A cancelled or superseded read must not apply after the latest generation"
+        )
+        XCTAssertFalse(store.isLoading)
+    }
+
+    func testScanHistoryLoadPresentationNeverShowsFailureAsEmptyHistory() {
+        let cachedDamagedRecord = makeScanHistoryRecord(
+            id: "cached.ply",
+            persistenceState: .invalid,
+            persistenceFailureReason: "scanResultJSONFailed"
+        )
+        let failedEmptyPresentation = ScanHistoryLoadPresentation(
+            records: [],
+            isLoading: false,
+            loadFailure: .directoryUnavailable,
+            damagedRecords: []
+        )
+        let stalePresentation = ScanHistoryLoadPresentation(
+            records: [cachedDamagedRecord],
+            isLoading: false,
+            loadFailure: .directoryUnavailable,
+            damagedRecords: [cachedDamagedRecord]
+        )
+
+        XCTAssertEqual(failedEmptyPresentation.primaryContent, .loadFailure)
+        XCTAssertFalse(failedEmptyPresentation.showsLoadFailureBanner)
+        XCTAssertEqual(stalePresentation.primaryContent, .records)
+        XCTAssertTrue(stalePresentation.showsLoadFailureBanner)
+        XCTAssertFalse(stalePresentation.showsDamagedRecordsBanner)
+    }
+
+    func testScanHistoryLoadPresentationNamesDamagedRecords() {
+        let damagedRecord = makeScanHistoryRecord(
+            id: "damaged-result.ply",
+            persistenceState: .invalid,
+            persistenceFailureReason: "scanResultRevisionMismatch"
+        )
+
+        let presentation = ScanHistoryLoadPresentation(
+            records: [damagedRecord],
+            isLoading: false,
+            loadFailure: nil,
+            damagedRecords: [damagedRecord]
+        )
+
+        XCTAssertEqual(presentation.primaryContent, .records)
+        XCTAssertTrue(presentation.showsDamagedRecordsBanner)
+        XCTAssertEqual(presentation.damagedRecordNames, ["damaged-result.ply"])
+    }
+
+    private func makeScanHistoryRecord(
+        id: String,
+        persistenceState: ScanPersistenceState = .complete,
+        persistenceFailureReason: String? = nil
+    ) -> ScanFileRecord {
+        ScanFileRecord(
+            id: id,
+            treeID: id,
+            fileURL: URL(fileURLWithPath: "/tmp/\(id)"),
+            scanDate: Date(timeIntervalSince1970: 1_720_000_000),
+            persistenceState: persistenceState,
+            persistenceFailureReason: persistenceFailureReason
+        )
+    }
+
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering
 
     func testDeleteFilesPrimaryFailureOccursAfterCompanionCleanup() {
@@ -1399,5 +1567,44 @@ private actor ScanHistoryDeletionTestDriver {
 
     func callCount() -> Int {
         totalCallCount
+    }
+}
+
+private actor ScanHistoryLoadSequenceDriver {
+    private var results: [ScanHistoryLoadResult]
+
+    init(results: [ScanHistoryLoadResult]) {
+        self.results = results
+    }
+
+    func next() -> ScanHistoryLoadResult {
+        precondition(!results.isEmpty, "Test requested more scan-history loads than configured")
+        return results.removeFirst()
+    }
+}
+
+private actor ScanHistoryControlledLoadDriver {
+    private var continuations: [Int: CheckedContinuation<ScanHistoryLoadResult, Never>] = [:]
+    private var nextRequest = 0
+
+    func load() async -> ScanHistoryLoadResult {
+        let request = nextRequest
+        nextRequest += 1
+        return await withCheckedContinuation { continuation in
+            continuations[request] = continuation
+        }
+    }
+
+    func waitForPendingCount(_ expectedCount: Int) async {
+        while continuations.count < expectedCount {
+            await Task.yield()
+        }
+    }
+
+    func resume(request: Int, with result: ScanHistoryLoadResult) {
+        guard let continuation = continuations.removeValue(forKey: request) else {
+            preconditionFailure("No pending scan-history load for request \(request)")
+        }
+        continuation.resume(returning: result)
     }
 }
