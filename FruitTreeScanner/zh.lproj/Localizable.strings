@@ -242,3 +242,26 @@
 "history.load.damaged.message_format" = "点云仍保留，但果数和产量不可作为可靠结果：%@";
 "history.load.damaged.separator" = "、";
 "history.load.damaged.more_format" = "等 %d 条";
+
+/* 历史记录行 */
+"history.row.preview_point_cloud" = "预览点云";
+"history.row.rescan_action" = "复扫";
+"history.row.rescan_tree" = "复扫这棵";
+"history.row.rescan_accessibility_hint" = "为这棵树开始一次新扫描；此记录的果数和产量仍保持不可用。";
+"history.row.mark_review" = "标记待复核";
+"history.row.share_point_cloud" = "分享点云";
+"history.row.delete_record" = "删除记录";
+"history.row.more_actions" = "更多操作";
+"history.row.unknown_size" = "未知大小";
+"history.row.count_format" = "%d 个";
+"history.row.yield_format" = "%.1f kg";
+"history.row.metrics_unavailable" = "果数与产量不可用";
+"history.integrity.complete.title" = "结果完整";
+"history.integrity.incomplete.title" = "待恢复";
+"history.integrity.invalid.title" = "结果损坏";
+"history.integrity.incomplete.missing_result" = "缺少结果文件，果数与产量不可用。";
+"history.integrity.incomplete.unknown" = "结果未完整保存，果数与产量不可用。";
+"history.integrity.invalid.json" = "结果 JSON 无法读取，果数与产量不可用。";
+"history.integrity.invalid.csv" = "结果 CSV 无法读取，果数与产量不可用。";
+"history.integrity.invalid.revision" = "结果文件版本不一致，果数与产量不可用。";
+"history.integrity.invalid.unknown" = "结果文件无法验证，果数与产量不可用。";

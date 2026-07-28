@@ -1,49 +1,64 @@
 import SwiftUI
 
-struct ScanHistoryRecordPresentation: Equatable {
-    enum Issue: Equatable {
+struct ScanHistoryRecordPresentation: Equatable, Sendable {
+    enum Integrity: Equatable, Sendable {
+        case complete
+        case incomplete
+        case invalid
+    }
+
+    enum Detail: Equatable, Sendable {
+        case none
         case missingResult
         case unreadableJSON
         case unreadableCSV
         case revisionMismatch
-        case unknown
+        case incompleteUnknown
+        case invalidUnknown
     }
 
-    enum State: Equatable {
-        case complete
-        case incomplete(Issue)
-        case invalid(Issue)
+    let integrity: Integrity
+    let detail: Detail
+    let fruitCount: Int?
+    let yieldKg: Float?
+
+    var hasReliableResult: Bool {
+        integrity == .complete
     }
 
-    let state: State
+    var showsRecoveryAction: Bool {
+        !hasReliableResult
+    }
 
     init(record: ScanFileRecord) {
-        let issue: Issue
-        switch record.persistenceFailureReason {
-        case "orphanPLYDetected":
-            issue = .missingResult
-        case "scanResultJSONFailed":
-            issue = .unreadableJSON
-        case "scanResultCSVFailed":
-            issue = .unreadableCSV
-        case "scanResultRevisionMismatch":
-            issue = .revisionMismatch
-        default:
-            issue = .unknown
-        }
-
         switch record.persistenceState {
         case .complete:
-            state = .complete
+            integrity = .complete
+            detail = .none
+            fruitCount = record.fruitCount
+            yieldKg = record.yieldKg
         case .incomplete:
-            state = .incomplete(issue)
+            integrity = .incomplete
+            detail = record.persistenceFailureReason == "orphanPLYDetected"
+                ? .missingResult
+                : .incompleteUnknown
+            fruitCount = nil
+            yieldKg = nil
         case .invalid:
-            state = .invalid(issue)
+            integrity = .invalid
+            switch record.persistenceFailureReason {
+            case "scanResultJSONFailed":
+                detail = .unreadableJSON
+            case "scanResultCSVFailed":
+                detail = .unreadableCSV
+            case "scanResultRevisionMismatch":
+                detail = .revisionMismatch
+            default:
+                detail = .invalidUnknown
+            }
+            fruitCount = nil
+            yieldKg = nil
         }
-    }
-
-    var showsReliableResult: Bool {
-        state == .complete
     }
 }
 
@@ -56,40 +71,73 @@ struct ScanHistoryRow: View {
     let onDelete: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
-                        statusIcon
-                        fileInfo
-                        Spacer(minLength: 4)
-                        actionsMenu
-                    }
+    private var presentation: ScanHistoryRecordPresentation {
+        ScanHistoryRecordPresentation(record: record)
+    }
 
-                    HStack(alignment: .center, spacing: 10) {
-                        resultSummary
-                        Spacer(minLength: 4)
-                        previewButton
-                    }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        statusIcon
-                        fileInfo
-                            .layoutPriority(1)
-                        Spacer(minLength: 4)
-                        previewButton
-                        actionsMenu
-                    }
-                    resultSummary
-                }
-            }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            recordHeader
+
+            outcomeRow
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+    }
+
+    @ViewBuilder
+    private var recordHeader: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .top, spacing: 12) {
+                    recordIcon
+                    fileInfo
+                        .layoutPriority(1)
+                }
+
+                HStack(spacing: 4) {
+                    Spacer()
+                    rowControls
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                recordIcon
+
+                fileInfo
+                    .layoutPriority(1)
+
+                Spacer(minLength: 4)
+
+                rowControls
+            }
+        }
+    }
+
+    private var recordIcon: some View {
+        Image(systemName: "cube.fill")
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(Design.Colors.harvest)
+            .frame(width: 32, height: 32)
+            .background(Design.Colors.harvest.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .accessibilityHidden(true)
+    }
+
+    private var rowControls: some View {
+        HStack(spacing: 4) {
+            Button(action: onPreview) {
+                Image(systemName: "cube.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Design.Colors.harvest)
+                    .frame(width: Design.Touch.minimumWidth, height: Design.Touch.minimumHeight)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(localized("history.row.preview_point_cloud", value: "Preview Point Cloud"))
+
+            actionsMenu
+        }
     }
 
     private var fileInfo: some View {
@@ -111,80 +159,130 @@ struct ScanHistoryRow: View {
         .accessibilityValue("\(fileSize), \(dateString)")
     }
 
-    private var resultSummary: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) {
-                    statusTitleText
-                    statusDetailText
-                        .lineLimit(2)
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    statusTitleText
-                    Spacer(minLength: 8)
-                    statusDetailText
-                        .lineLimit(1)
+    @ViewBuilder
+    private var outcomeRow: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                integrityStatus
+                outcomeTrailingContent
+            }
+        } else {
+            HStack(alignment: .center, spacing: 10) {
+                integrityStatus
+                    .layoutPriority(1)
+
+                Spacer(minLength: 4)
+
+                outcomeTrailingContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var outcomeTrailingContent: some View {
+        if presentation.hasReliableResult {
+            resultSummary
+        } else {
+            recoveryButton
+        }
+    }
+
+    private var integrityStatus: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: statusIcon)
+                .font(.caption.weight(.semibold))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(statusTitle)
+                    .font(.caption.weight(.semibold))
+
+                if let statusMessage {
+                    Text(statusMessage)
+                        .font(.caption2)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 3)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(statusTitle)
-        .accessibilityValue(statusDetail)
+        .foregroundColor(statusColor)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(statusColor.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
     }
 
-    private var statusTitleText: some View {
-        Text(statusTitle)
-            .font(.caption.weight(.semibold))
-            .foregroundColor(statusTint)
-            .lineLimit(1)
-    }
-
-    private var statusDetailText: some View {
-        Text(statusDetail)
-            .font(.caption.monospacedDigit())
-            .foregroundColor(Design.Colors.Dark.textSecondary)
-    }
-
-    private var statusIcon: some View {
-        Image(systemName: statusSystemImage)
-            .font(.body.weight(.semibold))
-            .foregroundColor(statusTint)
-            .frame(width: 36, height: 36)
-            .background(statusTint.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .accessibilityHidden(true)
-    }
-
-    private var previewButton: some View {
-        Button(action: onPreview) {
-            Image(systemName: "cube.fill")
-                .font(.body.weight(.semibold))
+    private var resultSummary: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            Text(countText)
+                .font(.caption.weight(.semibold))
                 .foregroundColor(Design.Colors.harvest)
-                .frame(width: Design.Touch.minimumWidth, height: Design.Touch.minimumHeight)
+
+            Text(yieldText)
+                .font(.system(.caption, design: .monospaced).weight(.medium))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+        }
+        .frame(minWidth: 58, alignment: .trailing)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(countText), \(yieldText)")
+    }
+
+    private var recoveryButton: some View {
+        Button(action: onRescan) {
+            Label(
+                localized("history.row.rescan_action", value: "Rescan"),
+                systemImage: "viewfinder"
+            )
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .frame(minHeight: Design.Touch.minimumHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(ScanHistoryText.preview)
-        .accessibilityHint(ScanHistoryText.previewHint)
+        .foregroundColor(statusColor)
+        .background(statusColor.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityHint(
+            localized(
+                "history.row.rescan_accessibility_hint",
+                value: "Starts a new scan for this tree. This record's count and yield remain unavailable."
+            )
+        )
     }
 
     private var actionsMenu: some View {
         Menu {
             Button(action: onPreview) {
-                Label(ScanHistoryText.preview, systemImage: "cube.transparent")
+                Label(
+                    localized("history.row.preview_point_cloud", value: "Preview Point Cloud"),
+                    systemImage: "cube.transparent"
+                )
             }
             Button(action: onRescan) {
-                Label(ScanHistoryText.rescan, systemImage: "viewfinder")
+                Label(
+                    localized("history.row.rescan_tree", value: "Rescan This Tree"),
+                    systemImage: "viewfinder"
+                )
             }
             Button(action: onMarkReview) {
-                Label(ScanHistoryText.markReview, systemImage: "flag")
+                Label(
+                    localized("history.row.mark_review", value: "Mark for Review"),
+                    systemImage: "flag"
+                )
             }
             Button(action: onShare) {
-                Label(ScanHistoryText.share, systemImage: "square.and.arrow.up")
+                Label(
+                    localized("history.row.share_point_cloud", value: "Share Point Cloud"),
+                    systemImage: "square.and.arrow.up"
+                )
             }
             Button(role: .destructive, action: onDelete) {
-                Label(ScanHistoryText.deleteRecord, systemImage: "trash")
+                Label(
+                    localized("history.row.delete_record", value: "Delete Record"),
+                    systemImage: "trash"
+                )
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -192,54 +290,70 @@ struct ScanHistoryRow: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .frame(width: Design.Touch.minimumWidth, height: Design.Touch.minimumHeight)
         }
-        .accessibilityLabel(ScanHistoryText.moreActions)
-    }
-
-    private var fileSize: String {
-        guard record.fileSizeBytes > 0 else { return ScanHistoryText.unknownSize }
-        let mb = Double(record.fileSizeBytes) / 1_048_576
-        return ScanHistoryText.fileSize(megabytes: mb)
-    }
-
-    private var presentation: ScanHistoryRecordPresentation {
-        ScanHistoryRecordPresentation(record: record)
+        .accessibilityLabel(localized("history.row.more_actions", value: "More Actions"))
     }
 
     private var statusTitle: String {
-        switch presentation.state {
+        switch presentation.integrity {
         case .complete:
-            return ScanHistoryText.complete
+            return localized("history.integrity.complete.title", value: "Result Complete")
         case .incomplete:
-            return ScanHistoryText.incomplete
+            return localized("history.integrity.incomplete.title", value: "Recovery Needed")
         case .invalid:
-            return ScanHistoryText.invalid
+            return localized("history.integrity.invalid.title", value: "Result Damaged")
         }
     }
 
-    private var statusDetail: String {
-        switch presentation.state {
-        case .complete:
-            return "\(ScanHistoryText.fruitCount(record.fruitCount)) · \(ScanHistoryText.yield(record.yieldKg))"
-        case .incomplete(let issue):
-            return issueText(issue, isInvalid: false)
-        case .invalid(let issue):
-            return issueText(issue, isInvalid: true)
+    private var statusMessage: String? {
+        switch presentation.detail {
+        case .none:
+            return nil
+        case .missingResult:
+            return localized(
+                "history.integrity.incomplete.missing_result",
+                value: "The result file is missing. Count and yield are unavailable."
+            )
+        case .unreadableJSON:
+            return localized(
+                "history.integrity.invalid.json",
+                value: "The result JSON can't be read. Count and yield are unavailable."
+            )
+        case .unreadableCSV:
+            return localized(
+                "history.integrity.invalid.csv",
+                value: "The result CSV can't be read. Count and yield are unavailable."
+            )
+        case .revisionMismatch:
+            return localized(
+                "history.integrity.invalid.revision",
+                value: "The result files don't match. Count and yield are unavailable."
+            )
+        case .incompleteUnknown:
+            return localized(
+                "history.integrity.incomplete.unknown",
+                value: "The result wasn't fully saved. Count and yield are unavailable."
+            )
+        case .invalidUnknown:
+            return localized(
+                "history.integrity.invalid.unknown",
+                value: "The result files can't be verified. Count and yield are unavailable."
+            )
         }
     }
 
-    private var statusSystemImage: String {
-        switch presentation.state {
+    private var statusIcon: String {
+        switch presentation.integrity {
         case .complete:
             return "checkmark.circle.fill"
         case .incomplete:
-            return "exclamationmark.circle.fill"
+            return "exclamationmark.triangle.fill"
         case .invalid:
             return "xmark.octagon.fill"
         }
     }
 
-    private var statusTint: Color {
-        switch presentation.state {
+    private var statusColor: Color {
+        switch presentation.integrity {
         case .complete:
             return Design.Colors.Dark.success
         case .incomplete:
@@ -249,22 +363,32 @@ struct ScanHistoryRow: View {
         }
     }
 
-    private func issueText(
-        _ issue: ScanHistoryRecordPresentation.Issue,
-        isInvalid: Bool
-    ) -> String {
-        switch issue {
-        case .missingResult:
-            return ScanHistoryText.missingResult
-        case .unreadableJSON:
-            return ScanHistoryText.unreadableJSON
-        case .unreadableCSV:
-            return ScanHistoryText.unreadableCSV
-        case .revisionMismatch:
-            return ScanHistoryText.revisionMismatch
-        case .unknown:
-            return isInvalid ? ScanHistoryText.invalidUnknown : ScanHistoryText.incompleteUnknown
+    private var countText: String {
+        guard let fruitCount = presentation.fruitCount else {
+            return localized("history.row.metrics_unavailable", value: "Metrics Unavailable")
         }
+        return String.localizedStringWithFormat(
+            localized("history.row.count_format", value: "%d fruits"),
+            fruitCount
+        )
+    }
+
+    private var yieldText: String {
+        guard let yieldKg = presentation.yieldKg else {
+            return localized("history.row.metrics_unavailable", value: "Metrics Unavailable")
+        }
+        return String.localizedStringWithFormat(
+            localized("history.row.yield_format", value: "%.1f kg"),
+            Double(yieldKg)
+        )
+    }
+
+    private var fileSize: String {
+        guard record.fileSizeBytes > 0 else {
+            return localized("history.row.unknown_size", value: "Unknown Size")
+        }
+        let mb = Double(record.fileSizeBytes) / 1_048_576
+        return ScanHistoryText.fileSize(megabytes: mb)
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -275,5 +399,9 @@ struct ScanHistoryRow: View {
 
     private var dateString: String {
         Self.dateFormatter.string(from: record.scanDate)
+    }
+
+    private func localized(_ key: String, value: String) -> String {
+        NSLocalizedString(key, value: value, comment: "")
     }
 }

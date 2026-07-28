@@ -242,3 +242,26 @@
 "history.load.damaged.message_format" = "The point cloud is still available, but fruit count and yield aren’t reliable: %@";
 "history.load.damaged.separator" = ", ";
 "history.load.damaged.more_format" = " and %d more";
+
+/* Scan History Row */
+"history.row.preview_point_cloud" = "Preview Point Cloud";
+"history.row.rescan_action" = "Rescan";
+"history.row.rescan_tree" = "Rescan This Tree";
+"history.row.rescan_accessibility_hint" = "Starts a new scan for this tree. This record's count and yield remain unavailable.";
+"history.row.mark_review" = "Mark for Review";
+"history.row.share_point_cloud" = "Share Point Cloud";
+"history.row.delete_record" = "Delete Record";
+"history.row.more_actions" = "More Actions";
+"history.row.unknown_size" = "Unknown Size";
+"history.row.count_format" = "%d fruits";
+"history.row.yield_format" = "%.1f kg";
+"history.row.metrics_unavailable" = "Metrics Unavailable";
+"history.integrity.complete.title" = "Result Complete";
+"history.integrity.incomplete.title" = "Recovery Needed";
+"history.integrity.invalid.title" = "Result Damaged";
+"history.integrity.incomplete.missing_result" = "The result file is missing. Count and yield are unavailable.";
+"history.integrity.incomplete.unknown" = "The result wasn't fully saved. Count and yield are unavailable.";
+"history.integrity.invalid.json" = "The result JSON can't be read. Count and yield are unavailable.";
+"history.integrity.invalid.csv" = "The result CSV can't be read. Count and yield are unavailable.";
+"history.integrity.invalid.revision" = "The result files don't match. Count and yield are unavailable.";
+"history.integrity.invalid.unknown" = "The result files can't be verified. Count and yield are unavailable.";
