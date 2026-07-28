@@ -1414,6 +1414,35 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(exported.excludedIncompleteCount, 2)
     }
 
+    func testBatchExportSelectionPolicyKeepsOnlyCompleteRecordIDs() {
+        let complete = makeRecord(id: "complete.ply", persistenceState: .complete)
+        let incomplete = makeRecord(id: "incomplete.ply", persistenceState: .incomplete)
+        let invalid = makeRecord(id: "invalid.ply", persistenceState: .invalid)
+        let records = [complete, incomplete, invalid]
+        let requestedSelection = Set(records.map(\.id))
+
+        XCTAssertEqual(
+            BatchExportSelectionPolicy.exportableRecordIDs(from: records),
+            Set([complete.id])
+        )
+        XCTAssertEqual(
+            BatchExportSelectionPolicy.normalizedSelection(requestedSelection, for: records),
+            Set([complete.id])
+        )
+    }
+
+    func testBatchExportSelectionPolicyReturnsEmptyForOnlyUnavailableRecords() {
+        let records = [
+            makeRecord(id: "incomplete.ply", persistenceState: .incomplete),
+            makeRecord(id: "invalid.ply", persistenceState: .invalid),
+        ]
+
+        XCTAssertTrue(BatchExportSelectionPolicy.exportableRecordIDs(from: records).isEmpty)
+        XCTAssertTrue(
+            BatchExportSelectionPolicy.normalizedSelection(Set(records.map(\.id)), for: records).isEmpty
+        )
+    }
+
     func testExcelExcludedColumnsOmitCells() async throws {
         var options = BatchExportService.ExportOptions()
         options.includeGPS = false

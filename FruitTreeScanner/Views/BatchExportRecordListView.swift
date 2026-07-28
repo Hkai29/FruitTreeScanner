@@ -10,12 +10,14 @@ struct BatchExportRecordListView: View {
         ScrollView {
             LazyVStack(spacing: Design.Space.sm) {
                 ForEach(records) { record in
+                    let isExportable = BatchExportSelectionPolicy.isExportable(record)
                     BatchExportRecordRow(
                         record: record,
-                        isSelected: selectedRecords.contains(record.id),
+                        isExportable: isExportable,
+                        isSelected: isExportable && selectedRecords.contains(record.id),
                         onToggle: { onToggleSelection(record.id) }
                     )
-                    .disabled(isExporting)
+                    .disabled(isExporting || !isExportable)
                     .opacity(isExporting ? 0.65 : 1)
                 }
             }

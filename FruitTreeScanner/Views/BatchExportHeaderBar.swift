@@ -3,6 +3,7 @@ import SwiftUI
 struct BatchExportHeaderBar: View {
     let selectedCount: Int
     let totalCount: Int
+    let unavailableCount: Int
     let totalYield: Float
     let totalFruitCount: Int
 
@@ -18,7 +19,7 @@ struct BatchExportHeaderBar: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("已选择 \(selectedCount) / \(totalCount) 条记录")
+                    Text("已选择 \(selectedCount) / \(totalCount) 条可导出记录")
                         .font(Design.Typography.subheadline)
                         .foregroundColor(Design.Colors.Dark.textPrimary)
 
@@ -30,6 +31,17 @@ struct BatchExportHeaderBar: View {
                 }
 
                 Spacer()
+            }
+
+            if unavailableCount > 0 {
+                Label(
+                    "\(unavailableCount) 条记录未完整保存或数据无效，未纳入导出",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(Design.Typography.caption)
+                .foregroundColor(Design.Colors.warning)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
 
             if totalCount > 0 {

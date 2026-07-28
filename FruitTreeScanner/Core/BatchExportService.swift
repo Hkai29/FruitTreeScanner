@@ -1,5 +1,26 @@
 import Foundation
 
+enum BatchExportSelectionPolicy {
+    static func isExportable(_ record: ScanFileRecord) -> Bool {
+        record.persistenceState == .complete
+    }
+
+    static func exportableRecords(from records: [ScanFileRecord]) -> [ScanFileRecord] {
+        records.filter(isExportable)
+    }
+
+    static func exportableRecordIDs(from records: [ScanFileRecord]) -> Set<String> {
+        Set(exportableRecords(from: records).map(\.id))
+    }
+
+    static func normalizedSelection(
+        _ selection: Set<String>,
+        for records: [ScanFileRecord]
+    ) -> Set<String> {
+        selection.intersection(exportableRecordIDs(from: records))
+    }
+}
+
 final class BatchExportService {
     static let shared = BatchExportService()
     
@@ -67,7 +88,7 @@ final class BatchExportService {
     ) async throws -> ExportResult {
         let exportTask = Task.detached(priority: .utility) {
             try Task.checkCancellation()
-            let completeRecords = records.filter { $0.persistenceState == .complete }
+            let completeRecords = BatchExportSelectionPolicy.exportableRecords(from: records)
             guard !completeRecords.isEmpty else {
                 throw BatchExportError.noRecords
             }

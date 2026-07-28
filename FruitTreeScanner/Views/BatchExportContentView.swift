@@ -28,9 +28,17 @@ struct BatchExportContentView: View {
         }
     }
 
+    private var exportableRecords: [ScanFileRecord] {
+        BatchExportSelectionPolicy.exportableRecords(from: records)
+    }
+
+    private var normalizedSelectedRecords: Set<String> {
+        BatchExportSelectionPolicy.normalizedSelection(selectedRecords, for: records)
+    }
+
     private var selectedSummary: (totalYield: Float, totalFruitCount: Int) {
-        let selectedFiles = records.filter {
-            selectedRecords.contains($0.id) && $0.persistenceState == .complete
+        let selectedFiles = exportableRecords.filter {
+            normalizedSelectedRecords.contains($0.id)
         }
         let totalYield = selectedFiles.reduce(0) { $0 + $1.yieldKg }
         let totalFruitCount = selectedFiles.reduce(0) { $0 + $1.fruitCount }
@@ -40,8 +48,9 @@ struct BatchExportContentView: View {
     private var populatedContent: some View {
         VStack(spacing: 0) {
             BatchExportHeaderBar(
-                selectedCount: selectedRecords.count,
-                totalCount: records.count,
+                selectedCount: normalizedSelectedRecords.count,
+                totalCount: exportableRecords.count,
+                unavailableCount: records.count - exportableRecords.count,
                 totalYield: selectedSummary.totalYield,
                 totalFruitCount: selectedSummary.totalFruitCount
             )
@@ -71,12 +80,12 @@ struct BatchExportContentView: View {
             }
 
             BatchExportPrimaryButton(
-                selectedCount: selectedRecords.count,
+                selectedCount: normalizedSelectedRecords.count,
                 isExporting: isExporting,
                 hasCompletedExport: exportedURL != nil,
                 action: onPrimaryAction
             )
-            .disabled(selectedRecords.isEmpty && !isExporting)
+            .disabled(normalizedSelectedRecords.isEmpty && !isExporting)
             .padding(Design.Space.md)
         }
     }

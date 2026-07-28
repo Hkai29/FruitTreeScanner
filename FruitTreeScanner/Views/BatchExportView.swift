@@ -18,6 +18,10 @@ struct BatchExportView: View {
     @State var presentedSheet: BatchExportSheet?
     @State var exportTask: Task<Void, Never>?
     @State var exportGeneration = 0
+
+    var exportableRecordIDs: Set<String> {
+        BatchExportSelectionPolicy.exportableRecordIDs(from: store.scanFiles)
+    }
     
     var body: some View {
         NavigationStack {
@@ -51,8 +55,8 @@ struct BatchExportView: View {
                 }
 
                 ToolbarItem(placement: .primaryAction) {
-                    if !store.scanFiles.isEmpty {
-                        Button(selectedRecords.count == store.scanFiles.count ? "取消全选" : "全选") {
+                    if !exportableRecordIDs.isEmpty {
+                        Button(selectedRecords == exportableRecordIDs ? "取消全选" : "全选") {
                             toggleSelectAll()
                         }
                         .disabled(isExporting)
