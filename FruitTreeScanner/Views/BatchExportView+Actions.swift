@@ -30,7 +30,7 @@ extension BatchExportView {
     }
 
     func toggleSelection(_ id: String) {
-        guard !isExporting else { return }
+        guard !isExporting, exportableRecordIDs.contains(id) else { return }
         clearExportedFile()
         if selectedRecords.contains(id) {
             selectedRecords.remove(id)
@@ -42,15 +42,20 @@ extension BatchExportView {
     func toggleSelectAll() {
         guard !isExporting else { return }
         clearExportedFile()
-        if selectedRecords.count == store.scanFiles.count {
+        if selectedRecords == exportableRecordIDs {
             selectedRecords.removeAll()
         } else {
-            selectedRecords = Set(store.scanFiles.map { $0.id })
+            selectedRecords = exportableRecordIDs
         }
     }
 
     func performExport() {
-        let selectedFiles = store.scanFiles.filter { selectedRecords.contains($0.id) }
+        let selectionSnapshot = BatchExportSelectionPolicy.normalizedSelection(
+            selectedRecords,
+            for: store.scanFiles
+        )
+        let selectedFiles = BatchExportSelectionPolicy.exportableRecords(from: store.scanFiles)
+            .filter { selectionSnapshot.contains($0.id) }
 
         guard !selectedFiles.isEmpty else { return }
 
@@ -59,7 +64,6 @@ extension BatchExportView {
         let generation = exportGeneration
         isExporting = true
         clearExportedFile()
-        let selectionSnapshot = selectedRecords
         let format = exportFormat
         let optionSnapshot = exportOptions
         var options = optionSnapshot
@@ -125,16 +129,19 @@ extension BatchExportView {
     }
 
     func pruneSelection(to files: [ScanFileRecord]) {
-        let availableIDs = Set(files.map(\.id))
-        if !selectedRecords.isSubset(of: availableIDs) {
+        let normalizedSelection = BatchExportSelectionPolicy.normalizedSelection(
+            selectedRecords,
+            for: files
+        )
+        if normalizedSelection != selectedRecords {
             clearExportedFile()
-            selectedRecords.formIntersection(availableIDs)
+            selectedRecords = normalizedSelection
         }
     }
 
     func selectAllIfNeeded() {
-        guard selectedRecords.isEmpty, !store.scanFiles.isEmpty else { return }
-        selectedRecords = Set(store.scanFiles.map { $0.id })
+        guard selectedRecords.isEmpty, !exportableRecordIDs.isEmpty else { return }
+        selectedRecords = exportableRecordIDs
     }
 
     func plotNameByTreeID() -> [String: String] {
