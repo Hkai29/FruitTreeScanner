@@ -30,6 +30,21 @@ enum CalibrationRecordPersistence {
     }
 }
 
+/// Assigns save revisions at the main-actor event source before unstructured
+/// tasks cross to the persistence actor. The shared lifetime prevents a newly
+/// created calibration view from restarting at an older revision.
+@MainActor
+final class CalibrationSaveRevisionSource {
+    static let shared = CalibrationSaveRevisionSource()
+
+    private var latestRevision = 0
+
+    func nextRevision() -> Int {
+        latestRevision += 1
+        return latestRevision
+    }
+}
+
 /// Serializes immutable calibration snapshots so an older detached save cannot
 /// replace a newer user edit after it finishes.
 actor CalibrationRecordPersistenceController {
