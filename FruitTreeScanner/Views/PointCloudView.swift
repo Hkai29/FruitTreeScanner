@@ -4,6 +4,28 @@
 import SwiftUI
 import SceneKit
 
+enum PointCloudLoadOperation {
+    static func load(
+        at url: URL,
+        parser: @escaping @Sendable (URL) -> PointCloudData? = {
+            PLYParserHelper.parsePointCloudData(at: $0)
+        }
+    ) async -> PointCloudData? {
+        guard !Task.isCancelled else { return nil }
+
+        let worker = Task.detached(priority: .userInitiated) {
+            parser(url)
+        }
+        return await withTaskCancellationHandler {
+            let loadedData = await worker.value
+            guard !Task.isCancelled else { return nil }
+            return loadedData
+        } onCancel: {
+            worker.cancel()
+        }
+    }
+}
+
 // MARK: - PointCloudView
 struct PointCloudView: View {
     let plyFileURL: URL?
@@ -140,9 +162,7 @@ struct PointCloudView: View {
 
         isLoading = true
         loadErrorMessage = nil
-        let loadedData = await Task.detached(priority: .userInitiated) {
-            PLYParserHelper.parsePointCloudData(at: plyFileURL)
-        }.value
+        let loadedData = await PointCloudLoadOperation.load(at: plyFileURL)
         guard !Task.isCancelled else { return }
         pointCloudData = loadedData
         pointCount = loadedData?.pointCount ?? 0
