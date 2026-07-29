@@ -387,6 +387,35 @@ enum L10n {
         static let noRecords = NSLocalizedString("export.no_records", value: "没有可导出的记录", comment: "No exportable records")
     }
 
+    // MARK: - Import
+    enum Import {
+        static let navigationTitle = NSLocalizedString("import.navigation_title", value: "导入文件", comment: "PLY import navigation title")
+        static let headerTitle = NSLocalizedString("import.header_title", value: "点云导入", comment: "PLY import header title")
+        static let headerSubtitle = NSLocalizedString("import.header_subtitle", value: "把已有 PLY 点云加入扫描记录，用于查看、对比和后续导出。", comment: "PLY import header subtitle")
+        static let idleTitle = NSLocalizedString("import.status.idle_title", value: "等待选择 PLY 文件", comment: "PLY import idle-state title")
+        static let idleMessage = NSLocalizedString("import.status.idle_message", value: "支持 ASCII 和 Binary PLY，导入后会写入本机扫描记录。", comment: "PLY import idle-state message")
+        static let selectingTitle = NSLocalizedString("import.status.selecting_title", value: "请选择文件", comment: "PLY import file-selection title")
+        static let selectingMessage = NSLocalizedString("import.status.selecting_message", value: "从文件应用中选择一个 .ply 点云文件。", comment: "PLY import file-selection message")
+        static let processingTitle = NSLocalizedString("import.status.processing_title", value: "正在处理", comment: "PLY import processing title")
+        static let successTitle = NSLocalizedString("import.status.success_title", value: "导入成功", comment: "PLY import success title")
+        static let errorTitle = NSLocalizedString("import.status.error_title", value: "导入失败", comment: "PLY import failure title")
+        static let selectButton = NSLocalizedString("import.button.select", value: "选择 PLY 文件", comment: "Select a PLY file action")
+        static let continueButton = NSLocalizedString("import.button.continue", value: "继续导入 PLY 文件", comment: "Import another PLY file action")
+        static let historyRule = NSLocalizedString("import.rule.history", value: "导入后会出现在扫描记录", comment: "Imported file history rule")
+        static let metadataRule = NSLocalizedString("import.rule.metadata", value: "保留可读取的扫描元数据", comment: "Imported metadata rule")
+        static let duplicateRule = NSLocalizedString("import.rule.duplicate", value: "同名文件会自动生成新副本", comment: "Duplicate import rule")
+        static let noFileError = NSLocalizedString("import.error.no_file", value: "未选择文件", comment: "No file selected import error")
+        static let unsupportedFormatError = NSLocalizedString("import.error.unsupported_format", value: "当前导入记录只支持 PLY 点云文件", comment: "Unsupported import format error")
+        static let invalidPLYError = NSLocalizedString("import.error.invalid_ply", value: "文件不是有效的 PLY 点云", comment: "Invalid PLY file error")
+        static let invalidPointCloudError = NSLocalizedString("import.error.invalid_point_cloud", value: "PLY 点云数据不完整或当前无法读取", comment: "Unreadable PLY point-cloud error")
+
+        private static let successMessageFormat = NSLocalizedString("import.status.success_message", value: "%@ 已添加到扫描记录，可继续导入或关闭此页。", comment: "PLY import success message containing the imported filename")
+
+        static func successMessage(fileName: String) -> String {
+            String(format: successMessageFormat, fileName)
+        }
+    }
+
     // MARK: - Fruit Names
     enum Fruit {
         static func name(for category: FruitCategory) -> String {

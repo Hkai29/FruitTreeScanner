@@ -24,7 +24,7 @@ extension ImportFileView {
         do {
             let urls = try result.get()
             guard let fileURL = urls.first else {
-                importStatus = .error("未选择文件")
+                importStatus = .error(L10n.Import.noFileError)
                 return
             }
 

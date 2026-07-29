@@ -21,7 +21,7 @@ struct ImportFileContentView: View {
             HStack(spacing: 10) {
                 Image(systemName: "square.and.arrow.down")
                     .font(.system(size: 16, weight: .semibold))
-                Text(status.isSuccess ? "继续导入 PLY 文件" : "选择 PLY 文件")
+                Text(status.isSuccess ? L10n.Import.continueButton : L10n.Import.selectButton)
                     .font(.system(size: 15, weight: .semibold))
                 Spacer()
                 Image(systemName: "chevron.right")
