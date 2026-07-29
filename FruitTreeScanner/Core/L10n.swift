@@ -62,6 +62,48 @@ enum L10n {
         static let unitPoints = NSLocalizedString("result.unit_points", value: "点", comment: "Points unit")
     }
 
+    // MARK: - Quick Tagging
+    enum QuickTagging {
+        static let title = NSLocalizedString("quick_tagging.title", value: "快速标记", comment: "Quick tagging card title")
+        static let plotLabel = NSLocalizedString("quick_tagging.plot_label", value: "地块", comment: "Plot selector accessibility label")
+        static let plotPlaceholder = NSLocalizedString("quick_tagging.plot_placeholder", value: "选择地块", comment: "Plot selector placeholder")
+        static let noPlot = NSLocalizedString("quick_tagging.plot_none", value: "无地块", comment: "No plot menu option")
+        static let noPlotsAvailable = NSLocalizedString("quick_tagging.plot_empty", value: "暂无地块", comment: "No plots available menu item")
+        static let noTags = NSLocalizedString("quick_tagging.tags_empty", value: "暂无标签，可稍后在地块标签中添加。", comment: "No tags available message")
+        static let save = NSLocalizedString("quick_tagging.save", value: "保存标记", comment: "Save quick tagging action")
+        static let saved = NSLocalizedString("quick_tagging.saved", value: "已保存标记", comment: "Quick tagging saved state")
+        static let saveHint = NSLocalizedString("quick_tagging.save_hint", value: "保存这棵树所选的地块、标签和扫描状态。", comment: "Save quick tagging accessibility hint")
+        static let tagHint = NSLocalizedString("quick_tagging.tag_hint", value: "切换这棵树的标签选择。", comment: "Tag selection accessibility hint")
+        static let statusHint = NSLocalizedString("quick_tagging.status_hint", value: "设置这棵树的扫描状态。", comment: "Status selection accessibility hint")
+        static let selected = NSLocalizedString("quick_tagging.selected", value: "已选择", comment: "Selected accessibility value")
+        static let notSelected = NSLocalizedString("quick_tagging.not_selected", value: "未选择", comment: "Not selected accessibility value")
+
+        static func statusLocalizationKey(_ status: ScanStatus) -> String {
+            switch status {
+            case .notScanned:
+                return "quick_tagging.status.not_scanned"
+            case .scanned:
+                return "quick_tagging.status.scanned"
+            case .reviewing:
+                return "quick_tagging.status.reviewing"
+            case .completed:
+                return "quick_tagging.status.completed"
+            }
+        }
+
+        static func statusName(for status: ScanStatus) -> String {
+            NSLocalizedString(
+                statusLocalizationKey(status),
+                value: status.rawValue,
+                comment: "Localized quick tagging scan status"
+            )
+        }
+
+        static func selectionValue(isSelected: Bool) -> String {
+            isSelected ? selected : notSelected
+        }
+    }
+
     // MARK: - Dashboard
     enum Dashboard {
         static let title = NSLocalizedString("dashboard.title", value: "果园概览", comment: "Dashboard title")

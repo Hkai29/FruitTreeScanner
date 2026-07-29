@@ -7,17 +7,20 @@ struct QuickTaggingCard: View {
     @Binding var selectedStatus: ScanStatus
 
     @ObservedObject private var tagStore = TagStore.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var didSave = false
 
     private var selectedPlotName: String {
-        selectedPlotId.flatMap { tagStore.getPlot(id: $0) }?.name ?? "选择地块"
+        selectedPlotId.flatMap { tagStore.getPlot(id: $0) }?.name
+            ?? L10n.QuickTagging.plotPlaceholder
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("快速标记")
-                .font(.system(size: 15, weight: .semibold))
+            Text(L10n.QuickTagging.title)
+                .font(.headline)
                 .foregroundColor(Design.Colors.Dark.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
             plotMenu
             tagSelector
@@ -34,11 +37,11 @@ struct QuickTaggingCard: View {
 
     private var plotMenu: some View {
         Menu {
-            Button("无地块") {
+            Button(L10n.QuickTagging.noPlot) {
                 selectedPlotId = nil
             }
             if tagStore.plots.isEmpty {
-                Button("暂无地块") {}
+                Button(L10n.QuickTagging.noPlotsAvailable) {}
                     .disabled(true)
             } else {
                 ForEach(tagStore.plots) { plot in
@@ -51,21 +54,27 @@ struct QuickTaggingCard: View {
             HStack {
                 Image(systemName: "map")
                     .foregroundColor(Design.Colors.earth)
+                    .accessibilityHidden(true)
                 Text(selectedPlotName)
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .accessibilityHidden(true)
             }
             .padding(12)
+            .frame(minHeight: Design.Touch.minimumHeight)
             .background(
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Design.Colors.Dark.bgElevated)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(L10n.QuickTagging.plotLabel)
+        .accessibilityValue(selectedPlotName)
     }
 
     private var tagSelector: some View {
@@ -73,11 +82,13 @@ struct QuickTaggingCard: View {
             if tagStore.tags.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "tag")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundColor(Design.Colors.Dark.textSecondary)
-                    Text("暂无标签，可稍后在地块标签中添加")
-                        .font(.system(size: 12))
+                        .accessibilityHidden(true)
+                    Text(L10n.QuickTagging.noTags)
+                        .font(.caption)
                         .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                 }
                 .padding(12)
@@ -87,22 +98,26 @@ struct QuickTaggingCard: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(tagStore.tags) { tag in
+                            let isSelected = selectedTagIds.contains(tag.id)
                             Button {
                                 toggleTag(tag.id)
                             } label: {
-                                Text(tag.name)
-                                    .font(.system(size: 13, weight: .medium))
+                                selectionLabel(tag.name, isSelected: isSelected)
                                     .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
+                                    .frame(minHeight: Design.Touch.minimumHeight)
                                     .background(
                                         RoundedRectangle(cornerRadius: 8)
-                                            .fill(selectedTagIds.contains(tag.id)
+                                            .fill(isSelected
                                                 ? Color(hex: tag.colorHex)
                                                 : Design.Colors.Dark.bgElevated)
                                     )
-                                    .foregroundColor(selectedTagIds.contains(tag.id) ? .white : Design.Colors.Dark.textPrimary)
+                                    .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(tag.name)
+                            .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: isSelected))
+                            .accessibilityHint(L10n.QuickTagging.tagHint)
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                     }
                 }
@@ -111,24 +126,31 @@ struct QuickTaggingCard: View {
     }
 
     private var statusSelector: some View {
-        HStack(spacing: 8) {
+        LazyVGrid(columns: statusColumns, alignment: .leading, spacing: 8) {
             ForEach(ScanStatus.allCases, id: \.self) { status in
+                let isSelected = selectedStatus == status
                 Button {
                     selectedStatus = status
                 } label: {
-                    Text(status.rawValue)
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                    selectionLabel(
+                        L10n.QuickTagging.statusName(for: status),
+                        isSelected: isSelected
+                    )
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, minHeight: Design.Touch.minimumHeight)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(selectedStatus == status
+                                .fill(isSelected
                                     ? statusColor(for: status)
                                     : Design.Colors.Dark.bgElevated)
                         )
-                        .foregroundColor(selectedStatus == status ? .white : Design.Colors.Dark.textPrimary)
+                        .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(L10n.QuickTagging.statusName(for: status))
+                .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: isSelected))
+                .accessibilityHint(L10n.QuickTagging.statusHint)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
     }
@@ -137,17 +159,46 @@ struct QuickTaggingCard: View {
         Button(action: saveAssignment) {
             HStack(spacing: 8) {
                 Image(systemName: didSave ? "checkmark.circle.fill" : "square.and.arrow.down")
-                    .font(.system(size: 14))
-                Text(didSave ? "已保存标记" : "保存标记")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.body)
+                    .accessibilityHidden(true)
+                Text(didSave ? L10n.QuickTagging.saved : L10n.QuickTagging.save)
+                    .font(.body.weight(.medium))
             }
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .frame(minHeight: Design.Touch.minimumHeight)
+            .padding(.vertical, 4)
             .background(didSave ? Design.Colors.earth : Design.Colors.forest)
             .cornerRadius(10)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(didSave ? L10n.QuickTagging.saved : L10n.QuickTagging.save)
+        .accessibilityHint(L10n.QuickTagging.saveHint)
+    }
+
+    private var statusColumns: [GridItem] {
+        [
+            GridItem(
+                .adaptive(
+                    minimum: dynamicTypeSize.isAccessibilitySize ? 180 : 112
+                ),
+                spacing: 8
+            )
+        ]
+    }
+
+    private func selectionLabel(_ title: String, isSelected: Bool) -> some View {
+        HStack(spacing: 6) {
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.caption.weight(.bold))
+                    .accessibilityHidden(true)
+            }
+
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func toggleTag(_ id: UUID) {

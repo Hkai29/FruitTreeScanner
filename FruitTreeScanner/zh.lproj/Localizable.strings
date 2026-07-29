@@ -52,6 +52,25 @@
 "result.unit_count" = "个";
 "result.unit_points" = "点";
 
+/* 快速标记 */
+"quick_tagging.title" = "快速标记";
+"quick_tagging.plot_label" = "地块";
+"quick_tagging.plot_placeholder" = "选择地块";
+"quick_tagging.plot_none" = "无地块";
+"quick_tagging.plot_empty" = "暂无地块";
+"quick_tagging.tags_empty" = "暂无标签，可稍后在地块标签中添加。";
+"quick_tagging.save" = "保存标记";
+"quick_tagging.saved" = "已保存标记";
+"quick_tagging.save_hint" = "保存这棵树所选的地块、标签和扫描状态。";
+"quick_tagging.tag_hint" = "切换这棵树的标签选择。";
+"quick_tagging.status_hint" = "设置这棵树的扫描状态。";
+"quick_tagging.selected" = "已选择";
+"quick_tagging.not_selected" = "未选择";
+"quick_tagging.status.not_scanned" = "未扫描";
+"quick_tagging.status.scanned" = "已扫描";
+"quick_tagging.status.reviewing" = "复查中";
+"quick_tagging.status.completed" = "已完成";
+
 /* Dashboard */
 "dashboard.title" = "果园概览";
 "dashboard.today_scans" = "今日扫描";
