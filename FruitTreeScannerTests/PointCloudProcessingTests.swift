@@ -1587,6 +1587,52 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertTrue(contents.isEmpty, "Invalid header import left artifacts: \(contents)")
     }
 
+    func testPLYImportCancellationAfterCommitRemovesDestination() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+        let plyURL = tempDir.appendingPathComponent("cancelled.ply")
+        try """
+        ply
+        format ascii 1.0
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        property uchar red
+        property uchar green
+        property uchar blue
+        end_header
+        1.0 2.0 3.0 128 128 128
+        """.write(to: plyURL, atomically: true, encoding: .utf8)
+
+        var checkpointCount = 0
+        XCTAssertThrowsError(
+            try PLYImportService.importFile(
+                plyURL,
+                scansDirectory: scansDir,
+                cancellationCheckpoint: {
+                    checkpointCount += 1
+                    if checkpointCount == 4 {
+                        throw CancellationError()
+                    }
+                }
+            )
+        ) { error in
+            XCTAssertTrue(error is CancellationError)
+        }
+        XCTAssertEqual(checkpointCount, 4)
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Canceled import left artifacts: \(contents)")
+    }
+
     // MARK: - PLYImportService success + duplicate import
 
     func testPLYImportSanitizesSourceFileNameAndImportTwiceDoesNotOverwrite() throws {
