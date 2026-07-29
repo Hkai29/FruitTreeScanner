@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 struct ScanLaunchRequest: Identifiable {
@@ -23,5 +24,25 @@ struct ScanLaunchRequest: Identifiable {
         self.gps = gps
         self.plotId = plotId
         self.tagIds = tagIds
+    }
+}
+
+@MainActor
+final class ScanLaunchSubmissionGate: ObservableObject {
+    @Published private(set) var isSubmitting = false
+
+    /// Keeps request delivery inside the originating UI action so it cannot outlive the entry view.
+    @discardableResult
+    func submit<Request>(
+        makeRequest: () -> Request?,
+        deliver: (Request) -> Void
+    ) -> Bool {
+        guard !isSubmitting, let request = makeRequest() else {
+            return false
+        }
+
+        isSubmitting = true
+        deliver(request)
+        return true
     }
 }

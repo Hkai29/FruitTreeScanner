@@ -28,6 +28,51 @@ final class DashboardSummaryTests: XCTestCase {
     }
 
     @MainActor
+    func testScanLaunchSubmissionGateDeliversSynchronously() {
+        let gate = ScanLaunchSubmissionGate()
+        var events: [String] = []
+
+        let accepted = gate.submit(
+            makeRequest: {
+                events.append("build")
+                return "request"
+            },
+            deliver: { request in
+                events.append("deliver:\(request)")
+            }
+        )
+        events.append("return")
+
+        XCTAssertTrue(accepted)
+        XCTAssertTrue(gate.isSubmitting)
+        XCTAssertEqual(events, ["build", "deliver:request", "return"])
+    }
+
+    @MainActor
+    func testScanLaunchSubmissionGateRejectsDuplicateSubmission() {
+        let gate = ScanLaunchSubmissionGate()
+        var delivered: [Int] = []
+
+        XCTAssertTrue(gate.submit(makeRequest: { 1 }, deliver: { delivered.append($0) }))
+        XCTAssertFalse(gate.submit(makeRequest: { 2 }, deliver: { delivered.append($0) }))
+
+        XCTAssertEqual(delivered, [1])
+    }
+
+    @MainActor
+    func testScanLaunchSubmissionGateDoesNotLockAfterInvalidRequest() {
+        let gate = ScanLaunchSubmissionGate()
+
+        let accepted = gate.submit(
+            makeRequest: { nil as Int? },
+            deliver: { _ in XCTFail("Invalid requests must not be delivered") }
+        )
+
+        XCTAssertFalse(accepted)
+        XCTAssertFalse(gate.isSubmitting)
+    }
+
+    @MainActor
     func testNavigationRouterReceivesRequestPostedAfterInitialization() {
         let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

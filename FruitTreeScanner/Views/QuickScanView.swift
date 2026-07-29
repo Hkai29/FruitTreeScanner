@@ -9,13 +9,13 @@ struct QuickScanView: View {
 
     @Environment(\.dismiss) var dismiss
     @StateObject private var gps = GPSRecorder()
+    @StateObject private var launchGate = ScanLaunchSubmissionGate()
     @State private var treeID: String = QuickScanView.makeDefaultTreeID()
     @State private var isTreeIDValid = true
-    @State private var isLaunchingScan = false
     @State private var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
 
     private var canLaunch: Bool {
-        !isLaunchingScan && isTreeIDValid
+        !launchGate.isSubmitting && isTreeIDValid
     }
 
     private var normalizedTreeID: String {
@@ -111,7 +111,7 @@ struct QuickScanView: View {
     private var launchButton: some View {
         Button(action: launchQuickScan) {
             HStack(spacing: 12) {
-                if isLaunchingScan {
+                if launchGate.isSubmitting {
                     ProgressView()
                         .tint(Design.Colors.Dark.textPrimary)
                         .scaleEffect(0.8)
@@ -119,7 +119,7 @@ struct QuickScanView: View {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 15, weight: .semibold))
                 }
-                Text(isLaunchingScan ? "启动中..." : "开始快速扫描")
+                Text(launchGate.isSubmitting ? "启动中..." : "开始快速扫描")
                     .font(.system(size: 15, weight: .semibold))
             }
             .foregroundColor(canLaunch ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textSecondary)
@@ -135,29 +135,27 @@ struct QuickScanView: View {
 
     private func launchQuickScan() {
         guard canLaunch else { return }
-        isLaunchingScan = true
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
-                isLaunchingScan = false
-                return
+        launchGate.submit(
+            makeRequest: { () -> ScanLaunchRequest? in
+                guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
+                    return nil
+                }
+                return ScanLaunchRequest(
+                    treeID: normalizedTreeID,
+                    selectedFruitCategory: selectedFruitCategory,
+                    season: .mature,
+                    gps: gps,
+                    plotId: nil,
+                    tagIds: []
+                )
+            },
+            deliver: { request in
+                SettingsStore.shared.fruitType = selectedFruitCategory.rawValue
+                onLaunchScan(request)
             }
-            let request = ScanLaunchRequest(
-                treeID: normalizedTreeID,
-                selectedFruitCategory: selectedFruitCategory,
-                season: .mature,
-                gps: gps,
-                plotId: nil,
-                tagIds: []
-            )
-            SettingsStore.shared.fruitType = selectedFruitCategory.rawValue
-            onLaunchScan(request)
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            isLaunchingScan = false
-        }
+        )
     }
 
     private static func makeDefaultTreeID() -> String {

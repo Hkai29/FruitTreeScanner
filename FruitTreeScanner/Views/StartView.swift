@@ -16,11 +16,15 @@ struct StartView: View {
     @State var season: Season = .mature
     @State var selectedTagIds: Set<UUID> = []
     @State var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
-    @State var isLaunchingScan = false
+    @StateObject var launchGate = ScanLaunchSubmissionGate()
     @State var presentedSheet: StartViewSheet?
     @State var gps = GPSRecorder()
 
     let totalSteps = 5
+
+    var isLaunchingScan: Bool {
+        launchGate.isSubmitting
+    }
 
     var body: some View {
         StartViewLayout(
