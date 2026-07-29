@@ -65,6 +65,46 @@
 "settings.scan_quality" = "Scan Quality";
 "settings.auto_export_csv" = "Auto Export CSV";
 
+/* Variety Parameters */
+"variety.title" = "Variety Parameters";
+"variety.more_actions" = "More variety actions";
+"variety.reset_all" = "Reset All Parameters";
+"variety.reset_all_message" = "Reset every variety parameter to its default value? This cannot be undone.";
+"variety.reset" = "Reset";
+"variety.search_prompt" = "Search varieties";
+"variety.active_scan" = "Current scan: %@";
+"variety.customized_count" = "Customized varieties: %d";
+"variety.search_results" = "Search results: %d";
+"variety.search_empty_title" = "No matching varieties";
+"variety.search_empty_message" = "No parameters match “%@”.";
+"variety.current" = "Current";
+"variety.current_accessibility" = "%@, current scan variety";
+"variety.use_accessibility" = "Use %@ for scanning";
+"variety.use_hint" = "Sets this variety for future scans.";
+"variety.customized_accessibility" = "%@, customized parameters";
+"variety.edit_accessibility" = "Edit %@ parameters";
+"variety.chip.diameter" = "Dia.";
+"variety.chip.average_weight" = "Avg.";
+"variety.chip.eps" = "Eps";
+"variety.edit_title" = "Edit %@";
+"variety.edit_impact" = "Changing these parameters affects %@ detection and yield estimates.";
+"variety.section.size" = "Fruit Size";
+"variety.minimum_diameter" = "Minimum Diameter";
+"variety.maximum_diameter" = "Maximum Diameter";
+"variety.section.weight_density" = "Weight and Density";
+"variety.average_weight" = "Average Fruit Weight";
+"variety.density" = "Density";
+"variety.section.thresholds" = "Detection Thresholds";
+"variety.sphericity_threshold" = "Sphericity Threshold";
+"variety.section.clustering" = "Clustering";
+"variety.cluster_radius" = "Clustering Radius (Eps)";
+"variety.reset_default" = "Reset to Defaults";
+"variety.reset_parameter_title" = "Reset Parameters";
+"variety.reset_parameter_message" = "Reset this variety to its default parameter values?";
+"variety.slider_hint" = "Swipe up or down to adjust the value.";
+"variety.unit_value" = "%@ %@";
+"variety.diameter_range" = "%@–%@ %@";
+
 /* Diagnostics */
 "diag.model_not_loaded" = "Model not loaded";
 "diag.depth_unavailable" = "Depth unavailable";

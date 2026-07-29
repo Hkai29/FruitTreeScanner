@@ -1,5 +1,16 @@
 import SwiftUI
 
+enum VarietySearchMatcher {
+    static func matches(
+        category: FruitCategory,
+        query: String,
+        localizedName: String
+    ) -> Bool {
+        localizedName.localizedCaseInsensitiveContains(query)
+            || category.rawValue.localizedCaseInsensitiveContains(query)
+    }
+}
+
 struct VarietyDatabaseView: View {
     @ObservedObject private var store = FruitParametersStore.shared
     @ObservedObject private var settings = SettingsStore.shared
@@ -12,8 +23,11 @@ struct VarietyDatabaseView: View {
             return FruitCategory.allCases
         }
         return FruitCategory.allCases.filter {
-            $0.displayName.localizedCaseInsensitiveContains(searchText) ||
-            $0.rawValue.localizedCaseInsensitiveContains(searchText)
+            VarietySearchMatcher.matches(
+                category: $0,
+                query: searchText,
+                localizedName: L10n.Fruit.name(for: $0)
+            )
         }
     }
     
@@ -31,7 +45,7 @@ struct VarietyDatabaseView: View {
             
             VStack(spacing: 0) {
                 VarietyDatabaseSummaryBar(
-                    activeCategoryName: activeCategory.displayName,
+                    activeCategoryName: L10n.Fruit.name(for: activeCategory),
                     customizedCount: customizedCount
                 )
                 
@@ -58,9 +72,18 @@ struct VarietyDatabaseView: View {
                         .padding(Design.Space.md)
                     }
                 }
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: 56)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                Design.Colors.Dark.bgDeep
+                    .frame(height: 72)
+                    .ignoresSafeArea(edges: .bottom)
+                    .allowsHitTesting(false)
             }
         }
-        .navigationTitle("品种参数库")
+        .navigationTitle(L10n.VarietyDatabase.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -70,11 +93,12 @@ struct VarietyDatabaseView: View {
                     Button(role: .destructive) {
                         showResetConfirm = true
                     } label: {
-                        Label("重置所有参数", systemImage: "arrow.counterclockwise")
+                        Label(L10n.VarietyDatabase.resetAll, systemImage: "arrow.counterclockwise")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .foregroundColor(Design.Colors.Dark.glow)
+                        .accessibilityLabel(L10n.VarietyDatabase.moreActions)
                 }
             }
         }
@@ -98,15 +122,15 @@ struct VarietyDatabaseView: View {
                 }
             )
         }
-        .alert("重置所有参数", isPresented: $showResetConfirm) {
-            Button("取消", role: .cancel) {}
-            Button("重置", role: .destructive) {
+        .alert(L10n.VarietyDatabase.resetAll, isPresented: $showResetConfirm) {
+            Button(L10n.Common.cancel, role: .cancel) {}
+            Button(L10n.VarietyDatabase.reset, role: .destructive) {
                 store.resetAll()
             }
         } message: {
-            Text("确定要重置所有品种参数为默认值吗？")
+            Text(L10n.VarietyDatabase.resetAllMessage)
         }
-        .searchable(text: $searchText, prompt: "搜索品种")
+        .searchable(text: $searchText, prompt: L10n.VarietyDatabase.searchPrompt)
     }
 
     private func useCategory(_ category: FruitCategory) {

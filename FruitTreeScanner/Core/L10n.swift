@@ -79,6 +79,96 @@ enum L10n {
         static let autoExportCSV = NSLocalizedString("settings.auto_export_csv", value: "自动导出 CSV", comment: "Auto export CSV toggle")
     }
 
+    // MARK: - Variety Parameters
+    enum VarietyDatabase {
+        static let title = NSLocalizedString("variety.title", value: "品种参数库", comment: "Variety parameter database title")
+        static let moreActions = NSLocalizedString("variety.more_actions", value: "更多品种操作", comment: "Variety parameter toolbar menu accessibility label")
+        static let resetAll = NSLocalizedString("variety.reset_all", value: "重置所有参数", comment: "Reset all variety parameters action")
+        static let resetAllMessage = NSLocalizedString("variety.reset_all_message", value: "确定要将所有品种参数重置为默认值吗？此操作无法撤销。", comment: "Reset all variety parameters confirmation message")
+        static let reset = NSLocalizedString("variety.reset", value: "重置", comment: "Reset variety parameters action")
+        static let searchPrompt = NSLocalizedString("variety.search_prompt", value: "搜索品种", comment: "Variety search field prompt")
+        static let activeScanFormat = NSLocalizedString("variety.active_scan", value: "当前扫描：%@", comment: "Current scan variety summary")
+        static let customizedCountFormat = NSLocalizedString("variety.customized_count", value: "已自定义品种：%d", comment: "Customized variety count summary")
+        static let searchResultsFormat = NSLocalizedString("variety.search_results", value: "搜索结果：%d", comment: "Variety search result count")
+        static let searchEmptyTitle = NSLocalizedString("variety.search_empty_title", value: "没有匹配的品种", comment: "Empty variety search title")
+        static let searchEmptyMessageFormat = NSLocalizedString("variety.search_empty_message", value: "未找到与“%@”匹配的参数。", comment: "Empty variety search message")
+        static let current = NSLocalizedString("variety.current", value: "当前", comment: "Current variety badge")
+        static let currentAccessibilityFormat = NSLocalizedString("variety.current_accessibility", value: "%@，当前扫描品种", comment: "Current scan variety accessibility label")
+        static let useAccessibilityFormat = NSLocalizedString("variety.use_accessibility", value: "将%@设为扫描品种", comment: "Use variety accessibility label")
+        static let useHint = NSLocalizedString("variety.use_hint", value: "设为后续扫描使用的品种。", comment: "Use variety accessibility hint")
+        static let customizedAccessibilityFormat = NSLocalizedString("variety.customized_accessibility", value: "%@，参数已自定义", comment: "Customized variety accessibility label")
+        static let editAccessibilityFormat = NSLocalizedString("variety.edit_accessibility", value: "编辑%@参数", comment: "Edit variety accessibility label")
+        static let diameterChip = NSLocalizedString("variety.chip.diameter", value: "直径", comment: "Diameter parameter chip label")
+        static let averageWeightChip = NSLocalizedString("variety.chip.average_weight", value: "均重", comment: "Average weight parameter chip label")
+        static let epsChip = NSLocalizedString("variety.chip.eps", value: "Eps", comment: "DBSCAN epsilon parameter chip label")
+        static let editTitleFormat = NSLocalizedString("variety.edit_title", value: "编辑%@", comment: "Edit variety parameters title")
+        static let editImpactFormat = NSLocalizedString("variety.edit_impact", value: "调整参数会影响%@的检测和产量估算结果。", comment: "Variety parameter impact explanation")
+        static let sizeSection = NSLocalizedString("variety.section.size", value: "果实尺寸", comment: "Fruit size section title")
+        static let minimumDiameter = NSLocalizedString("variety.minimum_diameter", value: "最小直径", comment: "Minimum fruit diameter control")
+        static let maximumDiameter = NSLocalizedString("variety.maximum_diameter", value: "最大直径", comment: "Maximum fruit diameter control")
+        static let weightDensitySection = NSLocalizedString("variety.section.weight_density", value: "重量与密度", comment: "Weight and density section title")
+        static let averageWeight = NSLocalizedString("variety.average_weight", value: "平均单果重量", comment: "Average fruit weight control")
+        static let density = NSLocalizedString("variety.density", value: "密度", comment: "Fruit density control")
+        static let thresholdsSection = NSLocalizedString("variety.section.thresholds", value: "检测阈值", comment: "Detection thresholds section title")
+        static let sphericityThreshold = NSLocalizedString("variety.sphericity_threshold", value: "球形度阈值", comment: "Sphericity threshold control")
+        static let clusteringSection = NSLocalizedString("variety.section.clustering", value: "聚类参数", comment: "Clustering parameters section title")
+        static let clusterRadius = NSLocalizedString("variety.cluster_radius", value: "聚类半径 (Eps)", comment: "Clustering radius control")
+        static let resetDefault = NSLocalizedString("variety.reset_default", value: "重置为默认值", comment: "Reset one variety to defaults action")
+        static let resetParameterTitle = NSLocalizedString("variety.reset_parameter_title", value: "重置参数", comment: "Reset one variety parameters alert title")
+        static let resetParameterMessage = NSLocalizedString("variety.reset_parameter_message", value: "确定要将此品种重置为默认参数吗？", comment: "Reset one variety parameters confirmation")
+        static let sliderHint = NSLocalizedString("variety.slider_hint", value: "上下轻扫以调整数值。", comment: "Variety parameter slider accessibility hint")
+        static let unitValueFormat = NSLocalizedString("variety.unit_value", value: "%@ %@", comment: "Parameter value followed by an abbreviated unit")
+        static let diameterRangeFormat = NSLocalizedString("variety.diameter_range", value: "%@–%@ %@", comment: "Minimum and maximum diameter followed by abbreviated unit")
+
+        static func activeScan(_ varietyName: String) -> String {
+            String(format: activeScanFormat, varietyName)
+        }
+
+        static func customizedCount(_ count: Int) -> String {
+            String(format: customizedCountFormat, count)
+        }
+
+        static func searchResults(_ count: Int) -> String {
+            String(format: searchResultsFormat, count)
+        }
+
+        static func searchEmptyMessage(_ query: String) -> String {
+            String(format: searchEmptyMessageFormat, query)
+        }
+
+        static func currentAccessibility(_ varietyName: String) -> String {
+            String(format: currentAccessibilityFormat, varietyName)
+        }
+
+        static func useAccessibility(_ varietyName: String) -> String {
+            String(format: useAccessibilityFormat, varietyName)
+        }
+
+        static func customizedAccessibility(_ varietyName: String) -> String {
+            String(format: customizedAccessibilityFormat, varietyName)
+        }
+
+        static func editAccessibility(_ varietyName: String) -> String {
+            String(format: editAccessibilityFormat, varietyName)
+        }
+
+        static func editTitle(_ varietyName: String) -> String {
+            String(format: editTitleFormat, varietyName)
+        }
+
+        static func editImpact(_ varietyName: String) -> String {
+            String(format: editImpactFormat, varietyName)
+        }
+
+        static func unitValue(_ value: String, unit: String) -> String {
+            String(format: unitValueFormat, value, unit)
+        }
+
+        static func diameterRange(minimum: String, maximum: String, unit: String) -> String {
+            String(format: diameterRangeFormat, minimum, maximum, unit)
+        }
+    }
+
     // MARK: - Diagnostics
     enum Diagnostics {
         static let modelNotLoaded = NSLocalizedString("diag.model_not_loaded", value: "模型未加载", comment: "CoreML model not loaded")
