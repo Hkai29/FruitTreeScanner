@@ -991,6 +991,190 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(ImportStatus.error("broken").afterImporterDismissal, .error("broken"))
     }
 
+    func testPointCloudPreviewCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "point_cloud.navigation_title": "Point Cloud Preview",
+                "point_cloud.accessibility.close_preview": "Close point cloud preview",
+                "point_cloud.empty.title": "No Scan Data",
+                "point_cloud.empty.message": "Scan or import a PLY file to see point clouds here.",
+                "point_cloud.action.new_scan": "New Scan",
+                "point_cloud.action.import_ply": "Import PLY",
+                "point_cloud.status.loading_title": "Loading Point Cloud",
+                "point_cloud.status.loading_message": "Reading PLY points and color data…",
+                "point_cloud.status.error_title": "Unable to Open Point Cloud",
+                "point_cloud.status.no_file_title": "No Point Cloud File",
+                "point_cloud.status.no_file_message": "Scan or import a PLY file to rotate, measure, and share it here.",
+                "point_cloud.status.no_points_title": "No Displayable Points",
+                "point_cloud.status.no_points_message": "No valid points were found. Check the PLY file.",
+                "point_cloud.error.load_failed": "Unable to read the point-cloud file.",
+                "point_cloud.selector.search_placeholder": "Search tree ID",
+                "point_cloud.selector.no_results": "No records found for tree ID “%@”",
+                "point_cloud.accessibility.clear_search": "Clear search",
+                "point_cloud.viewer.title": "Point Cloud",
+                "point_cloud.accessibility.share": "Share point cloud",
+                "point_cloud.metric.points": "Pts",
+                "point_cloud.metric.height": "H",
+                "point_cloud.metric.footprint": "Crown",
+                "point_cloud.accessibility.point_count": "Point count: %@",
+                "point_cloud.accessibility.height": "Height: %@",
+                "point_cloud.accessibility.footprint": "Crown footprint: %@",
+                "point_cloud.tool.reset": "Reset",
+                "point_cloud.tool.color": "Colors",
+                "point_cloud.tool.zoom_in": "Zoom In",
+                "point_cloud.tool.zoom_out": "Zoom Out",
+                "point_cloud.tool.measure": "Measure",
+                "point_cloud.legend.color_format": "Color: %@",
+                "point_cloud.legend.actual_height_format": "Actual height %@",
+                "point_cloud.legend.low": "Low",
+                "point_cloud.legend.high": "High",
+                "point_cloud.legend.sparse": "Sparse",
+                "point_cloud.legend.dense": "Dense",
+                "point_cloud.legend.fruit_candidates": "Fruit candidates",
+                "point_cloud.legend.uniform_bright": "Uniform bright",
+                "point_cloud.view.orbit": "Orbit",
+                "point_cloud.view.front": "Front",
+                "point_cloud.view.top": "Top",
+                "point_cloud.view.side": "Side",
+                "point_cloud.view_detail.orbit": "Perspective orbit",
+                "point_cloud.view_detail.front": "Height profile",
+                "point_cloud.view_detail.top": "Canopy projection",
+                "point_cloud.view_detail.side": "Side profile",
+                "point_cloud.color.height": "Height",
+                "point_cloud.color.density": "Density",
+                "point_cloud.color.fruit": "Fruit",
+                "point_cloud.color.uniform": "Uniform",
+                "point_cloud.measurement.start": "Start",
+                "point_cloud.measurement.end": "End",
+                "point_cloud.measurement.instruction": "Tap the point cloud to measure",
+                "point_cloud.measurement.distance": "Measured distance",
+                "point_cloud.accessibility.close_measurement": "Stop measuring"
+            ],
+            "zh": [
+                "point_cloud.navigation_title": "点云预览",
+                "point_cloud.accessibility.close_preview": "关闭点云预览",
+                "point_cloud.empty.title": "暂无扫描数据",
+                "point_cloud.empty.message": "完成扫描或导入 PLY 后，点云文件会自动出现在这里。",
+                "point_cloud.action.new_scan": "新建扫描",
+                "point_cloud.action.import_ply": "导入 PLY",
+                "point_cloud.status.loading_title": "正在读取点云",
+                "point_cloud.status.loading_message": "正在解析 PLY 点和颜色数据…",
+                "point_cloud.status.error_title": "无法打开点云",
+                "point_cloud.status.no_file_title": "暂无点云文件",
+                "point_cloud.status.no_file_message": "完成扫描或导入 PLY 后，可在这里旋转、测量和分享点云。",
+                "point_cloud.status.no_points_title": "没有可显示的点",
+                "point_cloud.status.no_points_message": "该文件未解析到有效点云，请检查 PLY 内容。",
+                "point_cloud.error.load_failed": "无法读取点云文件。",
+                "point_cloud.selector.search_placeholder": "搜索编号",
+                "point_cloud.selector.no_results": "未找到编号“%@”的记录",
+                "point_cloud.accessibility.clear_search": "清除搜索",
+                "point_cloud.viewer.title": "点云查看",
+                "point_cloud.accessibility.share": "分享点云",
+                "point_cloud.metric.points": "点",
+                "point_cloud.metric.height": "高",
+                "point_cloud.metric.footprint": "冠幅",
+                "point_cloud.accessibility.point_count": "点数：%@",
+                "point_cloud.accessibility.height": "高度：%@",
+                "point_cloud.accessibility.footprint": "冠幅：%@",
+                "point_cloud.tool.reset": "重置",
+                "point_cloud.tool.color": "色彩",
+                "point_cloud.tool.zoom_in": "放大",
+                "point_cloud.tool.zoom_out": "缩小",
+                "point_cloud.tool.measure": "测量",
+                "point_cloud.legend.color_format": "色彩：%@",
+                "point_cloud.legend.actual_height_format": "真实高度 %@",
+                "point_cloud.legend.low": "低",
+                "point_cloud.legend.high": "高",
+                "point_cloud.legend.sparse": "稀",
+                "point_cloud.legend.dense": "密",
+                "point_cloud.legend.fruit_candidates": "果实候选",
+                "point_cloud.legend.uniform_bright": "统一亮色",
+                "point_cloud.view.orbit": "自由",
+                "point_cloud.view.front": "正面",
+                "point_cloud.view.top": "俯视",
+                "point_cloud.view.side": "侧面",
+                "point_cloud.view_detail.orbit": "透视旋转",
+                "point_cloud.view_detail.front": "高度轮廓",
+                "point_cloud.view_detail.top": "冠层投影",
+                "point_cloud.view_detail.side": "侧向轮廓",
+                "point_cloud.color.height": "高度",
+                "point_cloud.color.density": "密度",
+                "point_cloud.color.fruit": "果实",
+                "point_cloud.color.uniform": "统一",
+                "point_cloud.measurement.start": "起点",
+                "point_cloud.measurement.end": "终点",
+                "point_cloud.measurement.instruction": "点击点云表面测量",
+                "point_cloud.measurement.distance": "测量距离",
+                "point_cloud.accessibility.close_measurement": "停止测量"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testPointCloudModesKeepStableRawValuesAndUseLocalizedDisplayNames() {
+        XCTAssertEqual(
+            PointCloudColorMode.allCases.map(\.rawValue),
+            ["高度", "密度", "果实", "统一"],
+            "Stable identifiers must not change when the display language changes"
+        )
+        XCTAssertEqual(
+            PointCloudViewMode.allCases.map(\.rawValue),
+            ["自由", "正面", "俯视", "侧面"],
+            "Stable identifiers must not change when the display language changes"
+        )
+
+        XCTAssertEqual(
+            PointCloudColorMode.allCases.map(\.displayName),
+            [
+                L10n.PointCloud.colorHeight,
+                L10n.PointCloud.colorDensity,
+                L10n.PointCloud.colorFruit,
+                L10n.PointCloud.colorUniform
+            ]
+        )
+        XCTAssertEqual(
+            PointCloudViewMode.allCases.map(\.displayName),
+            [
+                L10n.PointCloud.viewOrbit,
+                L10n.PointCloud.viewFront,
+                L10n.PointCloud.viewTop,
+                L10n.PointCloud.viewSide
+            ]
+        )
+        XCTAssertEqual(
+            PointCloudViewMode.allCases.map(\.detail),
+            [
+                L10n.PointCloud.viewDetailOrbit,
+                L10n.PointCloud.viewDetailFront,
+                L10n.PointCloud.viewDetailTop,
+                L10n.PointCloud.viewDetailSide
+            ]
+        )
+    }
+
+    func testPointCloudDynamicCopyPreservesRuntimeValues() {
+        XCTAssertTrue(L10n.PointCloud.noSearchResults(for: "TREE-17").contains("TREE-17"))
+        XCTAssertTrue(L10n.PointCloud.colorLegend(modeName: "MODE-17").contains("MODE-17"))
+        XCTAssertTrue(L10n.PointCloud.actualHeight("3.25 m").contains("3.25 m"))
+        XCTAssertTrue(L10n.PointCloud.pointCountAccessibility("12,345").contains("12,345"))
+        XCTAssertTrue(L10n.PointCloud.heightAccessibility("3.25 m").contains("3.25 m"))
+        XCTAssertTrue(L10n.PointCloud.footprintAccessibility("2.00 x 4.00 m").contains("2.00 x 4.00 m"))
+    }
+
     // MARK: - Scan history loading and recovery
 
     func testScanHistoryDiskReadDistinguishesMissingDirectoryFromReadFailure() {

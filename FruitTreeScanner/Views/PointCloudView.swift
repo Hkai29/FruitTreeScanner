@@ -124,28 +124,28 @@ struct PointCloudView: View {
         if isLoading {
             PointCloudStatusPanel(
                 icon: "arrow.triangle.2.circlepath",
-                title: "正在读取点云",
-                message: "解析 PLY 点和颜色数据...",
+                title: L10n.PointCloud.loadingTitle,
+                message: L10n.PointCloud.loadingMessage,
                 showsProgress: true
             )
         } else if let loadErrorMessage {
             PointCloudStatusPanel(
                 icon: "exclamationmark.triangle.fill",
-                title: "无法打开点云",
+                title: L10n.PointCloud.openErrorTitle,
                 message: loadErrorMessage,
                 tint: Design.Colors.apple
             )
         } else if plyFileURL == nil {
             PointCloudStatusPanel(
                 icon: "cube",
-                title: "暂无点云文件",
-                message: "完成扫描或导入 PLY 后，可在这里旋转、测量和分享点云。"
+                title: L10n.PointCloud.noFileTitle,
+                message: L10n.PointCloud.noFileMessage
             )
         } else if pointCloudData == nil || pointCount == 0 {
             PointCloudStatusPanel(
                 icon: "cube.transparent",
-                title: "没有可显示的点",
-                message: "该文件未解析到有效点云，请检查 PLY 内容。"
+                title: L10n.PointCloud.noPointsTitle,
+                message: L10n.PointCloud.noPointsMessage
             )
         }
     }
@@ -166,7 +166,7 @@ struct PointCloudView: View {
         guard !Task.isCancelled else { return }
         pointCloudData = loadedData
         pointCount = loadedData?.pointCount ?? 0
-        loadErrorMessage = loadedData == nil ? "无法读取点云文件" : nil
+        loadErrorMessage = loadedData == nil ? L10n.PointCloud.loadFailed : nil
         isLoading = false
     }
 

@@ -28,7 +28,7 @@ struct PointCloudFileSelector: View {
                     }
                 }
             } else if !searchText.isEmpty {
-                Text("未找到编号 \(searchText) 的记录")
+                Text(L10n.PointCloud.noSearchResults(for: searchText))
                     .font(.system(size: 12))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -46,7 +46,7 @@ struct PointCloudFileSelector: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
-            TextField("搜索编号", text: $searchText)
+            TextField(L10n.PointCloud.searchPlaceholder, text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
@@ -56,7 +56,7 @@ struct PointCloudFileSelector: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
-                .accessibilityLabel("清除搜索")
+                .accessibilityLabel(L10n.PointCloud.clearSearchAccessibility)
             }
         }
         .padding(.horizontal, 10)

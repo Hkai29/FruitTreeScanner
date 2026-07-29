@@ -9,6 +9,15 @@ enum PointCloudColorMode: String, CaseIterable {
     case fruit = "果实"
     case uniform = "统一"
 
+    var displayName: String {
+        switch self {
+        case .height: return L10n.PointCloud.colorHeight
+        case .density: return L10n.PointCloud.colorDensity
+        case .fruit: return L10n.PointCloud.colorFruit
+        case .uniform: return L10n.PointCloud.colorUniform
+        }
+    }
+
     var icon: String {
         switch self {
         case .height: return "arrow.up.arrow.down"
@@ -26,6 +35,15 @@ enum PointCloudViewMode: String, CaseIterable {
     case top = "俯视"
     case side = "侧面"
 
+    var displayName: String {
+        switch self {
+        case .orbit: return L10n.PointCloud.viewOrbit
+        case .front: return L10n.PointCloud.viewFront
+        case .top: return L10n.PointCloud.viewTop
+        case .side: return L10n.PointCloud.viewSide
+        }
+    }
+
     var icon: String {
         switch self {
         case .orbit: return "rotate.3d"
@@ -37,10 +55,10 @@ enum PointCloudViewMode: String, CaseIterable {
 
     var detail: String {
         switch self {
-        case .orbit: return "透视旋转"
-        case .front: return "高度轮廓"
-        case .top: return "冠层投影"
-        case .side: return "侧向轮廓"
+        case .orbit: return L10n.PointCloud.viewDetailOrbit
+        case .front: return L10n.PointCloud.viewDetailFront
+        case .top: return L10n.PointCloud.viewDetailTop
+        case .side: return L10n.PointCloud.viewDetailSide
         }
     }
 
