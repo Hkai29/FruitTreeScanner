@@ -3,6 +3,61 @@ import ARKit
 @testable import FruitTreeScanner
 
 final class ScanReadinessTests: XCTestCase {
+    private let englishReadinessCopy = [
+        "scan.readiness.checking.title": "Checking Device Capabilities",
+        "scan.readiness.checking.message": "Checking the camera, ARKit, and depth scanning capabilities.",
+        "scan.readiness.ar_unsupported.title": "AR Scanning Unavailable",
+        "scan.readiness.ar_unsupported.message": "FruitTreeScanner requires ARKit to capture point clouds. Use an ARKit-compatible iPhone or iPad.",
+        "scan.readiness.metal_unavailable.title": "Graphics Rendering Unavailable",
+        "scan.readiness.metal_unavailable.message": "The scan view requires Metal graphics support. Restart the app, or try again on a Metal-compatible device.",
+        "scan.readiness.lidar_unavailable.title": "LiDAR Depth Unavailable",
+        "scan.readiness.lidar_unavailable.message": "Scanning requires LiDAR scene depth to generate a valid point cloud. Use a LiDAR-equipped iPhone or iPad.",
+        "scan.readiness.camera_denied.title": "Camera Access Off",
+        "scan.readiness.camera_denied.message": "Scanning requires camera images and LiDAR depth frames. Allow camera access in Settings.",
+        "scan.readiness.camera_restricted.title": "Camera Access Restricted",
+        "scan.readiness.camera_restricted.message": "Camera access is restricted by the system, so scanning can't start.",
+        "scan.readiness.open_settings": "Open Settings",
+        "scan.readiness.back": "Back",
+    ]
+
+    private let chineseReadinessCopy = [
+        "scan.readiness.checking.title": "正在检查设备能力",
+        "scan.readiness.checking.message": "正在确认相机、ARKit 和深度扫描链路。",
+        "scan.readiness.ar_unsupported.title": "当前设备不支持 AR 扫描",
+        "scan.readiness.ar_unsupported.message": "FruitTreeScanner 需要 ARKit 才能采集点云。请使用支持 ARKit 的 iPhone 或 iPad。",
+        "scan.readiness.metal_unavailable.title": "图形渲染不可用",
+        "scan.readiness.metal_unavailable.message": "扫描画面需要 Metal 图形渲染支持。请重启 App，或换用支持 Metal 的设备后再试。",
+        "scan.readiness.lidar_unavailable.title": "当前设备没有 LiDAR 深度",
+        "scan.readiness.lidar_unavailable.message": "扫描需要 LiDAR sceneDepth 才能生成有效点云。请使用支持 LiDAR 的 iPhone 或 iPad。",
+        "scan.readiness.camera_denied.title": "相机权限未开启",
+        "scan.readiness.camera_denied.message": "扫描需要相机画面和 LiDAR 深度帧。请在系统设置中允许相机权限。",
+        "scan.readiness.camera_restricted.title": "相机权限受限",
+        "scan.readiness.camera_restricted.message": "系统限制了相机访问，当前无法开始扫描。",
+        "scan.readiness.open_settings": "打开设置",
+        "scan.readiness.back": "返回",
+    ]
+
+    private let readinessMappings: [
+        (state: ScanReadiness, titleKey: String, messageKey: String)
+    ] = [
+        (.checking, "scan.readiness.checking.title", "scan.readiness.checking.message"),
+        (.arUnsupported, "scan.readiness.ar_unsupported.title", "scan.readiness.ar_unsupported.message"),
+        (.metalUnavailable, "scan.readiness.metal_unavailable.title", "scan.readiness.metal_unavailable.message"),
+        (.lidarUnavailable, "scan.readiness.lidar_unavailable.title", "scan.readiness.lidar_unavailable.message"),
+        (.cameraDenied, "scan.readiness.camera_denied.title", "scan.readiness.camera_denied.message"),
+        (.cameraRestricted, "scan.readiness.camera_restricted.title", "scan.readiness.camera_restricted.message"),
+    ]
+
+    func testEnglishScanReadinessCopyExistsInLocalizedResources() throws {
+        let bundle = try localizedBundle(language: "en")
+        assertReadinessCopy(in: bundle, matches: englishReadinessCopy)
+    }
+
+    func testChineseScanReadinessCopyExistsInLocalizedResources() throws {
+        let bundle = try localizedBundle(language: "zh")
+        assertReadinessCopy(in: bundle, matches: chineseReadinessCopy)
+    }
+
     func testOnlyReadyDoesNotBlockScanning() {
         XCTAssertFalse(ScanReadiness.ready.blocksScanning)
         XCTAssertTrue(ScanReadiness.checking.blocksScanning)
@@ -13,26 +68,29 @@ final class ScanReadinessTests: XCTestCase {
         XCTAssertTrue(ScanReadiness.cameraRestricted.blocksScanning)
     }
 
-    func testCameraDeniedTextStaysStable() {
-        XCTAssertEqual(ScanReadiness.cameraDenied.title, "相机权限未开启")
+    func testCameraDeniedTextStaysStable() throws {
+        let bundle = try localizedBundle(language: "zh")
+        XCTAssertEqual(ScanReadiness.cameraDenied.title(in: bundle), "相机权限未开启")
         XCTAssertEqual(
-            ScanReadiness.cameraDenied.message,
+            ScanReadiness.cameraDenied.message(in: bundle),
             "扫描需要相机画面和 LiDAR 深度帧。请在系统设置中允许相机权限。"
         )
     }
 
-    func testMetalUnavailableTextStaysStable() {
-        XCTAssertEqual(ScanReadiness.metalUnavailable.title, "图形渲染不可用")
+    func testMetalUnavailableTextStaysStable() throws {
+        let bundle = try localizedBundle(language: "zh")
+        XCTAssertEqual(ScanReadiness.metalUnavailable.title(in: bundle), "图形渲染不可用")
         XCTAssertEqual(
-            ScanReadiness.metalUnavailable.message,
+            ScanReadiness.metalUnavailable.message(in: bundle),
             "扫描画面需要 Metal 图形渲染支持。请重启 App，或换用支持 Metal 的设备后再试。"
         )
     }
 
-    func testLidarUnavailableTextStaysStable() {
-        XCTAssertEqual(ScanReadiness.lidarUnavailable.title, "当前设备没有 LiDAR 深度")
+    func testLidarUnavailableTextStaysStable() throws {
+        let bundle = try localizedBundle(language: "zh")
+        XCTAssertEqual(ScanReadiness.lidarUnavailable.title(in: bundle), "当前设备没有 LiDAR 深度")
         XCTAssertEqual(
-            ScanReadiness.lidarUnavailable.message,
+            ScanReadiness.lidarUnavailable.message(in: bundle),
             "扫描需要 LiDAR sceneDepth 才能生成有效点云。请使用支持 LiDAR 的 iPhone 或 iPad。"
         )
     }
@@ -40,6 +98,51 @@ final class ScanReadinessTests: XCTestCase {
     func testReadyHasNoBlockingText() {
         XCTAssertEqual(ScanReadiness.ready.title, "")
         XCTAssertEqual(ScanReadiness.ready.message, "")
+    }
+
+    private func assertReadinessCopy(
+        in bundle: Bundle,
+        matches expectedCopy: [String: String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for mapping in readinessMappings {
+            XCTAssertEqual(
+                mapping.state.title(in: bundle),
+                expectedCopy[mapping.titleKey],
+                "Incorrect readiness title mapping for \(mapping.titleKey)",
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                mapping.state.message(in: bundle),
+                expectedCopy[mapping.messageKey],
+                "Incorrect readiness message mapping for \(mapping.messageKey)",
+                file: file,
+                line: line
+            )
+        }
+
+        XCTAssertEqual(
+            L10n.ScanReadiness.text(.openSettings, in: bundle),
+            expectedCopy["scan.readiness.open_settings"],
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            L10n.ScanReadiness.text(.back, in: bundle),
+            expectedCopy["scan.readiness.back"],
+            file: file,
+            line: line
+        )
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
     }
 }
 

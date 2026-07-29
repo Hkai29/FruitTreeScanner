@@ -14,6 +14,22 @@
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
 
+/* Scan Readiness */
+"scan.readiness.checking.title" = "Checking Device Capabilities";
+"scan.readiness.checking.message" = "Checking the camera, ARKit, and depth scanning capabilities.";
+"scan.readiness.ar_unsupported.title" = "AR Scanning Unavailable";
+"scan.readiness.ar_unsupported.message" = "FruitTreeScanner requires ARKit to capture point clouds. Use an ARKit-compatible iPhone or iPad.";
+"scan.readiness.metal_unavailable.title" = "Graphics Rendering Unavailable";
+"scan.readiness.metal_unavailable.message" = "The scan view requires Metal graphics support. Restart the app, or try again on a Metal-compatible device.";
+"scan.readiness.lidar_unavailable.title" = "LiDAR Depth Unavailable";
+"scan.readiness.lidar_unavailable.message" = "Scanning requires LiDAR scene depth to generate a valid point cloud. Use a LiDAR-equipped iPhone or iPad.";
+"scan.readiness.camera_denied.title" = "Camera Access Off";
+"scan.readiness.camera_denied.message" = "Scanning requires camera images and LiDAR depth frames. Allow camera access in Settings.";
+"scan.readiness.camera_restricted.title" = "Camera Access Restricted";
+"scan.readiness.camera_restricted.message" = "Camera access is restricted by the system, so scanning can't start.";
+"scan.readiness.open_settings" = "Open Settings";
+"scan.readiness.back" = "Back";
+
 /* Result */
 "result.yield_title" = "Estimated Yield";
 "result.fruit_count" = "Fruit Count";
