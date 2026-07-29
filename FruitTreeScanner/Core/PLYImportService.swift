@@ -3,7 +3,8 @@ import Foundation
 enum PLYImportService {
     nonisolated static func importFile(
         _ fileURL: URL,
-        scansDirectory: URL? = nil
+        scansDirectory: URL? = nil,
+        cancellationCheckpoint: () throws -> Void = { try Task.checkCancellation() }
     ) throws -> String {
         guard fileURL.pathExtension.lowercased() == "ply" else {
             throw ImportError.unsupportedFormat
@@ -15,7 +16,7 @@ enum PLYImportService {
                 fileURL.stopAccessingSecurityScopedResource()
             }
         }
-        try Task.checkCancellation()
+        try cancellationCheckpoint()
 
         let fileManager = FileManager.default
         let scansDir: URL
@@ -36,13 +37,19 @@ enum PLYImportService {
         }
 
         try fileManager.copyItem(at: fileURL, to: stagingURL)
-        try Task.checkCancellation()
+        try cancellationCheckpoint()
         try validatePLYHeader(at: stagingURL)
         guard PLYParserHelper.parsePointCloudData(at: stagingURL) != nil else {
             throw ImportError.invalidPointCloud
         }
-        try Task.checkCancellation()
+        try cancellationCheckpoint()
         try fileManager.moveItem(at: stagingURL, to: destURL)
+        do {
+            try cancellationCheckpoint()
+        } catch {
+            try? fileManager.removeItem(at: destURL)
+            throw error
+        }
 
         return destURL.lastPathComponent
     }
