@@ -71,6 +71,41 @@ enum L10n {
         static let noScans = NSLocalizedString("dashboard.no_scans", value: "暂无扫描记录", comment: "Empty scan history")
     }
 
+    // MARK: - Quick Scan
+    enum QuickScan {
+        static let navigationTitle = NSLocalizedString("quick_scan.navigation_title", value: "快速扫描", comment: "Quick scan navigation title")
+        static let headerTitle = NSLocalizedString("quick_scan.header_title", value: "快速采集", comment: "Quick scan header title")
+        static let headerSubtitle = NSLocalizedString("quick_scan.header_subtitle", value: "自动生成树编号，只确认现场状态后直接进入扫描。", comment: "Quick scan header subtitle")
+        static let close = NSLocalizedString("quick_scan.close", value: "关闭", comment: "Close quick scan")
+        static let gpsAvailable = NSLocalizedString("quick_scan.gps_available", value: "已记录当前位置", comment: "Quick scan GPS available")
+        static let gpsUnavailable = NSLocalizedString("quick_scan.gps_unavailable", value: "未锁定 GPS，仍可先扫描", comment: "Quick scan GPS unavailable")
+        static let launching = NSLocalizedString("quick_scan.launching", value: "启动中...", comment: "Quick scan launch in progress")
+        static let launch = NSLocalizedString("quick_scan.launch", value: "开始快速扫描", comment: "Start quick scan")
+        static let treeID = NSLocalizedString("quick_scan.tree_id", value: "树编号", comment: "Quick scan tree identifier label")
+        static let treeIDValid = NSLocalizedString("quick_scan.tree_id_valid", value: "可用", comment: "Quick scan tree identifier is valid")
+        static let treeIDInvalid = NSLocalizedString("quick_scan.tree_id_invalid", value: "无效", comment: "Quick scan tree identifier is invalid")
+        static let treeIDRequired = NSLocalizedString("quick_scan.tree_id_required", value: "必填", comment: "Quick scan tree identifier is required")
+        static let treeIDPlaceholder = NSLocalizedString("quick_scan.tree_id_placeholder", value: "自动生成", comment: "Quick scan tree identifier placeholder")
+
+        private static let treeIDEmptyError = NSLocalizedString("quick_scan.tree_id_empty_error", value: "请输入果树编号", comment: "Empty quick scan tree identifier")
+        private static let treeIDTooLongError = NSLocalizedString("quick_scan.tree_id_too_long_error", value: "编号最多 %d 个字符", comment: "Quick scan tree identifier is too long")
+        private static let treeIDPathMarkerError = NSLocalizedString("quick_scan.tree_id_path_marker_error", value: "编号不能使用路径标记", comment: "Quick scan tree identifier is a path marker")
+        private static let treeIDForbiddenError = NSLocalizedString("quick_scan.tree_id_forbidden_error", value: "编号不能包含 /、\\、: 或换行", comment: "Quick scan tree identifier has forbidden characters")
+
+        static func validationError(for issue: TreeIdentifierPolicy.ValidationIssue) -> String {
+            switch issue {
+            case .empty:
+                return treeIDEmptyError
+            case .tooLong(let maximumCharacterCount):
+                return String(format: treeIDTooLongError, maximumCharacterCount)
+            case .pathMarker:
+                return treeIDPathMarkerError
+            case .forbiddenCharacters:
+                return treeIDForbiddenError
+            }
+        }
+    }
+
     // MARK: - Settings
     enum Settings {
         static let title = NSLocalizedString("settings.title", value: "设置", comment: "Settings title")

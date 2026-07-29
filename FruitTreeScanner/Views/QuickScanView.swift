@@ -32,8 +32,8 @@ struct QuickScanView: View {
                         VStack(spacing: 14) {
                             DashboardToolHeader(
                                 imageName: "FeatureQuickScan",
-                                title: "快速采集",
-                                subtitle: "自动生成树编号，只确认现场状态后直接进入扫描。",
+                                title: L10n.QuickScan.headerTitle,
+                                subtitle: L10n.QuickScan.headerSubtitle,
                                 icon: "bolt.fill",
                                 accent: Design.Colors.harvest
                             )
@@ -51,13 +51,13 @@ struct QuickScanView: View {
                     launchButton
                 }
             }
-            .navigationTitle("快速扫描")
+            .navigationTitle(L10n.QuickScan.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") {
+                    Button(L10n.QuickScan.close) {
                         dismiss()
                     }
                     .foregroundColor(Design.Colors.harvest)
@@ -97,7 +97,7 @@ struct QuickScanView: View {
                 .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
                 .frame(width: 24)
 
-            Text(gps.isAvailable ? "已记录当前位置" : "未锁定 GPS，仍可先扫描")
+            Text(gps.isAvailable ? L10n.QuickScan.gpsAvailable : L10n.QuickScan.gpsUnavailable)
                 .font(.system(size: 13))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
@@ -119,7 +119,7 @@ struct QuickScanView: View {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 15, weight: .semibold))
                 }
-                Text(isLaunchingScan ? "启动中..." : "开始快速扫描")
+                Text(isLaunchingScan ? L10n.QuickScan.launching : L10n.QuickScan.launch)
                     .font(.system(size: 15, weight: .semibold))
             }
             .foregroundColor(canLaunch ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textSecondary)
@@ -182,16 +182,20 @@ private struct QuickScanTreeIDInput: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("树编号")
+                Text(L10n.QuickScan.treeID)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                 Spacer()
-                Text(isValid ? "可用" : (validationErrorMessage != nil ? "无效" : "必填"))
+                Text(
+                    isValid
+                        ? L10n.QuickScan.treeIDValid
+                        : (validationErrorMessage != nil ? L10n.QuickScan.treeIDInvalid : L10n.QuickScan.treeIDRequired)
+                )
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(isValid ? Design.Colors.forest : Design.Colors.harvest)
             }
 
-            TextField("自动生成", text: $draftTreeID)
+            TextField(L10n.QuickScan.treeIDPlaceholder, text: $draftTreeID)
                 .font(.system(size: 16, weight: .medium, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(.horizontal, 14)
@@ -221,9 +225,9 @@ private struct QuickScanTreeIDInput: View {
             if normalized.isEmpty {
                 isValid = false
                 validationErrorMessage = nil
-            } else if let error = TreeIdentifierPolicy.validationError(for: normalized) {
+            } else if let issue = TreeIdentifierPolicy.validationIssue(for: normalized) {
                 isValid = false
-                validationErrorMessage = error
+                validationErrorMessage = L10n.QuickScan.validationError(for: issue)
             } else {
                 isValid = true
                 validationErrorMessage = nil
