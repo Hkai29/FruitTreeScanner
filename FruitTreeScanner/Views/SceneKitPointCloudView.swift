@@ -230,8 +230,14 @@ struct SceneKitPointCloudView: UIViewRepresentable {
             context.coordinator.appliedViewMode = viewMode
         }
         guard context.coordinator.appliedColorMode != colorMode else { return }
-        guard let pointCloudNode = uiView.scene?.rootNode.childNode(withName: "pointCloud", recursively: true),
-              SceneKitPointCloudColorRenderer.apply(colorMode: colorMode, to: pointCloudNode)
+        guard let pointCloudData,
+              let pointCloudNode = uiView.scene?.rootNode.childNode(withName: "pointCloud", recursively: true),
+              SceneKitPointCloudColorRenderer.apply(
+                  colorMode: colorMode,
+                  to: pointCloudNode,
+                  sourceVertices: pointCloudData.vertices,
+                  sourceColors: pointCloudData.colors
+              )
         else { return }
         context.coordinator.appliedColorMode = colorMode
     }

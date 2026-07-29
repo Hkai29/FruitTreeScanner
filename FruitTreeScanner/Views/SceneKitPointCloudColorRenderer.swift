@@ -2,18 +2,27 @@ import SceneKit
 import UIKit
 
 enum SceneKitPointCloudColorRenderer {
-    static func apply(colorMode: PointCloudColorMode, to pointCloudNode: SCNNode) -> Bool {
+    static func apply(
+        colorMode: PointCloudColorMode,
+        to pointCloudNode: SCNNode,
+        sourceVertices: [SCNVector3],
+        sourceColors: [PointCloudColor]
+    ) -> Bool {
         guard let geometry = pointCloudNode.geometry,
+              let vertexSource = geometry.sources(for: .vertex).first,
               let colorSource = geometry.sources(for: .color).first else { return false }
 
-        let vertexCount = colorSource.vectorCount
-        let positions = positions(from: geometry, vertexCount: vertexCount)
-        let bounds = heightBounds(for: positions)
+        let vertexCount = vertexSource.vectorCount
+        guard colorSource.vectorCount == vertexCount,
+              sourceVertices.count == vertexCount,
+              sourceColors.count == vertexCount else { return false }
+
+        let bounds = heightBounds(for: sourceVertices)
         let newColorData = colors(
             for: colorMode,
-            originalColorData: colorSource.data,
+            originalColors: sourceColors,
             vertexCount: vertexCount,
-            positions: positions,
+            positions: sourceVertices,
             minY: bounds.minY,
             yRange: bounds.yRange
         )
@@ -50,22 +59,6 @@ enum SceneKitPointCloudColorRenderer {
         return true
     }
 
-    private static func positions(from geometry: SCNGeometry, vertexCount: Int) -> [SCNVector3] {
-        guard let posSource = geometry.sources(for: .vertex).first else { return [] }
-        return posSource.data.withUnsafeBytes { ptr -> [SCNVector3] in
-            let buffer = ptr.bindMemory(to: Float.self)
-            var result: [SCNVector3] = []
-            result.reserveCapacity(vertexCount)
-            for i in 0..<vertexCount {
-                let idx = i * 3
-                if idx + 2 < buffer.count {
-                    result.append(SCNVector3(buffer[idx], buffer[idx + 1], buffer[idx + 2]))
-                }
-            }
-            return result
-        }
-    }
-
     private static func heightBounds(for positions: [SCNVector3]) -> (minY: Float, yRange: Float) {
         guard !positions.isEmpty else { return (0, 0.001) }
         var minY: Float = .greatestFiniteMagnitude
@@ -79,7 +72,7 @@ enum SceneKitPointCloudColorRenderer {
 
     private static func colors(
         for colorMode: PointCloudColorMode,
-        originalColorData: Data,
+        originalColors: [PointCloudColor],
         vertexCount: Int,
         positions: [SCNVector3],
         minY: Float,
@@ -88,23 +81,19 @@ enum SceneKitPointCloudColorRenderer {
         var newColorData = [Float]()
         newColorData.reserveCapacity(vertexCount * 4)
 
-        originalColorData.withUnsafeBytes { ptr in
-            let buffer = ptr.bindMemory(to: Float.self)
-            for i in 0..<vertexCount {
-                let baseIdx = i * 4
-                guard baseIdx + 3 < buffer.count else { continue }
-                let rgb = adjustedRGB(
-                    for: colorMode,
-                    index: i,
-                    positions: positions,
-                    minY: minY,
-                    yRange: yRange,
-                    originalR: buffer[baseIdx],
-                    originalG: buffer[baseIdx + 1],
-                    originalB: buffer[baseIdx + 2]
-                )
-                newColorData.append(contentsOf: [rgb.r, rgb.g, rgb.b, 1.0])
-            }
+        for i in 0..<vertexCount {
+            let originalColor = originalColors[i]
+            let rgb = adjustedRGB(
+                for: colorMode,
+                index: i,
+                positions: positions,
+                minY: minY,
+                yRange: yRange,
+                originalR: originalColor.r,
+                originalG: originalColor.g,
+                originalB: originalColor.b
+            )
+            newColorData.append(contentsOf: [rgb.r, rgb.g, rgb.b, 1.0])
         }
 
         return newColorData

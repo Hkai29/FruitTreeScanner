@@ -8,6 +8,92 @@ import simd
 
 final class PointCloudProcessingTests: XCTestCase {
 
+    func testPointCloudColorModesAlwaysUseOriginalPLYColors() throws {
+        let vertices = [
+            SCNVector3(0, 0, 0),
+            SCNVector3(0, 1, 0),
+        ]
+        let colors = [
+            PointCloudColor(r: 0.8, g: 0.1, b: 0.1, a: 1),
+            PointCloudColor(r: 0.1, g: 0.8, b: 0.1, a: 1),
+        ]
+        let node = try XCTUnwrap(
+            SceneKitPointCloudGeometry.makePointCloudNode(
+                vertices: vertices,
+                colors: colors,
+                pointSize: 3
+            )
+        )
+
+        XCTAssertTrue(
+            SceneKitPointCloudColorRenderer.apply(
+                colorMode: .height,
+                to: node,
+                sourceVertices: vertices,
+                sourceColors: colors
+            )
+        )
+        var renderedColors = try renderedPointCloudColors(from: node)
+        assertColor(renderedColors[0], r: 0.24, g: 0.28, b: 1)
+        assertColor(renderedColors[1], r: 1, g: 0.28, b: 0.3)
+
+        XCTAssertTrue(
+            SceneKitPointCloudColorRenderer.apply(
+                colorMode: .fruit,
+                to: node,
+                sourceVertices: vertices,
+                sourceColors: colors
+            )
+        )
+
+        renderedColors = try renderedPointCloudColors(from: node)
+        assertColor(renderedColors[0], r: 1, g: 0.58, b: 0.04)
+        assertColor(renderedColors[1], r: 0.042, g: 0.336, b: 0.042)
+
+        XCTAssertTrue(
+            SceneKitPointCloudColorRenderer.apply(
+                colorMode: .uniform,
+                to: node,
+                sourceVertices: vertices,
+                sourceColors: colors
+            )
+        )
+        XCTAssertTrue(
+            SceneKitPointCloudColorRenderer.apply(
+                colorMode: .density,
+                to: node,
+                sourceVertices: vertices,
+                sourceColors: colors
+            )
+        )
+
+        renderedColors = try renderedPointCloudColors(from: node)
+        assertColor(renderedColors[0], r: 0.31, g: 0.413_333, b: 0.526_667)
+    }
+
+    func testPointCloudColorRendererRejectsMismatchedSourceWithoutChangingGeometry() throws {
+        let vertices = [SCNVector3(0, 0, 0)]
+        let colors = [PointCloudColor(r: 0.8, g: 0.1, b: 0.1, a: 1)]
+        let node = try XCTUnwrap(
+            SceneKitPointCloudGeometry.makePointCloudNode(
+                vertices: vertices,
+                colors: colors,
+                pointSize: 3
+            )
+        )
+        let originalGeometry = try XCTUnwrap(node.geometry)
+
+        XCTAssertFalse(
+            SceneKitPointCloudColorRenderer.apply(
+                colorMode: .fruit,
+                to: node,
+                sourceVertices: vertices,
+                sourceColors: []
+            )
+        )
+        XCTAssertTrue(node.geometry === originalGeometry)
+    }
+
     func testTreeIdentifierPolicyRejectsPathAndHeaderInjectionCharacters() {
         XCTAssertTrue(TreeIdentifierPolicy.isValid("T001"))
         XCTAssertTrue(TreeIdentifierPolicy.isValid("三号地块 12-A"))
@@ -2145,6 +2231,37 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(actual.r, r, accuracy: accuracy, file: file, line: line)
         XCTAssertEqual(actual.g, g, accuracy: accuracy, file: file, line: line)
         XCTAssertEqual(actual.b, b, accuracy: accuracy, file: file, line: line)
+    }
+
+    private func renderedPointCloudColors(from node: SCNNode) throws -> [PointCloudColor] {
+        let source = try XCTUnwrap(node.geometry?.sources(for: .color).first)
+        XCTAssertTrue(source.usesFloatComponents)
+        XCTAssertEqual(source.componentsPerVector, 4)
+        XCTAssertEqual(source.bytesPerComponent, MemoryLayout<Float>.size)
+
+        return source.data.withUnsafeBytes { bytes in
+            (0..<source.vectorCount).map { index in
+                let baseOffset = source.dataOffset + index * source.dataStride
+                return PointCloudColor(
+                    r: bytes.loadUnaligned(
+                        fromByteOffset: baseOffset,
+                        as: Float.self
+                    ),
+                    g: bytes.loadUnaligned(
+                        fromByteOffset: baseOffset + MemoryLayout<Float>.size,
+                        as: Float.self
+                    ),
+                    b: bytes.loadUnaligned(
+                        fromByteOffset: baseOffset + MemoryLayout<Float>.size * 2,
+                        as: Float.self
+                    ),
+                    a: bytes.loadUnaligned(
+                        fromByteOffset: baseOffset + MemoryLayout<Float>.size * 3,
+                        as: Float.self
+                    )
+                )
+            }
+        }
     }
 
     // MARK: - Binary byte-level helpers (endianness-explicit)
