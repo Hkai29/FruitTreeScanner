@@ -44,7 +44,7 @@ struct PointCloudSheet: View {
                     }
                 }
             }
-            .navigationTitle("点云预览")
+            .navigationTitle(L10n.PointCloud.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
@@ -56,7 +56,7 @@ struct PointCloudSheet: View {
                             .font(.system(size: 24))
                             .foregroundColor(Design.Colors.Dark.textSecondary)
                     }
-                    .accessibilityLabel("关闭点云预览")
+                    .accessibilityLabel(L10n.PointCloud.closePreviewAccessibility)
                 }
             }
         }
@@ -68,11 +68,11 @@ struct PointCloudSheet: View {
         DashboardSheetEmptyState(
             icon: "cube",
             imageName: "FeaturePointCloud",
-            title: "暂无扫描数据",
-            message: "完成扫描或导入 PLY 后，点云文件会自动出现在这里。",
+            title: L10n.PointCloud.emptyTitle,
+            message: L10n.PointCloud.emptyMessage,
             accent: Design.Colors.Dark.info,
-            primaryAction: action(title: "新建扫描", icon: "viewfinder", handler: onStartScan),
-            secondaryAction: action(title: "导入 PLY", icon: "square.and.arrow.down", handler: onImportFile)
+            primaryAction: action(title: L10n.PointCloud.newScan, icon: "viewfinder", handler: onStartScan),
+            secondaryAction: action(title: L10n.PointCloud.importPLY, icon: "square.and.arrow.down", handler: onImportFile)
         )
     }
 

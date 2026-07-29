@@ -121,6 +121,98 @@ enum L10n {
         static let noRecords = NSLocalizedString("export.no_records", value: "没有可导出的记录", comment: "No exportable records")
     }
 
+    // MARK: - Point Cloud Preview
+    enum PointCloud {
+        static let navigationTitle = NSLocalizedString("point_cloud.navigation_title", value: "点云预览", comment: "Point-cloud preview navigation title")
+        static let closePreviewAccessibility = NSLocalizedString("point_cloud.accessibility.close_preview", value: "关闭点云预览", comment: "Close point-cloud preview accessibility label")
+        static let emptyTitle = NSLocalizedString("point_cloud.empty.title", value: "暂无扫描数据", comment: "Point-cloud preview empty-state title")
+        static let emptyMessage = NSLocalizedString("point_cloud.empty.message", value: "完成扫描或导入 PLY 后，点云文件会自动出现在这里。", comment: "Point-cloud preview empty-state message")
+        static let newScan = NSLocalizedString("point_cloud.action.new_scan", value: "新建扫描", comment: "Start a new scan from point-cloud preview")
+        static let importPLY = NSLocalizedString("point_cloud.action.import_ply", value: "导入 PLY", comment: "Import a PLY file from point-cloud preview")
+
+        static let loadingTitle = NSLocalizedString("point_cloud.status.loading_title", value: "正在读取点云", comment: "Point-cloud loading title")
+        static let loadingMessage = NSLocalizedString("point_cloud.status.loading_message", value: "正在解析 PLY 点和颜色数据…", comment: "Point-cloud loading message")
+        static let openErrorTitle = NSLocalizedString("point_cloud.status.error_title", value: "无法打开点云", comment: "Point-cloud load failure title")
+        static let noFileTitle = NSLocalizedString("point_cloud.status.no_file_title", value: "暂无点云文件", comment: "Missing point-cloud file title")
+        static let noFileMessage = NSLocalizedString("point_cloud.status.no_file_message", value: "完成扫描或导入 PLY 后，可在这里旋转、测量和分享点云。", comment: "Missing point-cloud file message")
+        static let noPointsTitle = NSLocalizedString("point_cloud.status.no_points_title", value: "没有可显示的点", comment: "Empty point-cloud data title")
+        static let noPointsMessage = NSLocalizedString("point_cloud.status.no_points_message", value: "该文件未解析到有效点云，请检查 PLY 内容。", comment: "Empty point-cloud data message")
+        static let loadFailed = NSLocalizedString("point_cloud.error.load_failed", value: "无法读取点云文件。", comment: "Point-cloud parser failure")
+
+        static let searchPlaceholder = NSLocalizedString("point_cloud.selector.search_placeholder", value: "搜索编号", comment: "Point-cloud record search placeholder")
+        static let clearSearchAccessibility = NSLocalizedString("point_cloud.accessibility.clear_search", value: "清除搜索", comment: "Clear point-cloud search accessibility label")
+        static let viewerTitle = NSLocalizedString("point_cloud.viewer.title", value: "点云查看", comment: "Point-cloud viewer title")
+        static let shareAccessibility = NSLocalizedString("point_cloud.accessibility.share", value: "分享点云", comment: "Share point-cloud accessibility label")
+
+        static let pointsMetric = NSLocalizedString("point_cloud.metric.points", value: "点", comment: "Compact point-count metric label")
+        static let heightMetric = NSLocalizedString("point_cloud.metric.height", value: "高", comment: "Compact point-cloud height metric label")
+        static let footprintMetric = NSLocalizedString("point_cloud.metric.footprint", value: "冠幅", comment: "Compact crown-footprint metric label")
+
+        static let reset = NSLocalizedString("point_cloud.tool.reset", value: "重置", comment: "Reset point-cloud camera")
+        static let color = NSLocalizedString("point_cloud.tool.color", value: "色彩", comment: "Point-cloud color tool")
+        static let zoomIn = NSLocalizedString("point_cloud.tool.zoom_in", value: "放大", comment: "Zoom in point-cloud view")
+        static let zoomOut = NSLocalizedString("point_cloud.tool.zoom_out", value: "缩小", comment: "Zoom out point-cloud view")
+        static let measure = NSLocalizedString("point_cloud.tool.measure", value: "测量", comment: "Point-cloud measurement tool")
+
+        static let legendLow = NSLocalizedString("point_cloud.legend.low", value: "低", comment: "Low end of point-cloud height legend")
+        static let legendHigh = NSLocalizedString("point_cloud.legend.high", value: "高", comment: "High end of point-cloud height legend")
+        static let legendSparse = NSLocalizedString("point_cloud.legend.sparse", value: "稀", comment: "Sparse end of point-cloud density legend")
+        static let legendDense = NSLocalizedString("point_cloud.legend.dense", value: "密", comment: "Dense end of point-cloud density legend")
+        static let legendFruitCandidates = NSLocalizedString("point_cloud.legend.fruit_candidates", value: "果实候选", comment: "Fruit candidates in point-cloud legend")
+        static let legendUniformBright = NSLocalizedString("point_cloud.legend.uniform_bright", value: "统一亮色", comment: "Uniform bright point-cloud legend")
+
+        static let viewOrbit = NSLocalizedString("point_cloud.view.orbit", value: "自由", comment: "Orbit point-cloud view mode")
+        static let viewFront = NSLocalizedString("point_cloud.view.front", value: "正面", comment: "Front point-cloud view mode")
+        static let viewTop = NSLocalizedString("point_cloud.view.top", value: "俯视", comment: "Top point-cloud view mode")
+        static let viewSide = NSLocalizedString("point_cloud.view.side", value: "侧面", comment: "Side point-cloud view mode")
+        static let viewDetailOrbit = NSLocalizedString("point_cloud.view_detail.orbit", value: "透视旋转", comment: "Orbit view-mode detail")
+        static let viewDetailFront = NSLocalizedString("point_cloud.view_detail.front", value: "高度轮廓", comment: "Front view-mode detail")
+        static let viewDetailTop = NSLocalizedString("point_cloud.view_detail.top", value: "冠层投影", comment: "Top view-mode detail")
+        static let viewDetailSide = NSLocalizedString("point_cloud.view_detail.side", value: "侧向轮廓", comment: "Side view-mode detail")
+
+        static let colorHeight = NSLocalizedString("point_cloud.color.height", value: "高度", comment: "Height point-cloud color mode")
+        static let colorDensity = NSLocalizedString("point_cloud.color.density", value: "密度", comment: "Density point-cloud color mode")
+        static let colorFruit = NSLocalizedString("point_cloud.color.fruit", value: "果实", comment: "Fruit point-cloud color mode")
+        static let colorUniform = NSLocalizedString("point_cloud.color.uniform", value: "统一", comment: "Uniform point-cloud color mode")
+
+        static let measurementStart = NSLocalizedString("point_cloud.measurement.start", value: "起点", comment: "Point-cloud measurement start")
+        static let measurementEnd = NSLocalizedString("point_cloud.measurement.end", value: "终点", comment: "Point-cloud measurement end")
+        static let measurementInstruction = NSLocalizedString("point_cloud.measurement.instruction", value: "点击点云表面测量", comment: "Point-cloud measurement instruction")
+        static let measurementDistance = NSLocalizedString("point_cloud.measurement.distance", value: "测量距离", comment: "Point-cloud measured distance label")
+        static let closeMeasurementAccessibility = NSLocalizedString("point_cloud.accessibility.close_measurement", value: "停止测量", comment: "Stop point-cloud measurement accessibility label")
+
+        private static let noSearchResultsFormat = NSLocalizedString("point_cloud.selector.no_results", value: "未找到编号“%@”的记录", comment: "No point-cloud record matching the entered tree ID")
+        private static let colorLegendFormat = NSLocalizedString("point_cloud.legend.color_format", value: "色彩：%@", comment: "Point-cloud color legend with selected mode")
+        private static let actualHeightFormat = NSLocalizedString("point_cloud.legend.actual_height_format", value: "真实高度 %@", comment: "Actual point-cloud height")
+        private static let pointCountAccessibilityFormat = NSLocalizedString("point_cloud.accessibility.point_count", value: "点数：%@", comment: "Point-count accessibility value")
+        private static let heightAccessibilityFormat = NSLocalizedString("point_cloud.accessibility.height", value: "高度：%@", comment: "Point-cloud height accessibility value")
+        private static let footprintAccessibilityFormat = NSLocalizedString("point_cloud.accessibility.footprint", value: "冠幅：%@", comment: "Crown-footprint accessibility value")
+
+        static func noSearchResults(for treeID: String) -> String {
+            String(format: noSearchResultsFormat, treeID)
+        }
+
+        static func colorLegend(modeName: String) -> String {
+            String(format: colorLegendFormat, modeName)
+        }
+
+        static func actualHeight(_ height: String) -> String {
+            String(format: actualHeightFormat, height)
+        }
+
+        static func pointCountAccessibility(_ count: String) -> String {
+            String(format: pointCountAccessibilityFormat, count)
+        }
+
+        static func heightAccessibility(_ height: String) -> String {
+            String(format: heightAccessibilityFormat, height)
+        }
+
+        static func footprintAccessibility(_ footprint: String) -> String {
+            String(format: footprintAccessibilityFormat, footprint)
+        }
+    }
+
     // MARK: - Fruit Names
     enum Fruit {
         static func name(for category: FruitCategory) -> String {

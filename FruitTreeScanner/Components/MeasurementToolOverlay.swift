@@ -40,7 +40,7 @@ struct MeasurementToolOverlay: View {
                                 Circle()
                                     .fill(Design.Colors.apple)
                                     .frame(width: 10, height: 10)
-                                Text("起点")
+                                Text(L10n.PointCloud.measurementStart)
                                     .font(.system(size: 11))
                             }
 
@@ -48,7 +48,7 @@ struct MeasurementToolOverlay: View {
                                 Circle()
                                     .fill(Design.Colors.earth)
                                     .frame(width: 10, height: 10)
-                                Text("终点")
+                                Text(L10n.PointCloud.measurementEnd)
                                     .font(.system(size: 11))
                             }
                         }
@@ -59,9 +59,10 @@ struct MeasurementToolOverlay: View {
                                 .foregroundColor(.white.opacity(0.9))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(L10n.PointCloud.closeMeasurementAccessibility)
                     }
 
-                    Text("点击点云表面测量")
+                    Text(L10n.PointCloud.measurementInstruction)
                         .font(.system(size: 10))
                         .foregroundColor(Color.gray)
                 }
@@ -90,7 +91,7 @@ struct MeasurementToolOverlay: View {
                         .font(.system(size: 24, weight: .semibold, design: .monospaced))
                         .foregroundColor(Design.Colors.harvest)
 
-                    Text("测量距离")
+                    Text(L10n.PointCloud.measurementDistance)
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
                 }

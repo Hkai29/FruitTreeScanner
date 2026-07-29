@@ -28,7 +28,7 @@ struct PointCloudViewModePicker: View {
                     HStack(spacing: 5) {
                         Image(systemName: mode.icon)
                             .font(.system(size: 11, weight: .semibold))
-                        Text(mode.rawValue)
+                        Text(mode.displayName)
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundColor(viewMode == mode ? Color.black.opacity(0.82) : .white.opacity(0.82))
@@ -38,6 +38,7 @@ struct PointCloudViewModePicker: View {
                     .cornerRadius(8)
                 }
                 .disabled(!isEnabled)
+                .accessibilityAddTraits(viewMode == mode ? .isSelected : [])
                 .accessibilityIdentifier("pointCloud.viewMode.\(mode.rawValue)")
             }
         }
@@ -77,6 +78,7 @@ struct PointCloudToolButton: View {
         }
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.45)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }
 

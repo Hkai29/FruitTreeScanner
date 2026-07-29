@@ -15,15 +15,15 @@ struct PointCloudTopBar: View {
                 isEnabled: true,
                 action: onClose
             )
-            .accessibilityLabel("关闭点云预览")
+            .accessibilityLabel(L10n.PointCloud.closePreviewAccessibility)
             .accessibilityIdentifier("pointCloud.close")
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text("点云查看")
+                    Text(L10n.PointCloud.viewerTitle)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.white)
-                    Text(viewMode.rawValue)
+                    Text(viewMode.displayName)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Design.Colors.harvest)
                         .padding(.horizontal, 7)
@@ -33,10 +33,13 @@ struct PointCloudTopBar: View {
                 }
 
                 HStack(spacing: 10) {
-                    PointCloudMetricText(label: "点", value: pointCount.formatted())
+                    PointCloudMetricText(label: L10n.PointCloud.pointsMetric, value: pointCount.formatted())
+                        .accessibilityLabel(L10n.PointCloud.pointCountAccessibility(pointCount.formatted()))
                     if let bounds {
-                        PointCloudMetricText(label: "高", value: bounds.heightText)
-                        PointCloudMetricText(label: "冠幅", value: bounds.footprintText)
+                        PointCloudMetricText(label: L10n.PointCloud.heightMetric, value: bounds.heightText)
+                            .accessibilityLabel(L10n.PointCloud.heightAccessibility(bounds.heightText))
+                        PointCloudMetricText(label: L10n.PointCloud.footprintMetric, value: bounds.footprintText)
+                            .accessibilityLabel(L10n.PointCloud.footprintAccessibility(bounds.footprintText))
                     }
                 }
             }
@@ -49,7 +52,7 @@ struct PointCloudTopBar: View {
                 isEnabled: canExport,
                 action: onExport
             )
-            .accessibilityLabel("分享点云")
+            .accessibilityLabel(L10n.PointCloud.shareAccessibility)
             .accessibilityIdentifier("pointCloud.share")
         }
         .padding(.horizontal, 10)
@@ -80,17 +83,17 @@ struct PointCloudBottomControls: View {
             PointCloudViewModePicker(viewMode: $viewMode, isEnabled: canInteract)
 
             HStack(spacing: 8) {
-                PointCloudToolButton(icon: "arrow.uturn.backward", label: "重置", isEnabled: canInteract, action: onResetCamera)
+                PointCloudToolButton(icon: "arrow.uturn.backward", label: L10n.PointCloud.reset, isEnabled: canInteract, action: onResetCamera)
                     .accessibilityIdentifier("pointCloud.resetCamera")
                 PointCloudColorModeMenu(colorMode: $colorMode, isEnabled: canInteract)
                     .accessibilityIdentifier("pointCloud.colorMode")
-                PointCloudToolButton(icon: "plus.magnifyingglass", label: "放大", isEnabled: canInteract, action: onZoomIn)
+                PointCloudToolButton(icon: "plus.magnifyingglass", label: L10n.PointCloud.zoomIn, isEnabled: canInteract, action: onZoomIn)
                     .accessibilityIdentifier("pointCloud.zoomIn")
-                PointCloudToolButton(icon: "minus.magnifyingglass", label: "缩小", isEnabled: canInteract, action: onZoomOut)
+                PointCloudToolButton(icon: "minus.magnifyingglass", label: L10n.PointCloud.zoomOut, isEnabled: canInteract, action: onZoomOut)
                     .accessibilityIdentifier("pointCloud.zoomOut")
                 PointCloudToolButton(
                     icon: "ruler",
-                    label: "测量",
+                    label: L10n.PointCloud.measure,
                     isActive: isMeasurementActive,
                     isEnabled: canInteract,
                     action: onToggleMeasurement
