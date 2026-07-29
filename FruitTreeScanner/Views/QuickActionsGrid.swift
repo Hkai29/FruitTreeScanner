@@ -8,7 +8,7 @@ struct QuickActionsGrid: View {
         if compactLandscape {
             GeometryReader { proxy in
                 VStack(alignment: .leading, spacing: 12) {
-                    DashboardSectionHeader(title: "功能")
+                    DashboardSectionHeader(title: L10n.Dashboard.tools)
 
                     ScrollView(showsIndicators: false) {
                         LazyVGrid(
@@ -31,7 +31,7 @@ struct QuickActionsGrid: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                DashboardSectionHeader(title: "功能")
+                DashboardSectionHeader(title: L10n.Dashboard.tools)
                 VStack(spacing: 10) {
                     ForEach(AppMode.allCases, id: \.self) { mode in
                         DashboardToolGroup(
@@ -68,22 +68,22 @@ struct QuickActionsGrid: View {
         switch mode {
         case .scan:
             return [
-                QuickAction(kind: .calibration, title: "校准参数", icon: "slider.horizontal.3", color: Design.Colors.Dark.info, description: "水果尺寸、聚类与误差记录"),
-                QuickAction(kind: .importFile, title: "导入点云", icon: "square.and.arrow.down", color: Design.Colors.Dark.info, description: "加入已有 PLY 扫描文件")
+                QuickAction(kind: .calibration, title: L10n.Dashboard.calibrationTitle, icon: "slider.horizontal.3", color: Design.Colors.Dark.info, description: L10n.Dashboard.calibrationDescription),
+                QuickAction(kind: .importFile, title: L10n.Dashboard.importFileTitle, icon: "square.and.arrow.down", color: Design.Colors.Dark.info, description: L10n.Dashboard.importFileDescription)
             ]
         case .history:
             return [
-                QuickAction(kind: .scanHistory, title: "扫描记录", icon: "folder", color: Design.Colors.harvest, description: "查看、删除和分享记录"),
-                QuickAction(kind: .pointCloud, title: "点云查看", icon: "cube", color: Design.Colors.Dark.info, description: "打开最近或指定点云"),
-                QuickAction(kind: .tagManagement, title: "地块标签", icon: "tag", color: Design.Colors.harvest, description: "维护地块、标签和状态"),
-                QuickAction(kind: .batchExport, title: "批量导出", icon: "doc.richtext", color: Design.Colors.harvest, description: "导出多条扫描数据")
+                QuickAction(kind: .scanHistory, title: L10n.Dashboard.scanHistoryTitle, icon: "folder", color: Design.Colors.harvest, description: L10n.Dashboard.scanHistoryDescription),
+                QuickAction(kind: .pointCloud, title: L10n.Dashboard.pointCloudTitle, icon: "cube", color: Design.Colors.Dark.info, description: L10n.Dashboard.pointCloudDescription),
+                QuickAction(kind: .tagManagement, title: L10n.Dashboard.tagManagementTitle, icon: "tag", color: Design.Colors.harvest, description: L10n.Dashboard.tagManagementDescription),
+                QuickAction(kind: .batchExport, title: L10n.Dashboard.batchExportTitle, icon: "doc.richtext", color: Design.Colors.harvest, description: L10n.Dashboard.batchExportDescription)
             ]
         case .analytics:
             return [
-                QuickAction(kind: .yieldReport, title: "产量报告", icon: "chart.pie", color: Design.Colors.harvest, description: "汇总果数和重量"),
-                QuickAction(kind: .compare, title: "树体对比", icon: "arrow.left.arrow.right", color: Design.Colors.harvest, description: "横向比较扫描结果"),
-                QuickAction(kind: .trends, title: "趋势", icon: "chart.xyaxis.line", color: Design.Colors.Dark.info, description: "观察产量变化"),
-                QuickAction(kind: .map, title: "果园地图", icon: "map", color: Design.Colors.Dark.info, description: "按位置查看树体")
+                QuickAction(kind: .yieldReport, title: L10n.Dashboard.yieldReportTitle, icon: "chart.pie", color: Design.Colors.harvest, description: L10n.Dashboard.yieldReportDescription),
+                QuickAction(kind: .compare, title: L10n.Dashboard.compareTitle, icon: "arrow.left.arrow.right", color: Design.Colors.harvest, description: L10n.Dashboard.compareDescription),
+                QuickAction(kind: .trends, title: L10n.Dashboard.trendsTitle, icon: "chart.xyaxis.line", color: Design.Colors.Dark.info, description: L10n.Dashboard.trendsDescription),
+                QuickAction(kind: .map, title: L10n.Dashboard.mapTitle, icon: "map", color: Design.Colors.Dark.info, description: L10n.Dashboard.mapDescription)
             ]
         }
     }

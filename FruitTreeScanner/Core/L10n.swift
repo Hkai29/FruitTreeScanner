@@ -65,10 +65,93 @@ enum L10n {
     // MARK: - Dashboard
     enum Dashboard {
         static let title = NSLocalizedString("dashboard.title", value: "果园概览", comment: "Dashboard title")
-        static let todayScans = NSLocalizedString("dashboard.today_scans", value: "今日扫描", comment: "Today's scans count")
+        static let todayScans = NSLocalizedString("dashboard.today_scans", value: "扫描数量", comment: "Today's scans count")
         static let totalYield = NSLocalizedString("dashboard.total_yield", value: "总产量", comment: "Total yield")
         static let recentScans = NSLocalizedString("dashboard.recent_scans", value: "最近扫描", comment: "Recent scans section")
-        static let noScans = NSLocalizedString("dashboard.no_scans", value: "暂无扫描记录", comment: "Empty scan history")
+        static let noScans = NSLocalizedString("dashboard.no_scans", value: "还没有扫描记录", comment: "Empty scan history")
+        static let settingsAccessibilityLabel = NSLocalizedString("dashboard.settings_accessibility_label", value: "设置", comment: "Dashboard settings accessibility label")
+        static let workbenchTitle = NSLocalizedString("dashboard.workbench_title", value: "果园扫描工作台", comment: "Dashboard hero title")
+        static let workbenchSubtitle = NSLocalizedString("dashboard.workbench_subtitle", value: "LiDAR 采集 · 点云记录 · 产量分析", comment: "Dashboard hero subtitle")
+        static let fieldMode = NSLocalizedString("dashboard.field_mode", value: "现场", comment: "Dashboard field mode badge")
+        static let today = NSLocalizedString("dashboard.today", value: "今日", comment: "Dashboard today metric")
+        static let yield = NSLocalizedString("dashboard.yield", value: "产量", comment: "Dashboard yield metric")
+        static let trees = NSLocalizedString("dashboard.trees", value: "树体", comment: "Dashboard trees metric")
+        static let startScan = NSLocalizedString("dashboard.start_scan", value: "新建扫描", comment: "Dashboard start scan action")
+        static let quickCapture = NSLocalizedString("dashboard.quick_capture", value: "快速采集", comment: "Dashboard quick scan action")
+        static let tools = NSLocalizedString("dashboard.tools", value: "功能", comment: "Dashboard tools section")
+        static let scanMode = NSLocalizedString("dashboard.mode.scan", value: "扫描", comment: "Dashboard scanning tool group")
+        static let historyMode = NSLocalizedString("dashboard.mode.history", value: "历史", comment: "Dashboard history tool group")
+        static let analyticsMode = NSLocalizedString("dashboard.mode.analytics", value: "分析", comment: "Dashboard analytics tool group")
+
+        static let calibrationTitle = NSLocalizedString("dashboard.action.calibration.title", value: "校准参数", comment: "Dashboard calibration action title")
+        static let calibrationDescription = NSLocalizedString("dashboard.action.calibration.description", value: "水果尺寸、聚类与误差记录", comment: "Dashboard calibration action description")
+        static let importFileTitle = NSLocalizedString("dashboard.action.import_file.title", value: "导入点云", comment: "Dashboard point cloud import action title")
+        static let importFileDescription = NSLocalizedString("dashboard.action.import_file.description", value: "加入已有 PLY 扫描文件", comment: "Dashboard point cloud import action description")
+        static let scanHistoryTitle = NSLocalizedString("dashboard.action.scan_history.title", value: "扫描记录", comment: "Dashboard scan history action title")
+        static let scanHistoryDescription = NSLocalizedString("dashboard.action.scan_history.description", value: "查看、删除和分享记录", comment: "Dashboard scan history action description")
+        static let pointCloudTitle = NSLocalizedString("dashboard.action.point_cloud.title", value: "点云查看", comment: "Dashboard point cloud viewer action title")
+        static let pointCloudDescription = NSLocalizedString("dashboard.action.point_cloud.description", value: "打开最近或指定点云", comment: "Dashboard point cloud viewer action description")
+        static let tagManagementTitle = NSLocalizedString("dashboard.action.tag_management.title", value: "地块标签", comment: "Dashboard plot and tag management action title")
+        static let tagManagementDescription = NSLocalizedString("dashboard.action.tag_management.description", value: "维护地块、标签和状态", comment: "Dashboard plot and tag management action description")
+        static let batchExportTitle = NSLocalizedString("dashboard.action.batch_export.title", value: "批量导出", comment: "Dashboard batch export action title")
+        static let batchExportDescription = NSLocalizedString("dashboard.action.batch_export.description", value: "导出多条扫描数据", comment: "Dashboard batch export action description")
+        static let yieldReportTitle = NSLocalizedString("dashboard.action.yield_report.title", value: "产量报告", comment: "Dashboard yield report action title")
+        static let yieldReportDescription = NSLocalizedString("dashboard.action.yield_report.description", value: "汇总果数和重量", comment: "Dashboard yield report action description")
+        static let compareTitle = NSLocalizedString("dashboard.action.compare.title", value: "树体对比", comment: "Dashboard tree comparison action title")
+        static let compareDescription = NSLocalizedString("dashboard.action.compare.description", value: "横向比较扫描结果", comment: "Dashboard tree comparison action description")
+        static let trendsTitle = NSLocalizedString("dashboard.action.trends.title", value: "趋势", comment: "Dashboard trends action title")
+        static let trendsDescription = NSLocalizedString("dashboard.action.trends.description", value: "观察产量变化", comment: "Dashboard trends action description")
+        static let mapTitle = NSLocalizedString("dashboard.action.map.title", value: "果园地图", comment: "Dashboard orchard map action title")
+        static let mapDescription = NSLocalizedString("dashboard.action.map.description", value: "按位置查看树体", comment: "Dashboard orchard map action description")
+
+        static let viewAll = NSLocalizedString("dashboard.view_all", value: "查看全部", comment: "View all recent scans")
+        static let emptyDescription = NSLocalizedString("dashboard.empty_description", value: "完成第一次扫描后，这里会显示最近树体、产量和点云入口。", comment: "Dashboard recent scans empty-state description")
+        static let startFirstScan = NSLocalizedString("dashboard.start_first_scan", value: "开始第一次扫描", comment: "Dashboard first scan action")
+        static let todayOverview = NSLocalizedString("dashboard.today_overview", value: "今日概览", comment: "Dashboard daily overview section")
+        static let treeIDs = NSLocalizedString("dashboard.tree_ids", value: "树编号", comment: "Dashboard unique tree identifiers statistic")
+
+        private static let historyAccessibilityLabel = NSLocalizedString("dashboard.history_accessibility_label", value: "扫描历史", comment: "Dashboard scan history accessibility label without a count")
+        private static let historyAccessibilityOne = NSLocalizedString("dashboard.history_accessibility_one", value: "扫描历史，1条记录", comment: "Dashboard scan history accessibility label for one record")
+        private static let historyAccessibilityCount = NSLocalizedString("dashboard.history_accessibility_count", value: "扫描历史，%d条记录", comment: "Dashboard scan history accessibility label with record count")
+        private static let scanUnitOne = NSLocalizedString("dashboard.scan_unit_one", value: "次", comment: "Dashboard scan count unit for one scan")
+        private static let scanUnitOther = NSLocalizedString("dashboard.scan_unit_other", value: "次", comment: "Dashboard scan count unit for multiple scans")
+        private static let treeUnitOne = NSLocalizedString("dashboard.tree_unit_one", value: "棵", comment: "Dashboard tree count unit for one tree")
+        private static let treeUnitOther = NSLocalizedString("dashboard.tree_unit_other", value: "棵", comment: "Dashboard tree count unit for multiple trees")
+        private static let quickActionAccessibility = NSLocalizedString("dashboard.quick_action_accessibility", value: "%@，%@", comment: "Dashboard quick action accessibility label containing title and description")
+        private static let viewPointCloudAccessibility = NSLocalizedString("dashboard.view_point_cloud_accessibility", value: "查看 %@ 点云", comment: "View a tree point cloud accessibility label")
+        private static let fruitCountOne = NSLocalizedString("dashboard.fruit_count_one", value: "%d 个果实", comment: "Dashboard fruit count for one fruit")
+        private static let fruitCountOther = NSLocalizedString("dashboard.fruit_count_other", value: "%d 个果实", comment: "Dashboard fruit count for multiple fruits")
+
+        static func scanHistoryAccessibilityLabel(recordCount: Int) -> String {
+            switch recordCount {
+            case ...0:
+                return historyAccessibilityLabel
+            case 1:
+                return historyAccessibilityOne
+            default:
+                return String(format: historyAccessibilityCount, recordCount)
+            }
+        }
+
+        static func quickActionAccessibilityLabel(title: String, description: String) -> String {
+            String(format: quickActionAccessibility, title, description)
+        }
+
+        static func scanCountUnit(_ count: Int) -> String {
+            count == 1 ? scanUnitOne : scanUnitOther
+        }
+
+        static func treeCountUnit(_ count: Int) -> String {
+            count == 1 ? treeUnitOne : treeUnitOther
+        }
+
+        static func viewPointCloudAccessibilityLabel(treeID: String) -> String {
+            String(format: viewPointCloudAccessibility, treeID)
+        }
+
+        static func fruitCountLabel(_ count: Int) -> String {
+            String(format: count == 1 ? fruitCountOne : fruitCountOther, count)
+        }
     }
 
     // MARK: - Settings

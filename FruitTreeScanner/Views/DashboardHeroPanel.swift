@@ -49,14 +49,14 @@ struct DashboardHeroPanel: View {
                 Spacer(minLength: 0)
 
                 HStack(spacing: 8) {
-                    DashboardHeroMetric(title: "今日", value: "\(summary.scanCount)", suffix: "次")
-                    DashboardHeroMetric(title: "产量", value: String(format: "%.1f", summary.yieldKg), suffix: "kg")
-                    DashboardHeroMetric(title: "树体", value: "\(summary.treeCount)", suffix: "棵")
+                    DashboardHeroMetric(title: L10n.Dashboard.today, value: "\(summary.scanCount)", suffix: L10n.Dashboard.scanCountUnit(summary.scanCount))
+                    DashboardHeroMetric(title: L10n.Dashboard.yield, value: String(format: "%.1f", summary.yieldKg), suffix: "kg")
+                    DashboardHeroMetric(title: L10n.Dashboard.trees, value: "\(summary.treeCount)", suffix: L10n.Dashboard.treeCountUnit(summary.treeCount))
                 }
 
                 HStack(spacing: 10) {
                     DashboardHeroButton(
-                        title: "新建扫描",
+                        title: L10n.Dashboard.startScan,
                         icon: "viewfinder",
                         imageName: "FeatureStartScan",
                         isPrimary: true,
@@ -65,7 +65,7 @@ struct DashboardHeroPanel: View {
                     )
 
                     DashboardHeroButton(
-                        title: "快速采集",
+                        title: L10n.Dashboard.quickCapture,
                         icon: "bolt.fill",
                         imageName: "FeatureQuickScan",
                         isPrimary: false,
@@ -99,10 +99,10 @@ struct DashboardHeroPanel: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("果园扫描工作台")
+                Text(L10n.Dashboard.workbenchTitle)
                     .font(.system(size: 21, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
-                Text("LiDAR 采集 · 点云记录 · 产量分析")
+                Text(L10n.Dashboard.workbenchSubtitle)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
@@ -112,7 +112,7 @@ struct DashboardHeroPanel: View {
             HStack(spacing: 6) {
                 DashboardMiniIcon(icon: "leaf.fill", size: 20)
                     .accessibilityHidden(true)
-                Text("现场")
+                Text(L10n.Dashboard.fieldMode)
                     .font(.system(size: 11, weight: .semibold))
             }
             .foregroundColor(Design.Colors.Dark.textPrimary)

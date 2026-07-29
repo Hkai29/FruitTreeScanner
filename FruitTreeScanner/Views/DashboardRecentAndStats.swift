@@ -10,8 +10,8 @@ struct RecentScansSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compactLandscape ? 10 : 16) {
             DashboardSectionHeader(
-                title: "最近扫描",
-                actionTitle: "查看全部",
+                title: L10n.Dashboard.recentScans,
+                actionTitle: L10n.Dashboard.viewAll,
                 onAction: onViewAll
             )
 
@@ -26,7 +26,9 @@ struct RecentScansSection: View {
                             RecentScanCard(record: record, compactLandscape: compactLandscape)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("查看 \(record.treeID) 点云")
+                        .accessibilityLabel(
+                            L10n.Dashboard.viewPointCloudAccessibilityLabel(treeID: record.treeID)
+                        )
                     }
                 }
             }
@@ -58,10 +60,10 @@ struct RecentScansSection: View {
                 )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("还没有扫描记录")
+                Text(L10n.Dashboard.noScans)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
-                Text("完成第一次扫描后，这里会显示最近树体、产量和点云入口。")
+                Text(L10n.Dashboard.emptyDescription)
                     .font(.system(size: 12))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                     .lineLimit(2)
@@ -70,7 +72,7 @@ struct RecentScansSection: View {
 
             if let onStartScan {
                 Button(action: onStartScan) {
-                    Label("开始第一次扫描", systemImage: "viewfinder")
+                    Label(L10n.Dashboard.startFirstScan, systemImage: "viewfinder")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -123,7 +125,7 @@ struct RecentScanCard: View {
                 Text(String(format: "%.1f kg", record.yieldKg))
                     .font(.system(size: compactLandscape ? 12 : 13, weight: .medium, design: .monospaced))
                     .foregroundColor(Design.Colors.Dark.textPrimary)
-                Text("\(record.fruitCount) 个果实")
+                Text(L10n.Dashboard.fruitCountLabel(record.fruitCount))
                     .font(.system(size: compactLandscape ? 10 : 11))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
@@ -150,11 +152,11 @@ struct StatsOverviewSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: compactLandscape ? 12 : 16) {
-            DashboardSectionHeader(title: "今日概览")
+            DashboardSectionHeader(title: L10n.Dashboard.todayOverview)
             HStack(spacing: compactLandscape ? 10 : 16) {
-                StatCard(value: "\(summary.scanCount)", label: "扫描数量", icon: "viewfinder", compactLandscape: compactLandscape)
-                StatCard(value: String(format: "%.1f", todaysYield), label: "总产量/kg", icon: "scalemass.fill", compactLandscape: compactLandscape)
-                StatCard(value: "\(todaysTrees)", label: "树编号", icon: "tree.fill", compactLandscape: compactLandscape)
+                StatCard(value: "\(summary.scanCount)", label: L10n.Dashboard.todayScans, icon: "viewfinder", compactLandscape: compactLandscape)
+                StatCard(value: String(format: "%.1f", todaysYield), label: "\(L10n.Dashboard.totalYield)/kg", icon: "scalemass.fill", compactLandscape: compactLandscape)
+                StatCard(value: "\(todaysTrees)", label: L10n.Dashboard.treeIDs, icon: "tree.fill", compactLandscape: compactLandscape)
             }
             .frame(maxHeight: .infinity)
         }
