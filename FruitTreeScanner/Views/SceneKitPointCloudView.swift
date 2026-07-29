@@ -244,7 +244,12 @@ struct SceneKitPointCloudView: UIViewRepresentable {
         let loadedCount: Int
         let hasFinishedLoading: Bool
         if let pointCloudData {
-            createPLYPointCloud(vertices: pointCloudData.vertices, colors: pointCloudData.colors, in: scene)
+            createPLYPointCloud(
+                vertices: pointCloudData.vertices,
+                colors: pointCloudData.colors,
+                bounds: pointCloudData.bounds,
+                in: scene
+            )
             loadedCount = pointCloudData.pointCount
             hasFinishedLoading = true
         } else {
@@ -270,8 +275,12 @@ struct SceneKitPointCloudView: UIViewRepresentable {
         }
     }
 
-    private func createPLYPointCloud(vertices: [SCNVector3], colors: [PointCloudColor], in scene: SCNScene) {
-        let bounds = SceneKitPointCloudGeometry.bounds(for: vertices)
+    private func createPLYPointCloud(
+        vertices: [SCNVector3],
+        colors: [PointCloudColor],
+        bounds: PointCloudBounds?,
+        in scene: SCNScene
+    ) {
         guard let node = SceneKitPointCloudGeometry.makePointCloudNode(
             vertices: vertices,
             colors: colors,

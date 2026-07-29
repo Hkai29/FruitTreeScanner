@@ -120,9 +120,16 @@ struct PointCloudData: @unchecked Sendable {
     let id: String
     let vertices: [SCNVector3]
     let colors: [PointCloudColor]
+    let bounds: PointCloudBounds?
 
     var pointCount: Int { vertices.count }
-    var bounds: PointCloudBounds? { PointCloudBounds(vertices: vertices) }
+
+    init(id: String, vertices: [SCNVector3], colors: [PointCloudColor]) {
+        self.id = id
+        self.vertices = vertices
+        self.colors = colors
+        self.bounds = PointCloudBounds(vertices: vertices)
+    }
 }
 
 struct ColoredPoint: Sendable {
