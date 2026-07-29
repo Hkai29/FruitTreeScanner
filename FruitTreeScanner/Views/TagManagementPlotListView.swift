@@ -4,7 +4,7 @@ struct PlotListView: View {
     let plots: [Plot]
     let treeCount: (UUID) -> Int
     let onEdit: (Plot) -> Void
-    let onDelete: (UUID) -> Void
+    let onDelete: (Plot) -> Void
     let onAdd: () -> Void
 
     var body: some View {
@@ -21,7 +21,7 @@ struct PlotListView: View {
             }
             .onDelete { indexSet in
                 for index in indexSet {
-                    onDelete(plots[index].id)
+                    onDelete(plots[index])
                 }
             }
         }
