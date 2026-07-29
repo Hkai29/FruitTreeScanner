@@ -200,8 +200,35 @@
 /* Settings */
 "settings.title" = "Settings";
 "settings.fruit_type" = "Fruit Type";
-"settings.scan_quality" = "Scan Quality";
-"settings.auto_export_csv" = "Auto Export CSV";
+"settings.section.device" = "Device";
+"settings.camera_settings" = "Camera Settings";
+"settings.camera_settings_subtitle" = "Resolution and capture frame rate";
+"settings.actual_resolution" = "Actual Resolution";
+"settings.section.data" = "Data";
+"settings.auto_export_csv" = "Auto Export After Scan";
+"settings.auto_export_csv_hint" = "Automatically exports a CSV file when a scan completes.";
+"settings.section.scan" = "Scanning";
+"settings.current_fruit_type" = "Current Fruit Type";
+"settings.fruit_type_hint" = "Used for image detection, point-cloud clustering, and yield conversion.";
+"settings.variety_database" = "Variety Parameters";
+"settings.variety_database_subtitle" = "Edit size, weight, and clustering parameters for the current fruit";
+"settings.scan_quality" = "Quality Preset";
+"settings.quality.high" = "High";
+"settings.quality.medium" = "Medium";
+"settings.quality.low" = "Low";
+"settings.quality_hint" = "High quality raises the depth-confidence threshold. The point cloud is cleaner, but low light or fast motion may require another pass.";
+"settings.max_points" = "Maximum Points";
+"settings.max_points_hint" = "More points retain more detail, but use more memory and increase export size and processing time.";
+"settings.precision" = "Precision";
+"settings.precision_hint" = "A smaller value reduces the voxel-sampling interval for fine branches and small fruit, but analysis takes longer.";
+"settings.target_resolution" = "Target Resolution";
+"settings.capture_frame_rate" = "Capture Frame Rate";
+"settings.camera_format_hint" = "ARKit chooses the closest supported camera format for the target resolution and frame rate. Actual results depend on device capability and system load.";
+"settings.max_points_value" = "%@ pts";
+"settings.centimeters_value" = "%@ cm";
+"settings.section_expanded" = "Expanded";
+"settings.section_collapsed" = "Collapsed";
+"settings.section_toggle_hint" = "Double-tap to expand or collapse this section.";
 
 /* Diagnostics */
 "diag.model_not_loaded" = "Model not loaded";

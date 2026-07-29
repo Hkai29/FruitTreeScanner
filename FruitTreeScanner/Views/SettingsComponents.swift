@@ -12,7 +12,7 @@ struct CameraSettingsView: View {
                     VStack(spacing: 0) {
                         GlassReadonlyRow(
                             icon: "rectangle.on.rectangle",
-                            title: "实际分辨率",
+                            title: L10n.Settings.actualResolution,
                             value: settings.currentCameraResolutionDisplay
                         )
 
@@ -20,7 +20,7 @@ struct CameraSettingsView: View {
 
                         SettingsMenuRow(
                             icon: "rectangle.on.rectangle",
-                            title: "目标分辨率",
+                            title: L10n.Settings.targetResolution,
                             value: $settings.cameraResolution,
                             options: SettingsStore.cameraResolutionOptions
                         )
@@ -29,7 +29,7 @@ struct CameraSettingsView: View {
 
                         SettingsMenuRow(
                             icon: "speedometer",
-                            title: "采集帧率",
+                            title: L10n.Settings.captureFrameRate,
                             value: $settings.cameraFrameRate,
                             options: SettingsStore.cameraFrameRateOptions
                         )
@@ -37,7 +37,7 @@ struct CameraSettingsView: View {
                     .padding(Design.Space.sm)
                     .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
 
-                    Text("目标分辨率与采集帧率会优先选择最接近的 ARKit 相机格式；实际结果由设备能力和系统负载决定。")
+                    Text(L10n.Settings.cameraFormatHint)
                         .font(Design.Typography.darkCaption)
                         .foregroundColor(Design.Colors.Dark.textSecondary)
                         .multilineTextAlignment(.center)
@@ -47,8 +47,11 @@ struct CameraSettingsView: View {
                 .padding(Design.Space.lg)
             }
         }
-        .navigationTitle("相机设置")
+        .navigationTitle(L10n.Settings.cameraSettings)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 }
 
@@ -61,25 +64,31 @@ struct FruitCategorySettingsRow: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .frame(width: 24)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("当前水果类型")
+                Text(L10n.Settings.currentFruitType)
                     .font(Design.Typography.darkSubheadline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
-                Text("影响图像检测、点云聚类与产量换算")
+                Text(L10n.Settings.fruitTypeHint)
                     .font(Design.Typography.darkCaption)
                     .foregroundColor(Design.Colors.Dark.textMuted)
             }
+            .accessibilityHidden(true)
 
             Spacer()
 
-            Picker("当前水果类型", selection: $selection) {
+            Picker(L10n.Settings.currentFruitType, selection: $selection) {
                 ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
                     Text(L10n.Fruit.name(for: category)).tag(category)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .tint(Design.Colors.harvest)
+            .accessibilityLabel(L10n.Settings.currentFruitType)
+            .accessibilityValue(L10n.Fruit.name(for: selection))
+            .accessibilityHint(L10n.Settings.fruitTypeHint)
         }
         .padding(.horizontal, Design.Space.md)
         .padding(.vertical, Design.Space.xs)
@@ -102,6 +111,7 @@ struct SettingsNavigationRow: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .frame(width: 24)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -117,6 +127,7 @@ struct SettingsNavigationRow: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, Design.Space.md)
         .padding(.vertical, Design.Space.sm + 2)
@@ -132,6 +143,24 @@ struct SettingsMenuRow: View {
     let title: String
     @Binding var value: String
     let options: [String]
+    let optionLabel: (String) -> String
+    let accessibilityHint: String
+
+    init(
+        icon: String,
+        title: String,
+        value: Binding<String>,
+        options: [String],
+        optionLabel: @escaping (String) -> String = { $0 },
+        accessibilityHint: String = ""
+    ) {
+        self.icon = icon
+        self.title = title
+        _value = value
+        self.options = options
+        self.optionLabel = optionLabel
+        self.accessibilityHint = accessibilityHint
+    }
 
     var body: some View {
         HStack(spacing: Design.Space.md) {
@@ -139,20 +168,26 @@ struct SettingsMenuRow: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .frame(width: 24)
+                .accessibilityHidden(true)
 
             Text(title)
                 .font(Design.Typography.darkSubheadline)
                 .foregroundColor(Design.Colors.Dark.textPrimary)
+                .accessibilityHidden(true)
 
             Spacer()
 
             Picker(title, selection: $value) {
                 ForEach(options, id: \.self) { option in
-                    Text(option).tag(option)
+                    Text(optionLabel(option)).tag(option)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .tint(Design.Colors.harvest)
+            .accessibilityLabel(title)
+            .accessibilityValue(optionLabel(value))
+            .accessibilityHint(accessibilityHint)
         }
         .padding(.horizontal, Design.Space.md)
         .padding(.vertical, Design.Space.xs)

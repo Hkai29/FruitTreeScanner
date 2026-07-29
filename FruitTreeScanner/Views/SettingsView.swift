@@ -33,7 +33,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 14) {
                         GlassExpandableSection(
-                            title: "设备",
+                            title: L10n.Settings.deviceSection,
                             icon: "cpu",
                             isExpanded: $deviceExpanded
                         ) {
@@ -42,35 +42,38 @@ struct SettingsView: View {
                             } label: {
                                 SettingsNavigationRow(
                                     icon: "camera.metering.center.weighted",
-                                    title: "相机设置",
-                                    subtitle: "分辨率与采集帧率"
+                                    title: L10n.Settings.cameraSettings,
+                                    subtitle: L10n.Settings.cameraSettingsSubtitle
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(L10n.Settings.cameraSettings)
+                            .accessibilityHint(L10n.Settings.cameraSettingsSubtitle)
 
                             GlassDivider()
 
                             GlassReadonlyRow(
                                 icon: "rectangle.on.rectangle",
-                                title: "实际分辨率",
+                                title: L10n.Settings.actualResolution,
                                 value: settings.currentCameraResolutionDisplay
                             )
                         }
 
                         GlassExpandableSection(
-                            title: "数据",
+                            title: L10n.Settings.dataSection,
                             icon: "externaldrive.connected.to.line.below",
                             isExpanded: $dataExpanded
                         ) {
                             GlassToggleRow(
                                 icon: "doc.text",
-                                title: "扫描后自动导出",
-                                isOn: $settings.autoExportCSV
+                                title: L10n.Settings.autoExportCSV,
+                                isOn: $settings.autoExportCSV,
+                                accessibilityHint: L10n.Settings.autoExportCSVHint
                             )
                         }
 
                         GlassExpandableSection(
-                            title: "扫描",
+                            title: L10n.Settings.scanSection,
                             icon: "viewfinder",
                             isExpanded: $scanExpanded
                         ) {
@@ -86,29 +89,33 @@ struct SettingsView: View {
                             } label: {
                                 SettingsNavigationRow(
                                     icon: "leaf.circle",
-                                    title: "品种参数库",
-                                    subtitle: "编辑当前水果的尺寸、重量与聚类参数"
+                                    title: L10n.Settings.varietyDatabase,
+                                    subtitle: L10n.Settings.varietyDatabaseSubtitle
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(L10n.Settings.varietyDatabase)
+                            .accessibilityHint(L10n.Settings.varietyDatabaseSubtitle)
 
                             GlassDivider()
 
                             SettingsMenuRow(
                                 icon: "chart.bar",
-                                title: "质量预设",
+                                title: L10n.Settings.scanQuality,
                                 value: $settings.qualityPreset,
-                                options: SettingsStore.qualityPresetOptions
+                                options: SettingsStore.qualityPresetOptions,
+                                optionLabel: { L10n.Settings.qualityPresetName(for: $0) },
+                                accessibilityHint: L10n.Settings.qualityHint
                             )
                             SettingsInlineHint(
-                                text: "所有预设都会拒绝低置信度深度；高质量使用更细采样和更严格的边缘一致性，适合保留果实与枝叶细节。"
+                                text: L10n.Settings.qualityHint
                             )
 
                             GlassDivider()
 
                             GlassSliderRow(
                                 icon: "circle.grid.3x3",
-                                title: "最大点数",
+                                title: L10n.Settings.maxPoints,
                                 value: maxPointCountBinding,
                                 range: 100000...3000000,
                                 step: 100000,
@@ -117,17 +124,18 @@ struct SettingsView: View {
                                         commitMaxPointCountDraft()
                                     }
                                 },
-                                customDisplayValue: "\(Int(maxPointCountDraft) / 10000)万"
+                                customDisplayValue: L10n.Settings.maxPointCountValue(Int(maxPointCountDraft)),
+                                accessibilityHint: L10n.Settings.maxPointsHint
                             )
                             SettingsInlineHint(
-                                text: "更高点数能保留更多细节，也会增加内存、导出文件大小和结果计算时间。"
+                                text: L10n.Settings.maxPointsHint
                             )
 
                             GlassDivider()
 
                             GlassSliderRow(
                                 icon: "scope",
-                                title: "精度",
+                                title: L10n.Settings.precision,
                                 value: scanPrecisionBinding,
                                 range: 0.001...0.05,
                                 step: 0.001,
@@ -136,10 +144,11 @@ struct SettingsView: View {
                                         commitScanPrecisionDraft()
                                     }
                                 },
-                                customDisplayValue: String(format: "%.1f cm", scanPrecisionDraft * 100)
+                                customDisplayValue: L10n.Settings.precisionValue(scanPrecisionDraft * 100),
+                                accessibilityHint: L10n.Settings.precisionHint
                             )
                             SettingsInlineHint(
-                                text: "更小精度会减少体素采样间隔，适合细枝和小果，代价是分析更慢。"
+                                text: L10n.Settings.precisionHint
                             )
                         }
                     }
@@ -153,14 +162,14 @@ struct SettingsView: View {
             .onDisappear {
                 commitDrafts()
             }
-            .navigationTitle("设置")
+            .navigationTitle(L10n.Settings.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
+                    Button(L10n.Common.done) { dismiss() }
                         .foregroundColor(Design.Colors.harvest)
                 }
             }

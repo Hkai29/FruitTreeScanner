@@ -340,9 +340,56 @@ enum L10n {
     // MARK: - Settings
     enum Settings {
         static let title = NSLocalizedString("settings.title", value: "设置", comment: "Settings title")
+        static let deviceSection = NSLocalizedString("settings.section.device", value: "设备", comment: "Device settings section")
+        static let cameraSettings = NSLocalizedString("settings.camera_settings", value: "相机设置", comment: "Camera settings destination")
+        static let cameraSettingsSubtitle = NSLocalizedString("settings.camera_settings_subtitle", value: "分辨率与采集帧率", comment: "Camera settings destination description")
+        static let actualResolution = NSLocalizedString("settings.actual_resolution", value: "实际分辨率", comment: "Active camera resolution")
+        static let dataSection = NSLocalizedString("settings.section.data", value: "数据", comment: "Data settings section")
         static let fruitType = NSLocalizedString("settings.fruit_type", value: "水果类型", comment: "Fruit type setting")
-        static let scanQuality = NSLocalizedString("settings.scan_quality", value: "扫描质量", comment: "Scan quality setting")
-        static let autoExportCSV = NSLocalizedString("settings.auto_export_csv", value: "自动导出 CSV", comment: "Auto export CSV toggle")
+        static let autoExportCSV = NSLocalizedString("settings.auto_export_csv", value: "扫描后自动导出", comment: "Auto export CSV toggle")
+        static let autoExportCSVHint = NSLocalizedString("settings.auto_export_csv_hint", value: "扫描完成后自动导出 CSV 文件。", comment: "Auto export CSV accessibility hint")
+        static let scanSection = NSLocalizedString("settings.section.scan", value: "扫描", comment: "Scan settings section")
+        static let currentFruitType = NSLocalizedString("settings.current_fruit_type", value: "当前水果类型", comment: "Current fruit type setting")
+        static let fruitTypeHint = NSLocalizedString("settings.fruit_type_hint", value: "用于图像检测、点云聚类与产量换算。", comment: "Fruit type setting explanation")
+        static let varietyDatabase = NSLocalizedString("settings.variety_database", value: "品种参数库", comment: "Fruit variety parameters destination")
+        static let varietyDatabaseSubtitle = NSLocalizedString("settings.variety_database_subtitle", value: "编辑当前水果的尺寸、重量与聚类参数", comment: "Fruit variety parameters destination description")
+        static let scanQuality = NSLocalizedString("settings.scan_quality", value: "质量预设", comment: "Scan quality preset")
+        static let qualityHigh = NSLocalizedString("settings.quality.high", value: "高", comment: "High quality preset display name")
+        static let qualityMedium = NSLocalizedString("settings.quality.medium", value: "中", comment: "Medium quality preset display name")
+        static let qualityLow = NSLocalizedString("settings.quality.low", value: "低", comment: "Low quality preset display name")
+        static let qualityHint = NSLocalizedString("settings.quality_hint", value: "高质量会提高深度置信度门槛，点云更干净，但弱光或快速移动时可能需要补扫。", comment: "Scan quality preset explanation")
+        static let maxPoints = NSLocalizedString("settings.max_points", value: "最大点数", comment: "Maximum point count setting")
+        static let maxPointsHint = NSLocalizedString("settings.max_points_hint", value: "更多点能保留更多细节，但会增加内存占用、导出文件大小和结果计算时间。", comment: "Maximum point count explanation")
+        static let precision = NSLocalizedString("settings.precision", value: "精度", comment: "Scan precision setting")
+        static let precisionHint = NSLocalizedString("settings.precision_hint", value: "更小的值会减少体素采样间隔，适合细枝和小果，但分析时间更长。", comment: "Scan precision explanation")
+        static let targetResolution = NSLocalizedString("settings.target_resolution", value: "目标分辨率", comment: "Target camera resolution")
+        static let captureFrameRate = NSLocalizedString("settings.capture_frame_rate", value: "采集帧率", comment: "Camera capture frame rate")
+        static let cameraFormatHint = NSLocalizedString("settings.camera_format_hint", value: "ARKit 会为目标分辨率和帧率选择最接近的可用相机格式；实际结果取决于设备能力和系统负载。", comment: "Camera format selection explanation")
+        static let sectionExpanded = NSLocalizedString("settings.section_expanded", value: "已展开", comment: "Expanded settings section accessibility value")
+        static let sectionCollapsed = NSLocalizedString("settings.section_collapsed", value: "已折叠", comment: "Collapsed settings section accessibility value")
+        static let sectionToggleHint = NSLocalizedString("settings.section_toggle_hint", value: "轻点两下即可展开或折叠此分区。", comment: "Expandable settings section accessibility hint")
+
+        private static let maxPointsValueFormat = NSLocalizedString("settings.max_points_value", value: "%@ 点", comment: "Localized maximum point count value")
+        private static let centimetersValueFormat = NSLocalizedString("settings.centimeters_value", value: "%@ cm", comment: "Localized centimeter value")
+
+        static func qualityPresetName(for rawValue: String) -> String {
+            switch rawValue {
+            case "高": return qualityHigh
+            case "中": return qualityMedium
+            case "低": return qualityLow
+            default: return rawValue
+            }
+        }
+
+        static func maxPointCountValue(_ value: Int) -> String {
+            let number = value.formatted(.number.grouping(.automatic))
+            return String(format: maxPointsValueFormat, number)
+        }
+
+        static func precisionValue(_ centimeters: Double) -> String {
+            let number = centimeters.formatted(.number.precision(.fractionLength(1)))
+            return String(format: centimetersValueFormat, number)
+        }
     }
 
     // MARK: - Diagnostics

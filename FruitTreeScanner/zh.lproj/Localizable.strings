@@ -200,8 +200,35 @@
 /* Settings */
 "settings.title" = "设置";
 "settings.fruit_type" = "水果类型";
-"settings.scan_quality" = "扫描质量";
-"settings.auto_export_csv" = "自动导出 CSV";
+"settings.section.device" = "设备";
+"settings.camera_settings" = "相机设置";
+"settings.camera_settings_subtitle" = "分辨率与采集帧率";
+"settings.actual_resolution" = "实际分辨率";
+"settings.section.data" = "数据";
+"settings.auto_export_csv" = "扫描后自动导出";
+"settings.auto_export_csv_hint" = "扫描完成后自动导出 CSV 文件。";
+"settings.section.scan" = "扫描";
+"settings.current_fruit_type" = "当前水果类型";
+"settings.fruit_type_hint" = "用于图像检测、点云聚类与产量换算。";
+"settings.variety_database" = "品种参数库";
+"settings.variety_database_subtitle" = "编辑当前水果的尺寸、重量与聚类参数";
+"settings.scan_quality" = "质量预设";
+"settings.quality.high" = "高";
+"settings.quality.medium" = "中";
+"settings.quality.low" = "低";
+"settings.quality_hint" = "高质量会提高深度置信度门槛，点云更干净，但弱光或快速移动时可能需要补扫。";
+"settings.max_points" = "最大点数";
+"settings.max_points_hint" = "更多点能保留更多细节，但会增加内存占用、导出文件大小和结果计算时间。";
+"settings.precision" = "精度";
+"settings.precision_hint" = "更小的值会减少体素采样间隔，适合细枝和小果，但分析时间更长。";
+"settings.target_resolution" = "目标分辨率";
+"settings.capture_frame_rate" = "采集帧率";
+"settings.camera_format_hint" = "ARKit 会为目标分辨率和帧率选择最接近的可用相机格式；实际结果取决于设备能力和系统负载。";
+"settings.max_points_value" = "%@ 点";
+"settings.centimeters_value" = "%@ cm";
+"settings.section_expanded" = "已展开";
+"settings.section_collapsed" = "已折叠";
+"settings.section_toggle_hint" = "轻点两下即可展开或折叠此分区。";
 
 /* Diagnostics */
 "diag.model_not_loaded" = "模型未加载";
