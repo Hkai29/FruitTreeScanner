@@ -68,6 +68,25 @@
 "result.unit_count" = "";
 "result.unit_points" = "pts";
 
+/* Quick tagging */
+"quick_tagging.title" = "Quick Tags";
+"quick_tagging.plot_label" = "Plot";
+"quick_tagging.plot_placeholder" = "Select Plot";
+"quick_tagging.plot_none" = "No Plot";
+"quick_tagging.plot_empty" = "No Plots Available";
+"quick_tagging.tags_empty" = "No tags yet. Add them later in Plot Tags.";
+"quick_tagging.save" = "Save Tags";
+"quick_tagging.saved" = "Tags Saved";
+"quick_tagging.save_hint" = "Saves the selected plot, tags, and status for this tree.";
+"quick_tagging.tag_hint" = "Toggles this tag for the tree.";
+"quick_tagging.status_hint" = "Sets the scan status for this tree.";
+"quick_tagging.selected" = "Selected";
+"quick_tagging.not_selected" = "Not selected";
+"quick_tagging.status.not_scanned" = "Not Scanned";
+"quick_tagging.status.scanned" = "Scanned";
+"quick_tagging.status.reviewing" = "Reviewing";
+"quick_tagging.status.completed" = "Completed";
+
 /* Dashboard */
 "dashboard.title" = "Orchard Overview";
 "dashboard.today_scans" = "Today's Scans";
