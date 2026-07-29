@@ -43,9 +43,7 @@ extension ScanView {
     }
 
     func dismissResult() {
-        withAnimation(.easeInOut(duration: 0.25)) {
-            showResult = false
-        }
+        onScanNextTree()
     }
 
     func dismissResultToHome() {

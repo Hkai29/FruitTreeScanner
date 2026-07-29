@@ -2,6 +2,30 @@ import XCTest
 @testable import FruitTreeScanner
 
 final class DashboardSummaryTests: XCTestCase {
+    func testNextTreeNavigationWaitsForActiveScanDismissal() {
+        var state = PostScanNavigationState()
+
+        XCTAssertNil(state.transition(for: .nextTreeRequested))
+        XCTAssertEqual(state.transition(for: .activeScanDismissed), .startScan)
+    }
+
+    func testNormalScanDismissalDoesNotOpenNextTreeSetup() {
+        var state = PostScanNavigationState()
+
+        XCTAssertNil(state.transition(for: .activeScanDismissed))
+    }
+
+    func testNextTreeNavigationConsumesRepeatedRequestsOnce() {
+        var state = PostScanNavigationState()
+
+        XCTAssertNil(state.transition(for: .nextTreeRequested))
+        XCTAssertNil(state.transition(for: .nextTreeRequested))
+        XCTAssertEqual(state.transition(for: .activeScanDismissed), .startScan)
+        XCTAssertNil(
+            state.transition(for: .activeScanDismissed),
+            "A late or repeated dismissal must not reopen the scan setup"
+        )
+    }
 
     @MainActor
     func testNavigationRouterReceivesRequestPostedAfterInitialization() {

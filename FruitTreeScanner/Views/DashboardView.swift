@@ -8,6 +8,7 @@ struct DashboardView: View {
     @State var destination: DashboardDestination?
     @State var pendingScanRequest: ScanLaunchRequest?
     @State var activeScanRequest: ScanLaunchRequest?
+    @State var postScanNavigationState = PostScanNavigationState()
     @ObservedObject var historyStore = ScanHistoryStore.shared
 
     init(router: NavigationRouter) {
@@ -35,12 +36,13 @@ struct DashboardView: View {
         .fullScreenCover(item: fullScreenDestination, onDismiss: presentPendingScanIfNeeded) { destination in
             fullScreenView(for: destination)
         }
-        .fullScreenCover(item: $activeScanRequest, onDismiss: refreshScanHistory) { request in
+        .fullScreenCover(item: $activeScanRequest, onDismiss: handleActiveScanDismissal) { request in
             ScanView(
                 treeID: request.treeID,
                 gps: request.gps,
                 season: request.season,
-                selectedFruitCategory: request.selectedFruitCategory
+                selectedFruitCategory: request.selectedFruitCategory,
+                onScanNextTree: requestNextTreeScan
             )
         }
         .onReceive(router.$pendingDestination) { nav in

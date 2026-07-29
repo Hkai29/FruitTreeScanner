@@ -8,6 +8,7 @@ struct ScanView: View {
     @ObservedObject var gps: GPSRecorder
     let season: Season
     let selectedFruitCategory: FruitCategory
+    let onScanNextTree: () -> Void
 
     @State var coordinator = ScanCoordinator()
     @StateObject var hudState = ScanHUDState()

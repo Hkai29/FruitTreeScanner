@@ -1,5 +1,34 @@
 import SwiftUI
 
+enum PostScanNavigationEvent {
+    case nextTreeRequested
+    case activeScanDismissed
+}
+
+struct PostScanNavigationState {
+    private enum PendingIntent {
+        case nextTree
+    }
+
+    private var pendingIntent: PendingIntent?
+
+    mutating func transition(for event: PostScanNavigationEvent) -> DashboardDestination? {
+        switch event {
+        case .nextTreeRequested:
+            pendingIntent = .nextTree
+            return nil
+        case .activeScanDismissed:
+            defer { pendingIntent = nil }
+            switch pendingIntent {
+            case .nextTree:
+                return .startScan
+            case nil:
+                return nil
+            }
+        }
+    }
+}
+
 extension DashboardView {
     var sheetDestination: Binding<DashboardDestination?> {
         Binding(
@@ -39,6 +68,20 @@ extension DashboardView {
 
     func refreshScanHistory() {
         historyStore.loadRecords()
+    }
+
+    func requestNextTreeScan() {
+        guard activeScanRequest != nil else { return }
+        _ = postScanNavigationState.transition(for: .nextTreeRequested)
+        activeScanRequest = nil
+    }
+
+    func handleActiveScanDismissal() {
+        refreshScanHistory()
+        guard let nextDestination = postScanNavigationState.transition(for: .activeScanDismissed) else {
+            return
+        }
+        destination = nextDestination
     }
 
     func openPointCloud(_ record: ScanFileRecord) {
