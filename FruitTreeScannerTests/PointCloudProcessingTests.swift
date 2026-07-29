@@ -106,6 +106,25 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertFalse(TreeIdentifierPolicy.isValid(String(repeating: "A", count: 65)))
     }
 
+    func testTreeIdentifierPolicyClassifiesValidationIssuesWithoutChangingLegacyMessages() {
+        XCTAssertEqual(TreeIdentifierPolicy.validationIssue(for: "  "), .empty)
+        XCTAssertEqual(
+            TreeIdentifierPolicy.validationIssue(for: String(repeating: "A", count: 65)),
+            .tooLong(maximumCharacterCount: 64)
+        )
+        XCTAssertEqual(TreeIdentifierPolicy.validationIssue(for: ".."), .pathMarker)
+        XCTAssertEqual(TreeIdentifierPolicy.validationIssue(for: "A/B"), .forbiddenCharacters)
+        XCTAssertNil(TreeIdentifierPolicy.validationIssue(for: "三号地块 12-A"))
+
+        XCTAssertEqual(TreeIdentifierPolicy.validationError(for: "  "), "请输入果树编号")
+        XCTAssertEqual(
+            TreeIdentifierPolicy.validationError(for: String(repeating: "A", count: 65)),
+            "编号最多 64 个字符"
+        )
+        XCTAssertEqual(TreeIdentifierPolicy.validationError(for: ".."), "编号不能使用路径标记")
+        XCTAssertEqual(TreeIdentifierPolicy.validationError(for: "A/B"), "编号不能包含 /、\\、: 或换行")
+    }
+
     func testTreeIdentifierPolicyMakesBoundedSafeFileComponent() {
         let component = TreeIdentifierPolicy.safeFileComponent(
             from: " ../果园 A/B:\n" + String(repeating: "树", count: 80)

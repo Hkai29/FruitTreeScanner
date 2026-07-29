@@ -129,6 +129,25 @@
 "扫描历史" = "扫描历史";
 "完成" = "完成";
 
+/* 快速扫描 */
+"quick_scan.navigation_title" = "快速扫描";
+"quick_scan.header_title" = "快速采集";
+"quick_scan.header_subtitle" = "自动生成树编号，只确认现场状态后直接进入扫描。";
+"quick_scan.close" = "关闭";
+"quick_scan.gps_available" = "已记录当前位置";
+"quick_scan.gps_unavailable" = "未锁定 GPS，仍可先扫描";
+"quick_scan.launching" = "启动中...";
+"quick_scan.launch" = "开始快速扫描";
+"quick_scan.tree_id" = "树编号";
+"quick_scan.tree_id_valid" = "可用";
+"quick_scan.tree_id_invalid" = "无效";
+"quick_scan.tree_id_required" = "必填";
+"quick_scan.tree_id_placeholder" = "自动生成";
+"quick_scan.tree_id_empty_error" = "请输入果树编号";
+"quick_scan.tree_id_too_long_error" = "编号最多 %d 个字符";
+"quick_scan.tree_id_path_marker_error" = "编号不能使用路径标记";
+"quick_scan.tree_id_forbidden_error" = "编号不能包含 /、\\、: 或换行";
+
 /* Settings */
 "settings.title" = "设置";
 "settings.fruit_type" = "水果类型";

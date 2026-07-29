@@ -129,6 +129,25 @@
 "扫描历史" = "Scan History";
 "完成" = "Done";
 
+/* Quick Scan */
+"quick_scan.navigation_title" = "Quick Scan";
+"quick_scan.header_title" = "Quick Capture";
+"quick_scan.header_subtitle" = "Tree ID is auto-generated. Confirm field status, then scan.";
+"quick_scan.close" = "Close";
+"quick_scan.gps_available" = "Current location recorded";
+"quick_scan.gps_unavailable" = "GPS not locked. You can still scan.";
+"quick_scan.launching" = "Starting...";
+"quick_scan.launch" = "Start Quick Scan";
+"quick_scan.tree_id" = "Tree ID";
+"quick_scan.tree_id_valid" = "Available";
+"quick_scan.tree_id_invalid" = "Invalid";
+"quick_scan.tree_id_required" = "Required";
+"quick_scan.tree_id_placeholder" = "Auto-generated";
+"quick_scan.tree_id_empty_error" = "Enter a tree ID";
+"quick_scan.tree_id_too_long_error" = "Tree ID must be no more than %d characters";
+"quick_scan.tree_id_path_marker_error" = "Tree ID cannot be a path marker";
+"quick_scan.tree_id_forbidden_error" = "Tree ID cannot contain /, \\, :, or line breaks";
+
 /* Settings */
 "settings.title" = "Settings";
 "settings.fruit_type" = "Fruit Type";

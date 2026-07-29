@@ -4,22 +4,29 @@
 import Foundation
 
 enum TreeIdentifierPolicy {
+    enum ValidationIssue: Equatable {
+        case empty
+        case tooLong(maximumCharacterCount: Int)
+        case pathMarker
+        case forbiddenCharacters
+    }
+
     static let maximumCharacterCount = 64
 
     static func normalized(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func validationError(for value: String) -> String? {
+    static func validationIssue(for value: String) -> ValidationIssue? {
         let normalizedValue = normalized(value)
         guard !normalizedValue.isEmpty else {
-            return "请输入果树编号"
+            return .empty
         }
         guard normalizedValue.count <= maximumCharacterCount else {
-            return "编号最多 \(maximumCharacterCount) 个字符"
+            return .tooLong(maximumCharacterCount: maximumCharacterCount)
         }
         guard normalizedValue != ".", normalizedValue != ".." else {
-            return "编号不能使用路径标记"
+            return .pathMarker
         }
 
         let forbidden = CharacterSet(charactersIn: "/\\:")
@@ -27,13 +34,28 @@ enum TreeIdentifierPolicy {
             forbidden.contains(scalar) || CharacterSet.controlCharacters.contains(scalar)
         }
         guard !hasForbiddenScalar else {
-            return "编号不能包含 /、\\、: 或换行"
+            return .forbiddenCharacters
         }
         return nil
     }
 
+    static func validationError(for value: String) -> String? {
+        switch validationIssue(for: value) {
+        case .empty:
+            return "请输入果树编号"
+        case .tooLong(let maximumCharacterCount):
+            return "编号最多 \(maximumCharacterCount) 个字符"
+        case .pathMarker:
+            return "编号不能使用路径标记"
+        case .forbiddenCharacters:
+            return "编号不能包含 /、\\、: 或换行"
+        case nil:
+            return nil
+        }
+    }
+
     static func isValid(_ value: String) -> Bool {
-        validationError(for: value) == nil
+        validationIssue(for: value) == nil
     }
 
     static func safeFileComponent(from value: String) -> String {
