@@ -27,7 +27,7 @@ enum BatchExportCSVWriter {
 
         rows.append("")
         rows.append("汇总")
-        rows.append(summaryRow(records: records))
+        rows.append(summaryRow(records: records, options: options))
 
         let csvContent = "\u{FEFF}" + rows.joined(separator: "\n") + "\n"
         try csvContent.write(to: url, atomically: true, encoding: .utf8)
@@ -61,14 +61,26 @@ enum BatchExportCSVWriter {
         return row.map(BatchExportFormatting.escapeCSV).joined(separator: ",")
     }
 
-    private static func summaryRow(records: [ScanFileRecord]) -> String {
-        [
+    private static func summaryRow(
+        records: [ScanFileRecord],
+        options: BatchExportService.ExportOptions
+    ) -> String {
+        var fields = [
             "总计",
-            "\(records.count) 棵",
-            "\(BatchExportFormatting.totalFruitCount(records)) 个",
-            "\(StableDataFormatting.decimal(BatchExportFormatting.totalYield(records), precision: 2)) kg"
+            "\(records.count) 棵"
         ]
-        .map(BatchExportFormatting.escapeCSV)
-        .joined(separator: ",")
+
+        if options.includeFruitCount {
+            fields.append("\(BatchExportFormatting.totalFruitCount(records)) 个")
+        }
+        if options.includeYield {
+            fields.append(
+                "\(StableDataFormatting.decimal(BatchExportFormatting.totalYield(records), precision: 2)) kg"
+            )
+        }
+
+        return fields
+            .map(BatchExportFormatting.escapeCSV)
+            .joined(separator: ",")
     }
 }
