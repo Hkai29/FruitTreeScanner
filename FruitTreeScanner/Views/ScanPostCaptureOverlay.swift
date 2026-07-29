@@ -171,7 +171,7 @@ struct ScanReadinessOverlay: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if scanReadiness == .cameraDenied {
-                    Button("打开设置") {
+                    Button(L10n.ScanReadiness.openSettings) {
                         onOpenSettings()
                     }
                     .font(.system(size: 14, weight: .semibold))
@@ -181,7 +181,7 @@ struct ScanReadinessOverlay: View {
                     .background(Capsule().fill(Design.Colors.harvest))
                 }
 
-                Button("返回") {
+                Button(L10n.ScanReadiness.back) {
                     onDismiss()
                 }
                 .font(.system(size: 13, weight: .semibold))

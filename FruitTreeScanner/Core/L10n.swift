@@ -22,6 +22,71 @@ enum L10n {
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
     }
 
+    // MARK: - Scan Readiness
+    enum ScanReadiness {
+        enum Key: String {
+            case checkingTitle = "scan.readiness.checking.title"
+            case checkingMessage = "scan.readiness.checking.message"
+            case arUnsupportedTitle = "scan.readiness.ar_unsupported.title"
+            case arUnsupportedMessage = "scan.readiness.ar_unsupported.message"
+            case metalUnavailableTitle = "scan.readiness.metal_unavailable.title"
+            case metalUnavailableMessage = "scan.readiness.metal_unavailable.message"
+            case lidarUnavailableTitle = "scan.readiness.lidar_unavailable.title"
+            case lidarUnavailableMessage = "scan.readiness.lidar_unavailable.message"
+            case cameraDeniedTitle = "scan.readiness.camera_denied.title"
+            case cameraDeniedMessage = "scan.readiness.camera_denied.message"
+            case cameraRestrictedTitle = "scan.readiness.camera_restricted.title"
+            case cameraRestrictedMessage = "scan.readiness.camera_restricted.message"
+            case openSettings = "scan.readiness.open_settings"
+            case back = "scan.readiness.back"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .checkingTitle:
+                    return "正在检查设备能力"
+                case .checkingMessage:
+                    return "正在确认相机、ARKit 和深度扫描链路。"
+                case .arUnsupportedTitle:
+                    return "当前设备不支持 AR 扫描"
+                case .arUnsupportedMessage:
+                    return "FruitTreeScanner 需要 ARKit 才能采集点云。请使用支持 ARKit 的 iPhone 或 iPad。"
+                case .metalUnavailableTitle:
+                    return "图形渲染不可用"
+                case .metalUnavailableMessage:
+                    return "扫描画面需要 Metal 图形渲染支持。请重启 App，或换用支持 Metal 的设备后再试。"
+                case .lidarUnavailableTitle:
+                    return "当前设备没有 LiDAR 深度"
+                case .lidarUnavailableMessage:
+                    return "扫描需要 LiDAR sceneDepth 才能生成有效点云。请使用支持 LiDAR 的 iPhone 或 iPad。"
+                case .cameraDeniedTitle:
+                    return "相机权限未开启"
+                case .cameraDeniedMessage:
+                    return "扫描需要相机画面和 LiDAR 深度帧。请在系统设置中允许相机权限。"
+                case .cameraRestrictedTitle:
+                    return "相机权限受限"
+                case .cameraRestrictedMessage:
+                    return "系统限制了相机访问，当前无法开始扫描。"
+                case .openSettings:
+                    return "打开设置"
+                case .back:
+                    return "返回"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static var openSettings: String {
+            text(.openSettings)
+        }
+
+        static var back: String {
+            text(.back)
+        }
+    }
+
     // MARK: - Result
     enum Result {
         static let yieldTitle = NSLocalizedString("result.yield_title", value: "估算产量", comment: "Yield result title")
