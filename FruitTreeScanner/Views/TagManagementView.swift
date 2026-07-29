@@ -3,12 +3,55 @@
 
 import SwiftUI
 
+enum TagManagementDeletionRequest {
+    case plot(Plot, affectedTreeCount: Int)
+    case tag(GroupTag, affectedTreeCount: Int)
+
+    var title: String {
+        switch self {
+        case .plot(let plot, _):
+            return "删除地块“\(plot.name)”？"
+        case .tag(let tag, _):
+            return "删除标签“\(tag.name)”？"
+        }
+    }
+
+    var confirmationTitle: String {
+        switch self {
+        case .plot:
+            return "删除地块"
+        case .tag:
+            return "删除标签"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .plot(_, let affectedTreeCount):
+            return "该操作会取消 \(affectedTreeCount) 棵树的地块归属，但不会删除扫描记录。"
+        case .tag(_, let affectedTreeCount):
+            return "该操作会从 \(affectedTreeCount) 棵树移除此标签，但不会删除扫描记录。"
+        }
+    }
+
+    @MainActor
+    func confirm(in store: TagStore) {
+        switch self {
+        case .plot(let plot, _):
+            store.deletePlot(id: plot.id)
+        case .tag(let tag, _):
+            store.deleteTag(id: tag.id)
+        }
+    }
+}
+
 struct TagManagementView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var tagStore = TagStore.shared
     var onStartScan: (() -> Void)? = nil
     @State private var selectedTab: Int = 0
     @State private var presentedSheet: TagManagementSheet?
+    @State private var pendingDeletion: TagManagementDeletionRequest?
 
     var body: some View {
         NavigationView {
@@ -42,7 +85,12 @@ struct TagManagementView: View {
                             plots: tagStore.plots,
                             treeCount: { tagStore.treeCount(forPlotId: $0) },
                             onEdit: { presentedSheet = .editPlot($0) },
-                            onDelete: { tagStore.deletePlot(id: $0) },
+                            onDelete: { plot in
+                                pendingDeletion = .plot(
+                                    plot,
+                                    affectedTreeCount: tagStore.treeCount(forPlotId: plot.id)
+                                )
+                            },
                             onAdd: { presentedSheet = .addPlot }
                         )
                         .tag(0)
@@ -51,7 +99,12 @@ struct TagManagementView: View {
                             tags: tagStore.tags,
                             treeCount: { tagStore.treeCount(forTagId: $0) },
                             onEdit: { presentedSheet = .editTag($0) },
-                            onDelete: { tagStore.deleteTag(id: $0) },
+                            onDelete: { tag in
+                                pendingDeletion = .tag(
+                                    tag,
+                                    affectedTreeCount: tagStore.treeCount(forTagId: tag.id)
+                                )
+                            },
                             onAdd: { presentedSheet = .addTag }
                         )
                         .tag(1)
@@ -64,6 +117,19 @@ struct TagManagementView: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                 }
+            }
+            .confirmationDialog(
+                Text(pendingDeletion?.title ?? "确认删除"),
+                isPresented: isDeletionDialogPresented,
+                titleVisibility: .visible,
+                presenting: pendingDeletion
+            ) { request in
+                Button(request.confirmationTitle, role: .destructive) {
+                    request.confirm(in: tagStore)
+                }
+                Button("取消", role: .cancel) {}
+            } message: { request in
+                Text(request.message)
             }
             .navigationTitle("标签管理")
             .navigationBarTitleDisplayMode(.inline)
@@ -109,6 +175,17 @@ struct TagManagementView: View {
                 }
             }
         }
+    }
+
+    private var isDeletionDialogPresented: Binding<Bool> {
+        Binding(
+            get: { pendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeletion = nil
+                }
+            }
+        )
     }
 
     private func showAddSheet() {

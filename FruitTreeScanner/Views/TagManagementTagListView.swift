@@ -4,7 +4,7 @@ struct TagListView: View {
     let tags: [GroupTag]
     let treeCount: (UUID) -> Int
     let onEdit: (GroupTag) -> Void
-    let onDelete: (UUID) -> Void
+    let onDelete: (GroupTag) -> Void
     let onAdd: () -> Void
 
     var body: some View {
@@ -21,7 +21,7 @@ struct TagListView: View {
             }
             .onDelete { indexSet in
                 for index in indexSet {
-                    onDelete(tags[index].id)
+                    onDelete(tags[index])
                 }
             }
         }
