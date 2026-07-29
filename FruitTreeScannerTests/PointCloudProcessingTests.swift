@@ -1441,6 +1441,25 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(result).id, loadedData.id)
     }
 
+    func testPointCloudDataStoresBoundsInDisplaySnapshot() {
+        let pointCloud = PointCloudData(
+            id: "cached-bounds",
+            vertices: [
+                SCNVector3(-1, 0, -1),
+                SCNVector3(1, 2, 1)
+            ],
+            colors: []
+        )
+        let storedPropertyNames = Set(
+            Mirror(reflecting: pointCloud).children.compactMap(\.label)
+        )
+
+        XCTAssertTrue(
+            storedPropertyNames.contains("bounds"),
+            "Bounds must be stored with the immutable display snapshot instead of recalculated during view updates"
+        )
+    }
+
     // MARK: - PLYImportService reject/cleanup
 
     func testPLYImportRejectsCorruptPLYAndLeavesScansDirectoryClean() throws {
