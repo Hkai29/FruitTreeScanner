@@ -229,7 +229,7 @@ final class SettingsStore: ObservableObject {
     }
 
     // ARKit 实际分辨率（由 ScanCoordinator 在扫描时更新）
-    @Published var currentCameraResolutionDisplay: String = "检测中..."
+    @Published var currentCameraResolutionDisplay: String = L10n.Scan.detecting
 
     private func persistHSVSettings() {
         defaults.set(hsvHMin, forKey: SettingsStoreKey.hsvHMin)

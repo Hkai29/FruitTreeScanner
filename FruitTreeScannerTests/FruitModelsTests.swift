@@ -137,6 +137,114 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(SettingsStore.normalizedUnit(-.infinity, fallback: 0.4), 0.4)
     }
 
+    func testSettingsCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "settings.title": "Settings",
+                "settings.section.device": "Device",
+                "settings.camera_settings": "Camera Settings",
+                "settings.camera_settings_subtitle": "Resolution and capture frame rate",
+                "settings.actual_resolution": "Actual Resolution",
+                "settings.section.data": "Data",
+                "settings.auto_export_csv": "Auto Export After Scan",
+                "settings.auto_export_csv_hint": "Automatically exports a CSV file when a scan completes.",
+                "settings.section.scan": "Scanning",
+                "settings.current_fruit_type": "Current Fruit Type",
+                "settings.fruit_type_hint": "Used for image detection, point-cloud clustering, and yield conversion.",
+                "settings.variety_database": "Variety Parameters",
+                "settings.variety_database_subtitle": "Edit size, weight, and clustering parameters for the current fruit",
+                "settings.scan_quality": "Quality Preset",
+                "settings.quality.high": "High",
+                "settings.quality.medium": "Medium",
+                "settings.quality.low": "Low",
+                "settings.quality_hint": "High quality raises the depth-confidence threshold. The point cloud is cleaner, but low light or fast motion may require another pass.",
+                "settings.max_points": "Maximum Points",
+                "settings.max_points_hint": "More points retain more detail, but use more memory and increase export size and processing time.",
+                "settings.precision": "Precision",
+                "settings.precision_hint": "A smaller value reduces the voxel-sampling interval for fine branches and small fruit, but analysis takes longer.",
+                "settings.target_resolution": "Target Resolution",
+                "settings.capture_frame_rate": "Capture Frame Rate",
+                "settings.camera_format_hint": "ARKit chooses the closest supported camera format for the target resolution and frame rate. Actual results depend on device capability and system load.",
+                "settings.max_points_value": "%@ pts",
+                "settings.centimeters_value": "%@ cm",
+                "settings.section_expanded": "Expanded",
+                "settings.section_collapsed": "Collapsed",
+                "settings.section_toggle_hint": "Double-tap to expand or collapse this section."
+            ],
+            "zh": [
+                "settings.title": "设置",
+                "settings.section.device": "设备",
+                "settings.camera_settings": "相机设置",
+                "settings.camera_settings_subtitle": "分辨率与采集帧率",
+                "settings.actual_resolution": "实际分辨率",
+                "settings.section.data": "数据",
+                "settings.auto_export_csv": "扫描后自动导出",
+                "settings.auto_export_csv_hint": "扫描完成后自动导出 CSV 文件。",
+                "settings.section.scan": "扫描",
+                "settings.current_fruit_type": "当前水果类型",
+                "settings.fruit_type_hint": "用于图像检测、点云聚类与产量换算。",
+                "settings.variety_database": "品种参数库",
+                "settings.variety_database_subtitle": "编辑当前水果的尺寸、重量与聚类参数",
+                "settings.scan_quality": "质量预设",
+                "settings.quality.high": "高",
+                "settings.quality.medium": "中",
+                "settings.quality.low": "低",
+                "settings.quality_hint": "高质量会提高深度置信度门槛，点云更干净，但弱光或快速移动时可能需要补扫。",
+                "settings.max_points": "最大点数",
+                "settings.max_points_hint": "更多点能保留更多细节，但会增加内存占用、导出文件大小和结果计算时间。",
+                "settings.precision": "精度",
+                "settings.precision_hint": "更小的值会减少体素采样间隔，适合细枝和小果，但分析时间更长。",
+                "settings.target_resolution": "目标分辨率",
+                "settings.capture_frame_rate": "采集帧率",
+                "settings.camera_format_hint": "ARKit 会为目标分辨率和帧率选择最接近的可用相机格式；实际结果取决于设备能力和系统负载。",
+                "settings.max_points_value": "%@ 点",
+                "settings.centimeters_value": "%@ cm",
+                "settings.section_expanded": "已展开",
+                "settings.section_collapsed": "已折叠",
+                "settings.section_toggle_hint": "轻点两下即可展开或折叠此分区。"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testSettingsQualityPresetIdentifiersRemainStableWhileDisplayNamesAreLocalized() {
+        XCTAssertEqual(
+            SettingsStore.qualityPresetOptions,
+            ["高", "中", "低"],
+            "Persisted algorithm identifiers must remain unchanged"
+        )
+        XCTAssertEqual(L10n.Settings.qualityPresetName(for: "高"), L10n.Settings.qualityHigh)
+        XCTAssertEqual(L10n.Settings.qualityPresetName(for: "中"), L10n.Settings.qualityMedium)
+        XCTAssertEqual(L10n.Settings.qualityPresetName(for: "低"), L10n.Settings.qualityLow)
+        XCTAssertEqual(
+            L10n.Settings.qualityPresetName(for: "future-value"),
+            "future-value",
+            "Unknown future identifiers must remain visible instead of becoming blank"
+        )
+    }
+
+    func testSettingsDynamicValuesPreserveTheUnderlyingMeasurements() {
+        let pointCount = L10n.Settings.maxPointCountValue(1_200_000)
+        let precision = L10n.Settings.precisionValue(1.2)
+
+        XCTAssertEqual(pointCount.filter(\.isNumber), "1200000")
+        XCTAssertEqual(precision.filter(\.isNumber), "12")
+    }
+
     func testIsFruitColor() {
         let redApple = SIMD3<Float>(0.85, 0.2, 0.1)
         XCTAssertTrue(FruitCategory.isFruitColor(redApple), "红色应被识别为果实颜色")

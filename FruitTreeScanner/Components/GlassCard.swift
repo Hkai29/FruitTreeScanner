@@ -46,6 +46,7 @@ struct GlassExpandableSection<Content: View>: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Design.Colors.harvest)
                         .frame(width: 24)
+                        .accessibilityHidden(true)
 
                     Text(title)
                         .font(Design.Typography.darkHeadline)
@@ -57,10 +58,14 @@ struct GlassExpandableSection<Content: View>: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Design.Colors.Dark.textSecondary)
                         .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        .accessibilityHidden(true)
                 }
                 .padding(Design.Space.md)
             }
             .buttonStyle(DarkGlassButtonStyle())
+            .accessibilityLabel(title)
+            .accessibilityValue(isExpanded ? L10n.Settings.sectionExpanded : L10n.Settings.sectionCollapsed)
+            .accessibilityHint(L10n.Settings.sectionToggleHint)
 
             // Content
             if isExpanded {
@@ -133,13 +138,30 @@ struct GlassToggleRow: View {
     let icon: String
     let title: String
     @Binding var isOn: Bool
+    var accessibilityHint: String = ""
 
     var body: some View {
-        GlassRow(icon: icon, title: title) {
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(Design.Colors.harvest)
+        HStack(spacing: Design.Space.md) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+
+            Toggle(isOn: $isOn) {
+                Text(title)
+                    .font(Design.Typography.darkSubheadline)
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+            }
+            .tint(Design.Colors.harvest)
+            .accessibilityHint(accessibilityHint)
         }
+        .padding(.horizontal, Design.Space.md)
+        .padding(.vertical, Design.Space.sm + 2)
+        .background(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
+                .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
+        )
     }
 }
 
@@ -155,6 +177,9 @@ struct GlassReadonlyRow: View {
                 .font(Design.Typography.darkCaption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
     }
 }
 
@@ -168,6 +193,7 @@ struct GlassSliderRow: View {
     var onEditingChanged: (Bool) -> Void = { _ in }
     var displayValue: String { customDisplayValue ?? defaultDisplayValue }
     var customDisplayValue: String?
+    var accessibilityHint: String = ""
 
     private var defaultDisplayValue: String {
         if step >= 1 {
@@ -196,11 +222,15 @@ struct GlassSliderRow: View {
             }
             .padding(.horizontal, Design.Space.md)
             .padding(.vertical, Design.Space.sm + 2)
+            .accessibilityHidden(true)
 
             Slider(value: $value, in: range, step: step, onEditingChanged: onEditingChanged)
                 .tint(Design.Colors.harvest)
                 .padding(.horizontal, Design.Space.md)
                 .padding(.bottom, Design.Space.sm)
+                .accessibilityLabel(title)
+                .accessibilityValue(displayValue)
+                .accessibilityHint(accessibilityHint)
         }
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
