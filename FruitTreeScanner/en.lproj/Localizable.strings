@@ -145,23 +145,12 @@
 
 /* Scan History */
 "history.title" = "Scan History";
-"history.header.title" = "Scan Records";
-"history.header.subtitle" = "Browse every scan by time, plot, and status.";
-"history.empty.title" = "No Scan Records";
-"history.empty.message" = "Completed scans and imported PLY files appear here with fruit count and yield.";
-"history.filtered_empty.title" = "No Matching Records";
-"history.filtered_empty.message" = "Try a different plot or status filter.";
-"history.action.start_scan" = "Start Scan";
-"history.action.import_ply" = "Import PLY";
-"history.filter.all_plots" = "All Plots";
-"history.filter.all_statuses" = "All Statuses";
 "history.filter.plot" = "Plot";
 "history.filter.status" = "Status";
 "history.scan_status.not_scanned" = "Not Scanned";
 "history.scan_status.scanned" = "Scanned";
 "history.scan_status.reviewing" = "In Review";
 "history.scan_status.completed" = "Completed";
-"history.action.clear_all" = "Clear All";
 "history.action.preview" = "Preview Point Cloud";
 "history.action.rescan" = "Rescan Tree";
 "history.action.mark_review" = "Mark for Review";
@@ -179,7 +168,6 @@
 "history.delete.failure_message_one" = "This record is still on this device. A file may be in use. Try again now or later.";
 "history.delete.failure_message_many" = "%d records are still on this device. Some files may be in use. Try again now or later.";
 "history.delete.later" = "Try Later";
-"history.delete.retry" = "Retry Delete";
 "history.record.complete" = "Results Complete";
 "history.record.incomplete" = "Recovery Needed";
 "history.record.invalid" = "Results Damaged";

@@ -2228,30 +2228,6 @@ final class PointCloudProcessingTests: XCTestCase {
         return buffer
     }
 
-    private func makeConfidenceMap(width: Int, height: Int, value: UInt8) throws -> CVPixelBuffer {
-        var pixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferCreate(
-            kCFAllocatorDefault,
-            width,
-            height,
-            kCVPixelFormatType_OneComponent8,
-            nil,
-            &pixelBuffer
-        )
-        XCTAssertEqual(status, kCVReturnSuccess)
-        let buffer = try XCTUnwrap(pixelBuffer)
-        CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        let stride = CVPixelBufferGetBytesPerRow(buffer)
-        let values = try XCTUnwrap(CVPixelBufferGetBaseAddress(buffer)).assumingMemoryBound(to: UInt8.self)
-        for row in 0..<height {
-            for column in 0..<width {
-                values[row * stride + column] = value
-            }
-        }
-        return buffer
-    }
-
     private func binaryPLYData(
         format: String,
         vertexCount: Int,

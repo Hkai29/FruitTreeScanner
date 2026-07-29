@@ -145,23 +145,12 @@
 
 /* 扫描历史 */
 "history.title" = "扫描历史";
-"history.header.title" = "扫描记录";
-"history.header.subtitle" = "按时间、地块和状态查看所有扫描文件。";
-"history.empty.title" = "暂无扫描记录";
-"history.empty.message" = "完成扫描或导入 PLY 后，点云文件、果数和产量会按时间保存在这里。";
-"history.filtered_empty.title" = "没有符合筛选的记录";
-"history.filtered_empty.message" = "切换地块或状态筛选后再查看。";
-"history.action.start_scan" = "开始扫描";
-"history.action.import_ply" = "导入 PLY";
-"history.filter.all_plots" = "全部地块";
-"history.filter.all_statuses" = "全部状态";
 "history.filter.plot" = "地块";
 "history.filter.status" = "状态";
 "history.scan_status.not_scanned" = "未扫描";
 "history.scan_status.scanned" = "已扫描";
 "history.scan_status.reviewing" = "复查中";
 "history.scan_status.completed" = "已完成";
-"history.action.clear_all" = "清空全部";
 "history.action.preview" = "预览点云";
 "history.action.rescan" = "复扫这棵";
 "history.action.mark_review" = "标记待复核";
@@ -179,7 +168,6 @@
 "history.delete.failure_message_one" = "这条记录仍在本机，可能有文件正在使用。请重试或稍后再试。";
 "history.delete.failure_message_many" = "仍有 %d 条记录留在本机，可能有文件正在使用。请重试或稍后再试。";
 "history.delete.later" = "稍后处理";
-"history.delete.retry" = "重试删除";
 "history.record.complete" = "结果完整";
 "history.record.incomplete" = "待恢复";
 "history.record.invalid" = "结果损坏";

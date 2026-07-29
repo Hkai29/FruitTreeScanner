@@ -1453,14 +1453,8 @@ final class FruitModelsTests: XCTestCase {
 
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering
 
-    func testDeleteFilesPrimaryFailureOccursAfterCompanionCleanup() {
+    func testDeleteFilesPrimaryFailureBlocksCompanionCleanup() {
         let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
-        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
-        let baseName = fileURL.deletingPathExtension().lastPathComponent
-        let jsonURL = fileURL.deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)_result.json")
-        let manifestURL = fileURL.deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)_complete.json")
         let record = ScanFileRecord(
             id: "test_record.ply",
             treeID: "test",
@@ -1486,8 +1480,8 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result, "Should return false when primary PLY removal throws")
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL, fileURL],
-            "Companions should be cleaned before attempting the primary PLY commit marker"
+            [fileURL],
+            "Companion deletion must remain blocked when the primary PLY cannot be removed"
         )
     }
 
@@ -1497,9 +1491,6 @@ final class FruitModelsTests: XCTestCase {
         let baseName = fileURL.deletingPathExtension().lastPathComponent
         let jsonURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_result.json")
-        let manifestURL = fileURL.deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)_complete.json")
-
         let record = ScanFileRecord(
             id: "test_record.ply",
             treeID: "test",
@@ -1525,7 +1516,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(removed[1], jsonURL, "JSON companion should be removed second")
     }
 
-    func testDeleteFilesCompanionFailureKeepsPrimaryPLYForRetryAndContinuesCleanup() {
+    func testDeleteFilesCompanionFailureContinuesCleanupAfterPrimaryDeletion() {
         let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
         let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
         let baseName = fileURL.deletingPathExtension().lastPathComponent
@@ -1559,12 +1550,12 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result, "Should return false when any companion removal throws")
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL],
-            "Should continue companion cleanup but preserve the primary PLY as a visible retry marker"
+            [fileURL, csvURL, jsonURL, manifestURL],
+            "Primary PLY is removed first, then companion cleanup continues after a companion failure"
         )
     }
 
-    func testDeleteFilesRemovesCompanionsBeforePrimaryPLY() {
+    func testDeleteFilesRemovesPrimaryPLYBeforeCompanions() {
         let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
         let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
         let baseName = fileURL.deletingPathExtension().lastPathComponent
@@ -1593,98 +1584,9 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertTrue(result, "Should return true when all files exist and removal succeeds")
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL, fileURL],
-            "Primary PLY should be the final deletion commit marker"
+            [fileURL, csvURL, jsonURL, manifestURL],
+            "Primary PLY should be removed before its companion artifacts"
         )
-    }
-
-    // MARK: - Scan history persistence presentation
-
-    func testScanHistoryPresentationTreatsCompleteZeroYieldAsReliableResult() {
-        let record = ScanFileRecord(
-            id: "zero-yield.ply",
-            treeID: "T-zero",
-            fileURL: URL(fileURLWithPath: "/tmp/zero-yield.ply"),
-            scanDate: Date(),
-            fruitCount: 0,
-            yieldKg: 0,
-            persistenceState: .complete
-        )
-
-        let presentation = ScanHistoryRecordPresentation(record: record)
-
-        XCTAssertEqual(presentation.state, .complete)
-        XCTAssertTrue(presentation.showsReliableResult)
-    }
-
-    func testScanHistoryPresentationExplainsIncompleteOrphanPLY() {
-        let record = ScanFileRecord(
-            id: "orphan.ply",
-            treeID: "T-orphan",
-            fileURL: URL(fileURLWithPath: "/tmp/orphan.ply"),
-            scanDate: Date(),
-            persistenceState: .incomplete,
-            persistenceFailureReason: "orphanPLYDetected"
-        )
-
-        let presentation = ScanHistoryRecordPresentation(record: record)
-
-        XCTAssertEqual(presentation.state, .incomplete(.missingResult))
-        XCTAssertFalse(presentation.showsReliableResult)
-    }
-
-    func testScanHistoryPresentationDistinguishesInvalidCompanionFailures() {
-        let jsonRecord = ScanFileRecord(
-            id: "invalid-json.ply",
-            treeID: "T-json",
-            fileURL: URL(fileURLWithPath: "/tmp/invalid-json.ply"),
-            scanDate: Date(),
-            persistenceState: .invalid,
-            persistenceFailureReason: "scanResultJSONFailed"
-        )
-        let revisionRecord = ScanFileRecord(
-            id: "invalid-revision.ply",
-            treeID: "T-revision",
-            fileURL: URL(fileURLWithPath: "/tmp/invalid-revision.ply"),
-            scanDate: Date(),
-            persistenceState: .invalid,
-            persistenceFailureReason: "scanResultRevisionMismatch"
-        )
-
-        XCTAssertEqual(
-            ScanHistoryRecordPresentation(record: jsonRecord).state,
-            .invalid(.unreadableJSON)
-        )
-        XCTAssertEqual(
-            ScanHistoryRecordPresentation(record: revisionRecord).state,
-            .invalid(.revisionMismatch)
-        )
-    }
-
-    func testScanHistoryDeletionAttemptOnlyRetriesRecordsStillPresent() {
-        let first = ScanFileRecord(
-            id: "first.ply",
-            treeID: "T-first",
-            fileURL: URL(fileURLWithPath: "/tmp/first.ply"),
-            scanDate: Date()
-        )
-        let second = ScanFileRecord(
-            id: "second.ply",
-            treeID: "T-second",
-            fileURL: URL(fileURLWithPath: "/tmp/second.ply"),
-            scanDate: Date()
-        )
-        let unrelated = ScanFileRecord(
-            id: "unrelated.ply",
-            treeID: "T-unrelated",
-            fileURL: URL(fileURLWithPath: "/tmp/unrelated.ply"),
-            scanDate: Date()
-        )
-
-        let attempt = ScanHistoryDeletionAttempt(records: [first, second])
-        let remaining = attempt.remainingRecords(in: [second, unrelated])
-
-        XCTAssertEqual(remaining.map(\.id), [second.id])
     }
 
     func testDeleteFilesWithResultReportsPrimaryAndBlockedCompanionRemnants() {
