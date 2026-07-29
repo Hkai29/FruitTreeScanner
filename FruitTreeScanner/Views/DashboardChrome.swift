@@ -63,12 +63,12 @@ struct TopNavigationBar: View {
                 .clipShape(Capsule())
                 .frame(minWidth: Design.Touch.minimumWidth, minHeight: Design.Touch.minimumHeight)
             }
-            .accessibilityLabel("扫描历史\(historyCount > 0 ? "，\(historyCount)条记录" : "")")
+            .accessibilityLabel(L10n.Dashboard.scanHistoryAccessibilityLabel(recordCount: historyCount))
 
             Button(action: onSettingsTap) {
                 DashboardMiniIcon(icon: "gearshape.fill", size: 44)
             }
-            .accessibilityLabel("设置")
+            .accessibilityLabel(L10n.Dashboard.settingsAccessibilityLabel)
         }
     }
 }

@@ -39,7 +39,12 @@ struct QuickActionCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(action.title)，\(action.description)")
+        .accessibilityLabel(
+            L10n.Dashboard.quickActionAccessibilityLabel(
+                title: action.title,
+                description: action.description
+            )
+        )
         .accessibilityIdentifier("dashboard.action.\(action.kind.rawValue)")
     }
 }
@@ -119,7 +124,12 @@ struct QuickActionTile: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(action.title)，\(action.description)")
+        .accessibilityLabel(
+            L10n.Dashboard.quickActionAccessibilityLabel(
+                title: action.title,
+                description: action.description
+            )
+        )
         .accessibilityIdentifier("dashboard.action.\(action.kind.rawValue)")
     }
 }

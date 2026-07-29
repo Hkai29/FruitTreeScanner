@@ -10,9 +10,9 @@ enum AppMode: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .scan: return "扫描"
-        case .history: return "历史"
-        case .analytics: return "分析"
+        case .scan: return L10n.Dashboard.scanMode
+        case .history: return L10n.Dashboard.historyMode
+        case .analytics: return L10n.Dashboard.analyticsMode
         }
     }
 
