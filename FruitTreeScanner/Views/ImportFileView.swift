@@ -23,14 +23,14 @@ struct ImportFileView: View {
                     onImportTap: beginImportSelection
                 )
             }
-            .navigationTitle("导入文件")
+            .navigationTitle(L10n.Import.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(importStatus.isSuccess ? "完成" : "取消") { dismiss() }
+                    Button(importStatus.isSuccess ? L10n.Common.done : L10n.Common.cancel) { dismiss() }
                 }
             }
             .fileImporter(
@@ -39,6 +39,10 @@ struct ImportFileView: View {
                 allowsMultipleSelection: false
             ) { result in
                 handleFileImport(result)
+            }
+            .onChange(of: isImporting) { isPresented in
+                guard !isPresented else { return }
+                importStatus = importStatus.afterImporterDismissal
             }
         }
         .preferredColorScheme(.dark)

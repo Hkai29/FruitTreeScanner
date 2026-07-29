@@ -661,6 +661,94 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(ImportFileErrorClassifier.isUserCancellation(fileError))
     }
 
+    func testImportFileCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "import.navigation_title": "Import File",
+                "import.header_title": "Point Cloud Import",
+                "import.header_subtitle": "Add a PLY point cloud for viewing, comparison, and export.",
+                "import.status.idle_title": "Choose a PLY File",
+                "import.status.idle_message": "ASCII and binary PLY files are supported. Imported files are added to Scan History.",
+                "import.status.selecting_title": "Choose a File",
+                "import.status.selecting_message": "Choose one .ply point-cloud file from Files.",
+                "import.status.processing_title": "Processing",
+                "import.status.success_title": "Import Complete",
+                "import.status.success_message": "%@ was added to Scan History. Import another file or close this page.",
+                "import.status.error_title": "Import Failed",
+                "import.button.select": "Choose PLY File",
+                "import.button.continue": "Import Another PLY File",
+                "import.rule.history": "Imported files appear in Scan History",
+                "import.rule.metadata": "Readable scan metadata is preserved",
+                "import.rule.duplicate": "Duplicate names create a new copy",
+                "import.error.no_file": "No file was selected",
+                "import.error.unsupported_format": "Only PLY point-cloud files are supported",
+                "import.error.invalid_ply": "The file is not a valid PLY point cloud",
+                "import.error.invalid_point_cloud": "The PLY point-cloud data is incomplete or cannot be read"
+            ],
+            "zh": [
+                "import.navigation_title": "导入文件",
+                "import.header_title": "点云导入",
+                "import.header_subtitle": "把已有 PLY 点云加入扫描记录，用于查看、对比和后续导出。",
+                "import.status.idle_title": "等待选择 PLY 文件",
+                "import.status.idle_message": "支持 ASCII 和 Binary PLY，导入后会写入本机扫描记录。",
+                "import.status.selecting_title": "请选择文件",
+                "import.status.selecting_message": "从文件应用中选择一个 .ply 点云文件。",
+                "import.status.processing_title": "正在处理",
+                "import.status.success_title": "导入成功",
+                "import.status.success_message": "%@ 已添加到扫描记录，可继续导入或关闭此页。",
+                "import.status.error_title": "导入失败",
+                "import.button.select": "选择 PLY 文件",
+                "import.button.continue": "继续导入 PLY 文件",
+                "import.rule.history": "导入后会出现在扫描记录",
+                "import.rule.metadata": "保留可读取的扫描元数据",
+                "import.rule.duplicate": "同名文件会自动生成新副本",
+                "import.error.no_file": "未选择文件",
+                "import.error.unsupported_format": "当前导入记录只支持 PLY 点云文件",
+                "import.error.invalid_ply": "文件不是有效的 PLY 点云",
+                "import.error.invalid_point_cloud": "PLY 点云数据不完整或当前无法读取"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testImportFileFormatsSuccessAndMapsProductionErrors() {
+        let successMessage = L10n.Import.successMessage(fileName: "TREE-17.ply")
+        XCTAssertTrue(successMessage.contains("TREE-17.ply"))
+
+        let expectedErrors: [(PLYImportService.ImportError, String)] = [
+            (.unsupportedFormat, L10n.Import.unsupportedFormatError),
+            (.invalidPLY, L10n.Import.invalidPLYError),
+            (.invalidPointCloud, L10n.Import.invalidPointCloudError)
+        ]
+
+        for (error, expectedMessage) in expectedErrors {
+            XCTAssertEqual(error.errorDescription, expectedMessage)
+            XCTAssertEqual(error.localizedDescription, expectedMessage)
+        }
+    }
+
+    func testImportStatusResetsOnlySelectingStateAfterImporterDismissal() {
+        XCTAssertEqual(ImportStatus.selecting.afterImporterDismissal, .idle)
+        XCTAssertEqual(ImportStatus.idle.afterImporterDismissal, .idle)
+        XCTAssertEqual(ImportStatus.processing("TREE-17.ply").afterImporterDismissal, .processing("TREE-17.ply"))
+        XCTAssertEqual(ImportStatus.success("TREE-17.ply").afterImporterDismissal, .success("TREE-17.ply"))
+        XCTAssertEqual(ImportStatus.error("broken").afterImporterDismissal, .error("broken"))
+    }
+
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering
 
     func testDeleteFilesPrimaryPLYExistsRemoveThrows() {

@@ -105,11 +105,11 @@ enum PLYImportService {
         var errorDescription: String? {
             switch self {
             case .unsupportedFormat:
-                return "当前导入记录只支持 PLY 点云文件"
+                return L10n.Import.unsupportedFormatError
             case .invalidPLY:
-                return "文件不是有效的 PLY 点云"
+                return L10n.Import.invalidPLYError
             case .invalidPointCloud:
-                return "PLY 点云数据不完整或当前无法读取"
+                return L10n.Import.invalidPointCloudError
             }
         }
     }

@@ -99,6 +99,28 @@
 "export.by_plot" = "按地块";
 "export.no_records" = "没有可导出的记录";
 
+/* Import */
+"import.navigation_title" = "导入文件";
+"import.header_title" = "点云导入";
+"import.header_subtitle" = "把已有 PLY 点云加入扫描记录，用于查看、对比和后续导出。";
+"import.status.idle_title" = "等待选择 PLY 文件";
+"import.status.idle_message" = "支持 ASCII 和 Binary PLY，导入后会写入本机扫描记录。";
+"import.status.selecting_title" = "请选择文件";
+"import.status.selecting_message" = "从文件应用中选择一个 .ply 点云文件。";
+"import.status.processing_title" = "正在处理";
+"import.status.success_title" = "导入成功";
+"import.status.success_message" = "%@ 已添加到扫描记录，可继续导入或关闭此页。";
+"import.status.error_title" = "导入失败";
+"import.button.select" = "选择 PLY 文件";
+"import.button.continue" = "继续导入 PLY 文件";
+"import.rule.history" = "导入后会出现在扫描记录";
+"import.rule.metadata" = "保留可读取的扫描元数据";
+"import.rule.duplicate" = "同名文件会自动生成新副本";
+"import.error.no_file" = "未选择文件";
+"import.error.unsupported_format" = "当前导入记录只支持 PLY 点云文件";
+"import.error.invalid_ply" = "文件不是有效的 PLY 点云";
+"import.error.invalid_point_cloud" = "PLY 点云数据不完整或当前无法读取";
+
 /* Fruit Names */
 "fruit.apple" = "苹果";
 "fruit.orange" = "橙子";

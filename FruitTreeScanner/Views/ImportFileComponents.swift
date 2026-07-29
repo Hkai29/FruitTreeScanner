@@ -4,8 +4,8 @@ struct ImportHeader: View {
     var body: some View {
         DashboardToolHeader(
             imageName: "FeatureImportFile",
-            title: "点云导入",
-            subtitle: "把已有 PLY 点云加入扫描记录，用于查看、对比和后续导出。",
+            title: L10n.Import.headerTitle,
+            subtitle: L10n.Import.headerSubtitle,
             icon: "square.and.arrow.down",
             accent: Design.Colors.Dark.info
         )
@@ -56,9 +56,9 @@ struct ImportStatusPanel: View {
 struct ImportRulesList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ImportRuleRow(icon: "clock.arrow.circlepath", text: "导入后会出现在扫描记录")
-            ImportRuleRow(icon: "doc.badge.gearshape", text: "保留可读取的扫描元数据")
-            ImportRuleRow(icon: "square.on.square", text: "同名文件会自动生成新副本")
+            ImportRuleRow(icon: "clock.arrow.circlepath", text: L10n.Import.historyRule)
+            ImportRuleRow(icon: "doc.badge.gearshape", text: L10n.Import.metadataRule)
+            ImportRuleRow(icon: "square.on.square", text: L10n.Import.duplicateRule)
         }
         .padding(14)
         .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)

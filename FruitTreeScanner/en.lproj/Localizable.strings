@@ -99,6 +99,28 @@
 "export.by_plot" = "By Plot";
 "export.no_records" = "No records to export";
 
+/* Import */
+"import.navigation_title" = "Import File";
+"import.header_title" = "Point Cloud Import";
+"import.header_subtitle" = "Add a PLY point cloud for viewing, comparison, and export.";
+"import.status.idle_title" = "Choose a PLY File";
+"import.status.idle_message" = "ASCII and binary PLY files are supported. Imported files are added to Scan History.";
+"import.status.selecting_title" = "Choose a File";
+"import.status.selecting_message" = "Choose one .ply point-cloud file from Files.";
+"import.status.processing_title" = "Processing";
+"import.status.success_title" = "Import Complete";
+"import.status.success_message" = "%@ was added to Scan History. Import another file or close this page.";
+"import.status.error_title" = "Import Failed";
+"import.button.select" = "Choose PLY File";
+"import.button.continue" = "Import Another PLY File";
+"import.rule.history" = "Imported files appear in Scan History";
+"import.rule.metadata" = "Readable scan metadata is preserved";
+"import.rule.duplicate" = "Duplicate names create a new copy";
+"import.error.no_file" = "No file was selected";
+"import.error.unsupported_format" = "Only PLY point-cloud files are supported";
+"import.error.invalid_ply" = "The file is not a valid PLY point cloud";
+"import.error.invalid_point_cloud" = "The PLY point-cloud data is incomplete or cannot be read";
+
 /* Fruit Names */
 "fruit.apple" = "Apple";
 "fruit.orange" = "Orange";
