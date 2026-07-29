@@ -817,6 +817,37 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertNil(CalibrationRecordInputParser.estimatedYieldKgOrZero("abc"))
     }
 
+    func testCalibrationInputParserAcceptsLocaleDecimalSeparatorWithoutWeakeningValidation() throws {
+        let locale = Locale(identifier: "de_DE")
+
+        let estimatedYield = try XCTUnwrap(
+            CalibrationRecordInputParser.estimatedYieldKgOrZero(" 2,75 ", locale: locale)
+        )
+        XCTAssertEqual(estimatedYield, 2.75, accuracy: 0.001)
+        XCTAssertTrue(
+            CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("1,25", locale: locale)
+        )
+
+        let actualYield = try XCTUnwrap(
+            CalibrationRecordInputParser.optionalNonNegativeDouble("1,25", locale: locale)
+        )
+        XCTAssertEqual(actualYield, 1.25, accuracy: 0.001)
+        XCTAssertEqual(
+            CalibrationRecordInputParser.optionalNonNegativeDouble("1.25", locale: locale),
+            1.25,
+            "Existing period-decimal input must remain compatible"
+        )
+        XCTAssertNil(
+            CalibrationRecordInputParser.optionalNonNegativeDouble("1,2,3", locale: locale)
+        )
+        XCTAssertNil(
+            CalibrationRecordInputParser.optionalNonNegativeDouble("-1,25", locale: locale)
+        )
+        XCTAssertNil(
+            CalibrationRecordInputParser.optionalNonNegativeDouble("1,25kg", locale: locale)
+        )
+    }
+
     func testCalibrationInputParserOptionalFieldsTreatBlankAsValidAndRejectNegativeValues() throws {
         XCTAssertTrue(CalibrationRecordInputParser.isOptionalNonNegativeIntValid(""))
         XCTAssertNil(CalibrationRecordInputParser.optionalNonNegativeInt(""))
