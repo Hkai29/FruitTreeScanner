@@ -486,6 +486,45 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertFalse(headerLine.contains("扫描日期"))
     }
 
+    func testCSVSummaryOmitsFruitCountAndYieldWhenFieldsAreExcluded() async throws {
+        var options = BatchExportService.ExportOptions()
+        options.includeFruitCount = false
+        options.includeYield = false
+
+        let csv = try await exportCSVContent(
+            records: [makeRecord(fruitCount: 9_876, yieldKg: 543.21)],
+            options: options
+        )
+
+        XCTAssertTrue(csv.contains("1 棵"))
+        XCTAssertFalse(csv.contains("9876"))
+        XCTAssertFalse(csv.contains("543.21"))
+    }
+
+    func testCSVSummaryHonorsFruitCountAndYieldOptionsIndependently() async throws {
+        let record = makeRecord(fruitCount: 9_876, yieldKg: 543.21)
+
+        var countOnlyOptions = BatchExportService.ExportOptions()
+        countOnlyOptions.includeFruitCount = true
+        countOnlyOptions.includeYield = false
+        let countOnlyCSV = try await exportCSVContent(
+            records: [record],
+            options: countOnlyOptions
+        )
+        XCTAssertTrue(countOnlyCSV.contains("9876"))
+        XCTAssertFalse(countOnlyCSV.contains("543.21"))
+
+        var yieldOnlyOptions = BatchExportService.ExportOptions()
+        yieldOnlyOptions.includeFruitCount = false
+        yieldOnlyOptions.includeYield = true
+        let yieldOnlyCSV = try await exportCSVContent(
+            records: [record],
+            options: yieldOnlyOptions
+        )
+        XCTAssertFalse(yieldOnlyCSV.contains("9876"))
+        XCTAssertTrue(yieldOnlyCSV.contains("543.21"))
+    }
+
     func testExcludingGPSOnlyRemovesLatLngHeaders() async throws {
         var options = BatchExportService.ExportOptions()
         options.includeGPS = false
