@@ -58,16 +58,16 @@ struct VarietyEditView: View {
                     .padding(Design.Space.md)
                 }
             }
-            .navigationTitle("编辑 \(category.displayName)")
+            .navigationTitle(L10n.VarietyDatabase.editTitle(fruitName))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消", action: dismiss.callAsFunction)
+                    Button(L10n.Common.cancel, action: dismiss.callAsFunction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存", action: saveAndDismiss)
+                    Button(L10n.Common.save, action: saveAndDismiss)
                         .fontWeight(.semibold)
                 }
             }
@@ -76,15 +76,15 @@ struct VarietyEditView: View {
                     Button(role: .destructive) {
                         showResetConfirm = true
                     } label: {
-                        Label("重置为默认值", systemImage: "arrow.counterclockwise")
+                        Label(L10n.VarietyDatabase.resetDefault, systemImage: "arrow.counterclockwise")
                     }
                 }
             }
-            .alert("重置参数", isPresented: $showResetConfirm) {
-                Button("取消", role: .cancel) {}
-                Button("重置", role: .destructive, action: resetAndDismiss)
+            .alert(L10n.VarietyDatabase.resetParameterTitle, isPresented: $showResetConfirm) {
+                Button(L10n.Common.cancel, role: .cancel) {}
+                Button(L10n.VarietyDatabase.reset, role: .destructive, action: resetAndDismiss)
             } message: {
-                Text("确定要重置为默认值吗？")
+                Text(L10n.VarietyDatabase.resetParameterMessage)
             }
         }
         .onChange(of: diamMin, perform: clampMaxDiameter)
@@ -101,10 +101,11 @@ struct VarietyEditView: View {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 32))
                     .foregroundColor(Design.Colors.harvest)
+                    .accessibilityHidden(true)
             }
 
-            Text("调整参数会影响 \(category.displayName) 的检测和估算结果")
-                .font(Design.Typography.caption)
+            Text(L10n.VarietyDatabase.editImpact(fruitName))
+                .font(.caption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -113,25 +114,23 @@ struct VarietyEditView: View {
 
     private var diameterSection: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: "果实尺寸", icon: "ruler")
+            VarietySectionHeader(title: L10n.VarietyDatabase.sizeSection, icon: "ruler")
 
             VStack(spacing: Design.Space.md) {
                 VarietySliderRow(
-                    title: "最小直径",
+                    title: L10n.VarietyDatabase.minimumDiameter,
                     value: $diamMin,
                     range: 0.005...0.05,
                     step: 0.001,
-                    unit: "mm",
-                    displayValue: "\(Int(diamMin * 1000))"
+                    displayValue: VarietyParameterFormatter.millimeters(diamMin)
                 )
 
                 VarietySliderRow(
-                    title: "最大直径",
+                    title: L10n.VarietyDatabase.maximumDiameter,
                     value: $diamMax,
                     range: 0.05...0.30,
                     step: 0.005,
-                    unit: "mm",
-                    displayValue: "\(Int(diamMax * 1000))"
+                    displayValue: VarietyParameterFormatter.millimeters(diamMax)
                 )
             }
             .padding(Design.Space.md)
@@ -141,25 +140,23 @@ struct VarietyEditView: View {
 
     private var weightSection: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: "重量与密度", icon: "scalemass")
+            VarietySectionHeader(title: L10n.VarietyDatabase.weightDensitySection, icon: "scalemass")
 
             VStack(spacing: Design.Space.md) {
                 VarietySliderRow(
-                    title: "平均单果重量",
+                    title: L10n.VarietyDatabase.averageWeight,
                     value: $averageWeightG,
                     range: 1...2000,
                     step: 1,
-                    unit: "g",
-                    displayValue: "\(Int(averageWeightG))"
+                    displayValue: VarietyParameterFormatter.grams(averageWeightG)
                 )
 
                 VarietySliderRow(
-                    title: "密度",
+                    title: L10n.VarietyDatabase.density,
                     value: $density,
                     range: 0.5...1.0,
                     step: 0.01,
-                    unit: "",
-                    displayValue: String(format: "%.2f", density)
+                    displayValue: VarietyParameterFormatter.decimal(density, fractionDigits: 2)
                 )
             }
             .padding(Design.Space.md)
@@ -169,16 +166,15 @@ struct VarietyEditView: View {
 
     private var qualitySection: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: "检测阈值", icon: "circle.hexagongrid")
+            VarietySectionHeader(title: L10n.VarietyDatabase.thresholdsSection, icon: "circle.hexagongrid")
 
             VStack(spacing: Design.Space.md) {
                 VarietySliderRow(
-                    title: "球形度阈值",
+                    title: L10n.VarietyDatabase.sphericityThreshold,
                     value: $sphericityThreshold,
                     range: 0.2...0.8,
                     step: 0.01,
-                    unit: "",
-                    displayValue: String(format: "%.2f", sphericityThreshold)
+                    displayValue: VarietyParameterFormatter.decimal(sphericityThreshold, fractionDigits: 2)
                 )
             }
             .padding(Design.Space.md)
@@ -188,16 +184,15 @@ struct VarietyEditView: View {
 
     private var algorithmSection: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: "聚类参数", icon: "circle.grid.3x3")
+            VarietySectionHeader(title: L10n.VarietyDatabase.clusteringSection, icon: "circle.grid.3x3")
 
             VStack(spacing: Design.Space.md) {
                 VarietySliderRow(
-                    title: "聚类半径 (Eps)",
+                    title: L10n.VarietyDatabase.clusterRadius,
                     value: $clusterEps,
                     range: 0.02...0.15,
                     step: 0.005,
-                    unit: "m",
-                    displayValue: String(format: "%.3f", clusterEps)
+                    displayValue: VarietyParameterFormatter.meters(clusterEps)
                 )
             }
             .padding(Design.Space.md)
@@ -208,6 +203,10 @@ struct VarietyEditView: View {
     private var sectionBackground: some View {
         RoundedRectangle(cornerRadius: Design.Radius.medium)
             .fill(Design.Colors.Dark.bgSurface)
+    }
+
+    private var fruitName: String {
+        L10n.Fruit.name(for: category)
     }
 
     private func saveAndDismiss() {

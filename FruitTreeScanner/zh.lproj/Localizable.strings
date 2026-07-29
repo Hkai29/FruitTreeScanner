@@ -230,6 +230,46 @@
 "settings.section_collapsed" = "已折叠";
 "settings.section_toggle_hint" = "轻点两下即可展开或折叠此分区。";
 
+/* Variety Parameters */
+"variety.title" = "品种参数库";
+"variety.more_actions" = "更多品种操作";
+"variety.reset_all" = "重置所有参数";
+"variety.reset_all_message" = "确定要将所有品种参数重置为默认值吗？此操作无法撤销。";
+"variety.reset" = "重置";
+"variety.search_prompt" = "搜索品种";
+"variety.active_scan" = "当前扫描：%@";
+"variety.customized_count" = "已自定义品种：%d";
+"variety.search_results" = "搜索结果：%d";
+"variety.search_empty_title" = "没有匹配的品种";
+"variety.search_empty_message" = "未找到与“%@”匹配的参数。";
+"variety.current" = "当前";
+"variety.current_accessibility" = "%@，当前扫描品种";
+"variety.use_accessibility" = "将%@设为扫描品种";
+"variety.use_hint" = "设为后续扫描使用的品种。";
+"variety.customized_accessibility" = "%@，参数已自定义";
+"variety.edit_accessibility" = "编辑%@参数";
+"variety.chip.diameter" = "直径";
+"variety.chip.average_weight" = "均重";
+"variety.chip.eps" = "Eps";
+"variety.edit_title" = "编辑%@";
+"variety.edit_impact" = "调整参数会影响%@的检测和产量估算结果。";
+"variety.section.size" = "果实尺寸";
+"variety.minimum_diameter" = "最小直径";
+"variety.maximum_diameter" = "最大直径";
+"variety.section.weight_density" = "重量与密度";
+"variety.average_weight" = "平均单果重量";
+"variety.density" = "密度";
+"variety.section.thresholds" = "检测阈值";
+"variety.sphericity_threshold" = "球形度阈值";
+"variety.section.clustering" = "聚类参数";
+"variety.cluster_radius" = "聚类半径 (Eps)";
+"variety.reset_default" = "重置为默认值";
+"variety.reset_parameter_title" = "重置参数";
+"variety.reset_parameter_message" = "确定要将此品种重置为默认参数吗？";
+"variety.slider_hint" = "上下轻扫以调整数值。";
+"variety.unit_value" = "%@ %@";
+"variety.diameter_range" = "%@–%@ %@";
+
 /* Diagnostics */
 "diag.model_not_loaded" = "模型未加载";
 "diag.depth_unavailable" = "深度不可用";
