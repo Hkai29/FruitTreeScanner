@@ -1438,6 +1438,241 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: firstManifest), firstData)
     }
 
+    func testScanResultExportRecoversStaleStagingDirectoryBeforeRetry() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceFilename = "scan.ply"
+        let plyURL = directory.appendingPathComponent(sourceFilename)
+        try Data().write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-retry",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0,
+            gpsLon: 0,
+            sourceFilename: sourceFilename,
+            result: makeYieldResult(nLidar: 17, yieldKg: 3.25),
+            includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let firstExport = try XCTUnwrap(service.exportIfNeeded(request))
+        let manifestURL = try XCTUnwrap(firstExport.manifestURL)
+        let manifestData = try Data(contentsOf: manifestURL)
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: manifestData) as? [String: Any]
+        )
+        let revision = try XCTUnwrap(manifest["exportRevision"] as? String)
+
+        for url in [
+            try XCTUnwrap(firstExport.csvURL),
+            try XCTUnwrap(firstExport.metadataURL),
+            manifestURL
+        ] {
+            try FileManager.default.removeItem(at: url)
+        }
+        let staleStagingDirectory = directory.appendingPathComponent(
+            ".scan.\(revision).staging",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: staleStagingDirectory,
+            withIntermediateDirectories: false
+        )
+        try Data("interrupted transaction".utf8).write(
+            to: staleStagingDirectory.appendingPathComponent("residue")
+        )
+        let unrelatedStagingDirectory = directory.appendingPathComponent(
+            ".another-scan.\(revision).staging",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: unrelatedStagingDirectory,
+            withIntermediateDirectories: false
+        )
+
+        _ = try XCTUnwrap(service.exportIfNeeded(request))
+
+        let restored = PLYParserHelper.readCompanionResult(for: plyURL)
+        XCTAssertEqual(restored.state, .complete)
+        XCTAssertEqual(restored.result?.fruitCount, 17)
+        XCTAssertEqual(try XCTUnwrap(restored.result?.yieldKg), 3.25, accuracy: 0.001)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleStagingDirectory.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedStagingDirectory.path))
+    }
+
+    func testScanResultExportCleansStaleStagingForCommittedSnapshot() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        var result = makeYieldResult(nLidar: 9, yieldKg: 2.5)
+        result.note = "single-line committed snapshot"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-committed",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0,
+            gpsLon: 0,
+            sourceFilename: "scan.ply",
+            result: result,
+            includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let firstExport = try XCTUnwrap(service.exportIfNeeded(request))
+        let manifestURL = try XCTUnwrap(firstExport.manifestURL)
+        let originalManifestData = try Data(contentsOf: manifestURL)
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: originalManifestData) as? [String: Any]
+        )
+        let revision = try XCTUnwrap(manifest["exportRevision"] as? String)
+        let staleStagingDirectory = directory.appendingPathComponent(
+            ".scan.\(revision).staging",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: staleStagingDirectory,
+            withIntermediateDirectories: false
+        )
+        try Data("published before cleanup".utf8).write(
+            to: staleStagingDirectory.appendingPathComponent("residue")
+        )
+
+        let retryService = ScanResultExportService(
+            scansDirectory: directory,
+            writeData: { _, _ in
+                XCTFail("A committed snapshot must not be rewritten")
+                throw CocoaError(.fileWriteUnknown)
+            }
+        )
+        let secondExport = try XCTUnwrap(retryService.exportIfNeeded(request))
+
+        XCTAssertEqual(secondExport.manifestURL, manifestURL)
+        XCTAssertEqual(try Data(contentsOf: manifestURL), originalManifestData)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleStagingDirectory.path))
+    }
+
+    func testScanResultExportCommittedSnapshotSurvivesStaleCleanupFailure() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        var result = makeYieldResult(nLidar: 11, yieldKg: 2.75)
+        result.note = "single-line committed snapshot"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-cleanup-failure",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0,
+            gpsLon: 0,
+            sourceFilename: "scan.ply",
+            result: result,
+            includeCSV: true
+        )
+        let firstExport = try XCTUnwrap(
+            ScanResultExportService(scansDirectory: directory).exportIfNeeded(request)
+        )
+        let manifestURL = try XCTUnwrap(firstExport.manifestURL)
+        let originalManifestData = try Data(contentsOf: manifestURL)
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: originalManifestData) as? [String: Any]
+        )
+        let revision = try XCTUnwrap(manifest["exportRevision"] as? String)
+        let staleStagingDirectory = directory.appendingPathComponent(
+            ".scan.\(revision).staging",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: staleStagingDirectory,
+            withIntermediateDirectories: false
+        )
+        let retryService = ScanResultExportService(
+            scansDirectory: directory,
+            writeData: { _, _ in
+                XCTFail("A committed snapshot must not be rewritten")
+                throw CocoaError(.fileWriteUnknown)
+            },
+            removeStagingDirectory: { url in
+                XCTAssertEqual(url, staleStagingDirectory)
+                throw CocoaError(.fileWriteNoPermission)
+            }
+        )
+
+        let retryExport = try XCTUnwrap(retryService.exportIfNeeded(request))
+
+        XCTAssertEqual(retryExport.manifestURL, manifestURL)
+        XCTAssertEqual(try Data(contentsOf: manifestURL), originalManifestData)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staleStagingDirectory.path))
+    }
+
+    func testScanResultExportRetryStopsBeforePublishWhenStaleCleanupFails() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-cleanup-blocked",
+            fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0,
+            gpsLon: 0,
+            sourceFilename: "scan.ply",
+            result: makeYieldResult(nLidar: 13, yieldKg: 3),
+            includeCSV: true
+        )
+        let firstExport = try XCTUnwrap(
+            ScanResultExportService(scansDirectory: directory).exportIfNeeded(request)
+        )
+        let manifestURL = try XCTUnwrap(firstExport.manifestURL)
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+        )
+        let revision = try XCTUnwrap(manifest["exportRevision"] as? String)
+        let publishedURLs = [
+            try XCTUnwrap(firstExport.csvURL),
+            try XCTUnwrap(firstExport.metadataURL),
+            manifestURL
+        ]
+        for url in publishedURLs {
+            try FileManager.default.removeItem(at: url)
+        }
+        let staleStagingDirectory = directory.appendingPathComponent(
+            ".scan.\(revision).staging",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: staleStagingDirectory,
+            withIntermediateDirectories: false
+        )
+        let retryService = ScanResultExportService(
+            scansDirectory: directory,
+            writeData: { _, _ in
+                XCTFail("Cleanup failure must stop before staging new files")
+                throw CocoaError(.fileWriteUnknown)
+            },
+            removeStagingDirectory: { url in
+                XCTAssertEqual(url, staleStagingDirectory)
+                throw CocoaError(.fileWriteNoPermission)
+            }
+        )
+
+        XCTAssertThrowsError(try retryService.exportIfNeeded(request)) { error in
+            XCTAssertEqual(
+                (error as NSError).code,
+                CocoaError.fileWriteNoPermission.rawValue
+            )
+        }
+        XCTAssertTrue(publishedURLs.allSatisfy {
+            !FileManager.default.fileExists(atPath: $0.path)
+        })
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staleStagingDirectory.path))
+    }
+
     func testBatchExportExcludesIncompleteAndInvalidRecordsFromTotals() async throws {
         let complete = makeRecord(id: "complete.ply", fruitCount: 10, yieldKg: 5, persistenceState: .complete)
         let incomplete = makeRecord(id: "incomplete.ply", fruitCount: 99, yieldKg: 99, persistenceState: .incomplete)

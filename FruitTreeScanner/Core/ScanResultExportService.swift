@@ -25,6 +25,7 @@ final class ScanResultExportService: @unchecked Sendable {
     private let scansDirectoryOverride: URL?
     private let writeData: (Data, URL) throws -> Void
     private let publishFile: (URL, URL) throws -> Void
+    private let removeStagingDirectory: (URL) throws -> Void
     private let exportQueue = DispatchQueue(label: "com.fruittreescanner.scan-result-export")
 
     init(
@@ -33,11 +34,15 @@ final class ScanResultExportService: @unchecked Sendable {
         writeData: @escaping (Data, URL) throws -> Void = { data, url in
             try data.write(to: url, options: .atomic)
         },
+        removeStagingDirectory: ((URL) throws -> Void)? = nil,
         publishFile: ((URL, URL) throws -> Void)? = nil
     ) {
         self.fileManager = fileManager
         self.scansDirectoryOverride = scansDirectory
         self.writeData = writeData
+        self.removeStagingDirectory = removeStagingDirectory ?? { url in
+            try fileManager.removeItem(at: url)
+        }
         self.publishFile = publishFile ?? { source, destination in
             if fileManager.fileExists(atPath: destination.path) {
                 try fileManager.removeItem(at: destination)
@@ -69,6 +74,10 @@ final class ScanResultExportService: @unchecked Sendable {
         let manifestURL = scansDir.appendingPathComponent("\(baseName)_complete.json")
         let unsignedMetadata = try makeMetadataData(for: request, baseName: baseName, revision: "")
         let revision = transactionRevision(for: unsignedMetadata, includeCSV: request.includeCSV)
+        let stagingDirectory = scansDir.appendingPathComponent(
+            ".\(baseName).\(revision).staging",
+            isDirectory: true
+        )
 
         if isCommittedTransaction(
             metadataURL: metadataURL,
@@ -77,6 +86,16 @@ final class ScanResultExportService: @unchecked Sendable {
             revision: revision,
             includeCSV: request.includeCSV
         ) {
+            // A committed snapshot remains usable even if crash residue cannot be removed.
+            if fileManager.fileExists(atPath: stagingDirectory.path) {
+                do {
+                    try removeStagingDirectory(stagingDirectory)
+                } catch {
+                    Log.export.error(
+                        "Failed to remove stale staging directory for committed scan \(baseName): \(error.localizedDescription)"
+                    )
+                }
+            }
             return ExportedFiles(
                 csvURL: request.includeCSV ? csvURL : nil,
                 metadataURL: metadataURL,
@@ -84,12 +103,12 @@ final class ScanResultExportService: @unchecked Sendable {
             )
         }
 
-        let stagingDirectory = scansDir.appendingPathComponent(
-            ".\(baseName).\(revision).staging",
-            isDirectory: true
-        )
+        // Process termination can bypass the transaction's deferred cleanup.
+        if fileManager.fileExists(atPath: stagingDirectory.path) {
+            try removeStagingDirectory(stagingDirectory)
+        }
         try fileManager.createDirectory(at: stagingDirectory, withIntermediateDirectories: false)
-        defer { try? fileManager.removeItem(at: stagingDirectory) }
+        defer { try? removeStagingDirectory(stagingDirectory) }
 
         let stagedMetadata = stagingDirectory.appendingPathComponent(metadataURL.lastPathComponent)
         let stagedCSV = stagingDirectory.appendingPathComponent(csvURL.lastPathComponent)
