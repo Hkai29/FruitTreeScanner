@@ -7,6 +7,7 @@ import SceneKit
 extension PLYParserHelper {
     private static let maximumRenderedPointCount = 500_000
     private static let asciiReadChunkSize = 64 * 1_024
+    private static let maximumASCIIPropertyTokenByteCount = 64
     private static let asciiLineFeed = UInt8(ascii: "\n")
     private static let asciiCarriageReturn = UInt8(ascii: "\r")
 
@@ -17,7 +18,8 @@ extension PLYParserHelper {
         sourceURL: URL
     ) -> PointCloudData? {
         guard bodyStart >= 0,
-              bodyStart <= data.count
+              bodyStart <= data.count,
+              let maximumLineByteCount = maximumASCIIVertexLineByteCount(for: schema)
         else { return nil }
 
         let targetCount = min(schema.vertexCount, maximumRenderedPointCount)
@@ -33,6 +35,7 @@ extension PLYParserHelper {
                 data[lineStart..<newlineIndex],
                 schema: schema,
                 targetCount: targetCount,
+                maximumLineByteCount: maximumLineByteCount,
                 accumulator: &accumulator
             ) else { return nil }
 
@@ -50,7 +53,8 @@ extension PLYParserHelper {
         sourceURL: URL
     ) -> PointCloudData? {
         guard bodyStart >= 0,
-              let handle = try? FileHandle(forReadingFrom: url)
+              let handle = try? FileHandle(forReadingFrom: url),
+              let maximumLineByteCount = maximumASCIIVertexLineByteCount(for: schema)
         else { return nil }
         defer { try? handle.close() }
 
@@ -66,7 +70,7 @@ extension PLYParserHelper {
             sourceURL: sourceURL
         )
         var pendingLine = Data()
-        pendingLine.reserveCapacity(256)
+        pendingLine.reserveCapacity(min(256, maximumLineByteCount))
 
         while accumulator.parsedVertexCount < schema.vertexCount {
             let chunk: Data
@@ -85,14 +89,20 @@ extension PLYParserHelper {
                         chunk[lineStart..<newlineIndex],
                         schema: schema,
                         targetCount: targetCount,
+                        maximumLineByteCount: maximumLineByteCount,
                         accumulator: &accumulator
                     ) else { return nil }
                 } else {
-                    pendingLine.append(chunk[lineStart..<newlineIndex])
+                    guard appendASCIILineSegment(
+                        chunk[lineStart..<newlineIndex],
+                        to: &pendingLine,
+                        maximumByteCount: maximumLineByteCount
+                    ) else { return nil }
                     guard parseASCIIVertexLine(
                         pendingLine,
                         schema: schema,
                         targetCount: targetCount,
+                        maximumLineByteCount: maximumLineByteCount,
                         accumulator: &accumulator
                     ) else { return nil }
                     pendingLine.removeAll(keepingCapacity: true)
@@ -101,7 +111,11 @@ extension PLYParserHelper {
             }
 
             if accumulator.parsedVertexCount < schema.vertexCount, lineStart < chunk.endIndex {
-                pendingLine.append(chunk[lineStart..<chunk.endIndex])
+                guard appendASCIILineSegment(
+                    chunk[lineStart..<chunk.endIndex],
+                    to: &pendingLine,
+                    maximumByteCount: maximumLineByteCount
+                ) else { return nil }
             }
         }
 
@@ -110,6 +124,7 @@ extension PLYParserHelper {
                 pendingLine,
                 schema: schema,
                 targetCount: targetCount,
+                maximumLineByteCount: maximumLineByteCount,
                 accumulator: &accumulator
             ) else { return nil }
         }
@@ -200,8 +215,10 @@ extension PLYParserHelper {
         _ lineData: Data,
         schema: PLYPointCloudSchema,
         targetCount: Int,
+        maximumLineByteCount: Int,
         accumulator: inout ASCIIPointCloudAccumulator
     ) -> Bool {
+        guard lineData.count <= maximumLineByteCount else { return false }
         let trimmedLineData: Data
         if lineData.last == asciiCarriageReturn {
             trimmedLineData = lineData.dropLast()
@@ -213,6 +230,9 @@ extension PLYParserHelper {
         let values = line.split(whereSeparator: { $0.isWhitespace })
         if values.isEmpty { return true }
         guard values.count == schema.properties.count,
+              values.allSatisfy({
+                  $0.utf8.count <= maximumASCIIPropertyTokenByteCount
+              }),
               let scalars = PLYPointCloudVertexDecoder.asciiScalars(values: values, schema: schema),
               let position = PLYPointCloudVertexDecoder.asciiPosition(scalars: scalars, schema: schema),
               let color = PLYPointCloudVertexDecoder.asciiColor(scalars: scalars, schema: schema)
@@ -225,6 +245,30 @@ extension PLYParserHelper {
         if accumulator.parsedVertexCount.isMultiple(of: 4_096), Task.isCancelled {
             return false
         }
+        return true
+    }
+
+    private static func maximumASCIIVertexLineByteCount(
+        for schema: PLYPointCloudSchema
+    ) -> Int? {
+        let bytesPerProperty = maximumASCIIPropertyTokenByteCount + 1
+        guard schema.properties.count <= Int.max / bytesPerProperty else {
+            return nil
+        }
+        return schema.properties.count * bytesPerProperty
+    }
+
+    private static func appendASCIILineSegment(
+        _ segment: Data,
+        to pendingLine: inout Data,
+        maximumByteCount: Int
+    ) -> Bool {
+        guard pendingLine.count <= maximumByteCount,
+              segment.count <= maximumByteCount - pendingLine.count
+        else {
+            return false
+        }
+        pendingLine.append(segment)
         return true
     }
 }

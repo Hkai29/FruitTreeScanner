@@ -1950,6 +1950,81 @@ final class PointCloudProcessingTests: XCTestCase {
         assertColor(pointCloud.colors[1], r: 51.0 / 255.0, g: 178.5 / 255.0, b: 1)
     }
 
+    func testStreamingASCIIPLYRejectsVertexRecordLargerThanSchemaBudget() throws {
+        let redundantScalar = String(repeating: "0", count: 16_000) + "1"
+        let plyURL = try writeTemporaryPLY(
+            name: "oversized_vertex_record_ascii.ply",
+            content: """
+        ply
+        format ascii 1.0
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        property float nx
+        property float ny
+        property float nz
+        end_header
+        \(redundantScalar) \(redundantScalar) \(redundantScalar) \(redundantScalar) \(redundantScalar) \(redundantScalar)
+        """
+        )
+
+        XCTAssertNil(
+            PLYParserHelper.parsePointCloudData(at: plyURL),
+            "One external vertex record must not grow the streaming line buffer with file size"
+        )
+
+        let scansDir = plyURL.deletingLastPathComponent()
+            .appendingPathComponent("scans", isDirectory: true)
+        XCTAssertThrowsError(
+            try PLYImportService.importFile(plyURL, scansDirectory: scansDir)
+        ) { error in
+            guard let importError = error as? PLYImportService.ImportError,
+                  case .invalidPointCloud = importError
+            else {
+                return XCTFail("Expected invalidPointCloud, received \(error)")
+            }
+        }
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Oversized ASCII import left artifacts: \(contents)")
+    }
+
+    func testASCIIPLYAcceptsBoundedScalarTokens() throws {
+        let boundedScalar = String(repeating: "0", count: 63) + "1"
+        let pointCloud = try XCTUnwrap(parsePLY("""
+        ply
+        format ascii 1.0
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        end_header
+        \(boundedScalar) \(boundedScalar) \(boundedScalar)
+        """, name: "bounded_scalar_tokens_ascii.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 1)
+        assertVertex(pointCloud.vertices[0], x: 1, y: 1, z: 1)
+    }
+
+    func testASCIIPLYRejectsOversizedScalarTokenWithinLineBudget() throws {
+        let oversizedScalar = String(repeating: "0", count: 64) + "1"
+        let pointCloud = try parsePLY("""
+        ply
+        format ascii 1.0
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        end_header
+        \(oversizedScalar) 2 3
+        """, name: "oversized_scalar_token_ascii.ply")
+
+        XCTAssertNil(pointCloud)
+    }
+
     func testASCIIPLYAcceptsZeroCountElementBeforeVertex() throws {
         let pointCloud = try XCTUnwrap(parsePLY("""
         ply
