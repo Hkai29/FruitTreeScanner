@@ -1438,6 +1438,55 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: firstManifest), firstData)
     }
 
+    func testScanResultExportDoesNotRewriteCommittedCSVWithQuotedNewline() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var result = makeYieldResult()
+        result.note = "first, \"quoted\"\r\nsecond"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: result, includeCSV: true
+        )
+        let first = try XCTUnwrap(ScanResultExportService(scansDirectory: directory).exportIfNeeded(request))
+        let csv = try String(contentsOf: XCTUnwrap(first.csvURL), encoding: .utf8)
+        XCTAssertTrue(csv.contains("\"first, \"\"quoted\"\"\r\nsecond\""))
+        var rewriteAttempts = 0
+        let retryService = ScanResultExportService(scansDirectory: directory, writeData: { _, _ in
+            rewriteAttempts += 1
+            throw CocoaError(.fileWriteUnknown)
+        })
+
+        XCTAssertNoThrow(try retryService.exportIfNeeded(request))
+        XCTAssertEqual(rewriteAttempts, 0)
+    }
+
+    func testScanResultExportDoesNotAcceptUnclosedQuotedCSVAsCommitted() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var result = makeYieldResult()
+        result.note = "line one\nline two"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: result, includeCSV: true
+        )
+        let first = try XCTUnwrap(ScanResultExportService(scansDirectory: directory).exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(first.csvURL)
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        let corrupted = csv.replacingOccurrences(of: "\"line one\nline two\"", with: "\"line one\nline two")
+        XCTAssertNotEqual(corrupted, csv)
+        try corrupted.write(to: csvURL, atomically: true, encoding: .utf8)
+        var rewriteAttempts = 0
+        let retryService = ScanResultExportService(scansDirectory: directory, writeData: { _, _ in
+            rewriteAttempts += 1
+            throw CocoaError(.fileWriteUnknown)
+        })
+
+        XCTAssertThrowsError(try retryService.exportIfNeeded(request))
+        XCTAssertEqual(rewriteAttempts, 1)
+    }
+
     func testBatchExportExcludesIncompleteAndInvalidRecordsFromTotals() async throws {
         let complete = makeRecord(id: "complete.ply", fruitCount: 10, yieldKg: 5, persistenceState: .complete)
         let incomplete = makeRecord(id: "incomplete.ply", fruitCount: 99, yieldKg: 99, persistenceState: .incomplete)

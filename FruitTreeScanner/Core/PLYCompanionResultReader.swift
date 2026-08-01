@@ -203,7 +203,7 @@ extension PLYParserHelper {
         return fields
     }
 
-    private static func csvRecords(_ content: String) -> [String] {
+    static func csvRecords(_ content: String) -> [String] {
         let normalized = content.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
         var records: [String] = []
         var current = ""

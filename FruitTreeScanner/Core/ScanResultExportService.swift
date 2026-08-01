@@ -319,10 +319,17 @@ final class ScanResultExportService: @unchecked Sendable {
         guard includeCSV,
               let csv = try? String(contentsOf: csvURL, encoding: .utf8)
         else { return !includeCSV }
-        let rows = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        guard let header = rows.first,
-              let row = rows.dropFirst().first else { return false }
-        return header.hasSuffix("ExportRevision") && row.hasSuffix(",\(revision)")
+        let records = PLYParserHelper.csvRecords(csv)
+        guard let headerRecord = records.first,
+              let dataRecord = records.dropFirst().first
+        else { return false }
+        let header = PLYParserHelper.parseCSVLine(headerRecord)
+        let row = PLYParserHelper.parseCSVLine(dataRecord)
+        guard header.last == "ExportRevision",
+              row.count == header.count,
+              let rowRevision = row.last
+        else { return false }
+        return rowRevision == revision
     }
 
     private func publishTransaction(
