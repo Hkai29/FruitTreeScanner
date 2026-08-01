@@ -4,8 +4,8 @@ struct BatchExportHeaderBar: View {
     let selectedCount: Int
     let totalCount: Int
     let unavailableCount: Int
-    let totalYield: Float
-    let totalFruitCount: Int
+    let totalYield: Float?
+    let totalFruitCount: Int?
 
     var body: some View {
         VStack(spacing: Design.Space.sm) {
@@ -24,9 +24,15 @@ struct BatchExportHeaderBar: View {
                         .foregroundColor(Design.Colors.Dark.textPrimary)
 
                     if selectedCount > 0 {
-                        Text("\(String(format: "%.1f", totalYield)) kg · \(totalFruitCount) 个果实")
-                            .font(Design.Typography.caption)
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
+                        if let totalYield, let totalFruitCount {
+                            Text("\(String(format: "%.1f", totalYield)) kg · \(totalFruitCount) 个果实")
+                                .font(Design.Typography.caption)
+                                .foregroundColor(Design.Colors.Dark.textSecondary)
+                        } else {
+                            Text("汇总数值超出支持范围")
+                                .font(Design.Typography.caption)
+                                .foregroundColor(Design.Colors.warning)
+                        }
                     }
                 }
 

@@ -3,6 +3,11 @@
 
 import Foundation
 
+struct BatchExportTotals: Equatable, Sendable {
+    let totalYield: Float
+    let totalFruitCount: Int
+}
+
 enum BatchExportFormatting {
     static func headers(options: BatchExportService.ExportOptions) -> [String] {
         var headers: [String] = []
@@ -70,12 +75,21 @@ enum BatchExportFormatting {
             .replacingOccurrences(of: "'", with: "&apos;")
     }
 
-    static func totalYield(_ records: [ScanFileRecord]) -> Float {
-        records.reduce(0) { $0 + $1.yieldKg }
-    }
-
-    static func totalFruitCount(_ records: [ScanFileRecord]) -> Int {
-        records.reduce(0) { $0 + $1.fruitCount }
+    static func totals(for records: [ScanFileRecord]) -> BatchExportTotals? {
+        var totalYield: Float = 0
+        var totalFruitCount = 0
+        for record in records {
+            let nextYield = totalYield + record.yieldKg
+            guard nextYield.isFinite else { return nil }
+            let nextCount = totalFruitCount.addingReportingOverflow(record.fruitCount)
+            guard !nextCount.overflow else { return nil }
+            totalYield = nextYield
+            totalFruitCount = nextCount.partialValue
+        }
+        return BatchExportTotals(
+            totalYield: totalYield,
+            totalFruitCount: totalFruitCount
+        )
     }
 
     private static var dayGroupDateFormatter: DateFormatter {

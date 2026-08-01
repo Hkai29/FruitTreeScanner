@@ -8,11 +8,16 @@ enum BatchExportJSONWriter {
 
     static func write(
         records: [ScanFileRecord],
+        totals: BatchExportTotals,
         options: BatchExportService.ExportOptions,
         to url: URL
     ) throws {
         let payload: [String: Any] = [
-            "exportMetadata": exportMetadata(records: records, options: options),
+            "exportMetadata": exportMetadata(
+                recordCount: records.count,
+                totals: totals,
+                options: options
+            ),
             "compatibilityNote": "Batch research JSON appends structured research fields without changing CSV, Excel, or single-scan JSON compatibility. Per-scan detailed fields are populated when the matching single-scan _result.json sidecar is available.",
             "records": try BatchExportFormatting.orderedRecords(records, options: options).map { record in
                 try Task.checkCancellation()
@@ -28,15 +33,16 @@ enum BatchExportJSONWriter {
     }
 
     private static func exportMetadata(
-        records: [ScanFileRecord],
+        recordCount: Int,
+        totals: BatchExportTotals,
         options: BatchExportService.ExportOptions
     ) -> [String: Any] {
         [
             "exportVersion": exportVersion,
             "exportedAt": ISO8601DateFormatter().string(from: Date()),
-            "recordCount": records.count,
-            "totalEstimatedCount": BatchExportFormatting.totalFruitCount(records),
-            "totalEstimatedYieldKg": finite(BatchExportFormatting.totalYield(records)),
+            "recordCount": recordCount,
+            "totalEstimatedCount": totals.totalFruitCount,
+            "totalEstimatedYieldKg": totals.totalYield,
             "format": "batch_research_json",
             "groupBy": options.groupBy.rawValue,
             "csvExcelColumnOptions": [

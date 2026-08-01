@@ -92,6 +92,9 @@ final class BatchExportService {
             guard !completeRecords.isEmpty else {
                 throw BatchExportError.noRecords
             }
+            guard let totals = BatchExportFormatting.totals(for: completeRecords) else {
+                throw BatchExportError.aggregateOutOfRange
+            }
 
             let timestamp = Self.filenameDateFormatter.string(from: Date())
             let filename = "果园批次数据_\(timestamp)_\(UUID().uuidString.prefix(8)).\(format.fileExtension)"
@@ -103,16 +106,23 @@ final class BatchExportService {
                 }
             }
 
-            let totalYield = completeRecords.reduce(0) { $0 + $1.yieldKg }
-            let totalFruitCount = completeRecords.reduce(0) { $0 + $1.fruitCount }
-
             switch format {
             case .csv:
-                try BatchExportCSVWriter.write(records: completeRecords, options: options, to: tempURL)
+                try BatchExportCSVWriter.write(
+                    records: completeRecords,
+                    totals: totals,
+                    options: options,
+                    to: tempURL
+                )
             case .excel:
                 try BatchExportExcelWriter.write(records: completeRecords, options: options, to: tempURL)
             case .json:
-                try BatchExportJSONWriter.write(records: completeRecords, options: options, to: tempURL)
+                try BatchExportJSONWriter.write(
+                    records: completeRecords,
+                    totals: totals,
+                    options: options,
+                    to: tempURL
+                )
             }
 
             try Task.checkCancellation()
@@ -120,8 +130,8 @@ final class BatchExportService {
             return ExportResult(
                 url: tempURL,
                 recordCount: completeRecords.count,
-                totalYield: totalYield,
-                totalFruitCount: totalFruitCount,
+                totalYield: totals.totalYield,
+                totalFruitCount: totals.totalFruitCount,
                 excludedIncompleteCount: records.count - completeRecords.count
             )
         }
@@ -138,12 +148,14 @@ final class BatchExportService {
     }
 }
 
-enum BatchExportError: LocalizedError {
+enum BatchExportError: LocalizedError, Equatable {
     case noRecords
+    case aggregateOutOfRange
     
     var errorDescription: String? {
         switch self {
         case .noRecords: return "没有可导出的记录"
+        case .aggregateOutOfRange: return "所选记录的汇总数值超出支持范围"
         }
     }
 }
