@@ -2085,7 +2085,7 @@ final class FruitModelsTests: XCTestCase {
         let item = try XCTUnwrap(items.first)
 
         XCTAssertEqual(items.map(\.id), ["complete.ply"])
-        XCTAssertEqual(item.nLidar, 24)
+        XCTAssertEqual(item.fruitCount, 24)
         XCTAssertEqual(item.yieldKg, 8.6, accuracy: 0.001)
         XCTAssertEqual(item.confidence, "high")
         XCTAssertNil(item.meanDiameterCm)
@@ -2105,6 +2105,102 @@ final class FruitModelsTests: XCTestCase {
 
         XCTAssertEqual(item.diameterFormatted, "--")
         XCTAssertEqual(item.confidenceFormatted, "--")
+    }
+
+    func testHistoricalCompareSelectionRefreshesAndDropsUnavailableItems() throws {
+        let first = try XCTUnwrap(HistoricalCompareDataSource.items(from: [
+            historicalCompareRecord(
+                id: "first.ply",
+                treeID: "first",
+                fruitCount: 10,
+                yieldKg: 2,
+                confidence: "medium",
+                persistenceState: .complete
+            )
+        ]).first)
+        let second = try XCTUnwrap(HistoricalCompareDataSource.items(from: [
+            historicalCompareRecord(
+                id: "second.ply",
+                treeID: "second",
+                fruitCount: 20,
+                yieldKg: 4,
+                confidence: "high",
+                persistenceState: .complete
+            )
+        ]).first)
+        let refreshedFirst = try XCTUnwrap(HistoricalCompareDataSource.items(from: [
+            historicalCompareRecord(
+                id: "first.ply",
+                treeID: "first",
+                fruitCount: 15,
+                yieldKg: 3,
+                confidence: "high",
+                persistenceState: .complete
+            )
+        ]).first)
+
+        let selection = HistoricalCompareSelectionPolicy.reconciled(
+            first: first,
+            second: second,
+            availableItems: [refreshedFirst]
+        )
+
+        XCTAssertEqual(selection.first, refreshedFirst)
+        XCTAssertEqual(selection.first?.fruitCount, 15)
+        XCTAssertNil(selection.second)
+    }
+
+    func testHistoricalCompareSelectionPreventsComparingItemWithItself() throws {
+        let item = try XCTUnwrap(HistoricalCompareDataSource.items(from: [
+            historicalCompareRecord(
+                id: "same.ply",
+                treeID: "same",
+                fruitCount: 10,
+                yieldKg: 2,
+                confidence: "high",
+                persistenceState: .complete
+            )
+        ]).first)
+
+        let selection = HistoricalCompareSelectionPolicy.reconciled(
+            first: item,
+            second: item,
+            availableItems: [item]
+        )
+        let selectable = HistoricalCompareSelectionPolicy.selectableItems(
+            from: [item],
+            excluding: item
+        )
+
+        XCTAssertEqual(selection.first, item)
+        XCTAssertNil(selection.second)
+        XCTAssertTrue(selectable.isEmpty)
+    }
+
+    func testHistoricalCompareYieldChangeIsUnavailableForZeroBaseline() throws {
+        let items = HistoricalCompareDataSource.items(from: [
+            historicalCompareRecord(
+                id: "zero.ply",
+                treeID: "zero",
+                fruitCount: 0,
+                yieldKg: 0,
+                confidence: "high",
+                persistenceState: .complete
+            ),
+            historicalCompareRecord(
+                id: "positive.ply",
+                treeID: "positive",
+                fruitCount: 10,
+                yieldKg: 3,
+                confidence: "high",
+                persistenceState: .complete
+            )
+        ])
+        let zero = try XCTUnwrap(items.first { $0.id == "zero.ply" })
+        let positive = try XCTUnwrap(items.first { $0.id == "positive.ply" })
+
+        XCTAssertNil(zero.yieldChangePercent(to: positive))
+        XCTAssertEqual(positive.yieldChangePercent(to: zero) ?? .nan, -100, accuracy: 0.001)
     }
 
     private func historicalCompareRecord(
