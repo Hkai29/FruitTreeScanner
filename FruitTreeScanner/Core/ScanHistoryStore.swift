@@ -47,9 +47,36 @@ enum ScanHistoryLoadFailure: Equatable, Sendable {
 enum ScanHistoryLoadResult: Equatable, Sendable {
     case success([ScanFileRecord])
     case failure(ScanHistoryLoadFailure)
+    case cancelled
 }
 
 typealias ScanHistoryRecordsLoader = @Sendable () async -> ScanHistoryLoadResult
+
+struct ScanHistoryDirectoryIterator {
+    let nextURL: () -> URL?
+    let failureDescription: () -> String?
+
+    func next() -> URL? {
+        nextURL()
+    }
+}
+
+private final class ScanHistoryEnumerationFailureBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedDescription: String?
+
+    var description: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedDescription
+    }
+
+    func record(_ error: Error) {
+        lock.lock()
+        storedDescription = error.localizedDescription
+        lock.unlock()
+    }
+}
 
 @MainActor
 final class ScanHistoryStore: ObservableObject {
@@ -68,9 +95,9 @@ final class ScanHistoryStore: ObservableObject {
     private convenience init() {
         self.init(
             recordsLoader: {
-                await Task.detached(priority: .utility) {
+                await Self.performDiskRead {
                     Self.readRecordsFromDisk()
-                }.value
+                }
             },
             automaticallyLoads: true
         )
@@ -95,7 +122,10 @@ final class ScanHistoryStore: ObservableObject {
         let recordsLoader = recordsLoader
         let task = Task { [weak self, generation, postNotification] in
             let result = await recordsLoader()
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                self?.finishCancelledLoad(generation: generation)
+                return
+            }
             self?.applyLoadedRecords(
                 result,
                 generation: generation,
@@ -108,7 +138,17 @@ final class ScanHistoryStore: ObservableObject {
 
     func reloadRecords(postNotification: Bool = false) async {
         let task = loadRecords(postNotification: postNotification)
-        await task.value
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    private func finishCancelledLoad(generation: Int) {
+        guard loadGeneration == generation else { return }
+        loadTask = nil
+        isLoading = false
     }
 
     private func applyLoadedRecords(
@@ -135,6 +175,19 @@ final class ScanHistoryStore: ObservableObject {
             }
         case .failure(let failure):
             loadFailure = failure
+        case .cancelled:
+            break
+        }
+    }
+
+    nonisolated static func performDiskRead(
+        _ operation: @escaping @Sendable () -> ScanHistoryLoadResult
+    ) async -> ScanHistoryLoadResult {
+        let worker = Task.detached(priority: .utility, operation: operation)
+        return await withTaskCancellationHandler {
+            await worker.value
+        } onCancel: {
+            worker.cancel()
         }
     }
 
@@ -145,11 +198,22 @@ final class ScanHistoryStore: ObservableObject {
         return readRecords(
             at: scansDir,
             directoryExists: { FileManager.default.fileExists(atPath: $0) },
-            contentsOfDirectory: { directory in
-                try FileManager.default.contentsOfDirectory(
+            directoryIterator: { directory in
+                let failureBox = ScanHistoryEnumerationFailureBox()
+                guard let enumerator = FileManager.default.enumerator(
                     at: directory,
-                    includingPropertiesForKeys: [.creationDateKey],
-                    options: .skipsHiddenFiles
+                    includingPropertiesForKeys: [.fileSizeKey],
+                    options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants],
+                    errorHandler: { _, error in
+                        failureBox.record(error)
+                        return false
+                    }
+                ) else {
+                    return nil
+                }
+                return ScanHistoryDirectoryIterator(
+                    nextURL: { enumerator.nextObject() as? URL },
+                    failureDescription: { failureBox.description }
                 )
             },
             recordBuilder: makeRecord
@@ -162,15 +226,55 @@ final class ScanHistoryStore: ObservableObject {
         contentsOfDirectory: (URL) throws -> [URL],
         recordBuilder: (URL) -> ScanFileRecord?
     ) -> ScanHistoryLoadResult {
+        readRecords(
+            at: scansDirectory,
+            directoryExists: directoryExists,
+            directoryIterator: { directory in
+                let files = try contentsOfDirectory(directory)
+                var index = files.startIndex
+                return ScanHistoryDirectoryIterator(
+                    nextURL: {
+                        guard index < files.endIndex else { return nil }
+                        defer { files.formIndex(after: &index) }
+                        return files[index]
+                    },
+                    failureDescription: { nil }
+                )
+            },
+            recordBuilder: recordBuilder
+        )
+    }
+
+    nonisolated static func readRecords(
+        at scansDirectory: URL,
+        directoryExists: (String) -> Bool,
+        directoryIterator: (URL) throws -> ScanHistoryDirectoryIterator?,
+        recordBuilder: (URL) -> ScanFileRecord?
+    ) -> ScanHistoryLoadResult {
         guard directoryExists(scansDirectory.path) else {
             return .success([])
         }
         do {
-            let files = try contentsOfDirectory(scansDirectory)
-            let records = files
-                .filter { $0.pathExtension == "ply" }
-                .compactMap(recordBuilder)
-                .sorted { $0.scanDate > $1.scanDate }
+            guard let files = try directoryIterator(scansDirectory) else {
+                Log.general.error("Failed to create scan history directory enumerator")
+                return .failure(.directoryUnavailable)
+            }
+            var records: [ScanFileRecord] = []
+            while true {
+                guard !Task.isCancelled else { return .cancelled }
+                guard let file = files.next() else { break }
+                guard file.pathExtension == "ply" else { continue }
+                if let record = autoreleasepool(invoking: { recordBuilder(file) }) {
+                    records.append(record)
+                }
+            }
+            guard !Task.isCancelled else { return .cancelled }
+            if let failureDescription = files.failureDescription() {
+                Log.general.error("Failed to read scan history directory: \(failureDescription)")
+                return .failure(.directoryUnavailable)
+            }
+            records.sort { $0.scanDate > $1.scanDate }
+            guard !Task.isCancelled else { return .cancelled }
             return .success(records)
         } catch {
             Log.general.error("Failed to read scan history directory: \(error.localizedDescription)")
@@ -180,8 +284,7 @@ final class ScanHistoryStore: ObservableObject {
 
     nonisolated private static func makeRecord(from url: URL) -> ScanFileRecord? {
         guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
-        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-        let fileSizeBytes = attributes?[.size] as? Int ?? 0
+        let fileSizeBytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         return ScanFileRecord(
             id: url.lastPathComponent,
             treeID: result.treeID,

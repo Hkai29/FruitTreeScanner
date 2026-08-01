@@ -1403,6 +1403,163 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(store.isLoading)
     }
 
+    @MainActor
+    func testScanHistoryCancelledCurrentLoadClearsLoadingState() async {
+        let store = ScanHistoryStore(recordsLoader: {
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+            return .success([])
+        })
+
+        let loadTask = store.loadRecords()
+        await Task.yield()
+        loadTask.cancel()
+        await loadTask.value
+
+        XCTAssertFalse(
+            store.isLoading,
+            "Cancelling the active history load must not leave the loading UI stuck"
+        )
+    }
+
+    func testScanHistoryCancelledDiskReadStopsBeforeBuildingRemainingRecords() async {
+        let workerStarted = expectation(description: "Scan-history disk reader started")
+        let allowWorkerToContinue = DispatchSemaphore(value: 0)
+
+        let readTask = Task.detached {
+            var builtRecordCount = 0
+            var enumeratedURLCount = 0
+            _ = ScanHistoryStore.readRecords(
+                at: URL(fileURLWithPath: "/tmp/scans", isDirectory: true),
+                directoryExists: { _ in true },
+                directoryIterator: { _ in
+                    ScanHistoryDirectoryIterator(
+                        nextURL: {
+                            guard enumeratedURLCount < 64 else { return nil }
+                            defer { enumeratedURLCount += 1 }
+                            return URL(
+                                fileURLWithPath: "/tmp/scan-\(enumeratedURLCount).ply"
+                            )
+                        },
+                        failureDescription: { nil }
+                    )
+                },
+                recordBuilder: { url in
+                    builtRecordCount += 1
+                    if builtRecordCount == 1 {
+                        workerStarted.fulfill()
+                        allowWorkerToContinue.wait()
+                    }
+                    return ScanFileRecord(
+                        id: url.lastPathComponent,
+                        treeID: url.deletingPathExtension().lastPathComponent,
+                        fileURL: url,
+                        scanDate: Date(timeIntervalSince1970: TimeInterval(builtRecordCount))
+                    )
+                }
+            )
+            return (builtRecordCount, enumeratedURLCount)
+        }
+
+        await fulfillment(of: [workerStarted], timeout: 1)
+        readTask.cancel()
+        allowWorkerToContinue.signal()
+
+        let (builtRecordCount, enumeratedURLCount) = await readTask.value
+        XCTAssertEqual(
+            builtRecordCount,
+            1,
+            "A cancelled disk read must not parse every remaining PLY in a large directory"
+        )
+        XCTAssertEqual(
+            enumeratedURLCount,
+            1,
+            "A cancelled disk read must not enumerate the entire directory into memory"
+        )
+    }
+
+    func testScanHistoryDiskReadConsumesLargeDirectoryIncrementallyAndSortsRecords() {
+        let totalRecordCount = 10_000
+        var enumeratedURLCount = 0
+        var builtRecordCount = 0
+        var maximumEnumerationLead = 0
+
+        let result = ScanHistoryStore.readRecords(
+            at: URL(fileURLWithPath: "/tmp/scans", isDirectory: true),
+            directoryExists: { _ in true },
+            directoryIterator: { _ in
+                ScanHistoryDirectoryIterator(
+                    nextURL: {
+                        guard enumeratedURLCount < totalRecordCount else { return nil }
+                        maximumEnumerationLead = max(
+                            maximumEnumerationLead,
+                            enumeratedURLCount + 1 - builtRecordCount
+                        )
+                        defer { enumeratedURLCount += 1 }
+                        return URL(
+                            fileURLWithPath: "/tmp/scan-\(enumeratedURLCount).ply"
+                        )
+                    },
+                    failureDescription: { nil }
+                )
+            },
+            recordBuilder: { url in
+                builtRecordCount += 1
+                let index = Int(
+                    url.deletingPathExtension().lastPathComponent
+                        .replacingOccurrences(of: "scan-", with: "")
+                ) ?? 0
+                return ScanFileRecord(
+                    id: url.lastPathComponent,
+                    treeID: "TREE-\(index)",
+                    fileURL: url,
+                    scanDate: Date(timeIntervalSince1970: TimeInterval(index))
+                )
+            }
+        )
+
+        guard case .success(let records) = result else {
+            return XCTFail("Expected the synthetic large-directory read to succeed")
+        }
+        XCTAssertEqual(records.count, totalRecordCount)
+        XCTAssertEqual(records.first?.id, "scan-9999.ply")
+        XCTAssertEqual(records.last?.id, "scan-0.ply")
+        XCTAssertEqual(
+            maximumEnumerationLead,
+            1,
+            "The reader should build each record before requesting the next directory entry"
+        )
+    }
+
+    func testScanHistoryDiskReadCancellationPropagatesIntoDetachedWorker() async {
+        let workerStarted = expectation(description: "Detached history reader started")
+        let allowWorkerToFinish = DispatchSemaphore(value: 0)
+        let workerObservedCancellation = expectation(
+            description: "Detached history reader observed cancellation"
+        )
+
+        let loadTask = Task {
+            await ScanHistoryStore.performDiskRead {
+                workerStarted.fulfill()
+                allowWorkerToFinish.wait()
+                if Task.isCancelled {
+                    workerObservedCancellation.fulfill()
+                    return .cancelled
+                }
+                return .success([])
+            }
+        }
+
+        await fulfillment(of: [workerStarted], timeout: 1)
+        loadTask.cancel()
+        allowWorkerToFinish.signal()
+
+        let result = await loadTask.value
+        await fulfillment(of: [workerObservedCancellation], timeout: 1)
+        XCTAssertEqual(result, .cancelled)
+    }
+
     func testScanHistoryLoadPresentationNeverShowsFailureAsEmptyHistory() {
         let cachedDamagedRecord = makeScanHistoryRecord(
             id: "cached.ply",
