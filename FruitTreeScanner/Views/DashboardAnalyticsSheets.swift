@@ -5,19 +5,52 @@ import SwiftUI
 
 struct YieldReportData {
     let completeRecords: [ScanFileRecord]
+    let latestRecordsByTree: [ScanFileRecord]
     let totalYield: Float
     let totalFruit: Int
 
     var totalScans: Int { completeRecords.count }
-    var averageYield: Float { totalScans > 0 ? totalYield / Float(totalScans) : 0 }
-    var visibleRecords: [ScanFileRecord] { Array(completeRecords.prefix(20)) }
-    var isEmpty: Bool { completeRecords.isEmpty }
+    var totalTrees: Int { latestRecordsByTree.count }
+    var averageYield: Float { totalTrees > 0 ? totalYield / Float(totalTrees) : 0 }
+    var visibleRecords: [ScanFileRecord] { Array(latestRecordsByTree.prefix(20)) }
+    var isEmpty: Bool { latestRecordsByTree.isEmpty }
 
     init(records: [ScanFileRecord]) {
         let completeRecords = records.filter { $0.persistenceState == .complete }
         self.completeRecords = completeRecords
-        totalYield = completeRecords.reduce(0) { $0 + $1.yieldKg }
-        totalFruit = completeRecords.reduce(0) { $0 + $1.fruitCount }
+        latestRecordsByTree = Self.latestRecordsByTree(from: completeRecords)
+        totalYield = latestRecordsByTree.reduce(0) { $0 + $1.yieldKg }
+        totalFruit = latestRecordsByTree.reduce(0) { $0 + $1.fruitCount }
+    }
+
+    private static func latestRecordsByTree(
+        from records: [ScanFileRecord]
+    ) -> [ScanFileRecord] {
+        var latestByTreeID: [String: ScanFileRecord] = [:]
+        for record in records {
+            let treeID = TreeIdentifierPolicy.normalized(record.treeID)
+            guard let existing = latestByTreeID[treeID] else {
+                latestByTreeID[treeID] = record
+                continue
+            }
+            if isOrderedBefore(record, existing) {
+                latestByTreeID[treeID] = record
+            }
+        }
+        return latestByTreeID.values.sorted(by: isOrderedBefore)
+    }
+
+    private static func isOrderedBefore(
+        _ lhs: ScanFileRecord,
+        _ rhs: ScanFileRecord
+    ) -> Bool {
+        if lhs.scanDate != rhs.scanDate {
+            return lhs.scanDate > rhs.scanDate
+        }
+        if lhs.treeID != rhs.treeID {
+            return lhs.treeID < rhs.treeID
+        }
+        return lhs.id < rhs.id
     }
 }
 
@@ -52,6 +85,9 @@ struct YieldReportSheet: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .onAppear {
+                historyStore.loadRecords()
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { dismiss() }
@@ -67,13 +103,13 @@ struct YieldReportSheet: View {
                 DashboardToolHeader(
                     imageName: "FeatureYieldReport",
                     title: "产量报告",
-                    subtitle: "汇总果数、重量和每棵树的扫描结果，适合采收后复核。",
+                    subtitle: "基于 \(reportData.totalScans) 条完整扫描，按每棵树最新结果汇总，避免重复计数。",
                     icon: "chart.pie",
                     accent: Design.Colors.harvest
                 )
 
                 DashboardSheetMetricGrid(items: [
-                    .init(title: "扫描", value: "\(reportData.totalScans)", unit: "次"),
+                    .init(title: "果树", value: "\(reportData.totalTrees)", unit: "棵"),
                     .init(title: "总产量", value: String(format: "%.1f", reportData.totalYield), unit: "kg"),
                     .init(title: "平均", value: String(format: "%.1f", reportData.averageYield), unit: "kg"),
                     .init(title: "果实", value: "\(reportData.totalFruit)", unit: "个")

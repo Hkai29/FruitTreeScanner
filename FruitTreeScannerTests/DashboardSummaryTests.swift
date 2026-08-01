@@ -214,7 +214,9 @@ final class DashboardSummaryTests: XCTestCase {
         let report = YieldReportData(records: records)
 
         XCTAssertEqual(report.completeRecords.map(\.id), ["complete-a", "complete-b"])
+        XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["complete-a", "complete-b"])
         XCTAssertEqual(report.totalScans, 2)
+        XCTAssertEqual(report.totalTrees, 2)
         XCTAssertEqual(report.totalYield, 5.5, accuracy: 0.001)
         XCTAssertEqual(report.averageYield, 2.75, accuracy: 0.001)
         XCTAssertEqual(report.totalFruit, 20)
@@ -245,8 +247,10 @@ final class DashboardSummaryTests: XCTestCase {
 
         XCTAssertTrue(report.isEmpty)
         XCTAssertTrue(report.completeRecords.isEmpty)
+        XCTAssertTrue(report.latestRecordsByTree.isEmpty)
         XCTAssertTrue(report.visibleRecords.isEmpty)
         XCTAssertEqual(report.totalScans, 0)
+        XCTAssertEqual(report.totalTrees, 0)
         XCTAssertEqual(report.totalYield, 0, accuracy: 0.001)
         XCTAssertEqual(report.averageYield, 0, accuracy: 0.001)
         XCTAssertEqual(report.totalFruit, 0)
@@ -274,9 +278,114 @@ final class DashboardSummaryTests: XCTestCase {
         let report = YieldReportData(records: incompleteRecords + completeRecords)
 
         XCTAssertEqual(report.totalScans, 22)
+        XCTAssertEqual(report.totalTrees, 22)
         XCTAssertEqual(report.visibleRecords.count, 20)
         XCTAssertEqual(report.visibleRecords.first?.id, "complete-0")
         XCTAssertEqual(report.visibleRecords.last?.id, "complete-19")
+    }
+
+    func testYieldReportDataUsesLatestCompleteRecordPerTreeForTotals() {
+        let report = YieldReportData(records: [
+            makeRecord(
+                id: "tree-a-old",
+                treeID: " A ",
+                scanDate: Date(timeIntervalSince1970: 100),
+                fruitCount: 10,
+                yieldKg: 2
+            ),
+            makeRecord(
+                id: "tree-b",
+                treeID: "B",
+                scanDate: Date(timeIntervalSince1970: 200),
+                fruitCount: 20,
+                yieldKg: 4
+            ),
+            makeRecord(
+                id: "tree-a-new",
+                treeID: "A",
+                scanDate: Date(timeIntervalSince1970: 300),
+                fruitCount: 15,
+                yieldKg: 3
+            ),
+            makeRecord(
+                id: "tree-a-incomplete-newest",
+                treeID: "A",
+                scanDate: Date(timeIntervalSince1970: 400),
+                fruitCount: 999,
+                yieldKg: 999,
+                persistenceState: .incomplete
+            )
+        ])
+
+        XCTAssertEqual(report.completeRecords.count, 3)
+        XCTAssertEqual(report.totalScans, 3)
+        XCTAssertEqual(report.totalTrees, 2)
+        XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["tree-a-new", "tree-b"])
+        XCTAssertEqual(report.visibleRecords.map(\.id), ["tree-a-new", "tree-b"])
+        XCTAssertEqual(report.totalYield, 7, accuracy: 0.001)
+        XCTAssertEqual(report.averageYield, 3.5, accuracy: 0.001)
+        XCTAssertEqual(report.totalFruit, 35)
+    }
+
+    func testYieldReportDataUsesStableTieBreakForSameTreeAndTimestamp() {
+        let scanDate = Date(timeIntervalSince1970: 100)
+        let report = YieldReportData(records: [
+            makeRecord(
+                id: "scan-b",
+                treeID: "A",
+                scanDate: scanDate,
+                fruitCount: 20,
+                yieldKg: 2
+            ),
+            makeRecord(
+                id: "scan-a",
+                treeID: "A",
+                scanDate: scanDate,
+                fruitCount: 10,
+                yieldKg: 1
+            )
+        ])
+
+        XCTAssertEqual(report.totalScans, 2)
+        XCTAssertEqual(report.totalTrees, 1)
+        XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["scan-a"])
+        XCTAssertEqual(report.totalYield, 1, accuracy: 0.001)
+        XCTAssertEqual(report.totalFruit, 10)
+    }
+
+    func testYieldReportDataKeepsLatestCompleteZeroYieldPerTree() {
+        let report = YieldReportData(records: [
+            makeRecord(
+                id: "older-positive",
+                treeID: "T-001",
+                scanDate: Date(timeIntervalSince1970: 100),
+                fruitCount: 12,
+                yieldKg: 3
+            ),
+            makeRecord(
+                id: "latest-zero",
+                treeID: "T-001",
+                scanDate: Date(timeIntervalSince1970: 200),
+                fruitCount: 0,
+                yieldKg: 0
+            ),
+            makeRecord(
+                id: "incomplete-newest",
+                treeID: "T-001",
+                scanDate: Date(timeIntervalSince1970: 300),
+                fruitCount: 99,
+                yieldKg: 99,
+                persistenceState: .incomplete
+            )
+        ])
+
+        XCTAssertEqual(report.totalScans, 2)
+        XCTAssertEqual(report.totalTrees, 1)
+        XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["latest-zero"])
+        XCTAssertEqual(report.visibleRecords.map(\.id), ["latest-zero"])
+        XCTAssertEqual(report.totalYield, 0, accuracy: 0.001)
+        XCTAssertEqual(report.averageYield, 0, accuracy: 0.001)
+        XCTAssertEqual(report.totalFruit, 0)
     }
 
     func testTrendsDataIncludesOnlyCompleteRecordsAndSortsChronologically() {
