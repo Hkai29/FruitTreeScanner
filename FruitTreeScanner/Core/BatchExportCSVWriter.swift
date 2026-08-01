@@ -20,9 +20,15 @@ enum BatchExportCSVWriter {
             try writer.write(header)
             try writer.write("\n")
 
-            for record in BatchExportFormatting.orderedRecords(records, options: options) {
-                try Task.checkCancellation()
-                try writer.write(row(for: record, options: options, dateFormatter: dateFormatter))
+            try BatchExportFormatting.forEachOrderedRecord(records, options: options) { record, groupLabel in
+                try writer.write(
+                    row(
+                        for: record,
+                        groupLabel: groupLabel,
+                        options: options,
+                        dateFormatter: dateFormatter
+                    )
+                )
                 try writer.write("\n")
             }
 
@@ -40,6 +46,7 @@ enum BatchExportCSVWriter {
 
     private static func row(
         for record: ScanFileRecord,
+        groupLabel: String,
         options: BatchExportService.ExportOptions,
         dateFormatter: DateFormatter
     ) -> String {
@@ -47,7 +54,7 @@ enum BatchExportCSVWriter {
         if options.groupBy != .none {
             row.append(
                 SpreadsheetTextSafety.neutralizingFormula(
-                    BatchExportFormatting.groupLabel(for: record, options: options)
+                    groupLabel
                 )
             )
         }

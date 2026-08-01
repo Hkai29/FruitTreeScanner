@@ -34,8 +34,7 @@ enum BatchExportJSONWriter {
             try writer.write(",\n  \"records\" : [")
 
             var isFirstRecord = true
-            for record in BatchExportFormatting.orderedRecords(records, options: options) {
-                try Task.checkCancellation()
+            try BatchExportFormatting.forEachOrderedRecord(records, options: options) { record, _ in
                 let recordData = try autoreleasepool {
                     try JSONSerialization.data(
                         withJSONObject: recordPayload(for: record),

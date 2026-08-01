@@ -15,9 +15,15 @@ enum BatchExportExcelWriter {
             try writer.write(workbookPrefix)
             try writer.write(headerRow(options: options))
 
-            for record in BatchExportFormatting.orderedRecords(records, options: options) {
-                try Task.checkCancellation()
-                try writer.write(row(for: record, options: options, dateFormatter: dateFormatter))
+            try BatchExportFormatting.forEachOrderedRecord(records, options: options) { record, groupLabel in
+                try writer.write(
+                    row(
+                        for: record,
+                        groupLabel: groupLabel,
+                        options: options,
+                        dateFormatter: dateFormatter
+                    )
+                )
             }
 
             try writer.write("""
@@ -51,6 +57,7 @@ enum BatchExportExcelWriter {
 
     private static func row(
         for record: ScanFileRecord,
+        groupLabel: String,
         options: BatchExportService.ExportOptions,
         dateFormatter: DateFormatter
     ) -> String {
@@ -58,7 +65,7 @@ enum BatchExportExcelWriter {
         if options.groupBy != .none {
             xml += stringCell(
                 BatchExportFormatting.spreadsheetText(
-                    BatchExportFormatting.groupLabel(for: record, options: options)
+                    groupLabel
                 )
             )
         }
