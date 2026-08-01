@@ -4,6 +4,9 @@ enum PLYImportService {
     nonisolated static func importFile(
         _ fileURL: URL,
         scansDirectory: URL? = nil,
+        stagingCopy: (URL, URL) throws -> Void = { sourceURL, destinationURL in
+            try PLYStagingFileCopier.copyFile(from: sourceURL, to: destinationURL)
+        },
         cancellationCheckpoint: () throws -> Void = { try Task.checkCancellation() }
     ) throws -> String {
         guard fileURL.pathExtension.lowercased() == "ply" else {
@@ -36,7 +39,7 @@ enum PLYImportService {
             }
         }
 
-        try fileManager.copyItem(at: fileURL, to: stagingURL)
+        try stagingCopy(fileURL, stagingURL)
         try cancellationCheckpoint()
         try validatePLYHeader(at: stagingURL)
         guard try PLYParserHelper.parsePointCloudDataCancellable(at: stagingURL) != nil else {
@@ -119,5 +122,54 @@ enum PLYImportService {
                 return L10n.Import.invalidPointCloudError
             }
         }
+    }
+}
+
+enum PLYStagingFileCopier {
+    static let chunkByteCount = 1_048_576
+
+    nonisolated static func copyFile(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        cancellationCheckpoint: () throws -> Void = { try Task.checkCancellation() }
+    ) throws {
+        try cancellationCheckpoint()
+
+        let sourceHandle = try FileHandle(forReadingFrom: sourceURL)
+        defer {
+            try? sourceHandle.close()
+        }
+
+        try Data().write(to: destinationURL, options: .withoutOverwriting)
+        var didComplete = false
+        defer {
+            if !didComplete {
+                try? FileManager.default.removeItem(at: destinationURL)
+            }
+        }
+
+        let destinationHandle = try FileHandle(forWritingTo: destinationURL)
+        var destinationIsOpen = true
+        defer {
+            if destinationIsOpen {
+                try? destinationHandle.close()
+            }
+        }
+
+        while true {
+            try cancellationCheckpoint()
+            let chunk = try sourceHandle.read(upToCount: chunkByteCount) ?? Data()
+            guard !chunk.isEmpty else {
+                break
+            }
+
+            try cancellationCheckpoint()
+            try destinationHandle.write(contentsOf: chunk)
+        }
+
+        try destinationHandle.close()
+        destinationIsOpen = false
+        try cancellationCheckpoint()
+        didComplete = true
     }
 }
