@@ -5,6 +5,10 @@ import Foundation
 
 enum BatchExportJSONWriter {
     private static let exportVersion = 1
+    static let maximumSingleScanManifestByteCount = 64 * 1_024
+    static let maximumSingleScanMetadataByteCount = 16 * 1_024 * 1_024
+    static let maximumSingleScanCSVByteCount = 1 * 1_024 * 1_024
+    private static let sidecarReadChunkByteCount = 64 * 1_024
 
     static func write(
         records: [ScanFileRecord],
@@ -16,7 +20,7 @@ enum BatchExportJSONWriter {
             "compatibilityNote": "Batch research JSON appends structured research fields without changing CSV, Excel, or single-scan JSON compatibility. Per-scan detailed fields are populated when the matching single-scan _result.json sidecar is available.",
             "records": try BatchExportFormatting.orderedRecords(records, options: options).map { record in
                 try Task.checkCancellation()
-                return recordPayload(for: record)
+                return try recordPayload(for: record)
             }
         ]
 
@@ -49,8 +53,8 @@ enum BatchExportJSONWriter {
         ]
     }
 
-    private static func recordPayload(for record: ScanFileRecord) -> [String: Any] {
-        let sidecar = singleScanMetadata(for: record)
+    private static func recordPayload(for record: ScanFileRecord) throws -> [String: Any] {
+        let sidecar = try singleScanMetadata(for: record)
         let diagnostics = sidecar?["diagnostics"] as? [String: Any]
         let baseName = (record.fileURL.lastPathComponent as NSString).deletingPathExtension
         let scanID = sidecar?["scanID"] as? String ?? baseName
@@ -85,17 +89,179 @@ enum BatchExportJSONWriter {
         ]
     }
 
-    private static func singleScanMetadata(for record: ScanFileRecord) -> [String: Any]? {
+    private static func singleScanMetadata(
+        for record: ScanFileRecord
+    ) throws -> [String: Any]? {
         let baseName = (record.fileURL.lastPathComponent as NSString).deletingPathExtension
         guard !baseName.isEmpty else { return nil }
-        let metadataURL = record.fileURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)_result.json")
-        guard let data = try? Data(contentsOf: metadataURL),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        let directory = record.fileURL.deletingLastPathComponent()
+        let metadataURL = directory.appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = directory.appendingPathComponent("\(baseName)_complete.json")
+        let csvURL = directory.appendingPathComponent("\(baseName).csv")
+
+        let transaction: (revision: String, requiredFiles: [String])?
+        if FileManager.default.fileExists(atPath: manifestURL.path) {
+            guard let manifestData = try readBoundedSidecarData(
+                      at: manifestURL,
+                      maximumByteCount: maximumSingleScanManifestByteCount
+                  ),
+                  let manifest = try? JSONSerialization.jsonObject(
+                      with: manifestData
+                  ) as? [String: Any],
+                  manifest["schemaVersion"] as? Int == 1,
+                  let revision = manifest["exportRevision"] as? String,
+                  !revision.isEmpty,
+                  let requiredFiles = manifest["requiredFiles"] as? [String],
+                  requiredFiles.contains(metadataURL.lastPathComponent)
+            else {
+                return nil
+            }
+            try Task.checkCancellation()
+            transaction = (revision, requiredFiles)
+        } else {
+            transaction = nil
+        }
+
+        guard let metadataData = try readBoundedSidecarData(
+                  at: metadataURL,
+                  maximumByteCount: maximumSingleScanMetadataByteCount
+              ),
+              let payload = try? JSONSerialization.jsonObject(
+                  with: metadataData
+              ) as? [String: Any]
+        else {
+            return nil
+        }
+        try Task.checkCancellation()
+
+        if let transaction {
+            guard payload["exportRevision"] as? String == transaction.revision else {
+                return nil
+            }
+            if transaction.requiredFiles.contains(csvURL.lastPathComponent) {
+                guard try csvRevisionMatches(
+                    at: csvURL,
+                    revision: transaction.revision
+                ) else {
+                    return nil
+                }
+            }
+        } else if payload.keys.contains("exportRevision") {
             return nil
         }
         return payload
+    }
+
+    private static func readBoundedSidecarData(
+        at url: URL,
+        maximumByteCount: Int
+    ) throws -> Data? {
+        try Task.checkCancellation()
+        guard maximumByteCount >= 0, maximumByteCount < Int.max else { return nil }
+        if let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           fileSize > maximumByteCount {
+            return nil
+        }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+
+        var data = Data()
+        data.reserveCapacity(min(maximumByteCount, sidecarReadChunkByteCount))
+        do {
+            while data.count <= maximumByteCount {
+                try Task.checkCancellation()
+                let remainingByteCount = maximumByteCount - data.count + 1
+                let readByteCount = min(sidecarReadChunkByteCount, remainingByteCount)
+                guard let chunk = try handle.read(upToCount: readByteCount),
+                      !chunk.isEmpty
+                else {
+                    return data
+                }
+                data.append(chunk)
+                guard data.count <= maximumByteCount else { return nil }
+            }
+        } catch let cancellation as CancellationError {
+            throw cancellation
+        } catch {
+            return nil
+        }
+        return nil
+    }
+
+    private static func csvRevisionMatches(
+        at url: URL,
+        revision: String
+    ) throws -> Bool {
+        guard let data = try readBoundedSidecarData(
+                  at: url,
+                  maximumByteCount: maximumSingleScanCSVByteCount
+              ),
+              let content = String(data: data, encoding: .utf8)
+        else {
+            return false
+        }
+        try Task.checkCancellation()
+        let records = firstCSVRecords(content, limit: 2)
+        guard let headerLine = records.first,
+              let dataLine = records.dropFirst().first
+        else {
+            return false
+        }
+        let header = PLYParserHelper.parseCSVLine(headerLine)
+        let values = PLYParserHelper.parseCSVLine(dataLine)
+        return PLYParserHelper.csvValue(
+            in: values,
+            header: header,
+            named: ["ExportRevision", "exportRevision"],
+            fallbackIndex: .max
+        ) == revision
+    }
+
+    private static func firstCSVRecords(_ content: String, limit: Int) -> [String] {
+        guard limit > 0 else { return [] }
+        var records: [String] = []
+        var current = ""
+        var isQuoted = false
+        var index = content.startIndex
+        while index < content.endIndex {
+            var char = content[index]
+            if char == "\r\n" {
+                char = "\n"
+            } else if char == "\r" {
+                let next = content.index(after: index)
+                if next < content.endIndex, content[next] == "\n" {
+                    index = next
+                }
+                char = "\n"
+            }
+            if char == "\"" {
+                let next = content.index(after: index)
+                if isQuoted, next < content.endIndex, content[next] == "\"" {
+                    current.append(char)
+                    current.append(content[next])
+                    index = next
+                } else {
+                    isQuoted.toggle()
+                    current.append(char)
+                }
+            } else if char == "\n" && !isQuoted {
+                if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    records.append(current)
+                    if records.count == limit {
+                        return records
+                    }
+                }
+                current = ""
+            } else {
+                current.append(char)
+            }
+            index = content.index(after: index)
+        }
+        if records.count < limit,
+           !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            records.append(current)
+        }
+        return records
     }
 
     private static func sourceCounts(from diagnostics: [String: Any]?) -> [String: Any] {
