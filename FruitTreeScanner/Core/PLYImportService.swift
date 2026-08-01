@@ -1,6 +1,9 @@
+import Darwin
 import Foundation
 
 enum PLYImportService {
+    private static let maximumDestinationCommitAttempts = 64
+
     nonisolated static func importFile(
         _ fileURL: URL,
         scansDirectory: URL? = nil,
@@ -31,7 +34,6 @@ enum PLYImportService {
 
         try fileManager.createDirectory(at: scansDir, withIntermediateDirectories: true)
 
-        let destURL = uniqueDestinationURL(for: fileURL, in: scansDir)
         let stagingURL = scansDir.appendingPathComponent(".import-\(UUID().uuidString).ply-partial")
         defer {
             if fileManager.fileExists(atPath: stagingURL.path) {
@@ -46,7 +48,11 @@ enum PLYImportService {
             throw ImportError.invalidPointCloud
         }
         try cancellationCheckpoint()
-        try fileManager.moveItem(at: stagingURL, to: destURL)
+        let destURL = try commitStagedFile(
+            at: stagingURL,
+            for: fileURL,
+            in: scansDir
+        )
         do {
             try cancellationCheckpoint()
         } catch {
@@ -57,25 +63,90 @@ enum PLYImportService {
         return destURL.lastPathComponent
     }
 
-    nonisolated static func uniqueDestinationURL(for sourceURL: URL, in directory: URL) -> URL {
-        let fileManager = FileManager.default
+    nonisolated static func commitStagedFile(
+        at stagingURL: URL,
+        for sourceURL: URL,
+        in directory: URL,
+        timestamp: String = importTimestamp(),
+        uniqueSuffix: () -> String = { String(UUID().uuidString.prefix(6)) },
+        exclusiveMove: (URL, URL) throws -> Void = { sourceURL, destinationURL in
+            try moveItemExclusively(from: sourceURL, to: destinationURL)
+        }
+    ) throws -> URL {
         let baseName = sourceURL.deletingPathExtension().lastPathComponent
         let safeBaseName = TreeIdentifierPolicy.safeFileComponent(from: baseName)
-        var candidate = directory.appendingPathComponent("\(safeBaseName).ply")
+        var lastCollision: Error?
 
-        guard fileManager.fileExists(atPath: candidate.path) else {
-            return candidate
+        for attempt in 0..<maximumDestinationCommitAttempts {
+            let filename: String
+            switch attempt {
+            case 0:
+                filename = "\(safeBaseName).ply"
+            case 1:
+                filename = "\(safeBaseName)_import_\(timestamp).ply"
+            default:
+                filename = "\(safeBaseName)_import_\(timestamp)_\(uniqueSuffix()).ply"
+            }
+            let candidate = directory.appendingPathComponent(filename)
+
+            do {
+                try exclusiveMove(stagingURL, candidate)
+                return candidate
+            } catch {
+                guard isDestinationExistsError(error) else {
+                    throw error
+                }
+                lastCollision = error
+            }
         }
 
-        let timestamp = importTimestamp()
-        candidate = directory.appendingPathComponent("\(safeBaseName)_import_\(timestamp).ply")
+        throw lastCollision ?? CocoaError(.fileWriteUnknown)
+    }
 
-        if !fileManager.fileExists(atPath: candidate.path) {
-            return candidate
+    nonisolated static func moveItemExclusively(
+        from sourceURL: URL,
+        to destinationURL: URL
+    ) throws {
+        // A preflight check plus FileManager.moveItem can still replace a concurrently created file.
+        try sourceURL.withUnsafeFileSystemRepresentation { sourcePath in
+            guard let sourcePath else {
+                throw CocoaError(.fileWriteInvalidFileName)
+            }
+
+            try destinationURL.withUnsafeFileSystemRepresentation { destinationPath in
+                guard let destinationPath else {
+                    throw CocoaError(.fileWriteInvalidFileName)
+                }
+
+                guard renamex_np(
+                    sourcePath,
+                    destinationPath,
+                    UInt32(RENAME_EXCL)
+                ) == 0 else {
+                    let errorCode = errno
+                    throw NSError(
+                        domain: NSPOSIXErrorDomain,
+                        code: Int(errorCode),
+                        userInfo: [NSFilePathErrorKey: destinationURL.path]
+                    )
+                }
+            }
         }
+    }
 
-        let shortID = UUID().uuidString.prefix(6)
-        return directory.appendingPathComponent("\(safeBaseName)_import_\(timestamp)_\(shortID).ply")
+    nonisolated static func isDestinationExistsError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSPOSIXErrorDomain, nsError.code == Int(EEXIST) {
+            return true
+        }
+        if nsError.domain == NSCocoaErrorDomain,
+           nsError.code == CocoaError.fileWriteFileExists.rawValue {
+            return true
+        }
+        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+            return isDestinationExistsError(underlyingError)
+        }
+        return false
     }
 
     nonisolated static func validatePLYHeader(at fileURL: URL) throws {
