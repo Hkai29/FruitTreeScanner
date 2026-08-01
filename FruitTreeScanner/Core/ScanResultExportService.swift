@@ -26,6 +26,7 @@ final class ScanResultExportService: @unchecked Sendable {
     private let writeData: (Data, URL) throws -> Void
     private let publishFile: (URL, URL) throws -> Void
     private let exportQueue = DispatchQueue(label: "com.fruittreescanner.scan-result-export")
+    private static let committedFileReadChunkByteCount = 64 * 1_024
 
     init(
         fileManager: FileManager = .default,
@@ -67,15 +68,45 @@ final class ScanResultExportService: @unchecked Sendable {
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
         let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
         let manifestURL = scansDir.appendingPathComponent("\(baseName)_complete.json")
-        let unsignedMetadata = try makeMetadataData(for: request, baseName: baseName, revision: "")
-        let revision = transactionRevision(for: unsignedMetadata, includeCSV: request.includeCSV)
+        let revision: String
+        do {
+            let unsignedMetadata = try makeMetadataData(
+                for: request,
+                baseName: baseName,
+                revision: ""
+            )
+            revision = transactionRevision(
+                for: unsignedMetadata,
+                includeCSV: request.includeCSV
+            )
+        }
+        try Task.checkCancellation()
+        let metadataData = try makeMetadataData(
+            for: request,
+            baseName: baseName,
+            revision: revision
+        )
+        let csvData = request.includeCSV
+            ? Data(makeCSVContent(for: request, revision: revision).utf8)
+            : nil
+        let requiredFiles = request.includeCSV
+            ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
+            : [metadataURL.lastPathComponent]
+        let manifestData = try JSONSerialization.data(withJSONObject: [
+            "schemaVersion": 1,
+            "scanID": baseName,
+            "exportRevision": revision,
+            "requiredFiles": requiredFiles
+        ], options: [.prettyPrinted, .sortedKeys])
+        try Task.checkCancellation()
 
-        if isCommittedTransaction(
+        if try isCommittedTransaction(
             metadataURL: metadataURL,
             csvURL: csvURL,
             manifestURL: manifestURL,
-            revision: revision,
-            includeCSV: request.includeCSV
+            expectedMetadata: metadataData,
+            expectedCSV: csvData,
+            expectedManifest: manifestData
         ) {
             return ExportedFiles(
                 csvURL: request.includeCSV ? csvURL : nil,
@@ -95,20 +126,10 @@ final class ScanResultExportService: @unchecked Sendable {
         let stagedCSV = stagingDirectory.appendingPathComponent(csvURL.lastPathComponent)
         let stagedManifest = stagingDirectory.appendingPathComponent(manifestURL.lastPathComponent)
 
-        try writeData(try makeMetadataData(for: request, baseName: baseName, revision: revision), stagedMetadata)
-        if request.includeCSV {
-            try writeData(Data(makeCSVContent(for: request, revision: revision).utf8), stagedCSV)
+        try writeData(metadataData, stagedMetadata)
+        if let csvData {
+            try writeData(csvData, stagedCSV)
         }
-
-        let requiredFiles = request.includeCSV
-            ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
-            : [metadataURL.lastPathComponent]
-        let manifestData = try JSONSerialization.data(withJSONObject: [
-            "schemaVersion": 1,
-            "scanID": baseName,
-            "exportRevision": revision,
-            "requiredFiles": requiredFiles
-        ], options: [.prettyPrinted, .sortedKeys])
         try writeData(manifestData, stagedManifest)
         try Task.checkCancellation()
         try publishTransaction(
@@ -302,27 +323,64 @@ final class ScanResultExportService: @unchecked Sendable {
         metadataURL: URL,
         csvURL: URL,
         manifestURL: URL,
-        revision: String,
-        includeCSV: Bool
-    ) -> Bool {
-        guard let manifestData = try? Data(contentsOf: manifestURL),
-              let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
-              manifest["exportRevision"] as? String == revision,
-              let requiredFiles = manifest["requiredFiles"] as? [String],
-              requiredFiles.contains(metadataURL.lastPathComponent),
-              requiredFiles.contains(csvURL.lastPathComponent) == includeCSV,
-              let metadataData = try? Data(contentsOf: metadataURL),
-              let metadata = try? JSONSerialization.jsonObject(with: metadataData) as? [String: Any],
-              metadata["exportRevision"] as? String == revision
-        else { return false }
+        expectedMetadata: Data,
+        expectedCSV: Data?,
+        expectedManifest: Data
+    ) throws -> Bool {
+        guard try fileContentsEqual(
+                  at: manifestURL,
+                  expected: expectedManifest
+              ),
+              try fileContentsEqual(
+                  at: metadataURL,
+                  expected: expectedMetadata
+              )
+        else {
+            return false
+        }
+        guard let expectedCSV else { return true }
+        return try fileContentsEqual(at: csvURL, expected: expectedCSV)
+    }
 
-        guard includeCSV,
-              let csv = try? String(contentsOf: csvURL, encoding: .utf8)
-        else { return !includeCSV }
-        let rows = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        guard let header = rows.first,
-              let row = rows.dropFirst().first else { return false }
-        return header.hasSuffix("ExportRevision") && row.hasSuffix(",\(revision)")
+    private func fileContentsEqual(at url: URL, expected: Data) throws -> Bool {
+        try Task.checkCancellation()
+        guard let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              fileSize == expected.count,
+              let handle = try? FileHandle(forReadingFrom: url)
+        else {
+            return false
+        }
+        defer { try? handle.close() }
+
+        var offset = 0
+        do {
+            while offset < expected.count {
+                try Task.checkCancellation()
+                let readByteCount = min(
+                    Self.committedFileReadChunkByteCount,
+                    expected.count - offset
+                )
+                guard let chunk = try handle.read(upToCount: readByteCount),
+                      !chunk.isEmpty
+                else {
+                    return false
+                }
+                let endOffset = offset + chunk.count
+                guard endOffset <= expected.count,
+                      chunk.elementsEqual(expected[offset..<endOffset])
+                else {
+                    return false
+                }
+                offset = endOffset
+            }
+            try Task.checkCancellation()
+            let trailingData = try handle.read(upToCount: 1)
+            return trailingData?.isEmpty ?? true
+        } catch let cancellation as CancellationError {
+            throw cancellation
+        } catch {
+            return false
+        }
     }
 
     private func publishTransaction(

@@ -1432,10 +1432,126 @@ final class BatchExportServiceTests: XCTestCase {
         let first = try XCTUnwrap(service.exportIfNeeded(request))
         let firstManifest = try XCTUnwrap(first.manifestURL)
         let firstData = try Data(contentsOf: firstManifest)
-        let second = try XCTUnwrap(service.exportIfNeeded(request))
+        var rewriteAttempts = 0
+        let retryService = ScanResultExportService(scansDirectory: directory, writeData: { _, _ in
+            rewriteAttempts += 1
+            throw CocoaError(.fileWriteUnknown)
+        })
+        let second = try XCTUnwrap(retryService.exportIfNeeded(request))
 
         XCTAssertEqual(first.manifestURL, second.manifestURL)
         XCTAssertEqual(try Data(contentsOf: firstManifest), firstData)
+        XCTAssertEqual(rewriteAttempts, 0)
+    }
+
+    func testScanResultExportRepairsSameRevisionMetadataContentCorruption() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var result = makeYieldResult()
+        result.note = "stable note"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-original", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: result, includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let first = try XCTUnwrap(service.exportIfNeeded(request))
+        let metadataURL = try XCTUnwrap(first.metadataURL)
+        let metadataData = try Data(contentsOf: metadataURL)
+        var metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: metadataData) as? [String: Any])
+        metadata["treeID"] = "T-tampered"
+        try JSONSerialization.data(
+            withJSONObject: metadata,
+            options: [.prettyPrinted, .sortedKeys]
+        ).write(to: metadataURL, options: .atomic)
+
+        _ = try XCTUnwrap(service.exportIfNeeded(request))
+
+        let repairedData = try Data(contentsOf: metadataURL)
+        let repaired = try XCTUnwrap(JSONSerialization.jsonObject(with: repairedData) as? [String: Any])
+        XCTAssertEqual(repaired["treeID"] as? String, "T-original")
+    }
+
+    func testScanResultExportRepairsSameRevisionCSVContentCorruption() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var result = makeYieldResult()
+        result.note = "stable note"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-original", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: result, includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let first = try XCTUnwrap(service.exportIfNeeded(request))
+        let csvURL = try XCTUnwrap(first.csvURL)
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        XCTAssertTrue(csv.contains("T-original"))
+        try csv.replacingOccurrences(
+            of: "T-original",
+            with: "T-tampered"
+        ).write(to: csvURL, atomically: true, encoding: .utf8)
+
+        _ = try XCTUnwrap(service.exportIfNeeded(request))
+
+        let repaired = try String(contentsOf: csvURL, encoding: .utf8)
+        XCTAssertTrue(repaired.contains("T-original"))
+        XCTAssertFalse(repaired.contains("T-tampered"))
+    }
+
+    func testScanResultExportRepairsOversizedSameRevisionMetadata() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var result = makeYieldResult()
+        result.note = "stable note"
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-original", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: result, includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let first = try XCTUnwrap(service.exportIfNeeded(request))
+        let metadataURL = try XCTUnwrap(first.metadataURL)
+        let expectedData = try Data(contentsOf: metadataURL)
+        do {
+            let handle = try FileHandle(forWritingTo: metadataURL)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data(repeating: 0x20, count: 8 * 1_024 * 1_024))
+        }
+
+        _ = try XCTUnwrap(service.exportIfNeeded(request))
+
+        let repairedData = try Data(contentsOf: metadataURL)
+        XCTAssertEqual(repairedData, expectedData)
+    }
+
+    func testScanResultExportReusesLargeCommittedSnapshotAcrossReadChunks() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var result = makeYieldResult()
+        result.note = String(repeating: "x", count: 256 * 1_024)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-large", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: result, includeCSV: true
+        )
+        let first = try XCTUnwrap(
+            ScanResultExportService(scansDirectory: directory).exportIfNeeded(request)
+        )
+        let metadataURL = try XCTUnwrap(first.metadataURL)
+        let metadataSize = try XCTUnwrap(
+            metadataURL.resourceValues(forKeys: [.fileSizeKey]).fileSize
+        )
+        XCTAssertGreaterThan(metadataSize, 64 * 1_024)
+        var rewriteAttempts = 0
+        let retryService = ScanResultExportService(scansDirectory: directory, writeData: { _, _ in
+            rewriteAttempts += 1
+            throw CocoaError(.fileWriteUnknown)
+        })
+
+        XCTAssertNoThrow(try retryService.exportIfNeeded(request))
+        XCTAssertEqual(rewriteAttempts, 0)
     }
 
     func testBatchExportExcludesIncompleteAndInvalidRecordsFromTotals() async throws {
