@@ -21,12 +21,34 @@ enum BatchExportSelectionPolicy {
     }
 }
 
+struct BatchExportRequestSnapshot: Equatable, Sendable {
+    let records: [ScanFileRecord]
+    let format: BatchExportService.ExportFormat
+    let options: BatchExportService.ExportOptions
+
+    init(
+        records: [ScanFileRecord],
+        selectedRecordIDs: Set<String>,
+        format: BatchExportService.ExportFormat,
+        options: BatchExportService.ExportOptions
+    ) {
+        let normalizedSelection = BatchExportSelectionPolicy.normalizedSelection(
+            selectedRecordIDs,
+            for: records
+        )
+        self.records = BatchExportSelectionPolicy.exportableRecords(from: records)
+            .filter { normalizedSelection.contains($0.id) }
+        self.format = format
+        self.options = options
+    }
+}
+
 final class BatchExportService {
     static let shared = BatchExportService()
     
     private init() {}
     
-    enum ExportFormat: String, CaseIterable {
+    enum ExportFormat: String, CaseIterable, Equatable, Sendable {
         case csv = "CSV"
         case excel = "Excel (XML)"
         case json = "Research JSON"
@@ -56,7 +78,7 @@ final class BatchExportService {
         }
     }
     
-    struct ExportOptions: Equatable {
+    struct ExportOptions: Equatable, Sendable {
         var includeGPS: Bool = true
         var includeFruitCount: Bool = true
         var includeYield: Bool = true
@@ -65,7 +87,7 @@ final class BatchExportService {
         var groupBy: GroupByOption = .none
         var plotNameByTreeID: [String: String] = [:]
         
-        enum GroupByOption: String, CaseIterable, Equatable {
+        enum GroupByOption: String, CaseIterable, Equatable, Sendable {
             case none = "不分组"
             case fruitType = "按水果类型"
             case date = "按日期"

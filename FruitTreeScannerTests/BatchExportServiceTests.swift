@@ -1482,6 +1482,76 @@ final class BatchExportServiceTests: XCTestCase {
         )
     }
 
+    func testBatchExportRequestSnapshotDetectsUpdatedPayloadForSameRecordID() {
+        let original = makeRecord(
+            id: "same.ply",
+            fruitCount: 10,
+            yieldKg: 5
+        )
+        let updated = makeRecord(
+            id: "same.ply",
+            fruitCount: 12,
+            yieldKg: 6
+        )
+        let selectedIDs: Set<String> = [original.id]
+
+        let originalSnapshot = BatchExportRequestSnapshot(
+            records: [original],
+            selectedRecordIDs: selectedIDs,
+            format: .csv,
+            options: .init()
+        )
+        let updatedSnapshot = BatchExportRequestSnapshot(
+            records: [updated],
+            selectedRecordIDs: selectedIDs,
+            format: .csv,
+            options: .init()
+        )
+
+        XCTAssertNotEqual(originalSnapshot, updatedSnapshot)
+    }
+
+    func testBatchExportRequestSnapshotDetectsUpdatedPlotMetadata() {
+        let record = makeRecord(id: "plot.ply")
+        var originalOptions = BatchExportService.ExportOptions()
+        originalOptions.plotNameByTreeID = [record.treeID: "North Block"]
+        var updatedOptions = originalOptions
+        updatedOptions.plotNameByTreeID = [record.treeID: "South Block"]
+
+        let originalSnapshot = BatchExportRequestSnapshot(
+            records: [record],
+            selectedRecordIDs: [record.id],
+            format: .csv,
+            options: originalOptions
+        )
+        let updatedSnapshot = BatchExportRequestSnapshot(
+            records: [record],
+            selectedRecordIDs: [record.id],
+            format: .csv,
+            options: updatedOptions
+        )
+
+        XCTAssertNotEqual(originalSnapshot, updatedSnapshot)
+    }
+
+    func testBatchExportRequestSnapshotContainsOnlySelectedCompleteRecords() {
+        let selected = makeRecord(id: "selected.ply")
+        let unselected = makeRecord(id: "unselected.ply")
+        let incomplete = makeRecord(
+            id: "incomplete.ply",
+            persistenceState: .incomplete
+        )
+
+        let snapshot = BatchExportRequestSnapshot(
+            records: [selected, unselected, incomplete],
+            selectedRecordIDs: [selected.id, incomplete.id],
+            format: .json,
+            options: .init()
+        )
+
+        XCTAssertEqual(snapshot.records.map(\.id), [selected.id])
+    }
+
     func testExcelExcludedColumnsOmitCells() async throws {
         var options = BatchExportService.ExportOptions()
         options.includeGPS = false
