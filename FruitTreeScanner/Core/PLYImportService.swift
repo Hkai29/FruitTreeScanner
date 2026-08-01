@@ -39,7 +39,7 @@ enum PLYImportService {
         try fileManager.copyItem(at: fileURL, to: stagingURL)
         try cancellationCheckpoint()
         try validatePLYHeader(at: stagingURL)
-        guard PLYParserHelper.parsePointCloudData(at: stagingURL) != nil else {
+        guard try PLYParserHelper.parsePointCloudDataCancellable(at: stagingURL) != nil else {
             throw ImportError.invalidPointCloud
         }
         try cancellationCheckpoint()
