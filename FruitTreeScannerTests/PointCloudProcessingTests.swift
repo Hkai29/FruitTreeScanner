@@ -1654,6 +1654,143 @@ final class PointCloudProcessingTests: XCTestCase {
 
     // MARK: - PLYImportService success + duplicate import
 
+    func testPLYImportConcurrentDestinationCollisionKeepsBothImports() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+        let firstSourceDir = tempDir.appendingPathComponent("first", isDirectory: true)
+        let secondSourceDir = tempDir.appendingPathComponent("second", isDirectory: true)
+        try FileManager.default.createDirectory(at: firstSourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondSourceDir, withIntermediateDirectories: true)
+        let firstSourceURL = firstSourceDir.appendingPathComponent("concurrent.ply")
+        let secondSourceURL = secondSourceDir.appendingPathComponent("concurrent.ply")
+
+        func plyContent(x: String) -> String {
+            """
+            ply
+            format ascii 1.0
+            element vertex 1
+            property float x
+            property float y
+            property float z
+            property uchar red
+            property uchar green
+            property uchar blue
+            end_header
+            \(x) 2.0 3.0 128 128 128
+            """
+        }
+
+        try plyContent(x: "1.0").write(to: firstSourceURL, atomically: true, encoding: .utf8)
+        try plyContent(x: "9.0").write(to: secondSourceURL, atomically: true, encoding: .utf8)
+
+        let bothReadyToCommit = expectation(description: "Both imports are ready to commit")
+        bothReadyToCommit.expectedFulfillmentCount = 2
+        let releaseCommit = DispatchSemaphore(value: 0)
+
+        func makeImportTask(for sourceURL: URL) -> Task<Result<String, Error>, Never> {
+            Task.detached {
+                var checkpointCount = 0
+                do {
+                    let importedName = try PLYImportService.importFile(
+                        sourceURL,
+                        scansDirectory: scansDir,
+                        cancellationCheckpoint: {
+                            checkpointCount += 1
+                            if checkpointCount == 3 {
+                                bothReadyToCommit.fulfill()
+                                releaseCommit.wait()
+                            }
+                        }
+                    )
+                    return .success(importedName)
+                } catch {
+                    return .failure(error)
+                }
+            }
+        }
+
+        let firstTask = makeImportTask(for: firstSourceURL)
+        let secondTask = makeImportTask(for: secondSourceURL)
+        await fulfillment(of: [bothReadyToCommit], timeout: 2)
+        releaseCommit.signal()
+        releaseCommit.signal()
+
+        let firstName = try await firstTask.value.get()
+        let secondName = try await secondTask.value.get()
+
+        XCTAssertNotEqual(firstName, secondName)
+        XCTAssertEqual(
+            try Data(contentsOf: scansDir.appendingPathComponent(firstName)),
+            try Data(contentsOf: firstSourceURL)
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: scansDir.appendingPathComponent(secondName)),
+            try Data(contentsOf: secondSourceURL)
+        )
+    }
+
+    func testPLYCommitRetriesRepeatedCollisionsWithoutOverwriting() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("tree.ply")
+        let stagingURL = tempDir.appendingPathComponent(".staging.ply")
+        let baseURL = tempDir.appendingPathComponent("tree.ply")
+        let timestampURL = tempDir.appendingPathComponent("tree_import_20260801_160000.ply")
+        try Data("new import".utf8).write(to: stagingURL)
+        try Data("existing base".utf8).write(to: baseURL)
+        try Data("existing timestamp".utf8).write(to: timestampURL)
+
+        let committedURL = try PLYImportService.commitStagedFile(
+            at: stagingURL,
+            for: sourceURL,
+            in: tempDir,
+            timestamp: "20260801_160000",
+            uniqueSuffix: { "ABC123" }
+        )
+
+        XCTAssertEqual(committedURL.lastPathComponent, "tree_import_20260801_160000_ABC123.ply")
+        XCTAssertEqual(try Data(contentsOf: baseURL), Data("existing base".utf8))
+        XCTAssertEqual(try Data(contentsOf: timestampURL), Data("existing timestamp".utf8))
+        XCTAssertEqual(try Data(contentsOf: committedURL), Data("new import".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stagingURL.path))
+    }
+
+    func testPLYCommitDoesNotRetryNonCollisionFailure() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("tree.ply")
+        let stagingURL = tempDir.appendingPathComponent(".staging.ply")
+        try Data("new import".utf8).write(to: stagingURL)
+        var moveAttemptCount = 0
+
+        XCTAssertThrowsError(
+            try PLYImportService.commitStagedFile(
+                at: stagingURL,
+                for: sourceURL,
+                in: tempDir,
+                exclusiveMove: { _, _ in
+                    moveAttemptCount += 1
+                    throw CocoaError(.fileWriteNoPermission)
+                }
+            )
+        ) { error in
+            XCTAssertEqual((error as NSError).code, CocoaError.fileWriteNoPermission.rawValue)
+        }
+
+        XCTAssertEqual(moveAttemptCount, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stagingURL.path))
+    }
+
     func testPLYImportSanitizesSourceFileNameAndImportTwiceDoesNotOverwrite() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
