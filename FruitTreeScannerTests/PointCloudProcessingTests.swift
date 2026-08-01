@@ -1567,6 +1567,122 @@ final class PointCloudProcessingTests: XCTestCase {
 
     // MARK: - PLYImportService reject/cleanup
 
+    func testPLYStagingFileCopierCopiesMultipleChunksExactly() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("source.ply")
+        let destinationURL = tempDir.appendingPathComponent("destination.ply")
+        let byteCount = (PLYStagingFileCopier.chunkByteCount * 2) + 137
+        let sourceData = Data((0..<byteCount).map { UInt8($0 % 251) })
+        try sourceData.write(to: sourceURL)
+
+        try PLYStagingFileCopier.copyFile(from: sourceURL, to: destinationURL)
+
+        XCTAssertEqual(try Data(contentsOf: destinationURL), sourceData)
+    }
+
+    func testPLYStagingFileCopierCancellationRemovesPartialDestination() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("source.ply")
+        let destinationURL = tempDir.appendingPathComponent("destination.ply")
+        try Data(
+            repeating: 0xA5,
+            count: PLYStagingFileCopier.chunkByteCount * 2
+        ).write(to: sourceURL)
+
+        var checkpointCount = 0
+        XCTAssertThrowsError(
+            try PLYStagingFileCopier.copyFile(
+                from: sourceURL,
+                to: destinationURL,
+                cancellationCheckpoint: {
+                    checkpointCount += 1
+                    if checkpointCount == 4 {
+                        throw CancellationError()
+                    }
+                }
+            )
+        ) { error in
+            XCTAssertTrue(error is CancellationError)
+        }
+
+        XCTAssertEqual(checkpointCount, 4)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: destinationURL.path),
+            "Canceled staging copy left a partial destination"
+        )
+    }
+
+    func testPLYImportCopyCancellationRemovesStagingArtifact() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+        let plyURL = tempDir.appendingPathComponent("cancelled-copy.ply")
+        try "ply".write(to: plyURL, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(
+            try PLYImportService.importFile(
+                plyURL,
+                scansDirectory: scansDir,
+                stagingCopy: { _, stagingURL in
+                    try Data("partial".utf8).write(to: stagingURL)
+                    throw CancellationError()
+                }
+            )
+        ) { error in
+            XCTAssertTrue(error is CancellationError)
+        }
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Canceled staging copy left artifacts: \(contents)")
+    }
+
+    func testPLYImportCopyFailureRemovesStagingArtifact() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+        let plyURL = tempDir.appendingPathComponent("failed-copy.ply")
+        try "ply".write(to: plyURL, atomically: true, encoding: .utf8)
+        let expectedError = NSError(domain: "PLYStagingCopyTests", code: 7)
+
+        XCTAssertThrowsError(
+            try PLYImportService.importFile(
+                plyURL,
+                scansDirectory: scansDir,
+                stagingCopy: { _, stagingURL in
+                    try Data("partial".utf8).write(to: stagingURL)
+                    throw expectedError
+                }
+            )
+        ) { error in
+            let actualError = error as NSError
+            XCTAssertEqual(actualError.domain, expectedError.domain)
+            XCTAssertEqual(actualError.code, expectedError.code)
+        }
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Failed staging copy left artifacts: \(contents)")
+    }
+
     func testPLYImportRejectsCorruptPLYAndLeavesScansDirectoryClean() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
