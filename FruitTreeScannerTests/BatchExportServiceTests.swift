@@ -1120,6 +1120,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportRejectsNegativePrimaryTotals() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        var result = makeYieldResult(nLidar: -9, yieldKg: -2.5)
+        result.note = "negative totals test"
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-negative",
             fruitType: "apple",
@@ -1127,7 +1129,7 @@ final class BatchExportServiceTests: XCTestCase {
             gpsLat: 35.0,
             gpsLon: 139.0,
             sourceFilename: sourceFilename,
-            result: makeYieldResult(nLidar: -9, yieldKg: -2.5),
+            result: result,
             includeCSV: true
         )
 
@@ -1138,12 +1140,20 @@ final class BatchExportServiceTests: XCTestCase {
             if let metadataURL = exported.metadataURL {
                 try? FileManager.default.removeItem(at: metadataURL)
             }
+            if let manifestURL = exported.manifestURL {
+                try? FileManager.default.removeItem(at: manifestURL)
+            }
         }
 
         let csv = try String(contentsOf: csvURL, encoding: .utf8)
-        XCTAssertTrue(csv.contains(",0,0.00,"))
-        XCTAssertFalse(csv.contains("-9"))
-        XCTAssertFalse(csv.contains("-2.50"))
+        let csvRows = csv.split(whereSeparator: \.isNewline).map(String.init)
+        let headers = PLYParserHelper.parseCSVLine(try XCTUnwrap(csvRows.first))
+        let values = PLYParserHelper.parseCSVLine(
+            try XCTUnwrap(csvRows.dropFirst().first)
+        )
+        let valuesByHeader = Dictionary(uniqueKeysWithValues: zip(headers, values))
+        XCTAssertEqual(valuesByHeader["果实数量"], "0")
+        XCTAssertEqual(valuesByHeader["产量(kg)"], "0.00")
 
         let metadataURL = try XCTUnwrap(exported.metadataURL)
         let data = try Data(contentsOf: metadataURL)
