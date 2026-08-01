@@ -8,6 +8,113 @@ struct BatchExportTotals: Equatable, Sendable {
     let totalFruitCount: Int
 }
 
+/// Writes unpublished batch-export files with bounded memory and cooperative cancellation.
+/// Any error or cancellation removes the partial destination before returning.
+final class BatchExportStreamWriter {
+    static let bufferCapacity = 64 * 1024
+
+    private let fileHandle: FileHandle
+    private var buffer = Data()
+    private var isClosed = false
+    private(set) var maximumBufferedByteCount = 0
+
+    private init(fileHandle: FileHandle) {
+        self.fileHandle = fileHandle
+        buffer.reserveCapacity(Self.bufferCapacity)
+    }
+
+    static func write(
+        to url: URL,
+        body: (BatchExportStreamWriter) throws -> Void
+    ) throws {
+        try Task.checkCancellation()
+        try Data().write(to: url, options: .atomic)
+
+        let fileHandle: FileHandle
+        do {
+            fileHandle = try FileHandle(forWritingTo: url)
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            throw error
+        }
+
+        let writer = BatchExportStreamWriter(fileHandle: fileHandle)
+        var completed = false
+        defer {
+            writer.closeIfNeeded()
+            if !completed {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        try body(writer)
+        try writer.finish()
+        completed = true
+    }
+
+    func write(_ string: String) throws {
+        let bytes = string.utf8
+        var offset = bytes.startIndex
+        while offset < bytes.endIndex {
+            try Task.checkCancellation()
+            let availableCapacity = Self.bufferCapacity - buffer.count
+            let end = bytes.index(
+                offset,
+                offsetBy: availableCapacity,
+                limitedBy: bytes.endIndex
+            ) ?? bytes.endIndex
+            buffer.append(contentsOf: bytes[offset..<end])
+            recordBufferHighWaterMark()
+            offset = end
+
+            if buffer.count == Self.bufferCapacity {
+                try flush()
+            }
+        }
+    }
+
+    func write(_ data: Data) throws {
+        var offset = data.startIndex
+        while offset < data.endIndex {
+            try Task.checkCancellation()
+            let availableCapacity = Self.bufferCapacity - buffer.count
+            let count = min(availableCapacity, data.endIndex - offset)
+            let end = offset + count
+            buffer.append(contentsOf: data[offset..<end])
+            recordBufferHighWaterMark()
+            offset = end
+
+            if buffer.count == Self.bufferCapacity {
+                try flush()
+            }
+        }
+    }
+
+    private func finish() throws {
+        try flush()
+        try Task.checkCancellation()
+        try fileHandle.close()
+        isClosed = true
+    }
+
+    private func recordBufferHighWaterMark() {
+        maximumBufferedByteCount = max(maximumBufferedByteCount, buffer.count)
+    }
+
+    private func flush() throws {
+        guard !buffer.isEmpty else { return }
+        try Task.checkCancellation()
+        try fileHandle.write(contentsOf: buffer)
+        buffer.removeAll(keepingCapacity: true)
+        try Task.checkCancellation()
+    }
+
+    private func closeIfNeeded() {
+        guard !isClosed else { return }
+        try? fileHandle.close()
+        isClosed = true
+    }
+}
+
 enum BatchExportFormatting {
     static func headers(options: BatchExportService.ExportOptions) -> [String] {
         var headers: [String] = []

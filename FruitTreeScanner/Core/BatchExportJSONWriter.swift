@@ -5,6 +5,7 @@ import Foundation
 
 enum BatchExportJSONWriter {
     private static let exportVersion = 1
+    private static let compatibilityNote = "Batch research JSON appends structured research fields without changing CSV, Excel, or single-scan JSON compatibility. Per-scan detailed fields are populated when the matching single-scan _result.json sidecar is available."
 
     static func write(
         records: [ScanFileRecord],
@@ -12,24 +13,43 @@ enum BatchExportJSONWriter {
         options: BatchExportService.ExportOptions,
         to url: URL
     ) throws {
-        let payload: [String: Any] = [
-            "exportMetadata": exportMetadata(
+        let metadataData = try JSONSerialization.data(
+            withJSONObject: exportMetadata(
                 recordCount: records.count,
                 totals: totals,
                 options: options
             ),
-            "compatibilityNote": "Batch research JSON appends structured research fields without changing CSV, Excel, or single-scan JSON compatibility. Per-scan detailed fields are populated when the matching single-scan _result.json sidecar is available.",
-            "records": try BatchExportFormatting.orderedRecords(records, options: options).map { record in
-                try Task.checkCancellation()
-                return recordPayload(for: record)
-            }
-        ]
-
-        let data = try JSONSerialization.data(
-            withJSONObject: payload,
             options: [.prettyPrinted, .sortedKeys]
         )
-        try data.write(to: url, options: .atomic)
+        let compatibilityNoteData = try JSONSerialization.data(
+            withJSONObject: compatibilityNote,
+            options: [.fragmentsAllowed]
+        )
+
+        try BatchExportStreamWriter.write(to: url) { writer in
+            try writer.write("{\n  \"compatibilityNote\" : ")
+            try writer.write(compatibilityNoteData)
+            try writer.write(",\n  \"exportMetadata\" : ")
+            try writer.write(metadataData)
+            try writer.write(",\n  \"records\" : [")
+
+            var isFirstRecord = true
+            for record in BatchExportFormatting.orderedRecords(records, options: options) {
+                try Task.checkCancellation()
+                let recordData = try autoreleasepool {
+                    try JSONSerialization.data(
+                        withJSONObject: recordPayload(for: record),
+                        options: [.prettyPrinted, .sortedKeys]
+                    )
+                }
+                try Task.checkCancellation()
+                try writer.write(isFirstRecord ? "\n" : ",\n")
+                try writer.write(recordData)
+                isFirstRecord = false
+            }
+
+            try writer.write("\n  ]\n}")
+        }
     }
 
     private static func exportMetadata(
