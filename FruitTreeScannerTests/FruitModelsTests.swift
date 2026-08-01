@@ -771,6 +771,126 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.confidence, "high")
     }
 
+    func testPLYParserRejectsOversizedLegacyCSVBeforeParsing() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("oversized-legacy.ply")
+        let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
+        try Data().write(to: plyURL)
+        let validPrefix = """
+        树编号,水果类型,扫描日期,果实数量,产量(kg),GPS纬度,GPS经度
+        T001,apple,2024-05-06 12:34:56,12,3.50,22.1234,114.5678
+
+        """
+        let oversizedCSV = validPrefix + String(repeating: "x", count: 1_048_576)
+        try oversizedCSV.write(to: csvURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.persistenceState, .invalid)
+        XCTAssertEqual(parsed.persistenceFailureReason, "scanResultCSVFailed")
+        XCTAssertEqual(parsed.fruitCount, 0)
+        XCTAssertEqual(parsed.yieldKg, 0)
+    }
+
+    func testPLYParserRejectsOversizedLegacyJSONBeforeParsing() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("oversized-legacy-json.ply")
+        let jsonURL = tempDir.appendingPathComponent("oversized-legacy-json_result.json")
+        try Data().write(to: plyURL)
+        try Data(
+            #"{"fruitCount":12,"yieldKg":3.5,"fruitType":"apple","confidence":"high","padding":""#.utf8
+        ).write(to: jsonURL)
+        do {
+            let handle = try FileHandle(forWritingTo: jsonURL)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            let chunk = Data(repeating: 0x78, count: 64 * 1_024)
+            var remainingByteCount = PLYParserHelper.maximumCompanionMetadataByteCount + 1
+            while remainingByteCount > 0 {
+                let writeByteCount = min(chunk.count, remainingByteCount)
+                try handle.write(contentsOf: chunk.prefix(writeByteCount))
+                remainingByteCount -= writeByteCount
+            }
+            try handle.write(contentsOf: Data(#""}"#.utf8))
+        }
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.persistenceState, .invalid)
+        XCTAssertEqual(parsed.persistenceFailureReason, "scanResultJSONFailed")
+        XCTAssertEqual(parsed.fruitCount, 0)
+        XCTAssertEqual(parsed.yieldKg, 0)
+    }
+
+    func testCompanionBoundedReaderAcceptsLimitAndRejectsOneExtraByte() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let fileURL = tempDir.appendingPathComponent("bounded.data")
+
+        try Data(repeating: 0x61, count: 32).write(to: fileURL)
+        XCTAssertEqual(
+            PLYParserHelper.readBoundedCompanionData(
+                at: fileURL,
+                maximumByteCount: 32
+            )?.count,
+            32
+        )
+
+        try Data(repeating: 0x61, count: 33).write(to: fileURL)
+        XCTAssertNil(
+            PLYParserHelper.readBoundedCompanionData(
+                at: fileURL,
+                maximumByteCount: 32
+            )
+        )
+    }
+
+    func testPLYParserRejectsOversizedTransactionalManifest() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("oversized-manifest.ply")
+        let metadataURL = tempDir.appendingPathComponent("oversized-manifest_result.json")
+        let manifestURL = tempDir.appendingPathComponent("oversized-manifest_complete.json")
+        let revision = "v1-test"
+        try Data().write(to: plyURL)
+        try JSONSerialization.data(withJSONObject: [
+            "fruitCount": 12,
+            "yieldKg": 3.5,
+            "fruitType": "apple",
+            "confidence": "high",
+            "exportRevision": revision
+        ]).write(to: metadataURL)
+        try JSONSerialization.data(withJSONObject: [
+            "schemaVersion": 1,
+            "exportRevision": revision,
+            "requiredFiles": [metadataURL.lastPathComponent],
+            "padding": String(
+                repeating: "x",
+                count: PLYParserHelper.maximumCompanionManifestByteCount
+            )
+        ]).write(to: manifestURL)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.persistenceState, .invalid)
+        XCTAssertEqual(parsed.persistenceFailureReason, "scanResultRevisionMismatch")
+        XCTAssertEqual(parsed.fruitCount, 0)
+        XCTAssertEqual(parsed.yieldKg, 0)
+    }
+
     func testPLYParserTrimsCompanionCSVValuesAndCRLF() throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -788,6 +908,27 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsed.fruitCount, 31)
         XCTAssertEqual(parsed.yieldKg, 8.75, accuracy: 0.001)
         XCTAssertEqual(parsed.fruitType, "orange")
+        XCTAssertEqual(parsed.confidence, "high")
+    }
+
+    func testPLYParserPreservesQuotedEmbeddedCRLFInCompanionCSV() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("quoted-crlf.ply")
+        let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
+        try Data().write(to: plyURL)
+        try "水果类型,果实数量,产量(kg),置信度\r\n\"orange,\r\npremium\",31,8.75,high\r\n"
+            .write(to: csvURL, atomically: true, encoding: .utf8)
+
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+
+        XCTAssertEqual(parsed.persistenceState, .complete)
+        XCTAssertEqual(parsed.fruitCount, 31)
+        XCTAssertEqual(parsed.yieldKg, 8.75, accuracy: 0.001)
+        XCTAssertEqual(parsed.fruitType, "orange,\npremium")
         XCTAssertEqual(parsed.confidence, "high")
     }
 
