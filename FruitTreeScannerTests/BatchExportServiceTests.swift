@@ -594,6 +594,49 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(result.totalFruitCount, 30)
     }
 
+    func testBatchExportRejectsNonFiniteAggregateYield() async {
+        let records = [
+            makeRecord(id: "a.ply", yieldKg: .greatestFiniteMagnitude),
+            makeRecord(id: "b.ply", yieldKg: .greatestFiniteMagnitude),
+        ]
+
+        for format in BatchExportService.ExportFormat.allCases {
+            do {
+                let result = try await BatchExportService.shared.export(
+                    records: records,
+                    format: format,
+                    options: .init()
+                )
+                try? FileManager.default.removeItem(at: result.url)
+                XCTFail("Expected \(format.rawValue) to reject an out-of-range aggregate")
+            } catch let error as BatchExportError {
+                XCTAssertEqual(error, .aggregateOutOfRange)
+            } catch {
+                XCTFail("Unexpected error type: \(error)")
+            }
+        }
+    }
+
+    func testBatchExportTotalsRejectIntegerOverflowWithoutTrapping() {
+        let records = [
+            makeRecord(id: "a.ply", fruitCount: .max),
+            makeRecord(id: "b.ply", fruitCount: 1),
+        ]
+
+        XCTAssertNil(BatchExportFormatting.totals(for: records))
+    }
+
+    func testBatchExportTotalsPreserveNormalAggregation() throws {
+        let records = [
+            makeRecord(id: "a.ply", fruitCount: 10, yieldKg: 3),
+            makeRecord(id: "b.ply", fruitCount: 20, yieldKg: 7),
+        ]
+
+        let totals = try XCTUnwrap(BatchExportFormatting.totals(for: records))
+        XCTAssertEqual(totals.totalFruitCount, 30)
+        XCTAssertEqual(totals.totalYield, 10, accuracy: 0.000_1)
+    }
+
     // MARK: - (3) CSV escaping: quotes, commas, newlines in text fields
 
     func testCSVEscapesDoubleQuotesInFields() async throws {

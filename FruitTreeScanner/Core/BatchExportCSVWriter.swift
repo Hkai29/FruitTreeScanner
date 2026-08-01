@@ -6,6 +6,7 @@ import Foundation
 enum BatchExportCSVWriter {
     static func write(
         records: [ScanFileRecord],
+        totals: BatchExportTotals,
         options: BatchExportService.ExportOptions,
         to url: URL
     ) throws {
@@ -27,7 +28,7 @@ enum BatchExportCSVWriter {
 
         rows.append("")
         rows.append("汇总")
-        rows.append(summaryRow(records: records, options: options))
+        rows.append(summaryRow(recordCount: records.count, totals: totals, options: options))
 
         let csvContent = "\u{FEFF}" + rows.joined(separator: "\n") + "\n"
         try csvContent.write(to: url, atomically: true, encoding: .utf8)
@@ -62,20 +63,21 @@ enum BatchExportCSVWriter {
     }
 
     private static func summaryRow(
-        records: [ScanFileRecord],
+        recordCount: Int,
+        totals: BatchExportTotals,
         options: BatchExportService.ExportOptions
     ) -> String {
         var fields = [
             "总计",
-            "\(records.count) 棵"
+            "\(recordCount) 棵"
         ]
 
         if options.includeFruitCount {
-            fields.append("\(BatchExportFormatting.totalFruitCount(records)) 个")
+            fields.append("\(totals.totalFruitCount) 个")
         }
         if options.includeYield {
             fields.append(
-                "\(StableDataFormatting.decimal(BatchExportFormatting.totalYield(records), precision: 2)) kg"
+                "\(StableDataFormatting.decimal(totals.totalYield, precision: 2)) kg"
             )
         }
 

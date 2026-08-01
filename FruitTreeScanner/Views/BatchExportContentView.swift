@@ -36,23 +36,22 @@ struct BatchExportContentView: View {
         BatchExportSelectionPolicy.normalizedSelection(selectedRecords, for: records)
     }
 
-    private var selectedSummary: (totalYield: Float, totalFruitCount: Int) {
+    private var selectedSummary: BatchExportTotals? {
         let selectedFiles = exportableRecords.filter {
             normalizedSelectedRecords.contains($0.id)
         }
-        let totalYield = selectedFiles.reduce(0) { $0 + $1.yieldKg }
-        let totalFruitCount = selectedFiles.reduce(0) { $0 + $1.fruitCount }
-        return (totalYield, totalFruitCount)
+        return BatchExportFormatting.totals(for: selectedFiles)
     }
 
     private var populatedContent: some View {
-        VStack(spacing: 0) {
+        let summary = selectedSummary
+        return VStack(spacing: 0) {
             BatchExportHeaderBar(
                 selectedCount: normalizedSelectedRecords.count,
                 totalCount: exportableRecords.count,
                 unavailableCount: records.count - exportableRecords.count,
-                totalYield: selectedSummary.totalYield,
-                totalFruitCount: selectedSummary.totalFruitCount
+                totalYield: summary?.totalYield,
+                totalFruitCount: summary?.totalFruitCount
             )
 
             BatchExportRecordListView(
