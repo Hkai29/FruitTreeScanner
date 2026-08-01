@@ -53,9 +53,14 @@ final class TagStore: ObservableObject {
                     Log.general.error("Tag store snapshot exists but is not encoded data")
                     return
                 }
-                plots = snapshot.plots
-                tags = snapshot.tags
-                assignments = snapshot.assignments
+                let didRepair = applyLoadedData(
+                    plots: snapshot.plots,
+                    tags: snapshot.tags,
+                    assignments: snapshot.assignments
+                )
+                if didRepair {
+                    persistChanges()
+                }
             } catch {
                 Log.general.error("Failed to read tag store snapshot: \(error.localizedDescription)")
             }
@@ -63,25 +68,50 @@ final class TagStore: ObservableObject {
         }
 
         // One-time migration from the legacy independently-written keys.
+        let loadedPlots: [Plot]
         do {
-            plots = try defaults.getObject(forKey: StorageKeys.plots) ?? []
+            loadedPlots = try defaults.getObject(forKey: StorageKeys.plots) ?? []
         } catch {
-            plots = []
+            loadedPlots = []
         }
+        let loadedTags: [GroupTag]
         do {
-            tags = try defaults.getObject(forKey: StorageKeys.tags) ?? []
+            loadedTags = try defaults.getObject(forKey: StorageKeys.tags) ?? []
         } catch {
-            tags = []
+            loadedTags = []
         }
+        let loadedAssignments: [TreeAssignment]
         do {
-            assignments = try defaults.getObject(forKey: StorageKeys.assignments) ?? []
+            loadedAssignments = try defaults.getObject(forKey: StorageKeys.assignments) ?? []
         } catch {
-            assignments = []
+            loadedAssignments = []
         }
 
-        if !plots.isEmpty || !tags.isEmpty || !assignments.isEmpty {
+        _ = applyLoadedData(
+            plots: loadedPlots,
+            tags: loadedTags,
+            assignments: loadedAssignments
+        )
+        if !loadedPlots.isEmpty || !loadedTags.isEmpty || !loadedAssignments.isEmpty {
             persistChanges()
         }
+    }
+
+    @discardableResult
+    private func applyLoadedData(
+        plots loadedPlots: [Plot],
+        tags loadedTags: [GroupTag],
+        assignments loadedAssignments: [TreeAssignment]
+    ) -> Bool {
+        let sanitizedAssignments = Self.sanitizedAssignments(
+            loadedAssignments,
+            validPlotIDs: Set(loadedPlots.map(\.id)),
+            validTagIDs: Set(loadedTags.map(\.id))
+        )
+        plots = loadedPlots
+        tags = loadedTags
+        assignments = sanitizedAssignments
+        return sanitizedAssignments != loadedAssignments
     }
 
     private func persistChanges() {
@@ -198,25 +228,85 @@ final class TagStore: ObservableObject {
     // MARK: - Assignment Operations
 
     func getAssignment(treeId: String) -> TreeAssignment? {
-        assignments.first { $0.treeId == treeId }
+        let normalizedTreeID = TreeIdentifierPolicy.normalized(treeId)
+        return assignments.first { $0.treeId == normalizedTreeID }
     }
 
     func createOrUpdateAssignment(treeId: String, plotId: UUID?, tagIds: [UUID], status: ScanStatus) {
-        if let index = assignments.firstIndex(where: { $0.treeId == treeId }) {
-            assignments[index].plotId = plotId
-            assignments[index].tagIds = tagIds
+        let normalizedTreeID = TreeIdentifierPolicy.normalized(treeId)
+        guard !normalizedTreeID.isEmpty else { return }
+        let validPlotIDs = Set(plots.map(\.id))
+        let validTagIDs = Set(tags.map(\.id))
+        let sanitizedPlotID = plotId.flatMap { validPlotIDs.contains($0) ? $0 : nil }
+        let sanitizedTagIDs = Self.uniqueValidTagIDs(tagIds, validTagIDs: validTagIDs)
+
+        if let index = assignments.firstIndex(where: { $0.treeId == normalizedTreeID }) {
+            assignments[index].plotId = sanitizedPlotID
+            assignments[index].tagIds = sanitizedTagIDs
             assignments[index].status = status
         } else {
-            let assignment = TreeAssignment(treeId: treeId, plotId: plotId, tagIds: tagIds, status: status)
+            let assignment = TreeAssignment(
+                treeId: normalizedTreeID,
+                plotId: sanitizedPlotID,
+                tagIds: sanitizedTagIDs,
+                status: status
+            )
             assignments.append(assignment)
         }
         persistChanges()
     }
 
     func updateAssignmentStatus(treeId: String, status: ScanStatus) {
-        guard let index = assignments.firstIndex(where: { $0.treeId == treeId }) else { return }
+        let normalizedTreeID = TreeIdentifierPolicy.normalized(treeId)
+        guard let index = assignments.firstIndex(where: { $0.treeId == normalizedTreeID }) else {
+            return
+        }
         assignments[index].status = status
         persistChanges()
+    }
+
+    private static func sanitizedAssignments(
+        _ assignments: [TreeAssignment],
+        validPlotIDs: Set<UUID>,
+        validTagIDs: Set<UUID>
+    ) -> [TreeAssignment] {
+        var sanitized: [TreeAssignment] = []
+        var indexByTreeID: [String: Int] = [:]
+
+        for assignment in assignments {
+            let treeID = TreeIdentifierPolicy.normalized(assignment.treeId)
+            guard !treeID.isEmpty else { continue }
+            let plotID = assignment.plotId.flatMap {
+                validPlotIDs.contains($0) ? $0 : nil
+            }
+            let tagIDs = uniqueValidTagIDs(
+                assignment.tagIds,
+                validTagIDs: validTagIDs
+            )
+            let repaired = TreeAssignment(
+                treeId: treeID,
+                plotId: plotID,
+                tagIds: tagIDs,
+                status: assignment.status
+            )
+            if let index = indexByTreeID[treeID] {
+                sanitized[index] = repaired
+            } else {
+                indexByTreeID[treeID] = sanitized.count
+                sanitized.append(repaired)
+            }
+        }
+        return sanitized
+    }
+
+    private static func uniqueValidTagIDs(
+        _ tagIDs: [UUID],
+        validTagIDs: Set<UUID>
+    ) -> [UUID] {
+        var seen: Set<UUID> = []
+        return tagIDs.filter {
+            validTagIDs.contains($0) && seen.insert($0).inserted
+        }
     }
 
     // MARK: - Query Methods

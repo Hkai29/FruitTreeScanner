@@ -274,6 +274,125 @@ final class TagStoreTests: XCTestCase {
         )
     }
 
+    func testAssignmentWriteNormalizesTreeAndRejectsStaleOrDuplicateReferences() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let store = TagStore(defaults: defaults)
+        store.addPlot(name: "North Block")
+        store.addTag(name: "Priority")
+        let plotID = try XCTUnwrap(store.plots.first?.id)
+        let tagID = try XCTUnwrap(store.tags.first?.id)
+
+        store.createOrUpdateAssignment(
+            treeId: "  TREE-001  ",
+            plotId: UUID(),
+            tagIds: [tagID, tagID, UUID()],
+            status: .reviewing
+        )
+
+        XCTAssertEqual(
+            store.getAssignment(treeId: "TREE-001"),
+            TreeAssignment(
+                treeId: "TREE-001",
+                plotId: nil,
+                tagIds: [tagID],
+                status: .reviewing
+            )
+        )
+        XCTAssertEqual(store.getAssignment(treeId: " TREE-001 ")?.treeId, "TREE-001")
+
+        store.createOrUpdateAssignment(
+            treeId: "TREE-001",
+            plotId: plotID,
+            tagIds: [tagID],
+            status: .completed
+        )
+        store.createOrUpdateAssignment(
+            treeId: "   ",
+            plotId: plotID,
+            tagIds: [tagID],
+            status: .scanned
+        )
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(store.assignments.count, 1)
+        XCTAssertEqual(store.assignments.first?.plotId, plotID)
+        XCTAssertEqual(store.assignments.first?.tagIds, [tagID])
+        XCTAssertEqual(store.assignments.first?.status, .completed)
+
+        let reloaded = TagStore(defaults: defaults)
+        XCTAssertEqual(reloaded.assignments, store.assignments)
+    }
+
+    func testLoadingSnapshotRepairsDanglingAndDuplicateAssignments() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let plot = Plot(name: "South Block")
+        let tag = GroupTag(name: "Trial")
+        let stalePlotID = UUID()
+        let staleTagID = UUID()
+        let snapshot = PersistedSnapshot(
+            plots: [plot],
+            tags: [tag],
+            assignments: [
+                TreeAssignment(
+                    treeId: " TREE-001 ",
+                    plotId: plot.id,
+                    tagIds: [tag.id, staleTagID, tag.id],
+                    status: .reviewing
+                ),
+                TreeAssignment(
+                    treeId: "TREE-002",
+                    plotId: stalePlotID,
+                    tagIds: [staleTagID],
+                    status: .scanned
+                ),
+                TreeAssignment(
+                    treeId: "TREE-001",
+                    plotId: nil,
+                    tagIds: [tag.id],
+                    status: .completed
+                ),
+                TreeAssignment(
+                    treeId: "   ",
+                    plotId: plot.id,
+                    tagIds: [tag.id],
+                    status: .scanned
+                )
+            ]
+        )
+        defaults.set(
+            try JSONEncoder().encode(snapshot),
+            forKey: TagStore.snapshotUserDefaultsKey
+        )
+
+        let store = TagStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(
+            store.assignments,
+            [
+                TreeAssignment(
+                    treeId: "TREE-001",
+                    plotId: nil,
+                    tagIds: [tag.id],
+                    status: .completed
+                ),
+                TreeAssignment(
+                    treeId: "TREE-002",
+                    plotId: nil,
+                    tagIds: [],
+                    status: .scanned
+                )
+            ]
+        )
+
+        let persisted: PersistedSnapshot = try persistedSnapshot(from: defaults)
+        XCTAssertEqual(persisted.assignments, store.assignments)
+    }
+
     func testQuickTaggingCardRendersAtAccessibilityTextSize() {
         let card = QuickTaggingCard(
             treeID: "TREE-QUICK-TAG",
