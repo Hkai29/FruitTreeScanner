@@ -1,3 +1,4 @@
+import CoreLocation
 import XCTest
 @testable import FruitTreeScanner
 
@@ -103,6 +104,121 @@ final class DashboardSummaryTests: XCTestCase {
 
         XCTAssertEqual(snapshot.plotId, plot.id)
         XCTAssertEqual(snapshot.tagIds, [secondTag.id, firstTag.id])
+    func testGPSLocationPolicyRejectsStaleInaccurateAndInvalidFixes() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let good = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737),
+            altitude: 0,
+            horizontalAccuracy: GPSLocationPolicy.maximumHorizontalAccuracy,
+            verticalAccuracy: 5,
+            timestamp: now.addingTimeInterval(-GPSLocationPolicy.maximumLocationAge)
+        )
+        let stale = CLLocation(
+            coordinate: good.coordinate,
+            altitude: 0,
+            horizontalAccuracy: 4,
+            verticalAccuracy: 5,
+            timestamp: now.addingTimeInterval(-GPSLocationPolicy.maximumLocationAge - 0.1)
+        )
+        let inaccurate = CLLocation(
+            coordinate: good.coordinate,
+            altitude: 0,
+            horizontalAccuracy: GPSLocationPolicy.maximumHorizontalAccuracy + 0.1,
+            verticalAccuracy: 5,
+            timestamp: now
+        )
+        let invalidAccuracy = CLLocation(
+            coordinate: good.coordinate,
+            altitude: 0,
+            horizontalAccuracy: -1,
+            verticalAccuracy: 5,
+            timestamp: now
+        )
+        let invalidCoordinate = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 91, longitude: 181),
+            altitude: 0,
+            horizontalAccuracy: 1,
+            verticalAccuracy: 5,
+            timestamp: now
+        )
+        let future = CLLocation(
+            coordinate: good.coordinate,
+            altitude: 0,
+            horizontalAccuracy: 1,
+            verticalAccuracy: 5,
+            timestamp: now.addingTimeInterval(
+                GPSLocationPolicy.maximumFutureTimestampSkew + 0.1
+            )
+        )
+
+        XCTAssertTrue(GPSLocationPolicy.isAcceptable(good, at: now))
+        XCTAssertFalse(GPSLocationPolicy.isAcceptable(stale, at: now))
+        XCTAssertFalse(GPSLocationPolicy.isAcceptable(inaccurate, at: now))
+        XCTAssertFalse(GPSLocationPolicy.isAcceptable(invalidAccuracy, at: now))
+        XCTAssertFalse(GPSLocationPolicy.isAcceptable(invalidCoordinate, at: now))
+        XCTAssertFalse(GPSLocationPolicy.isAcceptable(future, at: now))
+    }
+
+    func testGPSLocationPolicyChoosesMostAccurateThenNewestFix() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let lessAccurate = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 31.1, longitude: 121.1),
+            altitude: 0,
+            horizontalAccuracy: 7,
+            verticalAccuracy: 5,
+            timestamp: now
+        )
+        let olderAccurate = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 31.2, longitude: 121.2),
+            altitude: 0,
+            horizontalAccuracy: 3,
+            verticalAccuracy: 5,
+            timestamp: now.addingTimeInterval(-2)
+        )
+        let newerAccurate = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 31.3, longitude: 121.3),
+            altitude: 0,
+            horizontalAccuracy: 3,
+            verticalAccuracy: 5,
+            timestamp: now.addingTimeInterval(-1)
+        )
+
+        let best = try XCTUnwrap(
+            GPSLocationPolicy.bestLocation(
+                from: [lessAccurate, olderAccurate, newerAccurate],
+                at: now
+            )
+        )
+
+        XCTAssertEqual(best.coordinate.latitude, newerAccurate.coordinate.latitude)
+        XCTAssertEqual(best.coordinate.longitude, newerAccurate.coordinate.longitude)
+    }
+
+    func testGPSLocationPolicySnapshotDropsFixAfterItExpires() throws {
+        let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
+        let location = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: -33.8688, longitude: 151.2093),
+            altitude: 0,
+            horizontalAccuracy: 4,
+            verticalAccuracy: 5,
+            timestamp: timestamp
+        )
+
+        let freshSnapshot = try XCTUnwrap(
+            GPSLocationPolicy.snapshot(
+                from: location,
+                at: timestamp.addingTimeInterval(5)
+            )
+        )
+        let expiredSnapshot = GPSLocationPolicy.snapshot(
+            from: location,
+            at: timestamp.addingTimeInterval(GPSLocationPolicy.maximumLocationAge + 1)
+        )
+
+        XCTAssertEqual(freshSnapshot.latitude, -33.8688, accuracy: 0.000_001)
+        XCTAssertEqual(freshSnapshot.longitude, 151.2093, accuracy: 0.000_001)
+        XCTAssertEqual(freshSnapshot.horizontalAccuracy, 4)
+        XCTAssertNil(expiredSnapshot)
     }
 
     @MainActor
