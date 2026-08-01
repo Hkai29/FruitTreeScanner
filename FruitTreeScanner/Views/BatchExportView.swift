@@ -77,6 +77,12 @@ struct BatchExportView: View {
         }
         .onAppear(perform: handleAppear)
         .onChange(of: store.scanFiles, perform: handleRecordsChanged)
+        .onChange(of: tagStore.plots) { _ in
+            handleExportSourceChanged()
+        }
+        .onChange(of: tagStore.assignments) { _ in
+            handleExportSourceChanged()
+        }
         .onDisappear(perform: handleDisappear)
     }
 

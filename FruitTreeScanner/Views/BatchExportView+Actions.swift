@@ -7,8 +7,16 @@ extension BatchExportView {
     }
 
     func handleRecordsChanged(_ files: [ScanFileRecord]) {
+        handleExportSourceChanged()
         pruneSelection(to: files)
         selectAllIfNeeded()
+    }
+
+    func handleExportSourceChanged() {
+        if isExporting {
+            cancelExport()
+        }
+        clearExportedFile()
     }
 
     func handleDisappear() {
@@ -50,24 +58,14 @@ extension BatchExportView {
     }
 
     func performExport() {
-        let selectionSnapshot = BatchExportSelectionPolicy.normalizedSelection(
-            selectedRecords,
-            for: store.scanFiles
-        )
-        let selectedFiles = BatchExportSelectionPolicy.exportableRecords(from: store.scanFiles)
-            .filter { selectionSnapshot.contains($0.id) }
-
-        guard !selectedFiles.isEmpty else { return }
+        let requestSnapshot = makeExportRequestSnapshot()
+        guard !requestSnapshot.records.isEmpty else { return }
 
         exportTask?.cancel()
         exportGeneration += 1
         let generation = exportGeneration
         isExporting = true
         clearExportedFile()
-        let format = exportFormat
-        let optionSnapshot = exportOptions
-        var options = optionSnapshot
-        options.plotNameByTreeID = plotNameByTreeID()
 
         exportTask = Task {
             defer {
@@ -79,9 +77,9 @@ extension BatchExportView {
 
             do {
                 let exportResult = try await BatchExportService.shared.export(
-                    records: selectedFiles,
-                    format: format,
-                    options: options
+                    records: requestSnapshot.records,
+                    format: requestSnapshot.format,
+                    options: requestSnapshot.options
                 )
                 guard !Task.isCancelled,
                       exportGeneration == generation
@@ -89,10 +87,7 @@ extension BatchExportView {
                     try? FileManager.default.removeItem(at: exportResult.url)
                     return
                 }
-                guard selectedRecords == selectionSnapshot,
-                      exportFormat == format,
-                      exportOptions == optionSnapshot
-                else {
+                guard makeExportRequestSnapshot() == requestSnapshot else {
                     try? FileManager.default.removeItem(at: exportResult.url)
                     return
                 }
@@ -107,6 +102,17 @@ extension BatchExportView {
                 showError = true
             }
         }
+    }
+
+    func makeExportRequestSnapshot() -> BatchExportRequestSnapshot {
+        var options = exportOptions
+        options.plotNameByTreeID = plotNameByTreeID()
+        return BatchExportRequestSnapshot(
+            records: store.scanFiles,
+            selectedRecordIDs: selectedRecords,
+            format: exportFormat,
+            options: options
+        )
     }
 
     func cancelExport() {
