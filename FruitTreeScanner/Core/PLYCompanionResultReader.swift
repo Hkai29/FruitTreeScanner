@@ -54,28 +54,50 @@ extension PLYParserHelper {
         readCompanionCSV(at: companionURLs(for: plyURL).csv)?.result
     }
 
+    static func readValidatedCompanionMetadataPayload(for plyURL: URL) -> [String: Any]? {
+        guard !plyURL.deletingPathExtension().lastPathComponent.isEmpty else { return nil }
+        let urls = companionURLs(for: plyURL)
+        if FileManager.default.fileExists(atPath: urls.manifest.path) {
+            return readTransactionalMetadataPayload(urls: urls)
+        }
+        guard let payload = readMetadataPayload(at: urls.metadata),
+              !payload.keys.contains("exportRevision")
+        else { return nil }
+        return payload
+    }
+
     private static func readTransactionalCompanions(
         urls: (metadata: URL, csv: URL, manifest: URL)
     ) -> CompanionReadResult {
-        guard let manifestData = try? Data(contentsOf: urls.manifest),
+        guard let payload = readTransactionalMetadataPayload(urls: urls),
+              let metadata = companionMetadata(from: payload)
+        else {
+            return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultRevisionMismatch")
+        }
+        return CompanionReadResult(state: .complete, result: metadata.result, failureReason: nil)
+    }
+
+    private static func readTransactionalMetadataPayload(
+        urls: (metadata: URL, csv: URL, manifest: URL)
+    ) -> [String: Any]? {
+        guard let metadata = readMetadataPayload(at: urls.metadata),
+              let manifestData = try? Data(contentsOf: urls.manifest),
               let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
               manifest["schemaVersion"] as? Int == 1,
               let revision = manifest["exportRevision"] as? String,
               !revision.isEmpty,
               let requiredFiles = manifest["requiredFiles"] as? [String],
               requiredFiles.contains(urls.metadata.lastPathComponent),
-              let metadata = readCompanionMetadata(at: urls.metadata),
-              metadata.revision == revision
-        else {
-            return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultRevisionMismatch")
-        }
+              metadata["exportRevision"] as? String == revision,
+              companionMetadata(from: metadata) != nil
+        else { return nil }
 
         if requiredFiles.contains(urls.csv.lastPathComponent) {
             guard let csv = readCompanionCSV(at: urls.csv), csv.revision == revision else {
-                return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultRevisionMismatch")
+                return nil
             }
         }
-        return CompanionReadResult(state: .complete, result: metadata.result, failureReason: nil)
+        return metadata
     }
 
     private static func companionURLs(for plyURL: URL) -> (metadata: URL, csv: URL, manifest: URL) {
@@ -91,9 +113,21 @@ extension PLYParserHelper {
     private static func readCompanionMetadata(
         at url: URL
     ) -> (result: CompanionResult, revision: String?, hasRevisionField: Bool)? {
+        guard let payload = readMetadataPayload(at: url) else { return nil }
+        return companionMetadata(from: payload)
+    }
+
+    private static func readMetadataPayload(at url: URL) -> [String: Any]? {
         guard let data = try? Data(contentsOf: url),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let fruitCount = nonNegativeIntValue(payload["fruitCount"]),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return payload
+    }
+
+    private static func companionMetadata(
+        from payload: [String: Any]
+    ) -> (result: CompanionResult, revision: String?, hasRevisionField: Bool)? {
+        guard let fruitCount = nonNegativeIntValue(payload["fruitCount"]),
               let yieldKg = nonNegativeFloatValue(payload["yieldKg"])
         else { return nil }
         return (

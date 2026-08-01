@@ -159,6 +159,33 @@ final class BatchExportServiceTests: XCTestCase {
         try data.write(to: metadataURL, options: .atomic)
     }
 
+    private func writeMockCompletionManifest(
+        for plyURL: URL,
+        revision: String,
+        requiredFiles: [String]
+    ) throws {
+        let baseName = (plyURL.lastPathComponent as NSString).deletingPathExtension
+        let manifestURL = plyURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
+        let payload: [String: Any] = [
+            "schemaVersion": 1,
+            "exportRevision": revision,
+            "requiredFiles": requiredFiles
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
+        try data.write(to: manifestURL, options: .atomic)
+    }
+
+    private func writeMockCompanionCSV(
+        for plyURL: URL,
+        revision: String
+    ) throws {
+        let csvURL = plyURL.deletingPathExtension().appendingPathExtension("csv")
+        let content = "果实数量,产量(kg),ExportRevision\n10,5.5,\(revision)\n"
+        try content.write(to: csvURL, atomically: true, encoding: .utf8)
+    }
+
     // MARK: - (1) Empty records throws BatchExportError.noRecords
 
     func testEmptyRecordsThrowsNoRecords() async {
@@ -422,6 +449,135 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(secondRecognitionDiagnostics["runtimeModelLabelCount"] as? Int, 0)
         XCTAssertEqual(secondRecognitionDiagnostics["rawDetectedLabels"] as? [String], [])
         XCTAssertTrue((second["compatibilityNote"] as? String)?.contains("sidecar unavailable") == true)
+    }
+
+    func testBatchResearchJSONRejectsMetadataFromMismatchedTransaction() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchResearchJSON-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("scan.ply")
+        let record = makeRecord(id: "scan.ply", fileURL: plyURL)
+        try writeMockSingleScanMetadata(
+            for: plyURL,
+            payload: [
+                "exportRevision": "metadata-revision",
+                "scanID": "uncommitted-scan",
+                "fruitCount": 10,
+                "yieldKg": 5.5,
+                "validatedFruits": [["source": "fused"]]
+            ]
+        )
+        try writeMockCompletionManifest(
+            for: plyURL,
+            revision: "manifest-revision",
+            requiredFiles: ["scan_result.json"]
+        )
+
+        let payload = try await exportJSONPayload(records: [record])
+        let records = try XCTUnwrap(payload["records"] as? [[String: Any]])
+        let exported = try XCTUnwrap(records.first)
+
+        XCTAssertEqual(exported["scanID"] as? String, "scan")
+        XCTAssertEqual(exported["singleScanMetadataAvailable"] as? Bool, false)
+        XCTAssertTrue((exported["validatedFruits"] as? [[String: Any]])?.isEmpty == true)
+    }
+
+    func testBatchResearchJSONAcceptsMetadataFromMatchingTransaction() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchResearchJSON-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("scan.ply")
+        let record = makeRecord(id: "scan.ply", fileURL: plyURL)
+        try writeMockSingleScanMetadata(
+            for: plyURL,
+            payload: [
+                "exportRevision": "matching-revision",
+                "scanID": "committed-scan",
+                "fruitCount": 10,
+                "yieldKg": 5.5,
+                "validatedFruits": [["source": "fused"]]
+            ]
+        )
+        try writeMockCompanionCSV(for: plyURL, revision: "matching-revision")
+        try writeMockCompletionManifest(
+            for: plyURL,
+            revision: "matching-revision",
+            requiredFiles: ["scan_result.json", "scan.csv"]
+        )
+
+        let payload = try await exportJSONPayload(records: [record])
+        let records = try XCTUnwrap(payload["records"] as? [[String: Any]])
+        let exported = try XCTUnwrap(records.first)
+
+        XCTAssertEqual(exported["scanID"] as? String, "committed-scan")
+        XCTAssertEqual(exported["singleScanMetadataAvailable"] as? Bool, true)
+        XCTAssertEqual((exported["validatedFruits"] as? [[String: Any]])?.count, 1)
+    }
+
+    func testBatchResearchJSONRejectsRevisionedMetadataWithoutManifest() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchResearchJSON-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("scan.ply")
+        let record = makeRecord(id: "scan.ply", fileURL: plyURL)
+        try writeMockSingleScanMetadata(
+            for: plyURL,
+            payload: [
+                "exportRevision": "orphan-revision",
+                "scanID": "orphan-scan",
+                "fruitCount": 10,
+                "yieldKg": 5.5,
+                "validatedFruits": [["source": "fused"]]
+            ]
+        )
+
+        let payload = try await exportJSONPayload(records: [record])
+        let records = try XCTUnwrap(payload["records"] as? [[String: Any]])
+        let exported = try XCTUnwrap(records.first)
+
+        XCTAssertEqual(exported["scanID"] as? String, "scan")
+        XCTAssertEqual(exported["singleScanMetadataAvailable"] as? Bool, false)
+        XCTAssertTrue((exported["validatedFruits"] as? [[String: Any]])?.isEmpty == true)
+    }
+
+    func testBatchResearchJSONRejectsTransactionWithMismatchedRequiredCSV() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchResearchJSON-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("scan.ply")
+        let record = makeRecord(id: "scan.ply", fileURL: plyURL)
+        try writeMockSingleScanMetadata(
+            for: plyURL,
+            payload: [
+                "exportRevision": "metadata-revision",
+                "scanID": "partial-scan",
+                "fruitCount": 10,
+                "yieldKg": 5.5,
+                "validatedFruits": [["source": "fused"]]
+            ]
+        )
+        try writeMockCompanionCSV(for: plyURL, revision: "csv-revision")
+        try writeMockCompletionManifest(
+            for: plyURL,
+            revision: "metadata-revision",
+            requiredFiles: ["scan_result.json", "scan.csv"]
+        )
+
+        let payload = try await exportJSONPayload(records: [record])
+        let records = try XCTUnwrap(payload["records"] as? [[String: Any]])
+        let exported = try XCTUnwrap(records.first)
+
+        XCTAssertEqual(exported["scanID"] as? String, "scan")
+        XCTAssertEqual(exported["singleScanMetadataAvailable"] as? Bool, false)
+        XCTAssertTrue((exported["validatedFruits"] as? [[String: Any]])?.isEmpty == true)
     }
 
     func testExportResultReturnsCorrectMetadata() async throws {

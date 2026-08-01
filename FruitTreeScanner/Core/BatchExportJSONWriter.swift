@@ -86,16 +86,7 @@ enum BatchExportJSONWriter {
     }
 
     private static func singleScanMetadata(for record: ScanFileRecord) -> [String: Any]? {
-        let baseName = (record.fileURL.lastPathComponent as NSString).deletingPathExtension
-        guard !baseName.isEmpty else { return nil }
-        let metadataURL = record.fileURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)_result.json")
-        guard let data = try? Data(contentsOf: metadataURL),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        return payload
+        PLYParserHelper.readValidatedCompanionMetadataPayload(for: record.fileURL)
     }
 
     private static func sourceCounts(from diagnostics: [String: Any]?) -> [String: Any] {
