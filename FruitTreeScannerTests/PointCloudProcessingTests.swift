@@ -1546,6 +1546,27 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(result).id, loadedData.id)
     }
 
+    func testPointCloudParserOptionalFacadeMapsCancellationToNil() async throws {
+        let plyURL = try writeTemporaryPLY(name: "cancelled-preview.ply", content: """
+        ply
+        format ascii 1.0
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        end_header
+        1.0 2.0 3.0
+        """)
+
+        let parseTask = Task.detached {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return PLYParserHelper.parsePointCloudData(at: plyURL)
+        }
+
+        let result = await parseTask.value
+        XCTAssertNil(result, "The nonthrowing preview facade must keep cancellation as nil")
+    }
+
     func testPointCloudDataStoresBoundsInDisplaySnapshot() {
         let pointCloud = PointCloudData(
             id: "cached-bounds",
@@ -1604,6 +1625,89 @@ final class PointCloudProcessingTests: XCTestCase {
             includingPropertiesForKeys: nil
         )
         XCTAssertTrue(contents.isEmpty, "Invalid header import left artifacts: \(contents)")
+    }
+
+    func testPLYImportPropagatesParserCancellationAndLeavesScansDirectoryClean() async throws {
+        var body = Data()
+        body.append(Self.leFloat32(1))
+        body.append(Self.leFloat32(2))
+        body.append(Self.leFloat32(3))
+        let plyURL = try writeTemporaryPLY(
+            name: "parser-cancellation.ply",
+            data: binaryPLYData(
+                format: "binary_little_endian",
+                vertexCount: 1,
+                properties: [
+                    "property float x",
+                    "property float y",
+                    "property float z",
+                ],
+                body: body
+            )
+        )
+        let scansDir = plyURL.deletingLastPathComponent()
+            .appendingPathComponent("scans", isDirectory: true)
+
+        let importTask = Task.detached {
+            var checkpointCount = 0
+            return try PLYImportService.importFile(
+                plyURL,
+                scansDirectory: scansDir,
+                cancellationCheckpoint: {
+                    checkpointCount += 1
+                    if checkpointCount == 2 {
+                        withUnsafeCurrentTask { $0?.cancel() }
+                    }
+                }
+            )
+        }
+
+        do {
+            _ = try await importTask.value
+            XCTFail("Parser-stage cancellation must not be reported as a completed import")
+        } catch {
+            XCTAssertTrue(
+                error is CancellationError,
+                "Expected CancellationError, received \(error)"
+            )
+        }
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Canceled parser left artifacts: \(contents)")
+    }
+
+    func testPLYImportReportsInvalidPointCloudForTruncatedBody() throws {
+        let plyURL = try writeTemporaryPLY(name: "truncated-import.ply", content: """
+        ply
+        format ascii 1.0
+        element vertex 2
+        property float x
+        property float y
+        property float z
+        end_header
+        1.0 2.0 3.0
+        """)
+        let scansDir = plyURL.deletingLastPathComponent()
+            .appendingPathComponent("scans", isDirectory: true)
+
+        XCTAssertThrowsError(
+            try PLYImportService.importFile(plyURL, scansDirectory: scansDir)
+        ) { error in
+            guard let importError = error as? PLYImportService.ImportError,
+                  case .invalidPointCloud = importError
+            else {
+                return XCTFail("Expected invalidPointCloud, received \(error)")
+            }
+        }
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Invalid point cloud left artifacts: \(contents)")
     }
 
     func testPLYImportCancellationAfterCommitRemovesDestination() throws {

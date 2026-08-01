@@ -50,6 +50,17 @@ enum PLYParserHelper {
     }
 
     static func parsePointCloudData(at url: URL) -> PointCloudData? {
+        try? parsePointCloudDataCancellable(at: url)
+    }
+
+    static func parsePointCloudDataCancellable(at url: URL) throws -> PointCloudData? {
+        try Task.checkCancellation()
+        let pointCloudData = parsePointCloudDataUnchecked(at: url)
+        try Task.checkCancellation()
+        return pointCloudData
+    }
+
+    private static func parsePointCloudDataUnchecked(at url: URL) -> PointCloudData? {
         guard let prefix = readPointCloudHeaderPrefix(at: url) else { return nil }
         guard let headerEndRange = headerEndRange(in: prefix),
               headerEndRange.upperBound <= maximumHeaderSize,
