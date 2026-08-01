@@ -72,6 +72,39 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertFalse(gate.isSubmitting)
     }
 
+    func testStartScanSelectionDropsUnavailablePlotAndTagIDs() {
+        let availablePlot = Plot(name: "North Block")
+        let availableTag = GroupTag(name: "Priority")
+        let stalePlotID = UUID()
+        let staleTagID = UUID()
+
+        let snapshot = StartScanSelectionPolicy.snapshot(
+            selectedPlotId: stalePlotID,
+            selectedTagIds: [availableTag.id, staleTagID],
+            availablePlots: [availablePlot],
+            availableTags: [availableTag]
+        )
+
+        XCTAssertNil(snapshot.plotId)
+        XCTAssertEqual(snapshot.tagIds, [availableTag.id])
+    }
+
+    func testStartScanSelectionKeepsAvailablePlotAndUsesTagCatalogOrder() {
+        let plot = Plot(name: "South Block")
+        let firstTag = GroupTag(name: "First")
+        let secondTag = GroupTag(name: "Second")
+
+        let snapshot = StartScanSelectionPolicy.snapshot(
+            selectedPlotId: plot.id,
+            selectedTagIds: [firstTag.id, secondTag.id],
+            availablePlots: [plot],
+            availableTags: [secondTag, firstTag]
+        )
+
+        XCTAssertEqual(snapshot.plotId, plot.id)
+        XCTAssertEqual(snapshot.tagIds, [secondTag.id, firstTag.id])
+    }
+
     @MainActor
     func testNavigationRouterReceivesRequestPostedAfterInitialization() {
         let suiteName = "NavigationRouterTests.\(UUID().uuidString)"

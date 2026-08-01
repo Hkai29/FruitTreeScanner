@@ -1,6 +1,29 @@
 import Combine
 import Foundation
 
+struct StartScanSelectionSnapshot: Equatable, Sendable {
+    let plotId: UUID?
+    let tagIds: [UUID]
+}
+
+enum StartScanSelectionPolicy {
+    static func snapshot(
+        selectedPlotId: UUID?,
+        selectedTagIds: Set<UUID>,
+        availablePlots: [Plot],
+        availableTags: [GroupTag]
+    ) -> StartScanSelectionSnapshot {
+        let availablePlotIDs = Set(availablePlots.map(\.id))
+        let plotId = selectedPlotId.flatMap {
+            availablePlotIDs.contains($0) ? $0 : nil
+        }
+        let tagIds = availableTags.compactMap {
+            selectedTagIds.contains($0.id) ? $0.id : nil
+        }
+        return StartScanSelectionSnapshot(plotId: plotId, tagIds: tagIds)
+    }
+}
+
 struct ScanLaunchRequest: Identifiable {
     let id = UUID()
     let treeID: String
