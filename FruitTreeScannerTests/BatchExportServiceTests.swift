@@ -568,6 +568,65 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(labels, ["apple", "apple", "banana"])
     }
 
+    func testGroupedRecordTraversalOrdersByLabelThenDateDescending() throws {
+        let early = Date(timeIntervalSince1970: 1717200000)
+        let late = Date(timeIntervalSince1970: 1717800000)
+        let records = [
+            makeRecord(id: "banana.ply", scanDate: early, fruitType: "banana"),
+            makeRecord(id: "apple-early.ply", scanDate: early, fruitType: "apple"),
+            makeRecord(id: "apple-late.ply", scanDate: late, fruitType: "apple"),
+        ]
+        var options = BatchExportService.ExportOptions()
+        options.groupBy = .fruitType
+        var visitedIDs: [String] = []
+        var visitedGroupLabels: [String] = []
+
+        try BatchExportFormatting.forEachOrderedRecord(
+            records,
+            options: options
+        ) { record, groupLabel in
+            visitedIDs.append(record.id)
+            visitedGroupLabels.append(groupLabel)
+        }
+
+        XCTAssertEqual(
+            visitedIDs,
+            ["apple-late.ply", "apple-early.ply", "banana.ply"]
+        )
+        XCTAssertEqual(visitedGroupLabels, ["apple", "apple", "banana"])
+    }
+
+    func testGroupedRecordTraversalRejectsCancelledTaskBeforeVisitingRecords() async {
+        let records = (0..<1_000).map { index in
+            makeRecord(
+                id: "\(index).ply",
+                fruitType: index.isMultiple(of: 2) ? "apple" : "pear"
+            )
+        }
+        var options = BatchExportService.ExportOptions()
+        options.groupBy = .fruitType
+
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            var visitedCount = 0
+            do {
+                try BatchExportFormatting.forEachOrderedRecord(
+                    records,
+                    options: options
+                ) { _, _ in
+                    visitedCount += 1
+                }
+                XCTFail("Expected grouped traversal to propagate cancellation")
+            } catch is CancellationError {
+                XCTAssertEqual(visitedCount, 0)
+            } catch {
+                XCTFail("Unexpected error type: \(error)")
+            }
+        }
+
+        await task.value
+    }
+
     func testGroupByDateProducesYYYYMMDDLabels() async throws {
         let date1 = Date(timeIntervalSince1970: 1717200000)
         let date2 = Date(timeIntervalSince1970: 1717884800)

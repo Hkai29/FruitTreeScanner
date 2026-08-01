@@ -11,13 +11,17 @@ enum BatchExportJSONWriter {
         options: BatchExportService.ExportOptions,
         to url: URL
     ) throws {
+        let metadata = exportMetadata(records: records, options: options)
+        var orderedPayloads: [[String: Any]] = []
+        orderedPayloads.reserveCapacity(records.count)
+        try BatchExportFormatting.forEachOrderedRecord(records, options: options) { record, _ in
+            orderedPayloads.append(recordPayload(for: record))
+        }
+
         let payload: [String: Any] = [
-            "exportMetadata": exportMetadata(records: records, options: options),
+            "exportMetadata": metadata,
             "compatibilityNote": "Batch research JSON appends structured research fields without changing CSV, Excel, or single-scan JSON compatibility. Per-scan detailed fields are populated when the matching single-scan _result.json sidecar is available.",
-            "records": try BatchExportFormatting.orderedRecords(records, options: options).map { record in
-                try Task.checkCancellation()
-                return recordPayload(for: record)
-            }
+            "records": orderedPayloads
         ]
 
         let data = try JSONSerialization.data(

@@ -20,9 +20,15 @@ enum BatchExportCSVWriter {
 
         let dateFormatter = StableDataFormatting.dateFormatter(dateFormat: "yyyy-MM-dd HH:mm")
 
-        for record in BatchExportFormatting.orderedRecords(records, options: options) {
-            try Task.checkCancellation()
-            rows.append(row(for: record, options: options, dateFormatter: dateFormatter))
+        try BatchExportFormatting.forEachOrderedRecord(records, options: options) { record, groupLabel in
+            rows.append(
+                row(
+                    for: record,
+                    groupLabel: groupLabel,
+                    options: options,
+                    dateFormatter: dateFormatter
+                )
+            )
         }
 
         rows.append("")
@@ -35,6 +41,7 @@ enum BatchExportCSVWriter {
 
     private static func row(
         for record: ScanFileRecord,
+        groupLabel: String,
         options: BatchExportService.ExportOptions,
         dateFormatter: DateFormatter
     ) -> String {
@@ -42,7 +49,7 @@ enum BatchExportCSVWriter {
         if options.groupBy != .none {
             row.append(
                 SpreadsheetTextSafety.neutralizingFormula(
-                    BatchExportFormatting.groupLabel(for: record, options: options)
+                    groupLabel
                 )
             )
         }
