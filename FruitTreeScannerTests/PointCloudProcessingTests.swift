@@ -841,6 +841,131 @@ final class PointCloudProcessingTests: XCTestCase {
         }
     }
 
+    func testSaveFileConcurrentSameDestinationDoesNotOverwriteWinner() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let destinationURL = tempDir.appendingPathComponent("scan.bin")
+        let firstData = Data("first scan".utf8)
+        let secondData = Data("second scan".utf8)
+        let bothStaged = expectation(description: "Both saves staged their complete data")
+        bothStaged.expectedFulfillmentCount = 2
+        let releaseCommit = DispatchSemaphore(value: 0)
+
+        func makeSaveTask(data: Data) -> Task<Result<Data, Error>, Never> {
+            Task.detached {
+                do {
+                    try LocalFileStorage.writeFileExclusively(
+                        data: data,
+                        to: destinationURL,
+                        stagingWrite: { data, stagingURL in
+                            try data.write(to: stagingURL, options: [.atomic])
+                            bothStaged.fulfill()
+                            releaseCommit.wait()
+                        }
+                    )
+                    return .success(data)
+                } catch {
+                    return .failure(error)
+                }
+            }
+        }
+
+        let firstTask = makeSaveTask(data: firstData)
+        let secondTask = makeSaveTask(data: secondData)
+        await fulfillment(of: [bothStaged], timeout: 2)
+        releaseCommit.signal()
+        releaseCommit.signal()
+
+        let results = [await firstTask.value, await secondTask.value]
+        var savedData: [Data] = []
+        var saveErrors: [NSError] = []
+        for result in results {
+            switch result {
+            case .success(let data):
+                savedData.append(data)
+            case .failure(let error):
+                saveErrors.append(error as NSError)
+            }
+        }
+
+        XCTAssertEqual(savedData.count, 1)
+        XCTAssertEqual(saveErrors.count, 1)
+        XCTAssertEqual(saveErrors.first?.domain, NSCocoaErrorDomain)
+        XCTAssertEqual(saveErrors.first?.code, CocoaError.fileWriteFileExists.rawValue)
+        XCTAssertEqual(try Data(contentsOf: destinationURL), savedData.first)
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: tempDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(contents, [destinationURL], "Concurrent save left a staging artifact")
+    }
+
+    func testSaveFileExistingDestinationIsPreservedAndStagingIsCleaned() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let destinationURL = tempDir.appendingPathComponent("scan.bin")
+        let existingData = Data("existing scan".utf8)
+        try existingData.write(to: destinationURL)
+
+        XCTAssertThrowsError(
+            try LocalFileStorage.writeFileExclusively(
+                data: Data("replacement".utf8),
+                to: destinationURL
+            )
+        ) { error in
+            let nsError = error as NSError
+            XCTAssertEqual(nsError.domain, NSCocoaErrorDomain)
+            XCTAssertEqual(nsError.code, CocoaError.fileWriteFileExists.rawValue)
+            XCTAssertEqual(nsError.userInfo[NSFilePathErrorKey] as? String, destinationURL.path)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: destinationURL), existingData)
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: tempDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(contents, [destinationURL], "Failed save left a staging artifact")
+    }
+
+    func testSaveFileStagingFailureRemovesPartialArtifact() throws {
+        struct StagingFailure: Error {}
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let destinationURL = tempDir.appendingPathComponent("scan.bin")
+        XCTAssertThrowsError(
+            try LocalFileStorage.writeFileExclusively(
+                data: Data("new scan".utf8),
+                to: destinationURL,
+                stagingWrite: { _, stagingURL in
+                    try Data("partial".utf8).write(to: stagingURL)
+                    throw StagingFailure()
+                }
+            )
+        ) { error in
+            XCTAssertTrue(error is StagingFailure)
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+        XCTAssertTrue(
+            try FileManager.default.contentsOfDirectory(
+                at: tempDir,
+                includingPropertiesForKeys: nil
+            ).isEmpty,
+            "Failed staging write left a partial file"
+        )
+    }
+
     // MARK: - PointCloudDenoiser.statisticalOutlierRemoval
 
     func testSOR_ReturnsOriginalForSmallInput() {

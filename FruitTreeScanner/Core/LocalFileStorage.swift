@@ -1,6 +1,7 @@
 // LocalFileStorage.swift
 // Documents-directory storage helpers with leaf filename validation.
 
+import Darwin
 import Foundation
 
 enum LocalFileStorage {
@@ -26,6 +27,65 @@ enum LocalFileStorage {
         try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
+
+    nonisolated static func writeFileExclusively(
+        data: Data,
+        to destinationURL: URL,
+        fileManager: FileManager = .default,
+        stagingWrite: (Data, URL) throws -> Void = { data, url in
+            try data.write(to: url, options: [.atomic])
+        },
+        exclusiveMove: (URL, URL) throws -> Void = { sourceURL, destinationURL in
+            try moveItemExclusively(from: sourceURL, to: destinationURL)
+        }
+    ) throws {
+        // Stage in the destination directory, then publish without replacing an existing file.
+        let stagingURL = destinationURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".save-\(UUID().uuidString).partial")
+        defer {
+            try? fileManager.removeItem(at: stagingURL)
+        }
+
+        try stagingWrite(data, stagingURL)
+        try exclusiveMove(stagingURL, destinationURL)
+    }
+
+    nonisolated static func moveItemExclusively(
+        from sourceURL: URL,
+        to destinationURL: URL
+    ) throws {
+        try sourceURL.withUnsafeFileSystemRepresentation { sourcePath in
+            guard let sourcePath else {
+                throw CocoaError(.fileWriteInvalidFileName)
+            }
+
+            try destinationURL.withUnsafeFileSystemRepresentation { destinationPath in
+                guard let destinationPath else {
+                    throw CocoaError(.fileWriteInvalidFileName)
+                }
+
+                guard renamex_np(
+                    sourcePath,
+                    destinationPath,
+                    UInt32(RENAME_EXCL)
+                ) == 0 else {
+                    let errorCode = errno
+                    if errorCode == EEXIST {
+                        throw CocoaError(
+                            .fileWriteFileExists,
+                            userInfo: [NSFilePathErrorKey: destinationURL.path]
+                        )
+                    }
+                    throw NSError(
+                        domain: NSPOSIXErrorDomain,
+                        code: Int(errorCode),
+                        userInfo: [NSFilePathErrorKey: destinationURL.path]
+                    )
+                }
+            }
+        }
+    }
 }
 
 enum LocalFileStorageError: LocalizedError {
@@ -49,10 +109,7 @@ func saveFile(data: Data, filename: String, folder: String) async throws {
     }
     let directory = try LocalFileStorage.directoryURL(folder: folder)
     let url = directory.appendingPathComponent(filename)
-    guard !FileManager.default.fileExists(atPath: url.path) else {
-        throw CocoaError(.fileWriteFileExists)
-    }
-    try data.write(to: url, options: [.atomic])
+    try LocalFileStorage.writeFileExclusively(data: data, to: url)
 }
 
 /// Documents 目录
