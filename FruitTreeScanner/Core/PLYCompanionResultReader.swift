@@ -4,6 +4,13 @@
 import Foundation
 
 extension PLYParserHelper {
+    // App-written manifests and CSVs are fixed, small schemas. Metadata can scale with
+    // validated-fruit evidence, so it receives a much larger compatibility allowance.
+    static let maximumCompanionManifestByteCount = 64 * 1_024
+    static let maximumCompanionMetadataByteCount = 16 * 1_024 * 1_024
+    static let maximumCompanionCSVByteCount = 1 * 1_024 * 1_024
+    private static let companionReadChunkByteCount = 64 * 1_024
+
     struct CompanionResult: Equatable, Sendable {
         let fruitCount: Int
         let yieldKg: Float
@@ -81,7 +88,10 @@ extension PLYParserHelper {
         urls: (metadata: URL, csv: URL, manifest: URL)
     ) -> [String: Any]? {
         guard let metadata = readMetadataPayload(at: urls.metadata),
-              let manifestData = try? Data(contentsOf: urls.manifest),
+              let manifestData = readBoundedCompanionData(
+                  at: urls.manifest,
+                  maximumByteCount: maximumCompanionManifestByteCount
+              ),
               let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
               manifest["schemaVersion"] as? Int == 1,
               let revision = manifest["exportRevision"] as? String,
@@ -118,7 +128,10 @@ extension PLYParserHelper {
     }
 
     private static func readMetadataPayload(at url: URL) -> [String: Any]? {
-        guard let data = try? Data(contentsOf: url),
+        guard let data = readBoundedCompanionData(
+                  at: url,
+                  maximumByteCount: maximumCompanionMetadataByteCount
+              ),
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
         return payload
@@ -145,8 +158,13 @@ extension PLYParserHelper {
     private static func readCompanionCSV(
         at url: URL
     ) -> (result: CompanionResult, revision: String?, hasRevisionField: Bool)? {
-        guard let csvContent = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        let records = csvRecords(csvContent)
+        guard let data = readBoundedCompanionData(
+                  at: url,
+                  maximumByteCount: maximumCompanionCSVByteCount
+              ),
+              let csvContent = String(data: data, encoding: .utf8)
+        else { return nil }
+        let records = firstCSVRecords(csvContent, limit: 2)
         guard let headerLine = records.first, let dataLine = records.dropFirst().first else { return nil }
         let header = parseCSVLine(headerLine)
         let values = parseCSVLine(dataLine)
@@ -237,33 +255,90 @@ extension PLYParserHelper {
         return fields
     }
 
+    static func readBoundedCompanionData(
+        at url: URL,
+        maximumByteCount: Int
+    ) -> Data? {
+        guard maximumByteCount >= 0, maximumByteCount < Int.max else { return nil }
+        if let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           fileSize > maximumByteCount {
+            return nil
+        }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+
+        var data = Data()
+        data.reserveCapacity(min(maximumByteCount, companionReadChunkByteCount))
+        do {
+            while data.count <= maximumByteCount {
+                let remainingByteCount = maximumByteCount - data.count + 1
+                let readByteCount = min(companionReadChunkByteCount, remainingByteCount)
+                guard let chunk = try handle.read(upToCount: readByteCount),
+                      !chunk.isEmpty
+                else {
+                    return data
+                }
+                data.append(chunk)
+                guard data.count <= maximumByteCount else { return nil }
+            }
+        } catch {
+            return nil
+        }
+        return nil
+    }
+
     static func csvRecords(_ content: String) -> [String] {
-        let normalized = content.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        csvRecords(content, limit: nil)
+    }
+
+    private static func firstCSVRecords(_ content: String, limit: Int) -> [String] {
+        guard limit > 0 else { return [] }
+        return csvRecords(content, limit: limit)
+    }
+
+    private static func csvRecords(_ content: String, limit: Int?) -> [String] {
         var records: [String] = []
         var current = ""
         var isQuoted = false
-        var index = normalized.startIndex
-        while index < normalized.endIndex {
-            let char = normalized[index]
+        var index = content.startIndex
+        while index < content.endIndex {
+            var char = content[index]
+            if char == "\r\n" {
+                char = "\n"
+            } else if char == "\r" {
+                let next = content.index(after: index)
+                if next < content.endIndex, content[next] == "\n" {
+                    index = next
+                }
+                char = "\n"
+            }
             if char == "\"" {
-                let next = normalized.index(after: index)
-                if isQuoted, next < normalized.endIndex, normalized[next] == "\"" {
+                let next = content.index(after: index)
+                if isQuoted, next < content.endIndex, content[next] == "\"" {
                     current.append(char)
-                    current.append(normalized[next])
+                    current.append(content[next])
                     index = next
                 } else {
                     isQuoted.toggle()
                     current.append(char)
                 }
             } else if char == "\n" && !isQuoted {
-                if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { records.append(current) }
+                if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    records.append(current)
+                    if records.count == limit {
+                        return records
+                    }
+                }
                 current = ""
             } else {
                 current.append(char)
             }
-            index = normalized.index(after: index)
+            index = content.index(after: index)
         }
-        if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { records.append(current) }
+        if limit == nil || records.count < limit!,
+           !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            records.append(current)
+        }
         return records
     }
 }
