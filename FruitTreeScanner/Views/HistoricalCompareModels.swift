@@ -5,7 +5,7 @@ struct ScanItem: Identifiable, Equatable {
     let treeID: String
     let scanDate: Date
     let yieldKg: Double
-    let nLidar: Int
+    let fruitCount: Int
     let meanDiameterCm: Double?
     let confidence: String
 
@@ -41,6 +41,11 @@ struct ScanItem: Identifiable, Equatable {
         default: return Design.Colors.Dark.error
         }
     }
+
+    func yieldChangePercent(to comparison: ScanItem) -> Double? {
+        guard yieldKg > 0 else { return nil }
+        return ((comparison.yieldKg - yieldKg) / yieldKg) * 100
+    }
 }
 
 enum HistoricalCompareDataSource {
@@ -52,11 +57,47 @@ enum HistoricalCompareDataSource {
                 treeID: record.treeID,
                 scanDate: record.scanDate,
                 yieldKg: Double(record.yieldKg),
-                nLidar: record.fruitCount,
+                fruitCount: record.fruitCount,
                 meanDiameterCm: nil,
                 confidence: record.confidence
             )
         }
+    }
+}
+
+struct HistoricalCompareSelection: Equatable {
+    let first: ScanItem?
+    let second: ScanItem?
+}
+
+enum HistoricalCompareSelectionPolicy {
+    static func reconciled(
+        first: ScanItem?,
+        second: ScanItem?,
+        availableItems: [ScanItem]
+    ) -> HistoricalCompareSelection {
+        let refreshedFirst = item(withID: first?.id, in: availableItems)
+        var refreshedSecond = item(withID: second?.id, in: availableItems)
+        if refreshedFirst?.id == refreshedSecond?.id {
+            refreshedSecond = nil
+        }
+        return HistoricalCompareSelection(
+            first: refreshedFirst,
+            second: refreshedSecond
+        )
+    }
+
+    static func selectableItems(
+        from availableItems: [ScanItem],
+        excluding selectedInOtherSlot: ScanItem?
+    ) -> [ScanItem] {
+        guard let excludedID = selectedInOtherSlot?.id else { return availableItems }
+        return availableItems.filter { $0.id != excludedID }
+    }
+
+    private static func item(withID id: String?, in items: [ScanItem]) -> ScanItem? {
+        guard let id else { return nil }
+        return items.first { $0.id == id }
     }
 }
 

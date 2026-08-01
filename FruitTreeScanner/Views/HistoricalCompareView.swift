@@ -56,12 +56,31 @@ struct HistoricalCompareView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .onAppear {
+            historyStore.loadRecords()
+            reconcileSelections(with: availableScans)
+        }
+        .onChange(of: availableScans) { scans in
+            reconcileSelections(with: scans)
+        }
         .sheet(item: $activePicker) { picker in
             switch picker {
             case .first:
-                ScanPickerView(scans: availableScans, selectedScan: $selectedScan1)
+                ScanPickerView(
+                    scans: HistoricalCompareSelectionPolicy.selectableItems(
+                        from: availableScans,
+                        excluding: selectedScan2
+                    ),
+                    selectedScan: $selectedScan1
+                )
             case .second:
-                ScanPickerView(scans: availableScans, selectedScan: $selectedScan2)
+                ScanPickerView(
+                    scans: HistoricalCompareSelectionPolicy.selectableItems(
+                        from: availableScans,
+                        excluding: selectedScan1
+                    ),
+                    selectedScan: $selectedScan2
+                )
             }
         }
     }
@@ -141,34 +160,42 @@ struct HistoricalCompareView: View {
         .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 
-    private var yieldChange: Double {
-        guard let s1 = selectedScan1, let s2 = selectedScan2, s1.yieldKg > 0 else { return 0 }
-        return ((s2.yieldKg - s1.yieldKg) / s1.yieldKg) * 100
+    private var yieldChange: Double? {
+        guard let selectedScan1, let selectedScan2 else { return nil }
+        return selectedScan1.yieldChangePercent(to: selectedScan2)
     }
 
     private var yieldChangeIcon: String {
-        yieldChange > 0 ? "arrow.up.right" : (yieldChange < 0 ? "arrow.down.right" : "arrow.right")
+        guard let yieldChange else { return "minus" }
+        return yieldChange > 0 ? "arrow.up.right" : (yieldChange < 0 ? "arrow.down.right" : "arrow.right")
     }
 
     private var yieldChangeColor: Color {
-        yieldChange > 0 ? Design.Colors.Dark.success : (yieldChange < 0 ? Design.Colors.Dark.error : Design.Colors.Dark.textSecondary)
+        guard let yieldChange else { return Design.Colors.Dark.textSecondary }
+        return yieldChange > 0
+            ? Design.Colors.Dark.success
+            : (yieldChange < 0 ? Design.Colors.Dark.error : Design.Colors.Dark.textSecondary)
     }
 
     private var yieldChangePercent: String {
-        String(format: "%+.1f%%", yieldChange)
+        guard let yieldChange else { return "--" }
+        return String(format: "%+.1f%%", yieldChange)
     }
 
     // MARK: - Stat Comparison Grid
     private var statComparisonGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Design.Space.md) {
-            // LiDAR Count
+            // Persisted fruit count
             StatCompareCard(
-                title: "LiDAR 检测",
-                value1: selectedScan1.map { "\($0.nLidar)" } ?? "--",
-                value2: selectedScan2.map { "\($0.nLidar)" } ?? "--",
+                title: "果实数",
+                value1: selectedScan1.map { "\($0.fruitCount)" } ?? "--",
+                value2: selectedScan2.map { "\($0.fruitCount)" } ?? "--",
                 unit: "个果实",
                 icon: "cube.fill",
-                trend: compareTrend(selectedScan1?.nLidar ?? 0, selectedScan2?.nLidar ?? 0)
+                trend: compareTrend(
+                    selectedScan1?.fruitCount ?? 0,
+                    selectedScan2?.fruitCount ?? 0
+                )
             )
 
             // Mean Diameter
@@ -212,6 +239,20 @@ struct HistoricalCompareView: View {
     private func compareTrend<T: Comparable>(_ v1: T?, _ v2: T?) -> TrendDirection {
         guard let v1, let v2 else { return .neutral }
         return compareTrend(v1, v2)
+    }
+
+    private func reconcileSelections(with scans: [ScanItem]) {
+        let selection = HistoricalCompareSelectionPolicy.reconciled(
+            first: selectedScan1,
+            second: selectedScan2,
+            availableItems: scans
+        )
+        if selectedScan1 != selection.first {
+            selectedScan1 = selection.first
+        }
+        if selectedScan2 != selection.second {
+            selectedScan2 = selection.second
+        }
     }
 }
 
