@@ -30,13 +30,14 @@ extension StartView {
                 guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
                     return nil
                 }
+                let selection = resolvedSelection
                 return ScanLaunchRequest(
                     treeID: normalizedTreeID,
                     selectedFruitCategory: selectedFruitCategory,
                     season: season,
                     gps: gps,
-                    plotId: selectedPlotId,
-                    tagIds: Array(selectedTagIds)
+                    plotId: selection.plotId,
+                    tagIds: selection.tagIds
                 )
             },
             deliver: { request in
@@ -44,5 +45,16 @@ extension StartView {
                 onLaunchScan(request)
             }
         )
+    }
+
+    func normalizeClassificationSelection() {
+        let selection = resolvedSelection
+        if selectedPlotId != selection.plotId {
+            selectedPlotId = selection.plotId
+        }
+        let normalizedTagIDs = Set(selection.tagIds)
+        if selectedTagIds != normalizedTagIDs {
+            selectedTagIds = normalizedTagIDs
+        }
     }
 }

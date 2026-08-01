@@ -51,6 +51,12 @@ struct StartView: View {
                 })
             }
         }
+        .onChange(of: tagStore.plots) { _ in
+            normalizeClassificationSelection()
+        }
+        .onChange(of: tagStore.tags) { _ in
+            normalizeClassificationSelection()
+        }
     }
 
     @ViewBuilder

@@ -8,12 +8,22 @@ extension StartView {
         }
     }
 
+    var resolvedSelection: StartScanSelectionSnapshot {
+        StartScanSelectionPolicy.snapshot(
+            selectedPlotId: selectedPlotId,
+            selectedTagIds: selectedTagIds,
+            availablePlots: tagStore.plots,
+            availableTags: tagStore.tags
+        )
+    }
+
     var selectedPlot: Plot? {
-        selectedPlotId.flatMap { tagStore.getPlot(id: $0) }
+        resolvedSelection.plotId.flatMap { tagStore.getPlot(id: $0) }
     }
 
     var selectedTags: [GroupTag] {
-        tagStore.tags.filter { selectedTagIds.contains($0.id) }
+        let resolvedTagIDs = Set(resolvedSelection.tagIds)
+        return tagStore.tags.filter { resolvedTagIDs.contains($0.id) }
     }
 
     var stepHeader: StartFlowToolHeaderContent {
