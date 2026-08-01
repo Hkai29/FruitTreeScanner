@@ -11,23 +11,21 @@ enum BatchExportExcelWriter {
     ) throws {
         let dateFormatter = StableDataFormatting.dateFormatter(dateFormat: "yyyy-MM-dd HH:mm")
 
-        var rows: [String] = []
-        rows.reserveCapacity(records.count + 3)
-        rows.append(workbookPrefix)
-        rows.append(headerRow(options: options))
+        try BatchExportStreamWriter.write(to: url) { writer in
+            try writer.write(workbookPrefix)
+            try writer.write(headerRow(options: options))
 
-        for record in BatchExportFormatting.orderedRecords(records, options: options) {
-            try Task.checkCancellation()
-            rows.append(row(for: record, options: options, dateFormatter: dateFormatter))
-        }
+            for record in BatchExportFormatting.orderedRecords(records, options: options) {
+                try Task.checkCancellation()
+                try writer.write(row(for: record, options: options, dateFormatter: dateFormatter))
+            }
 
-        rows.append("""
+            try writer.write("""
                   </Table>
           </Worksheet>
         </Workbook>
         """)
-
-        try rows.joined().write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     private static var workbookPrefix: String {

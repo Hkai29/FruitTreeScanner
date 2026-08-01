@@ -9,28 +9,26 @@ enum BatchExportCSVWriter {
         options: BatchExportService.ExportOptions,
         to url: URL
     ) throws {
-        var rows: [String] = []
-        rows.reserveCapacity(records.count + 4)
-
-        rows.append(
-            BatchExportFormatting.headers(options: options)
-                .map(BatchExportFormatting.escapeCSV)
-                .joined(separator: ",")
-        )
-
+        let header = BatchExportFormatting.headers(options: options)
+            .map(BatchExportFormatting.escapeCSV)
+            .joined(separator: ",")
         let dateFormatter = StableDataFormatting.dateFormatter(dateFormat: "yyyy-MM-dd HH:mm")
 
-        for record in BatchExportFormatting.orderedRecords(records, options: options) {
-            try Task.checkCancellation()
-            rows.append(row(for: record, options: options, dateFormatter: dateFormatter))
+        try BatchExportStreamWriter.write(to: url) { writer in
+            try writer.write("\u{FEFF}")
+            try writer.write(header)
+            try writer.write("\n")
+
+            for record in BatchExportFormatting.orderedRecords(records, options: options) {
+                try Task.checkCancellation()
+                try writer.write(row(for: record, options: options, dateFormatter: dateFormatter))
+                try writer.write("\n")
+            }
+
+            try writer.write("\n汇总\n")
+            try writer.write(summaryRow(records: records, options: options))
+            try writer.write("\n")
         }
-
-        rows.append("")
-        rows.append("汇总")
-        rows.append(summaryRow(records: records, options: options))
-
-        let csvContent = "\u{FEFF}" + rows.joined(separator: "\n") + "\n"
-        try csvContent.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private static func row(

@@ -201,6 +201,55 @@ final class BatchExportServiceTests: XCTestCase {
         }
     }
 
+    func testStreamWriterBoundsBufferAndPreservesBytes() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchExportStream-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let payload = Data(
+            repeating: 0x61,
+            count: BatchExportStreamWriter.bufferCapacity * 3 + 17
+        )
+        var maximumBufferedByteCount = 0
+
+        try BatchExportStreamWriter.write(to: url) { writer in
+            try writer.write(payload)
+            maximumBufferedByteCount = writer.maximumBufferedByteCount
+        }
+
+        XCTAssertLessThanOrEqual(
+            maximumBufferedByteCount,
+            BatchExportStreamWriter.bufferCapacity
+        )
+        XCTAssertEqual(try Data(contentsOf: url), payload)
+    }
+
+    func testStreamWriterObservesCancellationBetweenChunks() async {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchExportCancellation-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let task = Task {
+            try BatchExportStreamWriter.write(to: url) { writer in
+                try writer.write(
+                    Data(repeating: 0x61, count: BatchExportStreamWriter.bufferCapacity)
+                )
+                withUnsafeCurrentTask { $0?.cancel() }
+                try writer.write(
+                    Data(repeating: 0x62, count: BatchExportStreamWriter.bufferCapacity)
+                )
+            }
+        }
+
+        do {
+            try await task.value
+            XCTFail("Expected a cancelled writer to stop before the next chunk")
+        } catch is CancellationError {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
     // MARK: - (2) CSV default options: UTF-8 BOM, Chinese headers, formatted yield/GPS/date, summary totals
 
     func testCSVStartsWithUTF8BOM() async throws {
