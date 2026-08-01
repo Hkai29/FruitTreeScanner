@@ -629,6 +629,42 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertTrue((exported["validatedFruits"] as? [[String: Any]])?.isEmpty == true)
     }
 
+    func testBatchResearchJSONRejectsOversizedLegacySidecar() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchResearchOversized-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let plyURL = tempDir.appendingPathComponent("oversized.ply")
+        let metadataURL = tempDir.appendingPathComponent("oversized_result.json")
+        let record = makeRecord(id: "oversized.ply", treeID: "T-OVERSIZED", fileURL: plyURL)
+        try Data(
+            #"{"scanID":"oversized-sidecar","sourceFilename":"oversized.ply","padding":""#.utf8
+        ).write(to: metadataURL)
+        do {
+            let handle = try FileHandle(forWritingTo: metadataURL)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            let chunk = Data(repeating: 0x78, count: 64 * 1_024)
+            var remainingByteCount =
+                BatchExportJSONWriter.maximumSingleScanMetadataByteCount + 1
+            while remainingByteCount > 0 {
+                let writeByteCount = min(chunk.count, remainingByteCount)
+                try handle.write(contentsOf: chunk.prefix(writeByteCount))
+                remainingByteCount -= writeByteCount
+            }
+            try handle.write(contentsOf: Data(#""}"#.utf8))
+        }
+
+        let payload = try await exportJSONPayload(records: [record])
+        let records = try XCTUnwrap(payload["records"] as? [[String: Any]])
+        let exportedRecord = try XCTUnwrap(records.first)
+
+        XCTAssertEqual(exportedRecord["singleScanMetadataAvailable"] as? Bool, false)
+        XCTAssertEqual(exportedRecord["scanID"] as? String, "oversized")
+        XCTAssertEqual(exportedRecord["sourceFilename"] as? String, "oversized.ply")
+    }
+
     func testExportResultReturnsCorrectMetadata() async throws {
         let records = [
             makeRecord(id: "a.ply", fruitCount: 10, yieldKg: 3.0),

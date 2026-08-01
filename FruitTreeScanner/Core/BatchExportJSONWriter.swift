@@ -6,6 +6,7 @@ import Foundation
 enum BatchExportJSONWriter {
     private static let exportVersion = 1
     private static let compatibilityNote = "Batch research JSON appends structured research fields without changing CSV, Excel, or single-scan JSON compatibility. Per-scan detailed fields are populated when the matching single-scan _result.json sidecar is available."
+    static let maximumSingleScanMetadataByteCount = 16 * 1_024 * 1_024
 
     static func write(
         records: [ScanFileRecord],
@@ -74,8 +75,8 @@ enum BatchExportJSONWriter {
         ]
     }
 
-    private static func recordPayload(for record: ScanFileRecord) -> [String: Any] {
-        let sidecar = singleScanMetadata(for: record)
+    private static func recordPayload(for record: ScanFileRecord) throws -> [String: Any] {
+        let sidecar = try singleScanMetadata(for: record)
         let diagnostics = sidecar?["diagnostics"] as? [String: Any]
         let baseName = (record.fileURL.lastPathComponent as NSString).deletingPathExtension
         let scanID = sidecar?["scanID"] as? String ?? baseName
