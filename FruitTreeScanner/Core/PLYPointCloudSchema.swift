@@ -124,6 +124,7 @@ extension PLYParserHelper {
         var format: PLYPointCloudFormat?
         var vertexCount: Int?
         var currentElement: String?
+        var hasElementDataBeforeVertex = false
         var declaredProperties: [(name: String, scalarType: PLYScalarType)] = []
 
         for line in lines where !line.isEmpty {
@@ -146,6 +147,8 @@ extension PLYParserHelper {
                 if currentElement == "vertex" {
                     guard vertexCount == nil else { return nil }
                     vertexCount = count
+                } else if vertexCount == nil, count > 0 {
+                    hasElementDataBeforeVertex = true
                 }
 
             case "property" where currentElement == "vertex":
@@ -164,6 +167,7 @@ extension PLYParserHelper {
               let vertexCount,
               vertexCount > 0,
               vertexCount <= maximumSupportedVertexCount,
+              !hasElementDataBeforeVertex,
               !declaredProperties.isEmpty
         else { return nil }
 

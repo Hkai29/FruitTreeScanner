@@ -1606,6 +1606,47 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertTrue(contents.isEmpty, "Invalid header import left artifacts: \(contents)")
     }
 
+    func testPLYImportRejectsElementDataBeforeVertexAndLeavesScansDirectoryClean() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let scansDir = tempDir.appendingPathComponent("scans", isDirectory: true)
+        let plyURL = tempDir.appendingPathComponent("preceding-element.ply")
+        try """
+        ply
+        format ascii 1.0
+        element sample 1
+        property float sample_a
+        property float sample_b
+        property float sample_c
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        end_header
+        2.0 0.0 0.0
+        9.0 8.0 7.0
+        """.write(to: plyURL, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(
+            try PLYImportService.importFile(plyURL, scansDirectory: scansDir)
+        ) { error in
+            guard let importError = error as? PLYImportService.ImportError,
+                  case .invalidPLY = importError
+            else {
+                return XCTFail("Expected invalidPLY, received \(error)")
+            }
+        }
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: scansDir,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(contents.isEmpty, "Rejected element ordering left artifacts: \(contents)")
+    }
+
     func testPLYImportCancellationAfterCommitRemovesDestination() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1826,6 +1867,47 @@ final class PointCloudProcessingTests: XCTestCase {
         assertColor(pointCloud.colors[1], r: 51.0 / 255.0, g: 178.5 / 255.0, b: 1)
     }
 
+    func testASCIIPLYAcceptsZeroCountElementBeforeVertex() throws {
+        let pointCloud = try XCTUnwrap(parsePLY("""
+        ply
+        format ascii 1.0
+        element sample 0
+        property float sample_a
+        property float sample_b
+        property float sample_c
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        end_header
+        9.0 8.0 7.0
+        """, name: "empty_preceding_element_ascii.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 1)
+        assertVertex(pointCloud.vertices[0], x: 9, y: 8, z: 7)
+    }
+
+    func testASCIIPLYIgnoresElementDataAfterVertex() throws {
+        let pointCloud = try XCTUnwrap(parsePLY("""
+        ply
+        format ascii 1.0
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        element sample 1
+        property float sample_a
+        property float sample_b
+        property float sample_c
+        end_header
+        9.0 8.0 7.0
+        2.0 0.0 0.0
+        """, name: "trailing_element_ascii.ply"))
+
+        XCTAssertEqual(pointCloud.pointCount, 1)
+        assertVertex(pointCloud.vertices[0], x: 9, y: 8, z: 7)
+    }
+
     func testASCIIPLYAboveDisplayLimitKeepsExistingRenderedPointLimit() throws {
         let displayLimit = 500_000
         let vertexCount = displayLimit + 1
@@ -1961,6 +2043,34 @@ final class PointCloudProcessingTests: XCTestCase {
         assertColor(pointCloud.colors[0], r: 200.0 / 255.0, g: 100.0 / 255.0, b: 50.0 / 255.0)
         assertVertex(pointCloud.vertices[1], x: -1, y: 0, z: 5)
         assertColor(pointCloud.colors[1], r: 10.0 / 255.0, g: 20.0 / 255.0, b: 30.0 / 255.0)
+    }
+
+    func testBinaryPLYRejectsElementDataBeforeVertex() throws {
+        var data = Data("""
+        ply
+        format binary_little_endian 1.0
+        element sample 1
+        property float sample_a
+        property float sample_b
+        property float sample_c
+        element vertex 1
+        property float x
+        property float y
+        property float z
+        end_header
+
+        """.utf8)
+        data.append(Self.leFloat32(2))
+        data.append(Self.leFloat32(0))
+        data.append(Self.leFloat32(0))
+        data.append(Self.leFloat32(9))
+        data.append(Self.leFloat32(8))
+        data.append(Self.leFloat32(7))
+
+        XCTAssertNil(
+            try parsePLY(data: data, name: "preceding_element_binary.ply"),
+            "The parser cannot safely seek past preceding binary element data"
+        )
     }
 
     func testBinaryLittleEndianUShortColorNormalization() throws {
