@@ -831,6 +831,18 @@ final class FruitModelsTests: XCTestCase {
 
         XCTAssertEqual(outOfRangeRecord.gpsLat, 0)
         XCTAssertEqual(outOfRangeRecord.gpsLon, 0)
+
+        let partiallyInvalidRecord = ScanFileRecord(
+            id: "partially-invalid-record.ply",
+            treeID: "T-partially-invalid",
+            fileURL: URL(fileURLWithPath: "/tmp/partially-invalid-record.ply"),
+            scanDate: Date(timeIntervalSince1970: 1717200000),
+            gpsLat: 91,
+            gpsLon: 121.4737
+        )
+
+        XCTAssertEqual(partiallyInvalidRecord.gpsLat, 0)
+        XCTAssertEqual(partiallyInvalidRecord.gpsLon, 0)
     }
 
     func testScanFileRecordPreservesValidNegativeGPSCoordinates() {

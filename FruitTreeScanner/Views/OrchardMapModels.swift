@@ -5,13 +5,38 @@ struct OrchardMapData {
     let trees: [TreeAnnotation]
 
     init(records: [ScanFileRecord]) {
-        trees = records
+        let locatedRecords = records
             .filter {
                 $0.persistenceState == .complete &&
-                    $0.gpsLat != 0 &&
-                    $0.gpsLon != 0
+                    ($0.gpsLat != 0 || $0.gpsLon != 0)
             }
+        var latestRecordByTreeID: [String: ScanFileRecord] = [:]
+        for record in locatedRecords {
+            guard let existing = latestRecordByTreeID[record.treeID] else {
+                latestRecordByTreeID[record.treeID] = record
+                continue
+            }
+            if Self.isOrderedBefore(record, existing) {
+                latestRecordByTreeID[record.treeID] = record
+            }
+        }
+
+        trees = latestRecordByTreeID.values
+            .sorted(by: Self.isOrderedBefore)
             .map(TreeAnnotation.init(record:))
+    }
+
+    private static func isOrderedBefore(
+        _ lhs: ScanFileRecord,
+        _ rhs: ScanFileRecord
+    ) -> Bool {
+        if lhs.scanDate != rhs.scanDate {
+            return lhs.scanDate > rhs.scanDate
+        }
+        if lhs.treeID != rhs.treeID {
+            return lhs.treeID < rhs.treeID
+        }
+        return lhs.id < rhs.id
     }
 }
 

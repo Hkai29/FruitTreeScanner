@@ -428,6 +428,108 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(tree.weight, 0, accuracy: 0.001)
     }
 
+    func testOrchardMapDataKeepsOnlyLatestLocatedCompleteScanPerTree() {
+        let records = [
+            makeRecord(
+                id: "tree-1-older",
+                treeID: "T-001",
+                scanDate: Date(timeIntervalSince1970: 100),
+                fruitCount: 10,
+                yieldKg: 3,
+                gpsLat: 31.1,
+                gpsLon: 121.1
+            ),
+            makeRecord(
+                id: "tree-2-latest",
+                treeID: "T-002",
+                scanDate: Date(timeIntervalSince1970: 400),
+                fruitCount: 30,
+                yieldKg: 7,
+                gpsLat: 31.4,
+                gpsLon: 121.4
+            ),
+            makeRecord(
+                id: "tree-1-newer",
+                treeID: "T-001",
+                scanDate: Date(timeIntervalSince1970: 300),
+                fruitCount: 20,
+                yieldKg: 5,
+                gpsLat: 31.3,
+                gpsLon: 121.3
+            ),
+            makeRecord(
+                id: "tree-1-incomplete-newest",
+                treeID: "T-001",
+                scanDate: Date(timeIntervalSince1970: 500),
+                fruitCount: 99,
+                yieldKg: 99,
+                gpsLat: 31.5,
+                gpsLon: 121.5,
+                persistenceState: .incomplete
+            )
+        ]
+
+        let trees = OrchardMapData(records: records).trees
+
+        XCTAssertEqual(trees.map(\.id), ["tree-2-latest", "tree-1-newer"])
+        XCTAssertEqual(trees.map(\.treeID), ["T-002", "T-001"])
+        XCTAssertEqual(trees.last?.fruitCount, 20)
+        XCTAssertEqual(trees.last?.weight ?? -1, 5, accuracy: 0.001)
+    }
+
+    func testOrchardMapDataUsesStableTieBreakForSameTreeAndTimestamp() {
+        let timestamp = Date(timeIntervalSince1970: 100)
+        let mapData = OrchardMapData(records: [
+            makeRecord(
+                id: "scan-b",
+                treeID: "T-001",
+                scanDate: timestamp,
+                yieldKg: 2,
+                gpsLat: 31.2,
+                gpsLon: 121.2
+            ),
+            makeRecord(
+                id: "scan-a",
+                treeID: "T-001",
+                scanDate: timestamp,
+                yieldKg: 1,
+                gpsLat: 31.1,
+                gpsLon: 121.1
+            )
+        ])
+
+        XCTAssertEqual(mapData.trees.map(\.id), ["scan-a"])
+    }
+
+    func testOrchardMapDataAcceptsAZeroCoordinateComponentButNotMissingLocation() {
+        let mapData = OrchardMapData(records: [
+            makeRecord(
+                id: "equator",
+                treeID: "T-EQUATOR",
+                scanDate: Date(timeIntervalSince1970: 300),
+                yieldKg: 1,
+                gpsLat: 0,
+                gpsLon: 121.5
+            ),
+            makeRecord(
+                id: "prime-meridian",
+                treeID: "T-PRIME",
+                scanDate: Date(timeIntervalSince1970: 200),
+                yieldKg: 1,
+                gpsLat: 31.5,
+                gpsLon: 0
+            ),
+            makeRecord(
+                id: "missing",
+                treeID: "T-MISSING",
+                scanDate: Date(timeIntervalSince1970: 100),
+                yieldKg: 1
+            )
+        ])
+
+        XCTAssertEqual(mapData.trees.map(\.id), ["equator", "prime-meridian"])
+    }
+
     private func makeRecord(
         id: String,
         treeID: String,
