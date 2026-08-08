@@ -40,7 +40,7 @@ struct ScanBottomControlBar: View {
             if !isRecording {
                 HStack(spacing: Design.Space.sm) {
                     ScanUtilityControlButton(
-                        title: "引导",
+                        title: L10n.ScanControls.text(.guide),
                         icon: "questionmark.circle",
                         isActive: false,
                         action: onToggleGuide,
@@ -50,7 +50,7 @@ struct ScanBottomControlBar: View {
                     )
 
                     ScanUtilityControlButton(
-                        title: "测量",
+                        title: L10n.ScanControls.text(.measure),
                         icon: "ruler",
                         isActive: measurementController.isActive,
                         action: onToggleMeasurement,
@@ -63,7 +63,7 @@ struct ScanBottomControlBar: View {
 
             HStack(spacing: Design.Space.sm) {
                 ScanPrimaryControlButton(
-                    title: "取消",
+                    title: L10n.ScanControls.text(.cancel),
                     icon: "xmark",
                     role: .secondary,
                     isLoading: false,
@@ -87,7 +87,7 @@ struct ScanBottomControlBar: View {
                 )
 
                 ScanPrimaryControlButton(
-                    title: "完成",
+                    title: L10n.ScanControls.text(.finish),
                     icon: "checkmark",
                     role: .finish,
                     isLoading: isEstimating,
@@ -103,6 +103,7 @@ struct ScanBottomControlBar: View {
         }
         .padding(.horizontal, Design.Space.lg)
         .padding(.vertical, Design.Space.md)
+        .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.large)
                 .fill(Design.Colors.Dark.hudBackground)
@@ -120,9 +121,9 @@ struct ScanBottomControlBar: View {
     }
 
     private var recordingButtonTitle: String {
-        if isRecording { return "停止录制" }
-        if hudState.pointCount > 0 { return "重新录制" }
-        return "开始录制"
+        if isRecording { return L10n.ScanControls.text(.stopRecording) }
+        if hudState.pointCount > 0 { return L10n.ScanControls.text(.rerecord) }
+        return L10n.ScanControls.text(.startRecording)
     }
 }
 
@@ -178,19 +179,23 @@ private struct ScanPrimaryControlButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                if isLoading {
-                    ProgressView()
-                        .tint(foregroundColor)
-                        .scaleEffect(0.75)
-                } else {
-                    Image(systemName: icon)
-                        .font(.system(size: iconSize, weight: .bold))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    if isLoading {
+                        ProgressView()
+                            .tint(foregroundColor)
+                            .scaleEffect(0.75)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.system(size: iconSize, weight: .bold))
+                    }
+
+                    Text(displayTitle)
                 }
 
-                Text(isLoading ? "处理中" : title)
-                    .font(.system(size: fontSize, weight: .semibold))
+                Text(displayTitle)
             }
+            .font(.system(size: fontSize, weight: .semibold))
             .foregroundColor(foregroundColor)
             .lineLimit(1)
             .minimumScaleFactor(0.82)
@@ -207,6 +212,10 @@ private struct ScanPrimaryControlButton: View {
         }
         .buttonStyle(ScanControlButtonStyle())
         .accessibilityIdentifier(accessibilityIdentifier ?? "scan.primary.\(title)")
+    }
+
+    private var displayTitle: String {
+        isLoading ? L10n.ScanControls.text(.processing) : title
     }
 
     private var backgroundColor: Color {

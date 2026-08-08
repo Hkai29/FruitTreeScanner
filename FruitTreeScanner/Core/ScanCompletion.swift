@@ -16,39 +16,55 @@ struct ScanCompletion: Equatable {
     var overallPercent: Int { Int(min(overall * 100, 100)) }
 
     var statusTitle: String {
-        if overall >= 0.85 { return "扫描完成" }
-        if overall >= 0.6 { return "覆盖良好" }
-        if overall >= 0.3 { return "继续扫描" }
-        return "覆盖率不足"
+        statusTitle(in: .main)
     }
 
     var statusHint: String {
+        statusHint(in: .main)
+    }
+
+    func statusTitle(in bundle: Bundle) -> String {
+        L10n.ScanCompletion.text(statusTitleKey, in: bundle)
+    }
+
+    func statusHint(in bundle: Bundle) -> String {
+        L10n.ScanCompletion.text(statusHintKey, in: bundle)
+    }
+
+    private var statusTitleKey: L10n.ScanCompletion.Key {
+        if overall >= 0.85 { return .statusComplete }
+        if overall >= 0.6 { return .statusCoverageGood }
+        if overall >= 0.3 { return .statusContinueScanning }
+        return .statusInsufficient
+    }
+
+    private var statusHintKey: L10n.ScanCompletion.Key {
         if angleCoverageScore < 0.35, voxelCount >= 80 {
-            return "补扫树冠另一侧"
+            return .hintOtherSide
         }
         if oppositeSideScore < 0.45,
            angleCoverageScore >= 0.45,
            voxelCount >= 120 {
-            return "补扫树冠背面"
+            return .hintBackSide
         }
         if verticalCoverageScore < 0.45,
            angleCoverageScore >= 0.55,
            voxelCount >= 140 {
-            return "放慢补扫树冠上下层"
+            return .hintVertical
         }
         if angleUniformityScore < 0.50, angleCoverageScore >= 0.50, voxelCount >= 120 {
-            return "补扫稀疏视角"
+            return .hintSparseAngles
         }
 
         switch discoveryTrend {
         case .collecting:
-            return "从主干开始慢速环绕"
+            return .hintTrunk
         case .increasing:
-            return "正在发现树冠新区域"
+            return .hintDiscovering
         case .decreasing:
-            return "补树冠背面后可保存"
+            return .hintFinishBack
         case .stable:
-            return "覆盖完整，可保存分析"
+            return .hintStable
         }
     }
 

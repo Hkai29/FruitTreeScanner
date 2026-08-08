@@ -22,6 +22,112 @@ enum L10n {
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
     }
 
+    // MARK: - Scan Completion
+    enum ScanCompletion {
+        enum Key: String {
+            case statusComplete = "scan.completion.status.complete"
+            case statusCoverageGood = "scan.completion.status.coverage_good"
+            case statusContinueScanning = "scan.completion.status.continue_scanning"
+            case statusInsufficient = "scan.completion.status.insufficient"
+            case hintOtherSide = "scan.completion.hint.other_side"
+            case hintBackSide = "scan.completion.hint.back_side"
+            case hintVertical = "scan.completion.hint.vertical"
+            case hintSparseAngles = "scan.completion.hint.sparse_angles"
+            case hintTrunk = "scan.completion.hint.trunk"
+            case hintDiscovering = "scan.completion.hint.discovering"
+            case hintFinishBack = "scan.completion.hint.finish_back"
+            case hintStable = "scan.completion.hint.stable"
+            case spatialSamplesFormat = "scan.completion.spatial_samples_format"
+            case metricDuration = "scan.completion.metric.duration"
+            case metricCanopy = "scan.completion.metric.canopy"
+            case metricAngles = "scan.completion.metric.angles"
+            case metricBalance = "scan.completion.metric.balance"
+            case metricStability = "scan.completion.metric.stability"
+            case metricPointCloud = "scan.completion.metric.point_cloud"
+            case metricStatus = "scan.completion.metric.status"
+            case previewReady = "scan.completion.preview_ready"
+            case nextHigh = "scan.completion.next.high"
+            case nextMedium = "scan.completion.next.medium"
+            case nextLow = "scan.completion.next.low"
+            case resume = "scan.completion.resume"
+            case finishEstimate = "scan.completion.finish_estimate"
+            case toastTitle = "scan.completion.toast.title"
+            case toastMessage = "scan.completion.toast.message"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .statusComplete: return "扫描完成"
+                case .statusCoverageGood: return "覆盖良好"
+                case .statusContinueScanning: return "继续扫描"
+                case .statusInsufficient: return "覆盖率不足"
+                case .hintOtherSide: return "补扫树冠另一侧"
+                case .hintBackSide: return "补扫树冠背面"
+                case .hintVertical: return "放慢补扫树冠上下层"
+                case .hintSparseAngles: return "补扫稀疏视角"
+                case .hintTrunk: return "从主干开始慢速环绕"
+                case .hintDiscovering: return "正在发现树冠新区域"
+                case .hintFinishBack: return "补树冠背面后可保存"
+                case .hintStable: return "覆盖完整，可保存分析"
+                case .spatialSamplesFormat: return "%d 个空间采样"
+                case .metricDuration: return "时长"
+                case .metricCanopy: return "树冠"
+                case .metricAngles: return "视角"
+                case .metricBalance: return "均衡"
+                case .metricStability: return "稳定"
+                case .metricPointCloud: return "点云"
+                case .metricStatus: return "状态"
+                case .previewReady: return "粗预览已就绪"
+                case .nextHigh: return "覆盖充足，可直接完成并估算产量。"
+                case .nextMedium: return "可完成分析；若树冠背面缺失，继续录制补一圈。"
+                case .nextLow: return "建议继续录制，补齐树冠背面和主干遮挡区域。"
+                case .resume: return "继续补扫"
+                case .finishEstimate: return "完成估算"
+                case .toastTitle: return "扫描覆盖充足"
+                case .toastMessage: return "可以点击完成保存结果"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static func spatialSamples(_ count: Int, in bundle: Bundle = .main) -> String {
+            String(format: text(.spatialSamplesFormat, in: bundle), count)
+        }
+    }
+
+    // MARK: - Scan Controls
+    enum ScanControls {
+        enum Key: String {
+            case guide = "scan.controls.guide"
+            case measure = "scan.controls.measure"
+            case cancel = "scan.controls.cancel"
+            case startRecording = "scan.controls.start_recording"
+            case stopRecording = "scan.controls.stop_recording"
+            case rerecord = "scan.controls.rerecord"
+            case finish = "scan.controls.finish"
+            case processing = "scan.controls.processing"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .guide: return "引导"
+                case .measure: return "测量"
+                case .cancel: return "取消"
+                case .startRecording: return "开始录制"
+                case .stopRecording: return "停止录制"
+                case .rerecord: return "重新录制"
+                case .finish: return "完成"
+                case .processing: return "处理中"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+    }
+
     // MARK: - Scan Readiness
     enum ScanReadiness {
         enum Key: String {
