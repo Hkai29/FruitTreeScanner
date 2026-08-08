@@ -11,7 +11,7 @@ struct ScanHistoryDeletionArtifact: Equatable, Sendable {
 
     enum ResidualReason: Equatable, Sendable {
         case removalFailed(String)
-        case notAttemptedAfterPrimaryFailure
+        case notAttemptedAfterCompanionFailure
     }
 
     let kind: Kind
@@ -260,33 +260,8 @@ final class ScanHistoryStore: ObservableObject {
         ]
         var residualArtifacts: [ScanHistoryDeletionArtifact] = []
 
-        if fileExists(record.fileURL.path) {
-            do {
-                try removeItem(record.fileURL)
-            } catch {
-                residualArtifacts.append(
-                    ScanHistoryDeletionArtifact(
-                        kind: .pointCloud,
-                        url: record.fileURL,
-                        reason: .removalFailed(error.localizedDescription)
-                    )
-                )
-                for (kind, url) in companionArtifacts where fileExists(url.path) {
-                    residualArtifacts.append(
-                        ScanHistoryDeletionArtifact(
-                            kind: kind,
-                            url: url,
-                            reason: .notAttemptedAfterPrimaryFailure
-                        )
-                    )
-                }
-                return ScanHistoryRecordDeletionResult(
-                    recordID: record.id,
-                    residualArtifacts: residualArtifacts
-                )
-            }
-        }
-
+        // The history loader discovers records through PLY files. Keep that
+        // anchor until every companion is gone so a partial failure stays visible.
         for (kind, url) in companionArtifacts where fileExists(url.path) {
             do {
                 try removeItem(url)
@@ -295,6 +270,36 @@ final class ScanHistoryStore: ObservableObject {
                     ScanHistoryDeletionArtifact(
                         kind: kind,
                         url: url,
+                        reason: .removalFailed(error.localizedDescription)
+                    )
+                )
+            }
+        }
+
+        if !residualArtifacts.isEmpty {
+            if fileExists(record.fileURL.path) {
+                residualArtifacts.append(
+                    ScanHistoryDeletionArtifact(
+                        kind: .pointCloud,
+                        url: record.fileURL,
+                        reason: .notAttemptedAfterCompanionFailure
+                    )
+                )
+            }
+            return ScanHistoryRecordDeletionResult(
+                recordID: record.id,
+                residualArtifacts: residualArtifacts
+            )
+        }
+
+        if fileExists(record.fileURL.path) {
+            do {
+                try removeItem(record.fileURL)
+            } catch {
+                residualArtifacts.append(
+                    ScanHistoryDeletionArtifact(
+                        kind: .pointCloud,
+                        url: record.fileURL,
                         reason: .removalFailed(error.localizedDescription)
                     )
                 )
