@@ -279,6 +279,23 @@
 "扫描历史" = "扫描历史";
 "完成" = "完成";
 
+/* 新建扫描流程外层 */
+"start.flow.cancel" = "取消";
+"start.flow.navigation_title" = "新建扫描";
+"start.flow.previous" = "上一步";
+"start.flow.next" = "下一步";
+"start.flow.launching" = "启动中...";
+"start.flow.launch" = "开始扫描";
+"start.flow.progress.identifier" = "编号";
+"start.flow.progress.plot" = "地块";
+"start.flow.progress.season" = "季节";
+"start.flow.progress.tags" = "标签";
+"start.flow.progress.confirmation" = "确认";
+"start.flow.step_count_format" = "%1$d / %2$d";
+"start.flow.step_count_accessibility_format" = "第 %1$d 步，共 %2$d 步";
+"start.flow.step_header_format" = "步骤 %1$d/%2$d";
+"start.flow.progress_accessibility_format" = "第 %1$d 步，共 %2$d 步：%3$@";
+
 /* 快速扫描 */
 "quick_scan.navigation_title" = "快速扫描";
 "quick_scan.header_title" = "快速采集";
