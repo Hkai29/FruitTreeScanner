@@ -50,21 +50,29 @@ final class FruitParametersStore: ObservableObject {
     ) {
         self.defaults = defaults
         self.commitDelayNanoseconds = commitDelayNanoseconds
-        loadParams()
-        normalizeParams()
+        let allowsAutomaticNormalizationPersistence = loadParams()
+        normalizeParams(persistChanges: allowsAutomaticNormalizationPersistence)
     }
     
-    private func initializeDefaultParams() {
+    private func initializeDefaultParams(persistChanges: Bool = true) {
         params = FruitCategory.allCases.map { FruitVarietyParams(category: $0) }
-        saveParams()
+        if persistChanges {
+            saveParams()
+        }
     }
     
-    func loadParams() {
-        guard let data = defaults.data(forKey: Self.userDefaultsKey) else { return }
+    /// Returns whether normalization may safely replace the stored payload.
+    @discardableResult
+    private func loadParams() -> Bool {
+        guard let data = defaults.data(forKey: Self.userDefaultsKey) else { return true }
         do {
             params = try JSONDecoder().decode([FruitVarietyParams].self, from: data)
+            return true
         } catch {
-            Log.settings.error("Failed to read fruit variety parameters: \(error.localizedDescription)")
+            Log.settings.error(
+                "Failed to read fruit variety parameters; using in-memory defaults without replacing stored data: \(error.localizedDescription)"
+            )
+            return false
         }
     }
 
@@ -116,9 +124,9 @@ final class FruitParametersStore: ObservableObject {
         saveTask != nil
     }
 
-    private func normalizeParams() {
+    private func normalizeParams(persistChanges: Bool = true) {
         if params.isEmpty {
-            initializeDefaultParams()
+            initializeDefaultParams(persistChanges: persistChanges)
             return
         }
 
@@ -135,7 +143,9 @@ final class FruitParametersStore: ObservableObject {
 
         if normalized != params {
             params = normalized
-            saveParams()
+            if persistChanges {
+                saveParams()
+            }
         }
     }
 

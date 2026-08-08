@@ -54,6 +54,71 @@ final class FruitParametersStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.param(for: .pear).density, 0.95, accuracy: 0.0001)
     }
 
+    func testValidPartialSnapshotStillNormalizesAndPersists() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        var customizedApple = FruitVarietyParams(category: .apple)
+        customizedApple.averageWeightG = 246
+        customizedApple.isCustomized = true
+        defaults.set(
+            try JSONEncoder().encode([customizedApple]),
+            forKey: FruitParametersStore.userDefaultsKey
+        )
+
+        let store = FruitParametersStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(store.params.count, FruitCategory.allCases.count)
+        XCTAssertEqual(store.param(for: .apple).averageWeightG, 246)
+        let persisted = try persistedParams(from: defaults)
+        XCTAssertEqual(persisted.count, FruitCategory.allCases.count)
+        XCTAssertEqual(
+            persisted.first(where: { $0.category == FruitCategory.apple.rawValue }),
+            customizedApple
+        )
+    }
+
+    func testCorruptedSnapshotUsesDefaultsWithoutOverwritingStoredPayload() async {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        let corruptedPayload = Data([0xFF, 0x00, 0x7F])
+        defaults.set(corruptedPayload, forKey: FruitParametersStore.userDefaultsKey)
+
+        let store = FruitParametersStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(store.params.count, FruitCategory.allCases.count)
+        XCTAssertEqual(defaults.data(forKey: FruitParametersStore.userDefaultsKey), corruptedPayload)
+    }
+
+    func testExplicitUpdateReplacesPreservedCorruptSnapshotWithValidData() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        defaults.set(Data([0xFF, 0x00, 0x7F]), forKey: FruitParametersStore.userDefaultsKey)
+
+        let store = FruitParametersStore(defaults: defaults)
+        store.updateParam(for: .apple) { $0.averageWeightG = 321 }
+        await store.waitForPendingSave()
+
+        let persisted = try persistedParams(from: defaults)
+        XCTAssertEqual(persisted.count, FruitCategory.allCases.count)
+        XCTAssertEqual(
+            persisted.first(where: { $0.category == FruitCategory.apple.rawValue })?.averageWeightG,
+            321
+        )
+    }
+
+    func testMissingSnapshotInitializesAndPersistsDefaults() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let store = FruitParametersStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(store.params.count, FruitCategory.allCases.count)
+        XCTAssertEqual(try persistedParams(from: defaults).count, FruitCategory.allCases.count)
+    }
+
     func testVarietyDatabaseCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [
