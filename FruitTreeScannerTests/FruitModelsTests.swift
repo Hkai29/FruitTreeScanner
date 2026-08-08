@@ -1882,8 +1882,14 @@ final class FruitModelsTests: XCTestCase {
 
     // MARK: - ScanHistoryStore.deleteFiles transaction ordering
 
-    func testDeleteFilesPrimaryFailureBlocksCompanionCleanup() {
+    func testDeleteFilesPrimaryFailureOccursAfterCompanionCleanup() {
         let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let jsonURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)_complete.json")
         let record = ScanFileRecord(
             id: "test_record.ply",
             treeID: "test",
@@ -1909,8 +1915,8 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result, "Should return false when primary PLY removal throws")
         XCTAssertEqual(
             removed,
-            [fileURL],
-            "Companion deletion must remain blocked when the primary PLY cannot be removed"
+            [csvURL, jsonURL, manifestURL, fileURL],
+            "The PLY anchor must be attempted only after companion cleanup succeeds"
         )
     }
 
@@ -1945,7 +1951,59 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(removed[1], jsonURL, "JSON companion should be removed second")
     }
 
-    func testDeleteFilesCompanionFailureContinuesCleanupAfterPrimaryDeletion() {
+    func testDeleteFilesCompanionFailureKeepsPLYVisibleForFutureRetry() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("recoverable_record.ply")
+        let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
+        let jsonURL = tempDir.appendingPathComponent("recoverable_record_result.json")
+        let manifestURL = tempDir.appendingPathComponent("recoverable_record_complete.json")
+        let artifactURLs = [fileURL, csvURL, jsonURL, manifestURL]
+        for url in artifactURLs {
+            try Data("test".utf8).write(to: url)
+        }
+        let record = ScanFileRecord(
+            id: fileURL.lastPathComponent,
+            treeID: "recoverable",
+            fileURL: fileURL,
+            scanDate: Date()
+        )
+
+        let result = ScanHistoryStore.deleteFilesWithResult(
+            for: record,
+            removeItem: { url in
+                if url == csvURL {
+                    throw NSError(domain: "TestError", code: 2)
+                }
+                try FileManager.default.removeItem(at: url)
+            }
+        )
+
+        XCTAssertFalse(result.isComplete)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: fileURL.path),
+            "A companion failure must retain the PLY anchor so history can expose a later retry"
+        )
+        let reloaded = ScanHistoryStore.readRecords(
+            at: tempDir,
+            directoryExists: { FileManager.default.fileExists(atPath: $0) },
+            contentsOfDirectory: { try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil) },
+            recordBuilder: { url in url == fileURL ? record : nil }
+        )
+        XCTAssertEqual(reloaded, .success([record]))
+
+        let retry = ScanHistoryStore.deleteFilesWithResult(for: record)
+        XCTAssertTrue(retry.isComplete)
+        XCTAssertTrue(
+            artifactURLs.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) },
+            "A later retry should remove the preserved PLY and the failed companion"
+        )
+    }
+
+    func testDeleteFilesCompanionFailureKeepsPrimaryForRetryAndContinuesCompanionCleanup() {
         let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
         let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
         let baseName = fileURL.deletingPathExtension().lastPathComponent
@@ -1979,12 +2037,12 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result, "Should return false when any companion removal throws")
         XCTAssertEqual(
             removed,
-            [fileURL, csvURL, jsonURL, manifestURL],
-            "Primary PLY is removed first, then companion cleanup continues after a companion failure"
+            [csvURL, jsonURL, manifestURL],
+            "Companion cleanup should continue, but the PLY anchor must remain after any failure"
         )
     }
 
-    func testDeleteFilesRemovesPrimaryPLYBeforeCompanions() {
+    func testDeleteFilesRemovesPrimaryPLYAfterCompanions() {
         let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
         let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
         let baseName = fileURL.deletingPathExtension().lastPathComponent
@@ -2013,12 +2071,12 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertTrue(result, "Should return true when all files exist and removal succeeds")
         XCTAssertEqual(
             removed,
-            [fileURL, csvURL, jsonURL, manifestURL],
-            "Primary PLY should be removed before its companion artifacts"
+            [csvURL, jsonURL, manifestURL, fileURL],
+            "Primary PLY should be removed only after every companion artifact"
         )
     }
 
-    func testDeleteFilesWithResultReportsPrimaryAndBlockedCompanionRemnants() {
+    func testDeleteFilesWithResultReportsCompanionFailuresAndPreservedPrimary() {
         let fileURL = URL(fileURLWithPath: "/tmp/test_record.ply")
         let csvURL = fileURL.deletingPathExtension().appendingPathExtension("csv")
         let baseName = fileURL.deletingPathExtension().lastPathComponent
@@ -2044,23 +2102,28 @@ final class FruitModelsTests: XCTestCase {
         )
 
         XCTAssertFalse(result.isComplete)
-        XCTAssertEqual(removed, [fileURL], "Primary failure must keep companion deletion blocked")
+        XCTAssertEqual(
+            removed,
+            [csvURL, jsonURL, manifestURL],
+            "Each companion should be attempted while the PLY remains untouched"
+        )
         XCTAssertEqual(
             result.residualArtifacts.map(\.kind),
-            [.pointCloud, .csv, .resultJSON, .completionManifest]
+            [.csv, .resultJSON, .completionManifest, .pointCloud]
         )
         XCTAssertEqual(
             result.residualArtifacts.map(\.url),
-            [fileURL, csvURL, jsonURL, manifestURL]
+            [csvURL, jsonURL, manifestURL, fileURL]
         )
-        guard case .removalFailed(let message) = result.residualArtifacts[0].reason else {
-            return XCTFail("Primary residual should include the removal error")
-        }
-        XCTAssertFalse(message.isEmpty)
-        XCTAssertTrue(
-            result.residualArtifacts.dropFirst().allSatisfy {
-                $0.reason == .notAttemptedAfterPrimaryFailure
+        for artifact in result.residualArtifacts.dropLast() {
+            guard case .removalFailed(let message) = artifact.reason else {
+                return XCTFail("Each failed companion should include the removal error")
             }
+            XCTAssertFalse(message.isEmpty)
+        }
+        XCTAssertEqual(
+            result.residualArtifacts.last?.reason,
+            .notAttemptedAfterCompanionFailure
         )
     }
 
@@ -2094,17 +2157,27 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result.isComplete)
         XCTAssertEqual(
             removed,
-            [fileURL, csvURL, jsonURL, manifestURL],
-            "Companion failures must not prevent later cleanup attempts"
+            [csvURL, jsonURL, manifestURL],
+            "Companion failures must not prevent later companion attempts or delete the PLY"
         )
-        XCTAssertEqual(result.residualArtifacts.map(\.kind), [.csv, .completionManifest])
-        XCTAssertEqual(result.residualArtifacts.map(\.url), [csvURL, manifestURL])
-        for artifact in result.residualArtifacts {
+        XCTAssertEqual(
+            result.residualArtifacts.map(\.kind),
+            [.csv, .completionManifest, .pointCloud]
+        )
+        XCTAssertEqual(
+            result.residualArtifacts.map(\.url),
+            [csvURL, manifestURL, fileURL]
+        )
+        for artifact in result.residualArtifacts.dropLast() {
             guard case .removalFailed(let message) = artifact.reason else {
                 return XCTFail("Failed companion should include its removal error")
             }
             XCTAssertFalse(message.isEmpty)
         }
+        XCTAssertEqual(
+            result.residualArtifacts.last?.reason,
+            .notAttemptedAfterCompanionFailure
+        )
 
         let batchResult = ScanHistoryBatchDeletionResult(
             records: [
