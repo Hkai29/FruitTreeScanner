@@ -56,20 +56,20 @@ struct ScanStatusBarPresentation {
     private static func recordingRouteHint(for trend: VoxelDiscoveryTrend) -> String {
         switch trend {
         case .collecting:
-            return "从主干开始，慢速绕树一圈"
+            return L10n.ScanHUD.routeTrunk
         case .increasing:
-            return "正在发现新区域，继续保持树冠在画面中"
+            return L10n.ScanHUD.routeDiscovering
         case .decreasing:
-            return "接近完成，补树冠背面和下层枝条"
+            return L10n.ScanHUD.routeFinishing
         case .stable:
-            return "覆盖稳定，可以停止录制并进入粗预览"
+            return L10n.ScanHUD.routeStable
         }
     }
 
     private static func visionStatusText(for status: String) -> String {
         switch status {
-        case "CoreML": return "本机"
-        case "Fallback": return "备用"
+        case "CoreML": return L10n.ScanHUD.onDevice
+        case "Fallback": return L10n.ScanHUD.fallback
         case "--": return "--"
         default: return status
         }
@@ -77,18 +77,18 @@ struct ScanStatusBarPresentation {
 
     private static func visionDetailText(for detail: String) -> String {
         switch detail {
-        case "No model": return "未载入"
+        case "No model": return L10n.ScanHUD.modelNotLoaded
         case "--": return "--"
-        default: return "已载入"
+        default: return L10n.ScanHUD.modelLoaded
         }
     }
 
     private static func depthStatusText(for status: String) -> String {
         switch status {
-        case "LiDAR": return "可用"
-        case "Wait": return "等待"
-        case "NoDepth": return "无深度"
-        case "NoAR": return "不可用"
+        case "LiDAR": return L10n.ScanHUD.available
+        case "Wait": return L10n.ScanHUD.waiting
+        case "NoDepth": return L10n.ScanHUD.noDepth
+        case "NoAR": return L10n.ScanHUD.unavailable
         case "--": return "--"
         default: return status
         }
@@ -104,8 +104,8 @@ struct ScanStatusBarPresentation {
 
     private static func pointCloudStatusText(for status: String) -> String {
         switch status {
-        case "Ready": return "可导出"
-        case "NoCloud": return "等待"
+        case "Ready": return L10n.ScanHUD.exportable
+        case "NoCloud": return L10n.ScanHUD.waiting
         case "--": return "--"
         default: return status
         }
@@ -113,9 +113,13 @@ struct ScanStatusBarPresentation {
 
     private static func fusionStatusText(for status: String) -> String {
         switch status {
-        case "OK": return "已融合"
-        case "Wait": return "等待"
-        case "0kg": return "低置信"
+        case "OK": return L10n.ScanHUD.fused
+        case "Wait", "等待扫描": return L10n.ScanHUD.waiting
+        case "扫描中": return L10n.ScanHUD.scanning
+        case "补扫中": return L10n.ScanHUD.rescanning
+        case "Interrupted": return L10n.ScanHUD.interrupted
+        case "Failed": return L10n.ScanHUD.failed
+        case "0kg": return L10n.ScanHUD.lowConfidence
         default: return status
         }
     }

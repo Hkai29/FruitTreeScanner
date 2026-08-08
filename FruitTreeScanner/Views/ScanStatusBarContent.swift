@@ -19,55 +19,49 @@ struct ScanRecordingStatusContent: View {
 
     var body: some View {
         VStack(spacing: layout.isPad ? 10 : 8) {
-            HStack(spacing: 8) {
-                Label("果树全株", systemImage: "viewfinder")
-                    .font(.system(size: layout.isPad ? 14 : 12, weight: .semibold))
-                    .foregroundColor(Design.Colors.harvest)
-                    .lineLimit(1)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(Design.Colors.harvest.opacity(0.14))
-                    .clipShape(Capsule())
-
-                Text("树号 \(treeID)")
-                    .font(.system(size: layout.isPad ? 13 : 11, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-
-                Spacer(minLength: 8)
-
-                StatusIndicator(
-                    status: .recording,
-                    iconSize: layout.statusIconSize,
-                    labelSize: layout.statusLabelSize
-                )
+            if layout.isPad {
+                HStack(spacing: 8) {
+                    wholeTreeBadge
+                    treeIdentifierLabel
+                    Spacer(minLength: 8)
+                    recordingIndicator
+                }
+            } else {
+                VStack(spacing: 6) {
+                    HStack(spacing: 8) {
+                        wholeTreeBadge
+                        Spacer(minLength: 8)
+                        recordingIndicator
+                    }
+                    treeIdentifierLabel
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             HStack(spacing: layout.isPad ? 10 : 8) {
                 ScanPrimaryStatusMetric(
-                    label: "覆盖",
+                    label: L10n.ScanHUD.coverage,
                     value: "\(hudState.coveragePercent)%",
                     accentColor: presentation.coverageColor,
                     valueFontSize: layout.metricFontSize,
                     labelFontSize: layout.metricLabelSize
                 )
                 ScanPrimaryStatusMetric(
-                    label: "果数",
+                    label: L10n.ScanHUD.fruitCount,
                     value: "\(hudState.detectedFruitCount)",
                     accentColor: hudState.detectedFruitCount > 0 ? Design.Colors.harvest : Design.Colors.warning,
                     valueFontSize: layout.metricFontSize,
                     labelFontSize: layout.metricLabelSize
                 )
                 ScanPrimaryStatusMetric(
-                    label: "质量",
+                    label: L10n.ScanHUD.quality,
                     value: qualityMonitor.getQualityStatus(),
                     accentColor: presentation.qualityColor,
                     valueFontSize: layout.metricFontSize,
                     labelFontSize: layout.metricLabelSize
                 )
                 ScanPrimaryStatusMetric(
-                    label: "深度",
+                    label: L10n.ScanHUD.depth,
                     value: presentation.depthStatusText,
                     accentColor: presentation.depthStatusColor,
                     valueFontSize: layout.metricFontSize,
@@ -92,6 +86,35 @@ struct ScanRecordingStatusContent: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
+
+    private var wholeTreeBadge: some View {
+        Label(L10n.ScanHUD.wholeTree, systemImage: "viewfinder")
+            .font(.system(size: layout.isPad ? 14 : 12, weight: .semibold))
+            .foregroundColor(Design.Colors.harvest)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Design.Colors.harvest.opacity(0.14))
+            .clipShape(Capsule())
+    }
+
+    private var treeIdentifierLabel: some View {
+        Text(L10n.ScanHUD.treeIdentifier(treeID))
+            .font(.system(size: layout.isPad ? 13 : 11, weight: .semibold, design: .monospaced))
+            .foregroundColor(Design.Colors.Dark.textPrimary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+    }
+
+    private var recordingIndicator: some View {
+        StatusIndicator(
+            status: .recording,
+            iconSize: layout.statusIconSize,
+            labelSize: layout.statusLabelSize
+        )
+        .fixedSize(horizontal: true, vertical: false)
+    }
 }
 
 struct ScanDetailedStatusContent: View {
@@ -104,56 +127,90 @@ struct ScanDetailedStatusContent: View {
 
     var body: some View {
         VStack(spacing: layout.isPad ? 10 : 8) {
-            HStack(spacing: layout.isPad ? 10 : 8) {
-                ScanPrimaryStatusMetric(
-                    label: "树号",
-                    value: treeID,
-                    accentColor: Design.Colors.harvest,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-                ScanPrimaryStatusMetric(
-                    label: "覆盖",
-                    value: "\(hudState.coveragePercent)%",
-                    accentColor: presentation.coverageColor,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-                ScanPrimaryStatusMetric(
-                    label: "果数",
-                    value: "\(hudState.detectedFruitCount)",
-                    accentColor: hudState.detectedFruitCount > 0 ? Design.Colors.harvest : Design.Colors.warning,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-                ScanPrimaryStatusMetric(
-                    label: "质量",
-                    value: qualityMonitor.getQualityStatus(),
-                    accentColor: presentation.qualityColor,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-                StatusIndicator(
-                    status: isRecording ? .recording : .ready,
-                    iconSize: layout.statusIconSize,
-                    labelSize: layout.statusLabelSize
-                )
+            if layout.isPad {
+                HStack(spacing: 10) {
+                    treeMetric
+                    coverageMetric
+                    fruitMetric
+                    qualityMetric
+                    statusIndicator
+                }
+            } else {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        treeMetric
+                        statusIndicator.fixedSize(horizontal: true, vertical: false)
+                    }
+                    HStack(spacing: 8) {
+                        coverageMetric
+                        fruitMetric
+                        qualityMetric
+                    }
+                }
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: layout.isPad ? 10 : 8) {
-                    HUDPill(label: "点数", value: ScanHUDValueFormatter.pointCount(hudState.pointCount), accentColor: Design.Colors.harvest, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "图像", value: presentation.visionStatusText, accentColor: presentation.visionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "模型", value: presentation.visionDetailText, accentColor: presentation.visionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "深度", value: presentation.depthStatusText, accentColor: presentation.depthStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "点云", value: presentation.pointCloudStatusText, accentColor: presentation.pointCloudStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "帧数", value: presentation.processedFrameText, accentColor: presentation.processedFrameColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "融合", value: presentation.fusionStatusText, accentColor: presentation.fusionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "密度", value: ScanHUDValueFormatter.pointDensity(qualityMonitor.pointDensity), accentColor: presentation.pointDensityColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: "光照", value: qualityMonitor.lightLevel.description, accentColor: qualityMonitor.lightLevel.color, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.points, value: ScanHUDValueFormatter.pointCount(hudState.pointCount), accentColor: Design.Colors.harvest, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.vision, value: presentation.visionStatusText, accentColor: presentation.visionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.model, value: presentation.visionDetailText, accentColor: presentation.visionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.depth, value: presentation.depthStatusText, accentColor: presentation.depthStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.pointCloud, value: presentation.pointCloudStatusText, accentColor: presentation.pointCloudStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.frames, value: presentation.processedFrameText, accentColor: presentation.processedFrameColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.fusion, value: presentation.fusionStatusText, accentColor: presentation.fusionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.density, value: ScanHUDValueFormatter.pointDensity(qualityMonitor.pointDensity), accentColor: presentation.pointDensityColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+                    HUDPill(label: L10n.ScanHUD.lighting, value: qualityMonitor.lightLevel.description, accentColor: qualityMonitor.lightLevel.color, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
                 }
             }
         }
+    }
+
+    private var treeMetric: some View {
+        ScanPrimaryStatusMetric(
+            label: L10n.ScanHUD.treeID,
+            value: treeID,
+            accentColor: Design.Colors.harvest,
+            valueFontSize: layout.metricFontSize,
+            labelFontSize: layout.metricLabelSize
+        )
+    }
+
+    private var coverageMetric: some View {
+        ScanPrimaryStatusMetric(
+            label: L10n.ScanHUD.coverage,
+            value: "\(hudState.coveragePercent)%",
+            accentColor: presentation.coverageColor,
+            valueFontSize: layout.metricFontSize,
+            labelFontSize: layout.metricLabelSize
+        )
+    }
+
+    private var fruitMetric: some View {
+        ScanPrimaryStatusMetric(
+            label: L10n.ScanHUD.fruitCount,
+            value: "\(hudState.detectedFruitCount)",
+            accentColor: hudState.detectedFruitCount > 0 ? Design.Colors.harvest : Design.Colors.warning,
+            valueFontSize: layout.metricFontSize,
+            labelFontSize: layout.metricLabelSize
+        )
+    }
+
+    private var qualityMetric: some View {
+        ScanPrimaryStatusMetric(
+            label: L10n.ScanHUD.quality,
+            value: qualityMonitor.getQualityStatus(),
+            accentColor: presentation.qualityColor,
+            valueFontSize: layout.metricFontSize,
+            labelFontSize: layout.metricLabelSize
+        )
+    }
+
+    private var statusIndicator: some View {
+        StatusIndicator(
+            status: isRecording ? .recording : .ready,
+            iconSize: layout.statusIconSize,
+            labelSize: layout.statusLabelSize
+        )
     }
 }
 

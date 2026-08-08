@@ -547,6 +547,62 @@ enum L10n {
         static let tooBright = NSLocalizedString("quality.too_bright", value: "过曝", comment: "Too bright/overexposed lighting")
     }
 
+    // MARK: - Scan HUD
+    enum ScanHUD {
+        static let wholeTree = NSLocalizedString("scan.hud.whole_tree", value: "果树全株", comment: "Whole-tree scan badge")
+        private static let treeIDFormat = NSLocalizedString("scan.hud.tree_id_format", value: "树号 %@", comment: "Tree identifier displayed in scan HUD")
+        static let treeID = NSLocalizedString("scan.hud.metric.tree_id", value: "树号", comment: "Tree identifier metric label")
+        static let coverage = NSLocalizedString("scan.hud.metric.coverage", value: "覆盖", comment: "Scan coverage metric label")
+        static let fruitCount = NSLocalizedString("scan.hud.metric.fruit_count", value: "果数", comment: "Detected fruit count metric label")
+        static let quality = NSLocalizedString("scan.hud.metric.quality", value: "质量", comment: "Scan quality metric label")
+        static let depth = NSLocalizedString("scan.hud.metric.depth", value: "深度", comment: "Depth status metric label")
+        static let points = NSLocalizedString("scan.hud.metric.points", value: "点数", comment: "Point count metric label")
+        static let vision = NSLocalizedString("scan.hud.metric.vision", value: "图像", comment: "Vision status metric label")
+        static let model = NSLocalizedString("scan.hud.metric.model", value: "模型", comment: "Vision model metric label")
+        static let pointCloud = NSLocalizedString("scan.hud.metric.point_cloud", value: "点云", comment: "Point-cloud status metric label")
+        static let frames = NSLocalizedString("scan.hud.metric.frames", value: "帧数", comment: "Processed frame count metric label")
+        static let fusion = NSLocalizedString("scan.hud.metric.fusion", value: "融合", comment: "Fusion status metric label")
+        static let density = NSLocalizedString("scan.hud.metric.density", value: "密度", comment: "Point density metric label")
+        static let lighting = NSLocalizedString("scan.hud.metric.lighting", value: "光照", comment: "Lighting metric label")
+
+        static let ready = NSLocalizedString("scan.hud.state.ready", value: "就绪", comment: "Ready scan state")
+        static let recording = NSLocalizedString("scan.hud.state.recording", value: "采集中", comment: "Recording scan state")
+        static let processing = NSLocalizedString("scan.hud.state.processing", value: "处理中", comment: "Processing scan state")
+        static let error = NSLocalizedString("scan.hud.state.error", value: "错误", comment: "Error scan state")
+
+        static let routeTrunk = NSLocalizedString("scan.hud.route.trunk", value: "从主干开始，慢速绕树一圈", comment: "Initial scan route guidance")
+        static let routeDiscovering = NSLocalizedString("scan.hud.route.discovering", value: "正在发现新区域，继续保持树冠在画面中", comment: "Active discovery scan guidance")
+        static let routeFinishing = NSLocalizedString("scan.hud.route.finishing", value: "接近完成，补树冠背面和下层枝条", comment: "Nearly complete scan guidance")
+        static let routeStable = NSLocalizedString("scan.hud.route.stable", value: "覆盖稳定，可以停止录制并进入粗预览", comment: "Stable coverage scan guidance")
+
+        static let onDevice = NSLocalizedString("scan.hud.vision.on_device", value: "本机", comment: "On-device vision status")
+        static let fallback = NSLocalizedString("scan.hud.vision.fallback", value: "备用", comment: "Fallback vision status")
+        static let modelNotLoaded = NSLocalizedString("scan.hud.vision.model_not_loaded", value: "未载入", comment: "Vision model not loaded")
+        static let modelLoaded = NSLocalizedString("scan.hud.vision.model_loaded", value: "已载入", comment: "Vision model loaded")
+
+        static let available = NSLocalizedString("scan.hud.runtime.available", value: "可用", comment: "Runtime resource available")
+        static let waiting = NSLocalizedString("scan.hud.runtime.waiting", value: "等待", comment: "Runtime resource waiting")
+        static let noDepth = NSLocalizedString("scan.hud.runtime.no_depth", value: "无深度", comment: "Depth unavailable on device")
+        static let unavailable = NSLocalizedString("scan.hud.runtime.unavailable", value: "不可用", comment: "Runtime resource unavailable")
+        static let exportable = NSLocalizedString("scan.hud.runtime.exportable", value: "可导出", comment: "Point cloud ready for export")
+        static let fused = NSLocalizedString("scan.hud.runtime.fused", value: "已融合", comment: "Fusion completed")
+        static let lowConfidence = NSLocalizedString("scan.hud.runtime.low_confidence", value: "低置信", comment: "Low-confidence fusion status")
+        static let scanning = NSLocalizedString("scan.hud.runtime.scanning", value: "扫描中", comment: "Scanning in progress")
+        static let rescanning = NSLocalizedString("scan.hud.runtime.rescanning", value: "补扫中", comment: "Supplemental scanning in progress")
+        static let interrupted = NSLocalizedString("scan.hud.runtime.interrupted", value: "已中断", comment: "Scan interrupted")
+        static let failed = NSLocalizedString("scan.hud.runtime.failed", value: "失败", comment: "Scan failed")
+
+        static let qualityPoor = NSLocalizedString("scan.hud.quality.poor", value: "差", comment: "Poor scan quality")
+        static let qualityFair = NSLocalizedString("scan.hud.quality.fair", value: "一般", comment: "Fair scan quality")
+        static let qualityGood = NSLocalizedString("scan.hud.quality.good", value: "良好", comment: "Good scan quality")
+        static let qualityExcellent = NSLocalizedString("scan.hud.quality.excellent", value: "优秀", comment: "Excellent scan quality")
+        static let qualityOutstanding = NSLocalizedString("scan.hud.quality.outstanding", value: "极佳", comment: "Outstanding scan quality")
+
+        static func treeIdentifier(_ identifier: String) -> String {
+            String(format: treeIDFormat, identifier)
+        }
+    }
+
     // MARK: - Voxel Discovery
     enum VoxelTrend {
         static let collecting = NSLocalizedString("voxel.collecting", value: "收集中...", comment: "Collecting voxel data")

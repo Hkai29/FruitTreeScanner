@@ -156,11 +156,11 @@ class ScanQualityMonitor: ObservableObject {
     func getQualityStatus() -> String {
         let score = snapshot.qualityScore
         switch score {
-        case 0..<30: return "差"
-        case 30..<50: return "一般"
-        case 50..<70: return "良好"
-        case 70..<90: return "优秀"
-        default: return "极佳"
+        case 0..<30: return L10n.ScanHUD.qualityPoor
+        case 30..<50: return L10n.ScanHUD.qualityFair
+        case 50..<70: return L10n.ScanHUD.qualityGood
+        case 70..<90: return L10n.ScanHUD.qualityExcellent
+        default: return L10n.ScanHUD.qualityOutstanding
         }
     }
 }

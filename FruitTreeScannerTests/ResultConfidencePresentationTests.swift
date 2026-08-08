@@ -1,3 +1,6 @@
+import ARKit
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -242,6 +245,116 @@ final class ResultConfidencePresentationTests: XCTestCase {
 }
 
 final class ScanHUDValueFormatterTests: XCTestCase {
+    func testScanHUDCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "scan.hud.whole_tree": "Whole Tree",
+                "scan.hud.tree_id_format": "Tree %@",
+                "scan.hud.metric.tree_id": "Tree",
+                "scan.hud.metric.coverage": "Coverage",
+                "scan.hud.metric.fruit_count": "Fruit",
+                "scan.hud.metric.quality": "Quality",
+                "scan.hud.metric.depth": "Depth",
+                "scan.hud.metric.points": "Points",
+                "scan.hud.metric.vision": "Vision",
+                "scan.hud.metric.model": "Model",
+                "scan.hud.metric.point_cloud": "Cloud",
+                "scan.hud.metric.frames": "Frames",
+                "scan.hud.metric.fusion": "Fusion",
+                "scan.hud.metric.density": "Density",
+                "scan.hud.metric.lighting": "Lighting",
+                "scan.hud.state.ready": "Ready",
+                "scan.hud.state.recording": "Recording",
+                "scan.hud.state.processing": "Processing",
+                "scan.hud.state.error": "Error",
+                "scan.hud.route.trunk": "Start at the trunk and circle the tree slowly",
+                "scan.hud.route.discovering": "New areas found; keep the canopy in frame",
+                "scan.hud.route.finishing": "Nearly done; cover the canopy back and lower branches",
+                "scan.hud.route.stable": "Coverage stable; stop recording for rough preview",
+                "scan.hud.vision.on_device": "On-device",
+                "scan.hud.vision.fallback": "Fallback",
+                "scan.hud.vision.model_not_loaded": "Not loaded",
+                "scan.hud.vision.model_loaded": "Loaded",
+                "scan.hud.runtime.available": "Available",
+                "scan.hud.runtime.waiting": "Waiting",
+                "scan.hud.runtime.no_depth": "No depth",
+                "scan.hud.runtime.unavailable": "Unavailable",
+                "scan.hud.runtime.exportable": "Exportable",
+                "scan.hud.runtime.fused": "Fused",
+                "scan.hud.runtime.low_confidence": "Low confidence",
+                "scan.hud.runtime.scanning": "Scanning",
+                "scan.hud.runtime.rescanning": "Rescanning",
+                "scan.hud.runtime.interrupted": "Interrupted",
+                "scan.hud.runtime.failed": "Failed",
+                "scan.hud.quality.poor": "Poor",
+                "scan.hud.quality.fair": "Fair",
+                "scan.hud.quality.good": "Good",
+                "scan.hud.quality.excellent": "Excellent",
+                "scan.hud.quality.outstanding": "Outstanding",
+            ],
+            "zh": [
+                "scan.hud.whole_tree": "果树全株",
+                "scan.hud.tree_id_format": "树号 %@",
+                "scan.hud.metric.tree_id": "树号",
+                "scan.hud.metric.coverage": "覆盖",
+                "scan.hud.metric.fruit_count": "果数",
+                "scan.hud.metric.quality": "质量",
+                "scan.hud.metric.depth": "深度",
+                "scan.hud.metric.points": "点数",
+                "scan.hud.metric.vision": "图像",
+                "scan.hud.metric.model": "模型",
+                "scan.hud.metric.point_cloud": "点云",
+                "scan.hud.metric.frames": "帧数",
+                "scan.hud.metric.fusion": "融合",
+                "scan.hud.metric.density": "密度",
+                "scan.hud.metric.lighting": "光照",
+                "scan.hud.state.ready": "就绪",
+                "scan.hud.state.recording": "采集中",
+                "scan.hud.state.processing": "处理中",
+                "scan.hud.state.error": "错误",
+                "scan.hud.route.trunk": "从主干开始，慢速绕树一圈",
+                "scan.hud.route.discovering": "正在发现新区域，继续保持树冠在画面中",
+                "scan.hud.route.finishing": "接近完成，补树冠背面和下层枝条",
+                "scan.hud.route.stable": "覆盖稳定，可以停止录制并进入粗预览",
+                "scan.hud.vision.on_device": "本机",
+                "scan.hud.vision.fallback": "备用",
+                "scan.hud.vision.model_not_loaded": "未载入",
+                "scan.hud.vision.model_loaded": "已载入",
+                "scan.hud.runtime.available": "可用",
+                "scan.hud.runtime.waiting": "等待",
+                "scan.hud.runtime.no_depth": "无深度",
+                "scan.hud.runtime.unavailable": "不可用",
+                "scan.hud.runtime.exportable": "可导出",
+                "scan.hud.runtime.fused": "已融合",
+                "scan.hud.runtime.low_confidence": "低置信",
+                "scan.hud.runtime.scanning": "扫描中",
+                "scan.hud.runtime.rescanning": "补扫中",
+                "scan.hud.runtime.interrupted": "已中断",
+                "scan.hud.runtime.failed": "失败",
+                "scan.hud.quality.poor": "差",
+                "scan.hud.quality.fair": "一般",
+                "scan.hud.quality.good": "良好",
+                "scan.hud.quality.excellent": "优秀",
+                "scan.hud.quality.outstanding": "极佳",
+            ],
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
     func testPointCountFormatterKeepsExistingCompactLabels() {
         XCTAssertEqual(ScanHUDValueFormatter.pointCount(999), "999")
         XCTAssertEqual(ScanHUDValueFormatter.pointCount(1_000), "1.0K")
@@ -251,6 +364,170 @@ final class ScanHUDValueFormatterTests: XCTestCase {
 
     func testPointDensityFormatterKeepsExistingWholeNumberDisplay() {
         XCTAssertEqual(ScanHUDValueFormatter.pointDensity(123.4), "123")
+    }
+
+    @MainActor
+    func testScanStatusBarPresentationLocalizesKnownRuntimeStatesAndPreservesUnknownValues() {
+        let hudState = ScanHUDState()
+        let qualityMonitor = ScanQualityMonitor()
+
+        let fusionStates = [
+            ("等待扫描", L10n.ScanHUD.waiting),
+            ("扫描中", L10n.ScanHUD.scanning),
+            ("补扫中", L10n.ScanHUD.rescanning),
+            ("Interrupted", L10n.ScanHUD.interrupted),
+            ("Failed", L10n.ScanHUD.failed),
+            ("OK", L10n.ScanHUD.fused),
+            ("0kg", L10n.ScanHUD.lowConfidence),
+        ]
+        for (rawValue, expectedValue) in fusionStates {
+            hudState.update(fusionStatus: rawValue)
+            XCTAssertEqual(
+                ScanStatusBarPresentation(hudState: hudState, qualityMonitor: qualityMonitor).fusionStatusText,
+                expectedValue
+            )
+        }
+
+        hudState.update(
+            scanCompletion: ScanCompletion(discoveryTrend: .increasing),
+            visionModelStatus: "CoreML",
+            visionModelDetail: "FruitDetector.mlmodelc",
+            depthRuntimeStatus: "LiDAR",
+            exportablePointStatus: "Ready"
+        )
+        var presentation = ScanStatusBarPresentation(hudState: hudState, qualityMonitor: qualityMonitor)
+        XCTAssertEqual(presentation.recordingRouteHint, L10n.ScanHUD.routeDiscovering)
+        XCTAssertEqual(presentation.visionStatusText, L10n.ScanHUD.onDevice)
+        XCTAssertEqual(presentation.visionDetailText, L10n.ScanHUD.modelLoaded)
+        XCTAssertEqual(presentation.depthStatusText, L10n.ScanHUD.available)
+        XCTAssertEqual(presentation.pointCloudStatusText, L10n.ScanHUD.exportable)
+
+        hudState.update(
+            visionModelStatus: "CustomVisionState",
+            depthRuntimeStatus: "CustomDepthState",
+            exportablePointStatus: "CustomCloudState",
+            fusionStatus: "CustomFusionState"
+        )
+        presentation = ScanStatusBarPresentation(hudState: hudState, qualityMonitor: qualityMonitor)
+        XCTAssertEqual(presentation.visionStatusText, "CustomVisionState")
+        XCTAssertEqual(presentation.depthStatusText, "CustomDepthState")
+        XCTAssertEqual(presentation.pointCloudStatusText, "CustomCloudState")
+        XCTAssertEqual(presentation.fusionStatusText, "CustomFusionState")
+    }
+
+    @MainActor
+    func testScanQualityStatusKeepsExistingScoreBandsWithLocalizedCopy() {
+        XCTAssertEqual(ScanQualityMonitor().getQualityStatus(), L10n.ScanHUD.qualityPoor)
+        XCTAssertEqual(
+            qualityStatus(pointDensity: 0, ambientIntensity: 500, scanAngle: 90, trackingState: .notAvailable),
+            L10n.ScanHUD.qualityFair
+        )
+        XCTAssertEqual(
+            qualityStatus(pointDensity: 0, ambientIntensity: 3_000, scanAngle: 0, trackingState: .normal),
+            L10n.ScanHUD.qualityGood
+        )
+        XCTAssertEqual(
+            qualityStatus(pointDensity: 0, ambientIntensity: 500, scanAngle: 0, trackingState: .normal),
+            L10n.ScanHUD.qualityExcellent
+        )
+        XCTAssertEqual(
+            qualityStatus(pointDensity: 500, ambientIntensity: 500, scanAngle: 0, trackingState: .normal),
+            L10n.ScanHUD.qualityOutstanding
+        )
+    }
+
+    @MainActor
+    func testScanStatusBarRendersLocalizedCompactAndDetailedLayouts() {
+        let hudState = ScanHUDState()
+        hudState.update(
+            pointCount: 12_345,
+            coveragePercent: 68,
+            scanCompletion: ScanCompletion(
+                overall: 0.68,
+                voxelCount: 420,
+                scanDuration: 45,
+                discoveryTrend: .increasing
+            ),
+            visionModelStatus: "CoreML",
+            visionModelDetail: "FruitDetector.mlmodelc",
+            depthRuntimeStatus: "LiDAR",
+            exportablePointStatus: "Ready",
+            processedImageFrames: 24,
+            detectedFruitCount: 18,
+            fusionStatus: "扫描中"
+        )
+        let qualityMonitor = ScanQualityMonitor()
+        qualityMonitor.update(with: ScanQualitySample(
+            pointDensity: 500,
+            trackingState: .normal,
+            scanAngle: 0,
+            ambientIntensity: 500
+        ))
+
+        let rootView = VStack(spacing: 20) {
+            ScanStatusBar(
+                treeID: "TREE-2026-08-001",
+                isRecording: true,
+                hudState: hudState,
+                qualityMonitor: qualityMonitor
+            )
+            ScanStatusBar(
+                treeID: "TREE-2026-08-001",
+                isRecording: false,
+                hudState: hudState,
+                qualityMonitor: qualityMonitor
+            )
+            Spacer(minLength: 0)
+        }
+        .frame(width: 390, height: 844, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.horizontalSizeClass, .compact)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "ScanStatusBar-\(Locale.preferredLanguages.first ?? "unknown")"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
+    }
+
+    @MainActor
+    private func qualityStatus(
+        pointDensity: Float,
+        ambientIntensity: CGFloat,
+        scanAngle: Float,
+        trackingState: ARCamera.TrackingState
+    ) -> String {
+        let monitor = ScanQualityMonitor()
+        monitor.update(with: ScanQualitySample(
+            pointDensity: pointDensity,
+            trackingState: trackingState,
+            scanAngle: scanAngle,
+            ambientIntensity: ambientIntensity
+        ))
+        return monitor.getQualityStatus()
     }
 }
 

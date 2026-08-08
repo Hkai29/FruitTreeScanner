@@ -296,6 +296,51 @@
 "quality.bright" = "Bright";
 "quality.too_bright" = "Overexposed";
 
+/* Scan HUD */
+"scan.hud.whole_tree" = "Whole Tree";
+"scan.hud.tree_id_format" = "Tree %@";
+"scan.hud.metric.tree_id" = "Tree";
+"scan.hud.metric.coverage" = "Coverage";
+"scan.hud.metric.fruit_count" = "Fruit";
+"scan.hud.metric.quality" = "Quality";
+"scan.hud.metric.depth" = "Depth";
+"scan.hud.metric.points" = "Points";
+"scan.hud.metric.vision" = "Vision";
+"scan.hud.metric.model" = "Model";
+"scan.hud.metric.point_cloud" = "Cloud";
+"scan.hud.metric.frames" = "Frames";
+"scan.hud.metric.fusion" = "Fusion";
+"scan.hud.metric.density" = "Density";
+"scan.hud.metric.lighting" = "Lighting";
+"scan.hud.state.ready" = "Ready";
+"scan.hud.state.recording" = "Recording";
+"scan.hud.state.processing" = "Processing";
+"scan.hud.state.error" = "Error";
+"scan.hud.route.trunk" = "Start at the trunk and circle the tree slowly";
+"scan.hud.route.discovering" = "New areas found; keep the canopy in frame";
+"scan.hud.route.finishing" = "Nearly done; cover the canopy back and lower branches";
+"scan.hud.route.stable" = "Coverage stable; stop recording for rough preview";
+"scan.hud.vision.on_device" = "On-device";
+"scan.hud.vision.fallback" = "Fallback";
+"scan.hud.vision.model_not_loaded" = "Not loaded";
+"scan.hud.vision.model_loaded" = "Loaded";
+"scan.hud.runtime.available" = "Available";
+"scan.hud.runtime.waiting" = "Waiting";
+"scan.hud.runtime.no_depth" = "No depth";
+"scan.hud.runtime.unavailable" = "Unavailable";
+"scan.hud.runtime.exportable" = "Exportable";
+"scan.hud.runtime.fused" = "Fused";
+"scan.hud.runtime.low_confidence" = "Low confidence";
+"scan.hud.runtime.scanning" = "Scanning";
+"scan.hud.runtime.rescanning" = "Rescanning";
+"scan.hud.runtime.interrupted" = "Interrupted";
+"scan.hud.runtime.failed" = "Failed";
+"scan.hud.quality.poor" = "Poor";
+"scan.hud.quality.fair" = "Fair";
+"scan.hud.quality.good" = "Good";
+"scan.hud.quality.excellent" = "Excellent";
+"scan.hud.quality.outstanding" = "Outstanding";
+
 /* Voxel Trend */
 "voxel.collecting" = "Collecting...";
 "voxel.discovering" = "Discovering new areas";
