@@ -11,7 +11,12 @@ extension StartView {
     }
 
     func goNext() {
+        guard canGoNext, !isLaunchingScan else { return }
+
         if currentStep < totalSteps {
+            if currentStep == 1, let normalizedTreeID = treeIdentifierDraft.validatedValue {
+                treeIdentifierDraft.value = normalizedTreeID
+            }
             withAnimation(.easeInOut(duration: 0.3)) {
                 currentStep += 1
             }
@@ -26,13 +31,10 @@ extension StartView {
 
         launchGate.submit(
             makeRequest: { () -> ScanLaunchRequest? in
-                let normalizedTreeID = TreeIdentifierPolicy.normalized(treeID)
-                guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
-                    return nil
-                }
+                guard let treeID = treeIdentifierDraft.validatedValue else { return nil }
                 let selection = resolvedSelection
                 return ScanLaunchRequest(
-                    treeID: normalizedTreeID,
+                    treeID: treeID,
                     selectedFruitCategory: selectedFruitCategory,
                     season: season,
                     gps: gps,

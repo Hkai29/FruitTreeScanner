@@ -3,7 +3,7 @@ import SwiftUI
 extension StartView {
     var canGoNext: Bool {
         switch currentStep {
-        case 1: return isTreeIDValid
+        case 1: return treeIdentifierDraft.validatedValue != nil
         default: return true
         }
     }

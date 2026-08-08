@@ -1,13 +1,32 @@
 import SwiftUI
 
-struct Step1_IDEntry: View {
-    @Binding var treeID: String
-    @Binding var isValid: Bool
+struct StartTreeIdentifierDraft {
+    var value: String
 
-    @State private var draftTreeID = ""
-    @State private var localIsValid = false
-    @State private var validationErrorMessage: String?
-    @State private var syncTask: Task<Void, Never>?
+    init(value: String = "") {
+        self.value = value
+    }
+
+    var normalizedValue: String {
+        TreeIdentifierPolicy.normalized(value)
+    }
+
+    var validationIssue: TreeIdentifierPolicy.ValidationIssue? {
+        TreeIdentifierPolicy.validationIssue(for: normalizedValue)
+    }
+
+    var isValid: Bool {
+        validationIssue == nil
+    }
+
+    var validatedValue: String? {
+        guard isValid else { return nil }
+        return normalizedValue
+    }
+}
+
+struct Step1_IDEntry: View {
+    @Binding var draft: StartTreeIdentifierDraft
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
@@ -26,12 +45,6 @@ struct Step1_IDEntry: View {
                 tint: Design.Colors.harvest
             )
         }
-        .onAppear(perform: prepareInitialValue)
-        .onDisappear {
-            syncImmediately()
-            syncTask?.cancel()
-        }
-        .onChange(of: draftTreeID, perform: schedulePublish)
     }
 
     private var inputCard: some View {
@@ -46,7 +59,7 @@ struct Step1_IDEntry: View {
                     .foregroundColor(statusColor)
             }
 
-            TextField("例：T001", text: $draftTreeID)
+            TextField("例：T001", text: $draft.value)
                 .font(.system(size: 19, weight: .semibold, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(.horizontal, Design.Space.md)
@@ -57,7 +70,6 @@ struct Step1_IDEntry: View {
                 .autocorrectionDisabled(true)
                 .textContentType(.none)
                 .submitLabel(.next)
-                .onSubmit(syncImmediately)
 
             if let error = validationErrorMessage {
                 Text(error)
@@ -70,54 +82,15 @@ struct Step1_IDEntry: View {
     }
 
     private var statusText: String {
-        localIsValid ? "可用" : (validationErrorMessage != nil ? "无效" : "必填")
+        draft.isValid ? "可用" : (validationErrorMessage != nil ? "无效" : "必填")
     }
 
     private var statusColor: Color {
-        localIsValid ? Design.Colors.forest : Design.Colors.harvest
+        draft.isValid ? Design.Colors.forest : Design.Colors.harvest
     }
 
-    private func prepareInitialValue() {
-        if draftTreeID.isEmpty {
-            draftTreeID = treeID
-        }
-        updateLocalValidity(for: draftTreeID)
-        syncImmediately()
-    }
-
-    private func schedulePublish(_ newValue: String) {
-        updateLocalValidity(for: newValue)
-        syncTask?.cancel()
-        syncTask = Task {
-            try? await Task.sleep(nanoseconds: 160_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                publish(newValue)
-            }
-        }
-    }
-
-    private func syncImmediately() {
-        publish(draftTreeID)
-    }
-
-    private func updateLocalValidity(for value: String) {
-        let normalized = TreeIdentifierPolicy.normalized(value)
-        if normalized.isEmpty {
-            localIsValid = false
-            validationErrorMessage = nil
-        } else if let error = TreeIdentifierPolicy.validationError(for: normalized) {
-            localIsValid = false
-            validationErrorMessage = error
-        } else {
-            localIsValid = true
-            validationErrorMessage = nil
-        }
-    }
-
-    private func publish(_ value: String) {
-        let normalized = TreeIdentifierPolicy.normalized(value)
-        treeID = normalized
-        isValid = TreeIdentifierPolicy.isValid(normalized)
+    private var validationErrorMessage: String? {
+        guard !draft.normalizedValue.isEmpty else { return nil }
+        return TreeIdentifierPolicy.validationError(for: draft.normalizedValue)
     }
 }
