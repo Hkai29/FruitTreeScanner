@@ -3,6 +3,23 @@ import XCTest
 
 final class BatchExportServiceTests: XCTestCase {
 
+    private final class LockedErrorBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storedError: Error?
+
+        func store(_ error: Error) {
+            lock.lock()
+            storedError = error
+            lock.unlock()
+        }
+
+        var error: Error? {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedError
+        }
+    }
+
     private func makeRecord(
         id: String = "scan_001.ply",
         treeID: String = "T-001",
@@ -2189,6 +2206,183 @@ final class BatchExportServiceTests: XCTestCase {
 
         XCTAssertThrowsError(try retryService.exportIfNeeded(request))
         XCTAssertEqual(rewriteAttempts, 1)
+    }
+
+    func testConcurrentServicesSerializeSameSnapshotForOneScan() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try Data().write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let firstWriteStarted = DispatchSemaphore(value: 0)
+        let allowFirstWrite = DispatchSemaphore(value: 0)
+        let firstFinished = DispatchSemaphore(value: 0)
+        let secondFinished = DispatchSemaphore(value: 0)
+        let firstError = LockedErrorBox()
+        let secondError = LockedErrorBox()
+        let firstService = ScanResultExportService(scansDirectory: directory, writeData: { data, url in
+            if url.lastPathComponent == "scan_result.json" {
+                firstWriteStarted.signal()
+                _ = allowFirstWrite.wait(timeout: .now() + 2)
+            }
+            try data.write(to: url, options: .atomic)
+        })
+        let secondService = ScanResultExportService(scansDirectory: directory)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { firstFinished.signal() }
+            do {
+                _ = try firstService.exportIfNeeded(request)
+            } catch {
+                firstError.store(error)
+            }
+        }
+        XCTAssertEqual(firstWriteStarted.wait(timeout: .now() + 2), .success)
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { secondFinished.signal() }
+            do {
+                _ = try secondService.exportIfNeeded(request)
+            } catch {
+                secondError.store(error)
+            }
+        }
+
+        XCTAssertEqual(secondFinished.wait(timeout: .now() + 0.2), .timedOut)
+        allowFirstWrite.signal()
+        XCTAssertEqual(firstFinished.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(secondFinished.wait(timeout: .now() + 2), .success)
+        XCTAssertNil(firstError.error)
+        XCTAssertNil(secondError.error)
+        let read = PLYParserHelper.readCompanionResult(for: plyURL)
+        XCTAssertEqual(read.state, .complete)
+        XCTAssertEqual(read.result?.fruitCount, 12)
+    }
+
+    func testFailedConcurrentPublishCannotRollbackLaterSuccessfulRevision() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try Data().write(to: plyURL)
+        let failingRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-old", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply",
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25), includeCSV: true
+        )
+        let succeedingRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-new", fruitType: "pear", scanDate: Date(timeIntervalSince1970: 2),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply",
+            result: makeYieldResult(nLidar: 21, yieldKg: 4.5), includeCSV: true
+        )
+        let manifestPublished = DispatchSemaphore(value: 0)
+        let allowFailure = DispatchSemaphore(value: 0)
+        let firstFinished = DispatchSemaphore(value: 0)
+        let secondFinished = DispatchSemaphore(value: 0)
+        let firstError = LockedErrorBox()
+        let secondError = LockedErrorBox()
+        let failingService = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: source, to: destination)
+            if destination.lastPathComponent == "scan_complete.json" {
+                manifestPublished.signal()
+                _ = allowFailure.wait(timeout: .now() + 2)
+                throw CocoaError(.fileWriteNoPermission)
+            }
+        })
+        let succeedingService = ScanResultExportService(scansDirectory: directory)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { firstFinished.signal() }
+            do {
+                _ = try failingService.exportIfNeeded(failingRequest)
+            } catch {
+                firstError.store(error)
+            }
+        }
+        XCTAssertEqual(manifestPublished.wait(timeout: .now() + 2), .success)
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { secondFinished.signal() }
+            do {
+                _ = try succeedingService.exportIfNeeded(succeedingRequest)
+            } catch {
+                secondError.store(error)
+            }
+        }
+
+        XCTAssertEqual(secondFinished.wait(timeout: .now() + 0.2), .timedOut)
+        allowFailure.signal()
+        XCTAssertEqual(firstFinished.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(secondFinished.wait(timeout: .now() + 2), .success)
+        XCTAssertNotNil(firstError.error)
+        XCTAssertNil(secondError.error)
+        let read = PLYParserHelper.readCompanionResult(for: plyURL)
+        XCTAssertEqual(read.state, .complete)
+        XCTAssertEqual(read.result?.fruitCount, 21)
+        XCTAssertEqual(read.result?.fruitType, "pear")
+    }
+
+    func testConcurrentServicesKeepDifferentScanFilesParallel() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let firstPLYURL = directory.appendingPathComponent("scan-a.ply")
+        let secondPLYURL = directory.appendingPathComponent("scan-b.ply")
+        try Data().write(to: firstPLYURL)
+        try Data().write(to: secondPLYURL)
+        let firstRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-A", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan-a.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let secondRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-B", fruitType: "pear", scanDate: Date(timeIntervalSince1970: 2),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan-b.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let firstWriteStarted = DispatchSemaphore(value: 0)
+        let allowFirstWrite = DispatchSemaphore(value: 0)
+        let firstFinished = DispatchSemaphore(value: 0)
+        let secondFinished = DispatchSemaphore(value: 0)
+        let firstError = LockedErrorBox()
+        let secondError = LockedErrorBox()
+        let firstService = ScanResultExportService(scansDirectory: directory, writeData: { data, url in
+            if url.lastPathComponent == "scan-a_result.json" {
+                firstWriteStarted.signal()
+                _ = allowFirstWrite.wait(timeout: .now() + 2)
+            }
+            try data.write(to: url, options: .atomic)
+        })
+        let secondService = ScanResultExportService(scansDirectory: directory)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { firstFinished.signal() }
+            do {
+                _ = try firstService.exportIfNeeded(firstRequest)
+            } catch {
+                firstError.store(error)
+            }
+        }
+        XCTAssertEqual(firstWriteStarted.wait(timeout: .now() + 2), .success)
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { secondFinished.signal() }
+            do {
+                _ = try secondService.exportIfNeeded(secondRequest)
+            } catch {
+                secondError.store(error)
+            }
+        }
+
+        XCTAssertEqual(secondFinished.wait(timeout: .now() + 2), .success)
+        allowFirstWrite.signal()
+        XCTAssertEqual(firstFinished.wait(timeout: .now() + 2), .success)
+        XCTAssertNil(firstError.error)
+        XCTAssertNil(secondError.error)
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: firstPLYURL).state, .complete)
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: secondPLYURL).state, .complete)
     }
 
     func testBatchExportExcludesIncompleteAndInvalidRecordsFromTotals() async throws {
