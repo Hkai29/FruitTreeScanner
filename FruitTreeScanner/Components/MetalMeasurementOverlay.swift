@@ -5,7 +5,7 @@ final class MetalMeasurementController: ObservableObject, @unchecked Sendable {
     @Published var measuredDistance: Float?
     @Published var point1Screen: CGPoint?
     @Published var point2Screen: CGPoint?
-    @Published var instruction: String = "点击第1个点"
+    @Published var instructionPrompt: L10n.PointCloud.ScanMeasurementPrompt = .selectFirst
 
     private var point1World: SIMD3<Float>?
     private var point2World: SIMD3<Float>?
@@ -19,7 +19,7 @@ final class MetalMeasurementController: ObservableObject, @unchecked Sendable {
         guard viewSize.width > 0, viewSize.height > 0 else { return }
 
         guard renderer.currentPointCountPublic > 0 else {
-            instruction = "请先录制点云"
+            instructionPrompt = .recordPointCloud
             return
         }
 
@@ -34,7 +34,7 @@ final class MetalMeasurementController: ObservableObject, @unchecked Sendable {
             viewportSize: viewportSize,
             viewMatrix: matrices.viewMatrix
         ) else {
-            instruction = "未选中点云，请点果树表面"
+            instructionPrompt = .surfaceNotFound
             return
         }
         let hitPos = hit.worldPosition
@@ -42,19 +42,19 @@ final class MetalMeasurementController: ObservableObject, @unchecked Sendable {
         if point1World == nil {
             point1World = hitPos
             point1Screen = viewPoint
-            instruction = "点击第2个点"
+            instructionPrompt = .selectSecond
         } else if point2World == nil {
             point2World = hitPos
             point2Screen = viewPoint
             if let p1 = point1World {
                 measuredDistance = simd_distance(p1, hitPos)
             }
-            instruction = "测量完成，点击重置"
+            instructionPrompt = .complete
         } else {
             clearMeasurements()
             point1World = hitPos
             point1Screen = viewPoint
-            instruction = "点击第2个点"
+            instructionPrompt = .selectSecond
         }
     }
 
@@ -64,7 +64,7 @@ final class MetalMeasurementController: ObservableObject, @unchecked Sendable {
         point1Screen = nil
         point2Screen = nil
         measuredDistance = nil
-        instruction = "点击第1个点"
+        instructionPrompt = .selectFirst
     }
 
     func activate() {
@@ -137,14 +137,14 @@ struct MetalMeasurementOverlay: View {
                                 Circle()
                                     .fill(Design.Colors.apple)
                                     .frame(width: 10, height: 10)
-                                Text("起点")
+                                Text(L10n.PointCloud.measurementStart)
                                     .font(.system(size: 11))
                             }
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(Design.Colors.earth)
                                     .frame(width: 10, height: 10)
-                                Text("终点")
+                                Text(L10n.PointCloud.measurementEnd)
                                     .font(.system(size: 11))
                             }
                         }
@@ -155,11 +155,24 @@ struct MetalMeasurementOverlay: View {
                                 .foregroundColor(.white.opacity(0.9))
                         }
                         .buttonStyle(.plain)
+                        .layoutPriority(1)
+                        .accessibilityLabel(L10n.PointCloud.closeMeasurementAccessibility)
                     }
-                    Text(controller.instruction)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    Text(L10n.PointCloud.scanMeasurementPrompt(controller.instructionPrompt))
                         .font(.system(size: 10))
                         .foregroundColor(Color.gray)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                        .frame(
+                            width: max(min(geo.size.width - 104, 196), 0),
+                            alignment: .trailing
+                        )
                 }
+                .frame(
+                    width: max(min(geo.size.width - 80, 220), 0),
+                    alignment: .trailing
+                )
                 .foregroundColor(.white)
                 .padding(12)
                 .background(Design.Colors.Dark.hudBackground)
@@ -182,15 +195,15 @@ struct MetalMeasurementOverlay: View {
                 Spacer()
                 VStack(spacing: 4) {
                     if let dist = distance {
-                        Text(String(format: "%.2f m", dist))
+                        Text(L10n.PointCloud.scanMeasurementDistance(dist))
                             .font(.system(size: 24, weight: .semibold, design: .monospaced))
                             .foregroundColor(Design.Colors.harvest)
                     } else {
-                        Text("计算中...")
+                        Text(L10n.PointCloud.scanMeasurementCalculating())
                             .font(.system(size: 14))
                             .foregroundColor(Color.gray)
                     }
-                    Text("测量距离")
+                    Text(L10n.PointCloud.measurementDistance)
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
                 }

@@ -1,5 +1,7 @@
 import XCTest
 import Combine
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -1156,7 +1158,14 @@ final class FruitModelsTests: XCTestCase {
                 "point_cloud.measurement.end": "End",
                 "point_cloud.measurement.instruction": "Tap the point cloud to measure",
                 "point_cloud.measurement.distance": "Measured distance",
-                "point_cloud.accessibility.close_measurement": "Stop measuring"
+                "point_cloud.accessibility.close_measurement": "Stop measuring",
+                "scan.measurement.prompt.select_first": "Tap the first point",
+                "scan.measurement.prompt.record_point_cloud": "Record a point cloud before measuring",
+                "scan.measurement.prompt.surface_not_found": "No point selected. Tap the tree surface",
+                "scan.measurement.prompt.select_second": "Tap the second point",
+                "scan.measurement.prompt.complete": "Measurement complete. Tap to reset",
+                "scan.measurement.calculating": "Calculating…",
+                "scan.measurement.distance_format": "%.2f m"
             ],
             "zh": [
                 "point_cloud.navigation_title": "点云预览",
@@ -1213,7 +1222,14 @@ final class FruitModelsTests: XCTestCase {
                 "point_cloud.measurement.end": "终点",
                 "point_cloud.measurement.instruction": "点击点云表面测量",
                 "point_cloud.measurement.distance": "测量距离",
-                "point_cloud.accessibility.close_measurement": "停止测量"
+                "point_cloud.accessibility.close_measurement": "停止测量",
+                "scan.measurement.prompt.select_first": "点击第1个点",
+                "scan.measurement.prompt.record_point_cloud": "请先录制点云",
+                "scan.measurement.prompt.surface_not_found": "未选中点云，请点果树表面",
+                "scan.measurement.prompt.select_second": "点击第2个点",
+                "scan.measurement.prompt.complete": "测量完成，点击重置",
+                "scan.measurement.calculating": "计算中…",
+                "scan.measurement.distance_format": "%.2f m"
             ]
         ]
 
@@ -1231,6 +1247,109 @@ final class FruitModelsTests: XCTestCase {
                 )
             }
         }
+    }
+
+    func testLiveScanMeasurementPromptsUseTypedLocalizedState() throws {
+        let expected: [String: [String]] = [
+            "en": [
+                "Tap the first point",
+                "Record a point cloud before measuring",
+                "No point selected. Tap the tree surface",
+                "Tap the second point",
+                "Measurement complete. Tap to reset",
+            ],
+            "zh": [
+                "点击第1个点",
+                "请先录制点云",
+                "未选中点云，请点果树表面",
+                "点击第2个点",
+                "测量完成，点击重置",
+            ],
+        ]
+
+        XCTAssertEqual(
+            L10n.PointCloud.ScanMeasurementPrompt.allCases.map(\.rawValue),
+            [
+                "scan.measurement.prompt.select_first",
+                "scan.measurement.prompt.record_point_cloud",
+                "scan.measurement.prompt.surface_not_found",
+                "scan.measurement.prompt.select_second",
+                "scan.measurement.prompt.complete",
+            ]
+        )
+
+        for language in ["en", "zh"] {
+            let bundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+            )
+            XCTAssertEqual(
+                L10n.PointCloud.ScanMeasurementPrompt.allCases.map {
+                    L10n.PointCloud.scanMeasurementPrompt($0, in: bundle)
+                },
+                expected[language]
+            )
+        }
+    }
+
+    func testLiveScanMeasurementControllerResetsSemanticPresentationState() {
+        let controller = MetalMeasurementController()
+        XCTAssertEqual(controller.instructionPrompt, .selectFirst)
+
+        controller.activate()
+        controller.instructionPrompt = .complete
+        controller.measuredDistance = 1.25
+        controller.point1Screen = CGPoint(x: 10, y: 20)
+        controller.point2Screen = CGPoint(x: 30, y: 40)
+        controller.deactivate()
+
+        XCTAssertFalse(controller.isActive)
+        XCTAssertEqual(controller.instructionPrompt, .selectFirst)
+        XCTAssertNil(controller.measuredDistance)
+        XCTAssertNil(controller.point1Screen)
+        XCTAssertNil(controller.point2Screen)
+    }
+
+    func testLiveScanMeasurementDistanceUsesLocalizedFormat() throws {
+        for language in ["en", "zh"] {
+            let bundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+            )
+            XCTAssertEqual(L10n.PointCloud.scanMeasurementDistance(1.234, in: bundle), "1.23 m")
+            XCTAssertEqual(
+                L10n.PointCloud.scanMeasurementCalculating(in: bundle),
+                language == "en" ? "Calculating…" : "计算中…"
+            )
+        }
+    }
+
+    @MainActor
+    func testLiveScanMeasurementOverlayRendersLongPromptAndDistanceInCompactLayout() throws {
+        let controller = MetalMeasurementController()
+        controller.activate()
+        controller.instructionPrompt = .surfaceNotFound
+        controller.point1Screen = CGPoint(x: 96, y: 300)
+        controller.point2Screen = CGPoint(x: 294, y: 410)
+        controller.measuredDistance = 1.234
+
+        let content = MetalMeasurementOverlay(
+            controller: controller,
+            measuredDistance: .constant(nil),
+            onClose: {}
+        )
+        .frame(width: 390, height: 844)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.colorScheme, .dark)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 3
+        renderer.proposedSize = ProposedViewSize(width: 390, height: 844)
+        let image = try XCTUnwrap(renderer.uiImage)
+        XCTAssertEqual(image.size, CGSize(width: 390, height: 844))
+
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "LiveScanMeasurement-\(Locale.preferredLanguages.first ?? "unknown")"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testPointCloudModesKeepStableRawValuesAndUseLocalizedDisplayNames() {

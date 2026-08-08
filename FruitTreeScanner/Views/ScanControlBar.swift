@@ -50,7 +50,7 @@ struct ScanBottomControlBar: View {
                     )
 
                     ScanUtilityControlButton(
-                        title: "测量",
+                        title: L10n.PointCloud.measure,
                         icon: "ruler",
                         isActive: measurementController.isActive,
                         action: onToggleMeasurement,

@@ -389,6 +389,13 @@
 "point_cloud.measurement.instruction" = "Tap the point cloud to measure";
 "point_cloud.measurement.distance" = "Measured distance";
 "point_cloud.accessibility.close_measurement" = "Stop measuring";
+"scan.measurement.prompt.select_first" = "Tap the first point";
+"scan.measurement.prompt.record_point_cloud" = "Record a point cloud before measuring";
+"scan.measurement.prompt.surface_not_found" = "No point selected. Tap the tree surface";
+"scan.measurement.prompt.select_second" = "Tap the second point";
+"scan.measurement.prompt.complete" = "Measurement complete. Tap to reset";
+"scan.measurement.calculating" = "Calculating…";
+"scan.measurement.distance_format" = "%.2f m";
 
 /* Fruit Names */
 "fruit.apple" = "Apple";

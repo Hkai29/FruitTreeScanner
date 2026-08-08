@@ -389,6 +389,13 @@
 "point_cloud.measurement.instruction" = "点击点云表面测量";
 "point_cloud.measurement.distance" = "测量距离";
 "point_cloud.accessibility.close_measurement" = "停止测量";
+"scan.measurement.prompt.select_first" = "点击第1个点";
+"scan.measurement.prompt.record_point_cloud" = "请先录制点云";
+"scan.measurement.prompt.surface_not_found" = "未选中点云，请点果树表面";
+"scan.measurement.prompt.select_second" = "点击第2个点";
+"scan.measurement.prompt.complete" = "测量完成，点击重置";
+"scan.measurement.calculating" = "计算中…";
+"scan.measurement.distance_format" = "%.2f m";
 
 /* Fruit Names */
 "fruit.apple" = "苹果";
