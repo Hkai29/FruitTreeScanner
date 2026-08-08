@@ -474,6 +474,14 @@
 "history.load.retry" = "Retry";
 "history.load.retrying" = "Retrying…";
 "history.load.retry_hint" = "Reads the scans folder again.";
+"calibration.load.loading" = "Loading calibration records…";
+"calibration.load.failure.title" = "Calibration records not loaded";
+"calibration.load.failure.empty_message" = "The calibration file couldn’t be read. Existing data wasn’t changed. Retry before adding or deleting records.";
+"calibration.load.failure.stale_message_format" = "The calibration file couldn’t be refreshed. The last verified snapshot of %d records is retained. Retry before editing.";
+"calibration.load.retry" = "Retry";
+"calibration.load.retrying" = "Retrying…";
+"calibration.load.retry_hint" = "Reads the calibration records from this device again.";
+"calibration.load.mutation_disabled_hint" = "Wait for calibration records to load successfully before adding one.";
 "history.load.damaged.title_one" = "1 record has a damaged result file";
 "history.load.damaged.title_many_format" = "%d records have damaged result files";
 "history.load.damaged.message_format" = "The point cloud is still available, but fruit count and yield aren’t reliable: %@";

@@ -13,10 +13,9 @@ import SwiftUI
 
 struct CalibrationView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var calibrationRecords: [CalibrationRecord] = []
+    @StateObject private var recordStore = CalibrationRecordStore()
     @State private var showAddRecord = false
     @State private var recordPendingDeletion: CalibrationRecord?
-    @State private var recordsTask: Task<Void, Never>?
     @State private var maxDiameter: Double = SettingsStore.shared.clusterMaxDiameter
     @State private var minClusterPoints: Double = Double(SettingsStore.shared.clusterMinPoints)
     @State private var sphericity: Double = SettingsStore.shared.sphericityThreshold
@@ -51,7 +50,9 @@ struct CalibrationView: View {
                         )
 
                         // 误差统计
-                        statisticsCard
+                        if loadPresentation.showsStatistics {
+                            statisticsCard
+                        }
 
                         // 校准记录列表
                         recordsSection
@@ -80,14 +81,20 @@ struct CalibrationView: View {
                             .font(.system(size: 22))
                             .foregroundColor(Design.Colors.Dark.glow)
                     }
+                    .disabled(!loadPresentation.allowsMutation)
                     .accessibilityLabel("添加校准记录")
+                    .accessibilityHint(
+                        loadPresentation.allowsMutation
+                            ? ""
+                            : CalibrationRecordLoadText.mutationDisabledHint
+                    )
                 }
             }
         }
         .sheet(isPresented: $showAddRecord) {
             AddCalibrationRecordView { record in
-                calibrationRecords.insert(record, at: 0)
-                saveRecords()
+                guard let records = recordStore.prepend(record) else { return }
+                saveRecords(records)
             }
         }
         .alert("删除校准记录", isPresented: deleteAlertBinding) {
@@ -101,7 +108,7 @@ struct CalibrationView: View {
             Text("这条校准记录会从本机移除，扫描原始记录不会被删除。")
         }
         .onAppear {
-            loadRecords()
+            recordStore.loadRecords()
             let params = FruitParametersStore.shared.param(for: activeFruitCategory)
             maxDiameter = Double(params.diamMax)
             minClusterPoints = Double(SettingsStore.shared.clusterMinPoints)
@@ -109,47 +116,59 @@ struct CalibrationView: View {
         }
         .onDisappear {
             commitParameterDrafts()
-            recordsTask?.cancel()
-            recordsTask = nil
+            recordStore.invalidateLoad()
         }
     }
 
     // MARK: - 误差统计卡片
 
     private var statisticsCard: some View {
-        CalibrationStatisticsCard(records: calibrationRecords)
+        CalibrationStatisticsCard(records: recordStore.records)
     }
 
     // MARK: - 校准记录列表
 
+    @ViewBuilder
     private var recordsSection: some View {
-        CalibrationRecordsSection(
-            records: calibrationRecords,
-            onAdd: { showAddRecord = true },
-            onDelete: { record in
-                recordPendingDeletion = record
-            }
-        )
+        switch loadPresentation.primaryContent {
+        case .loading:
+            CalibrationRecordsLoadingView()
+        case .loadFailure:
+            CalibrationRecordsLoadFailureView(
+                message: CalibrationRecordLoadText.failureMessage(
+                    retainedRecordCount: loadPresentation.retainedRecordCount
+                ),
+                isRetrying: recordStore.isLoading,
+                onRetry: retryLoadingRecords
+            )
+        case .records:
+            CalibrationRecordsSection(
+                records: recordStore.records,
+                onAdd: { showAddRecord = true },
+                onDelete: { record in
+                    recordPendingDeletion = record
+                }
+            )
+        }
     }
 
     // MARK: - Helpers
 
-    private func loadRecords() {
-        recordsTask?.cancel()
-        recordsTask = Task.detached(priority: .utility) {
-            do {
-                let records = try CalibrationRecordPersistence.load()
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    self.calibrationRecords = records
-                }
-            } catch {
-            }
-        }
+    private var loadPresentation: CalibrationRecordLoadPresentation {
+        CalibrationRecordLoadPresentation(
+            records: recordStore.records,
+            isLoading: recordStore.isLoading,
+            hasLoaded: recordStore.hasLoaded,
+            loadFailure: recordStore.loadFailure
+        )
     }
 
-    private func saveRecords() {
-        let records = calibrationRecords
+    private func retryLoadingRecords() {
+        guard !recordStore.isLoading else { return }
+        recordStore.loadRecords()
+    }
+
+    private func saveRecords(_ records: [CalibrationRecord]) {
         let generation = CalibrationSaveRevisionSource.shared.nextRevision()
         Task(priority: .utility) {
             let saved = await CalibrationRecordPersistenceController.shared.save(
@@ -236,8 +255,135 @@ struct CalibrationView: View {
 
     private func deletePendingRecord() {
         guard let record = recordPendingDeletion else { return }
-        calibrationRecords.removeAll { $0.id == record.id }
         recordPendingDeletion = nil
-        saveRecords()
+        guard let records = recordStore.remove(id: record.id) else { return }
+        saveRecords(records)
+    }
+}
+
+struct CalibrationRecordLoadPresentation: Equatable {
+    enum PrimaryContent: Equatable {
+        case loading
+        case loadFailure
+        case records
+    }
+
+    let primaryContent: PrimaryContent
+    let allowsMutation: Bool
+    let retainedRecordCount: Int
+    let showsStatistics: Bool
+
+    init(
+        records: [CalibrationRecord],
+        isLoading: Bool,
+        hasLoaded: Bool,
+        loadFailure: CalibrationRecordLoadFailure?
+    ) {
+        if loadFailure != nil {
+            primaryContent = .loadFailure
+        } else if !hasLoaded || isLoading {
+            primaryContent = .loading
+        } else {
+            primaryContent = .records
+        }
+        allowsMutation = hasLoaded && !isLoading && loadFailure == nil
+        retainedRecordCount = records.count
+        showsStatistics = primaryContent == .records
+    }
+}
+
+private struct CalibrationRecordsLoadingView: View {
+    var body: some View {
+        VStack(spacing: Design.Space.sm) {
+            ProgressView()
+                .tint(Design.Colors.Dark.info)
+            Text(CalibrationRecordLoadText.loading)
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 140)
+        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+    }
+}
+
+private struct CalibrationRecordsLoadFailureView: View {
+    let message: String
+    let isRetrying: Bool
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Design.Space.md) {
+            Label(CalibrationRecordLoadText.failureTitle, systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundColor(Design.Colors.Dark.error)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: onRetry) {
+                HStack(spacing: Design.Space.sm) {
+                    if isRetrying {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    Text(
+                        isRetrying
+                            ? CalibrationRecordLoadText.retrying
+                            : CalibrationRecordLoadText.retry
+                    )
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .tint(Design.Colors.Dark.error)
+            .disabled(isRetrying)
+            .accessibilityHint(CalibrationRecordLoadText.retryHint)
+        }
+        .padding(Design.Space.md)
+        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+    }
+}
+
+private enum CalibrationRecordLoadText {
+    static let loading = localized(
+        "calibration.load.loading",
+        fallback: "正在读取校准记录…"
+    )
+    static let failureTitle = localized(
+        "calibration.load.failure.title",
+        fallback: "校准记录未加载"
+    )
+    static let retry = localized("calibration.load.retry", fallback: "重试")
+    static let retrying = localized("calibration.load.retrying", fallback: "正在重试…")
+    static let retryHint = localized(
+        "calibration.load.retry_hint",
+        fallback: "重新读取本机校准记录。"
+    )
+    static let mutationDisabledHint = localized(
+        "calibration.load.mutation_disabled_hint",
+        fallback: "请等待校准记录成功加载后再添加。"
+    )
+
+    static func failureMessage(retainedRecordCount: Int) -> String {
+        if retainedRecordCount > 0 {
+            let format = localized(
+                "calibration.load.failure.stale_message_format",
+                fallback: "无法刷新校准文件，已保留上次成功加载的 %d 条记录。请重试后再编辑。"
+            )
+            return String.localizedStringWithFormat(format, retainedRecordCount)
+        }
+        return localized(
+            "calibration.load.failure.empty_message",
+            fallback: "无法读取本机校准文件。现有数据没有被修改，请重试后再添加或删除记录。"
+        )
+    }
+
+    private static func localized(_ key: String, fallback: String) -> String {
+        NSLocalizedString(key, value: fallback, comment: "")
     }
 }
