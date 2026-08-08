@@ -72,6 +72,47 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertFalse(gate.isSubmitting)
     }
 
+    func testStartTreeIdentifierDraftUsesLatestValidValueSynchronously() {
+        var draft = StartTreeIdentifierDraft(value: "TREE-OLD")
+
+        draft.value = "  TREE-NEW  "
+
+        XCTAssertEqual(draft.normalizedValue, "TREE-NEW")
+        XCTAssertEqual(draft.validatedValue, "TREE-NEW")
+        XCTAssertTrue(draft.isValid)
+    }
+
+    func testStartTreeIdentifierDraftRejectsLatestInvalidValueSynchronously() {
+        var draft = StartTreeIdentifierDraft(value: "TREE-OLD")
+
+        draft.value = " .. "
+
+        XCTAssertEqual(draft.normalizedValue, "..")
+        XCTAssertEqual(draft.validationIssue, .pathMarker)
+        XCTAssertNil(draft.validatedValue)
+        XCTAssertFalse(draft.isValid)
+    }
+
+    func testStartTreeIdentifierDraftRejectsEmptyValueSynchronously() {
+        var draft = StartTreeIdentifierDraft(value: "TREE-OLD")
+
+        draft.value = "   "
+
+        XCTAssertEqual(draft.validationIssue, .empty)
+        XCTAssertNil(draft.validatedValue)
+        XCTAssertFalse(draft.isValid)
+    }
+
+    func testStartTreeIdentifierDraftKeepsFinalRapidUpdate() {
+        var draft = StartTreeIdentifierDraft(value: "TREE-OLD")
+
+        draft.value = "TREE-A"
+        draft.value = "TREE-B"
+        draft.value = "TREE-C"
+
+        XCTAssertEqual(draft.validatedValue, "TREE-C")
+    }
+
     @MainActor
     func testNavigationRouterReceivesRequestPostedAfterInitialization() {
         let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
