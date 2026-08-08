@@ -122,6 +122,175 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
         XCTAssertEqual(try CalibrationRecordPersistence.load(from: url).map(\.id), [existing.id])
     }
 
+    @MainActor
+    func testCalibrationLoadFailurePreservesSnapshotAndBlocksMutationUntilRetry() async {
+        let initial = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 10,
+            manualCount: 9,
+            estimatedYield: 4,
+            actualYield: 3.8
+        )
+        let repaired = makeRecord(
+            fruitType: "pear",
+            estimatedCount: 12,
+            manualCount: 11,
+            estimatedYield: 5,
+            actualYield: 4.7
+        )
+        let rejected = makeRecord(
+            fruitType: "orange",
+            estimatedCount: 20,
+            manualCount: 18,
+            estimatedYield: 8,
+            actualYield: 7.5
+        )
+        let driver = CalibrationRecordLoadSequenceDriver(results: [
+            .success([initial]),
+            .failure(.unavailable),
+            .success([repaired])
+        ])
+        let store = CalibrationRecordStore(recordsLoader: { await driver.next() })
+
+        await store.reloadRecords()
+        XCTAssertEqual(store.records.map(\.id), [initial.id])
+        XCTAssertTrue(store.canMutate)
+
+        await store.reloadRecords()
+        XCTAssertEqual(
+            store.records.map(\.id),
+            [initial.id],
+            "A failed refresh must retain the last verified calibration snapshot"
+        )
+        XCTAssertEqual(store.loadFailure, .unavailable)
+        XCTAssertFalse(store.canMutate)
+        XCTAssertNil(store.prepend(rejected))
+        XCTAssertNil(store.remove(id: initial.id))
+        XCTAssertEqual(store.records.map(\.id), [initial.id])
+
+        await store.reloadRecords()
+        XCTAssertEqual(store.records.map(\.id), [repaired.id])
+        XCTAssertNil(store.loadFailure)
+        XCTAssertTrue(store.canMutate)
+    }
+
+    @MainActor
+    func testCalibrationSuccessfulEmptyLoadAllowsFirstMutation() async {
+        let record = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 10,
+            manualCount: 9,
+            estimatedYield: 4,
+            actualYield: 3.8
+        )
+        let store = CalibrationRecordStore(recordsLoader: { .success([]) })
+
+        await store.reloadRecords()
+
+        XCTAssertTrue(store.hasLoaded)
+        XCTAssertTrue(store.canMutate)
+        XCTAssertEqual(store.prepend(record)?.map(\.id), [record.id])
+        XCTAssertEqual(store.records.map(\.id), [record.id])
+    }
+
+    @MainActor
+    func testSupersededCalibrationLoadCannotOverwriteNewerSnapshot() async {
+        let older = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 10,
+            manualCount: 9,
+            estimatedYield: 4,
+            actualYield: 3.8
+        )
+        let newer = makeRecord(
+            fruitType: "pear",
+            estimatedCount: 12,
+            manualCount: 11,
+            estimatedYield: 5,
+            actualYield: 4.7
+        )
+        let driver = CalibrationRecordControlledLoadDriver()
+        let store = CalibrationRecordStore(recordsLoader: { await driver.load() })
+
+        let olderTask = store.loadRecords()
+        await driver.waitForPendingCount(1)
+        let newerTask = store.loadRecords()
+        await driver.waitForPendingCount(2)
+
+        await driver.resume(request: 1, with: .success([newer]))
+        await newerTask.value
+        XCTAssertEqual(store.records.map(\.id), [newer.id])
+
+        await driver.resume(request: 0, with: .success([older]))
+        await olderTask.value
+        XCTAssertEqual(store.records.map(\.id), [newer.id])
+        XCTAssertFalse(store.isLoading)
+    }
+
+    @MainActor
+    func testCancelledCalibrationLoadCannotApplyAfterViewTeardown() async {
+        let late = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 10,
+            manualCount: 9,
+            estimatedYield: 4,
+            actualYield: 3.8
+        )
+        let driver = CalibrationRecordControlledLoadDriver()
+        let store = CalibrationRecordStore(recordsLoader: { await driver.load() })
+
+        let task = store.loadRecords()
+        await driver.waitForPendingCount(1)
+        store.invalidateLoad()
+        await driver.resume(request: 0, with: .success([late]))
+        await task.value
+
+        XCTAssertTrue(store.records.isEmpty)
+        XCTAssertFalse(store.hasLoaded)
+        XCTAssertFalse(store.isLoading)
+        XCTAssertFalse(store.canMutate)
+    }
+
+    func testCalibrationLoadPresentationNeverTreatsFailureAsEmptyRecords() {
+        let presentation = CalibrationRecordLoadPresentation(
+            records: [],
+            isLoading: false,
+            hasLoaded: false,
+            loadFailure: .unavailable
+        )
+
+        XCTAssertEqual(presentation.primaryContent, .loadFailure)
+        XCTAssertFalse(presentation.allowsMutation)
+        XCTAssertFalse(presentation.showsStatistics)
+    }
+
+    @MainActor
+    func testMalformedCalibrationRecordFileFailsClosedAndCannotBeOverwritten() async throws {
+        let url = temporaryDirectory().appendingPathComponent("malformed.json")
+        try Data("not-json".utf8).write(to: url)
+        let replacement = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 10,
+            manualCount: 9,
+            estimatedYield: 4,
+            actualYield: 3.8
+        )
+        let store = CalibrationRecordStore(recordsLoader: {
+            do {
+                return .success(try CalibrationRecordPersistence.load(from: url))
+            } catch {
+                return .failure(.unavailable)
+            }
+        })
+
+        await store.reloadRecords()
+
+        XCTAssertThrowsError(try CalibrationRecordPersistence.load(from: url))
+        XCTAssertEqual(store.loadFailure, .unavailable)
+        XCTAssertNil(store.prepend(replacement))
+        XCTAssertEqual(try Data(contentsOf: url), Data("not-json".utf8))
+    }
+
     func testYieldCalibrationCorrectionUsesMatchingFruitTypeMedianRatios() {
         let records = [
             makeRecord(fruitType: "苹果", estimatedCount: 10, manualCount: 8, estimatedYield: 5, actualYield: 4),
@@ -232,5 +401,44 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
             actualYieldKg: actualYield,
             fruitType: fruitType
         )
+    }
+}
+
+private actor CalibrationRecordLoadSequenceDriver {
+    private var results: [CalibrationRecordLoadResult]
+
+    init(results: [CalibrationRecordLoadResult]) {
+        self.results = results
+    }
+
+    func next() -> CalibrationRecordLoadResult {
+        precondition(!results.isEmpty, "Test requested more calibration loads than configured")
+        return results.removeFirst()
+    }
+}
+
+private actor CalibrationRecordControlledLoadDriver {
+    private var continuations: [Int: CheckedContinuation<CalibrationRecordLoadResult, Never>] = [:]
+    private var nextRequest = 0
+
+    func load() async -> CalibrationRecordLoadResult {
+        let request = nextRequest
+        nextRequest += 1
+        return await withCheckedContinuation { continuation in
+            continuations[request] = continuation
+        }
+    }
+
+    func waitForPendingCount(_ expectedCount: Int) async {
+        while continuations.count < expectedCount {
+            await Task.yield()
+        }
+    }
+
+    func resume(request: Int, with result: CalibrationRecordLoadResult) {
+        guard let continuation = continuations.removeValue(forKey: request) else {
+            preconditionFailure("No pending calibration load for request \(request)")
+        }
+        continuation.resume(returning: result)
     }
 }

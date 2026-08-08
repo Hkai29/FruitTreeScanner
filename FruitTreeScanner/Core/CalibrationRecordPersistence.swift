@@ -1,4 +1,16 @@
 import Foundation
+import Combine
+
+enum CalibrationRecordLoadFailure: Equatable, Sendable {
+    case unavailable
+}
+
+enum CalibrationRecordLoadResult: Sendable {
+    case success([CalibrationRecord])
+    case failure(CalibrationRecordLoadFailure)
+}
+
+typealias CalibrationRecordsLoader = @Sendable () async -> CalibrationRecordLoadResult
 
 enum CalibrationRecordPersistence {
     static let fileName = "calibration_records.json"
@@ -27,6 +39,101 @@ enum CalibrationRecordPersistence {
     static func save(_ records: [CalibrationRecord], to url: URL) throws {
         let data = try JSONEncoder().encode(records)
         try data.write(to: url, options: .atomic)
+    }
+}
+
+/// Owns the last verified calibration snapshot and rejects mutations until the
+/// initial file read succeeds. A read failure must never masquerade as an empty
+/// file because saving from that false-empty state could replace user records.
+@MainActor
+final class CalibrationRecordStore: ObservableObject {
+    @Published private(set) var records: [CalibrationRecord] = []
+    @Published private(set) var loadFailure: CalibrationRecordLoadFailure?
+    @Published private(set) var isLoading = false
+    @Published private(set) var hasLoaded = false
+
+    private let recordsLoader: CalibrationRecordsLoader
+    private var loadTask: Task<Void, Never>?
+    private var loadGeneration = 0
+
+    convenience init() {
+        self.init(recordsLoader: Self.liveLoader)
+    }
+
+    init(recordsLoader: @escaping CalibrationRecordsLoader) {
+        self.recordsLoader = recordsLoader
+    }
+
+    var canMutate: Bool {
+        hasLoaded && !isLoading && loadFailure == nil
+    }
+
+    @discardableResult
+    func loadRecords() -> Task<Void, Never> {
+        loadGeneration += 1
+        let generation = loadGeneration
+        loadTask?.cancel()
+        isLoading = true
+        let recordsLoader = recordsLoader
+        let task = Task { [weak self, generation] in
+            let result = await recordsLoader()
+            guard !Task.isCancelled else { return }
+            self?.apply(result, generation: generation)
+        }
+        loadTask = task
+        return task
+    }
+
+    func reloadRecords() async {
+        let task = loadRecords()
+        await task.value
+    }
+
+    func invalidateLoad() {
+        loadGeneration += 1
+        loadTask?.cancel()
+        loadTask = nil
+        isLoading = false
+    }
+
+    @discardableResult
+    func prepend(_ record: CalibrationRecord) -> [CalibrationRecord]? {
+        guard canMutate else { return nil }
+        records.insert(record, at: 0)
+        return records
+    }
+
+    @discardableResult
+    func remove(id: UUID) -> [CalibrationRecord]? {
+        guard canMutate else { return nil }
+        records.removeAll { $0.id == id }
+        return records
+    }
+
+    private func apply(_ result: CalibrationRecordLoadResult, generation: Int) {
+        guard generation == loadGeneration else { return }
+        loadTask = nil
+        isLoading = false
+
+        switch result {
+        case .success(let records):
+            self.records = records
+            loadFailure = nil
+            hasLoaded = true
+        case .failure(let failure):
+            loadFailure = failure
+        }
+    }
+
+    nonisolated private static let liveLoader: CalibrationRecordsLoader = {
+        await Task.detached(priority: .utility) {
+            do {
+                return .success(try CalibrationRecordPersistence.load())
+            } catch {
+                Log.general.error("Failed to load calibration records: \(error.localizedDescription)")
+                return .failure(.unavailable)
+            }
+        }.value
     }
 }
 

@@ -619,6 +619,14 @@
 "history.load.retry" = "重试";
 "history.load.retrying" = "正在重试…";
 "history.load.retry_hint" = "重新读取本机扫描目录。";
+"calibration.load.loading" = "正在读取校准记录…";
+"calibration.load.failure.title" = "校准记录未加载";
+"calibration.load.failure.empty_message" = "无法读取本机校准文件。现有数据没有被修改，请重试后再添加或删除记录。";
+"calibration.load.failure.stale_message_format" = "无法刷新校准文件，已保留上次成功加载的 %d 条记录。请重试后再编辑。";
+"calibration.load.retry" = "重试";
+"calibration.load.retrying" = "正在重试…";
+"calibration.load.retry_hint" = "重新读取本机校准记录。";
+"calibration.load.mutation_disabled_hint" = "请等待校准记录成功加载后再添加。";
 "history.load.damaged.title_one" = "1 条记录的结果文件损坏";
 "history.load.damaged.title_many_format" = "%d 条记录的结果文件损坏";
 "history.load.damaged.message_format" = "点云仍保留，但果数和产量不可作为可靠结果：%@";
