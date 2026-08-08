@@ -1108,6 +1108,7 @@ final class StartSetupLocalizationTests: XCTestCase {
                 "start.setup.confirmation.season.mature": "Mature Stage (RGB + LiDAR Fusion)",
                 "start.setup.confirmation.season.off": "Non-Mature Stage (Calibration Pending)",
                 "start.setup.confirmation.none": "None",
+                "start.setup.confirmation.tag_separator": ", ",
                 "start.setup.confirmation.gps.available": "Acquired",
                 "start.setup.confirmation.gps.pending": "Acquiring...",
                 "start.setup.confirmation.note": "After starting, move slowly around the tree and keep the canopy and fruit steadily in view."
@@ -1163,6 +1164,7 @@ final class StartSetupLocalizationTests: XCTestCase {
                 "start.setup.confirmation.season.mature": "成熟期（RGB + LiDAR 融合）",
                 "start.setup.confirmation.season.off": "非成熟期（待标定）",
                 "start.setup.confirmation.none": "无",
+                "start.setup.confirmation.tag_separator": "、",
                 "start.setup.confirmation.gps.available": "已获取",
                 "start.setup.confirmation.gps.pending": "获取中...",
                 "start.setup.confirmation.note": "开始后请围绕树体缓慢移动，尽量让树冠与果实进入稳定视野。"
@@ -1191,6 +1193,14 @@ final class StartSetupLocalizationTests: XCTestCase {
 
         XCTAssertEqual(L10n.StartSetup.selectedTagCount(3, in: english), "Selected tags: 3")
         XCTAssertEqual(L10n.StartSetup.selectedTagCount(3, in: chinese), "已选 3 个标签")
+        XCTAssertEqual(
+            L10n.StartSetup.tagSummary(names: ["A", "B", "C"], remainingCount: 2, in: english),
+            "A, B, C +2"
+        )
+        XCTAssertEqual(
+            L10n.StartSetup.tagSummary(names: ["甲", "乙", "丙"], remainingCount: 2, in: chinese),
+            "甲、乙、丙 +2"
+        )
     }
 
     func testStartSetupMapsEveryTreeIdentifierIssueInBothLanguages() throws {

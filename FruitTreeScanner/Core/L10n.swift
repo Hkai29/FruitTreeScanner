@@ -814,6 +814,7 @@ enum L10n {
             case confirmationMatureSeason = "start.setup.confirmation.season.mature"
             case confirmationOffSeason = "start.setup.confirmation.season.off"
             case confirmationNone = "start.setup.confirmation.none"
+            case confirmationTagSeparator = "start.setup.confirmation.tag_separator"
             case confirmationGPSAvailable = "start.setup.confirmation.gps.available"
             case confirmationGPSPending = "start.setup.confirmation.gps.pending"
             case confirmationNote = "start.setup.confirmation.note"
@@ -920,6 +921,8 @@ enum L10n {
                     return "非成熟期（待标定）"
                 case .confirmationNone:
                     return "无"
+                case .confirmationTagSeparator:
+                    return "、"
                 case .confirmationGPSAvailable:
                     return "已获取"
                 case .confirmationGPSPending:
@@ -936,6 +939,16 @@ enum L10n {
 
         static func selectedTagCount(_ count: Int, in bundle: Bundle = .main) -> String {
             String.localizedStringWithFormat(text(.tagsSelectedCount, in: bundle), count)
+        }
+
+        static func tagSummary(
+            names: [String],
+            remainingCount: Int = 0,
+            in bundle: Bundle = .main
+        ) -> String {
+            let visibleNames = names.joined(separator: text(.confirmationTagSeparator, in: bundle))
+            guard remainingCount > 0 else { return visibleNames }
+            return "\(visibleNames) +\(remainingCount)"
         }
 
         static func validationError(

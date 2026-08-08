@@ -365,6 +365,7 @@
 "start.setup.confirmation.season.mature" = "成熟期（RGB + LiDAR 融合）";
 "start.setup.confirmation.season.off" = "非成熟期（待标定）";
 "start.setup.confirmation.none" = "无";
+"start.setup.confirmation.tag_separator" = "、";
 "start.setup.confirmation.gps.available" = "已获取";
 "start.setup.confirmation.gps.pending" = "获取中...";
 "start.setup.confirmation.note" = "开始后请围绕树体缓慢移动，尽量让树冠与果实进入稳定视野。";

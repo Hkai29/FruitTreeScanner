@@ -365,6 +365,7 @@
 "start.setup.confirmation.season.mature" = "Mature Stage (RGB + LiDAR Fusion)";
 "start.setup.confirmation.season.off" = "Non-Mature Stage (Calibration Pending)";
 "start.setup.confirmation.none" = "None";
+"start.setup.confirmation.tag_separator" = ", ";
 "start.setup.confirmation.gps.available" = "Acquired";
 "start.setup.confirmation.gps.pending" = "Acquiring...";
 "start.setup.confirmation.note" = "After starting, move slowly around the tree and keep the canopy and fruit steadily in view.";

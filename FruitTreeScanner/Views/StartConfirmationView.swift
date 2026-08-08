@@ -189,11 +189,10 @@ struct Step5_Confirmation: View {
 
     private var tagSummaryText: String {
         guard !tags.isEmpty else { return emptyTagsText }
-        let visibleNames = tags.prefix(3).map(\.name).joined(separator: "、")
-        if tags.count > 3 {
-            return "\(visibleNames) +\(tags.count - 3)"
-        }
-        return visibleNames
+        return L10n.StartSetup.tagSummary(
+            names: tags.prefix(3).map(\.name),
+            remainingCount: max(tags.count - 3, 0)
+        )
     }
 
     private var tagLabelText: String { L10n.StartSetup.text(.tagsTitle) }
