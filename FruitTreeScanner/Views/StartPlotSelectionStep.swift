@@ -10,8 +10,8 @@ struct Step2_PlotSelection: View {
             StartStepHeader(
                 step: 2,
                 totalSteps: 5,
-                title: "地块",
-                subtitle: "可选。用于后续按地块筛选和汇总。"
+                title: L10n.StartSetup.text(.plotTitle),
+                subtitle: L10n.StartSetup.text(.plotSubtitle)
             )
 
             if plots.isEmpty {
@@ -25,9 +25,9 @@ struct Step2_PlotSelection: View {
     private var emptyState: some View {
         StartEmptyAction(
             icon: "map",
-            title: "还没有地块",
-            message: "这次扫描可以跳过，之后也能在标签管理中维护。",
-            buttonTitle: "创建地块",
+            title: L10n.StartSetup.text(.plotEmptyTitle),
+            message: L10n.StartSetup.text(.plotEmptyMessage),
+            buttonTitle: L10n.StartSetup.text(.plotCreate),
             action: onAddPlot
         )
     }
@@ -35,8 +35,8 @@ struct Step2_PlotSelection: View {
     private var selectionList: some View {
         VStack(spacing: 0) {
             PlotSelectionRow(
-                title: "暂不分配",
-                subtitle: "扫描完成后再归档到地块",
+                title: L10n.StartSetup.text(.plotNoneTitle),
+                subtitle: L10n.StartSetup.text(.plotNoneSubtitle),
                 color: Design.Colors.Dark.textMuted,
                 isSelected: selectedPlotId == nil
             ) {
@@ -48,7 +48,7 @@ struct Step2_PlotSelection: View {
             ForEach(plots) { plot in
                 PlotSelectionRow(
                     title: plot.name,
-                    subtitle: "分配到该地块",
+                    subtitle: L10n.StartSetup.text(.plotAssignedSubtitle),
                     color: Color(hex: plot.colorHex),
                     isSelected: selectedPlotId == plot.id
                 ) {
@@ -65,7 +65,7 @@ struct Step2_PlotSelection: View {
             Button(action: onAddPlot) {
                 HStack(spacing: Design.Space.sm) {
                     Image(systemName: "plus")
-                    Text("添加地块")
+                    Text(L10n.StartSetup.text(.plotAdd))
                     Spacer()
                 }
                 .font(.system(size: 14, weight: .semibold))

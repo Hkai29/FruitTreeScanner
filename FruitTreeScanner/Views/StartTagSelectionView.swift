@@ -13,16 +13,16 @@ struct Step4_TagSelection: View {
             StartStepHeader(
                 step: 4,
                 totalSteps: 5,
-                title: "标签",
-                subtitle: "可选。用于标记品种、试验组或管理状态。"
+                title: L10n.StartSetup.text(.tagsTitle),
+                subtitle: L10n.StartSetup.text(.tagsSubtitle)
             )
 
             if tags.isEmpty {
                 StartEmptyAction(
                     icon: "tag",
-                    title: "还没有标签",
-                    message: "标签可以跳过，不会影响扫描。",
-                    buttonTitle: "创建标签",
+                    title: L10n.StartSetup.text(.tagsEmptyTitle),
+                    message: L10n.StartSetup.text(.tagsEmptyMessage),
+                    buttonTitle: L10n.StartSetup.text(.tagsCreate),
                     action: onAddTag
                 )
             } else {
@@ -43,7 +43,7 @@ struct Step4_TagSelection: View {
                 Button(action: onAddTag) {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
-                        Text("添加")
+                        Text(L10n.StartSetup.text(.tagsAdd))
                     }
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Design.Colors.harvest)
@@ -57,7 +57,7 @@ struct Step4_TagSelection: View {
             }
 
             if !selectedTagIds.isEmpty {
-                Text("已选 \(selectedTagIds.count) 个标签")
+                Text(L10n.StartSetup.selectedTagCount(selectedTagIds.count))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Design.Colors.forest)
             }

@@ -16,12 +16,16 @@ struct Step5_Confirmation: View {
             StartStepHeader(
                 step: 5,
                 totalSteps: 5,
-                title: "启动前检查",
-                subtitle: "确认编号、分组和定位状态。"
+                title: L10n.StartSetup.text(.confirmationTitle),
+                subtitle: L10n.StartSetup.text(.confirmationSubtitle)
             )
 
             VStack(spacing: Design.Space.md) {
-                ConfirmationRow(icon: "number", label: "编号", value: treeID)
+                ConfirmationRow(
+                    icon: "number",
+                    label: L10n.StartSetup.text(.identifierFieldLabel),
+                    value: treeID
+                )
 
                 Divider().background(Design.Colors.Dark.glassBorder)
 
@@ -31,8 +35,8 @@ struct Step5_Confirmation: View {
 
                 ConfirmationRow(
                     icon: "map.fill",
-                    label: "地块",
-                    value: plot?.name ?? "未分配",
+                    label: L10n.StartSetup.text(.plotTitle),
+                    value: plot?.name ?? L10n.StartSetup.text(.confirmationUnassigned),
                     valueColor: plot != nil ? Design.Colors.forest : Color(hex: "8E8E93")
                 )
 
@@ -40,8 +44,10 @@ struct Step5_Confirmation: View {
 
                 ConfirmationRow(
                     icon: season == .mature ? "apple.logo" : "leaf.fill",
-                    label: "估算阶段",
-                    value: season == .mature ? "成熟期（RGB + LiDAR 融合）" : "非成熟期（待标定）",
+                    label: L10n.StartSetup.text(.seasonTitle),
+                    value: season == .mature
+                        ? L10n.StartSetup.text(.confirmationMatureSeason)
+                        : L10n.StartSetup.text(.confirmationOffSeason),
                     valueColor: Design.Colors.harvest
                 )
 
@@ -58,7 +64,7 @@ struct Step5_Confirmation: View {
 
             StartNoteRow(
                 icon: "camera.metering.center.weighted",
-                text: "开始后请围绕树体缓慢移动，尽量让树冠与果实进入稳定视野。",
+                text: L10n.StartSetup.text(.confirmationNote),
                 tint: Design.Colors.harvest
             )
         }
@@ -99,14 +105,14 @@ struct Step5_Confirmation: View {
                 .foregroundColor(Design.Colors.harvest)
                 .frame(width: 24)
 
-            Text("标签")
+            Text(L10n.StartSetup.text(.tagsTitle))
                 .font(.system(size: 14))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             Spacer()
 
             if tags.isEmpty {
-                Text("无")
+                Text(L10n.StartSetup.text(.confirmationNone))
                     .font(.system(size: 14))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             } else {
@@ -142,7 +148,11 @@ struct Step5_Confirmation: View {
 
             Spacer()
 
-            Text(gps.isAvailable ? "已获取" : "获取中...")
+            Text(
+                gps.isAvailable
+                    ? L10n.StartSetup.text(.confirmationGPSAvailable)
+                    : L10n.StartSetup.text(.confirmationGPSPending)
+            )
                 .font(.system(size: 13, design: .monospaced))
                 .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
         }
