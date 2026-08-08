@@ -96,6 +96,8 @@ struct ScanResultLayer: View {
     let treeID: String
     let showResult: Bool
     let yieldResult: YieldResult?
+    let resultPersistenceState: ScanResultPersistenceState
+    let onRetryResultPersistence: () -> Void
     let onDismissResult: () -> Void
     let onDismissResultToHome: () -> Void
 
@@ -104,6 +106,8 @@ struct ScanResultLayer: View {
             ResultView(
                 treeID: treeID,
                 result: result,
+                persistenceState: resultPersistenceState,
+                onRetryPersistence: onRetryResultPersistence,
                 onDismiss: onDismissResult,
                 onDismissToHome: onDismissResultToHome
             )

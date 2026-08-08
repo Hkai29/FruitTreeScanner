@@ -6,6 +6,8 @@ import SwiftUI
 struct ResultView: View {
     let treeID: String
     let result: YieldResult
+    let persistenceState: ScanResultPersistenceState
+    let onRetryPersistence: () -> Void
     let onDismiss: () -> Void
     let onDismissToHome: () -> Void
 
@@ -22,6 +24,13 @@ struct ResultView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     ResultSummaryHeader(treeID: treeID, result: result)
+
+                    if persistenceState.showsRecovery {
+                        ResultPersistenceRecoveryCard(
+                            state: persistenceState,
+                            onRetry: onRetryPersistence
+                        )
+                    }
 
                     if result.yieldFinalKg == 0 || ResultReviewPolicy.needsReview(result.confidence) {
                         ResultDiagnosticsSection(result: result)
@@ -44,6 +53,7 @@ struct ResultView: View {
                     ResultPostScanWorkflowSection(result: result)
 
                     ResultActionButtons(
+                        isDisabled: persistenceState.blocksResultDismissal,
                         onDismiss: onDismiss,
                         onDismissToHome: onDismissToHome
                     )
@@ -61,5 +71,65 @@ struct ResultView: View {
         selectedPlotId = existing.plotId
         selectedTagIds = Set(existing.tagIds)
         selectedStatus = existing.status == .reviewing ? .scanned : existing.status
+    }
+}
+
+struct ResultPersistenceRecoveryCard: View {
+    let state: ScanResultPersistenceState
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Design.Colors.warning)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(L10n.ScanResultPersistence.text(.failureTitle))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                    Text(L10n.ScanResultPersistence.text(.failureMessage))
+                        .font(.system(size: 12))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button(action: onRetry) {
+                HStack(spacing: 8) {
+                    if state.isRetrying {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.75)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    Text(
+                        L10n.ScanResultPersistence.text(
+                            state.isRetrying ? .retrying : .retry
+                        )
+                    )
+                    .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background(Design.Colors.apple)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+            }
+            .buttonStyle(.plain)
+            .disabled(state.isRetrying)
+            .accessibilityHint(L10n.ScanResultPersistence.text(.retryHint))
+        }
+        .padding(14)
+        .background(Design.Colors.apple.opacity(0.10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 11)
+                .stroke(Design.Colors.apple.opacity(0.55), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .padding(.horizontal, 18)
     }
 }
