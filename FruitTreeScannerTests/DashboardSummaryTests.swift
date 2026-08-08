@@ -527,6 +527,96 @@ final class QuickScanLocalizationTests: XCTestCase {
     }
 }
 
+final class StartFlowChromeLocalizationTests: XCTestCase {
+    func testStartFlowChromeCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "start.flow.cancel": "Cancel",
+                "start.flow.navigation_title": "New Scan",
+                "start.flow.previous": "Previous",
+                "start.flow.next": "Next",
+                "start.flow.launching": "Starting...",
+                "start.flow.launch": "Start Scanning",
+                "start.flow.progress.identifier": "ID",
+                "start.flow.progress.plot": "Plot",
+                "start.flow.progress.season": "Season",
+                "start.flow.progress.tags": "Tags",
+                "start.flow.progress.confirmation": "Confirm",
+                "start.flow.step_count_format": "%1$d / %2$d",
+                "start.flow.step_count_accessibility_format": "Step %1$d of %2$d",
+                "start.flow.step_header_format": "Step %1$d/%2$d",
+                "start.flow.progress_accessibility_format": "Step %1$d of %2$d: %3$@"
+            ],
+            "zh": [
+                "start.flow.cancel": "取消",
+                "start.flow.navigation_title": "新建扫描",
+                "start.flow.previous": "上一步",
+                "start.flow.next": "下一步",
+                "start.flow.launching": "启动中...",
+                "start.flow.launch": "开始扫描",
+                "start.flow.progress.identifier": "编号",
+                "start.flow.progress.plot": "地块",
+                "start.flow.progress.season": "季节",
+                "start.flow.progress.tags": "标签",
+                "start.flow.progress.confirmation": "确认",
+                "start.flow.step_count_format": "%1$d / %2$d",
+                "start.flow.step_count_accessibility_format": "第 %1$d 步，共 %2$d 步",
+                "start.flow.step_header_format": "步骤 %1$d/%2$d",
+                "start.flow.progress_accessibility_format": "第 %1$d 步，共 %2$d 步：%3$@"
+            ]
+        ]
+
+        let productionKeys = Set(L10n.StartFlow.Key.allCases.map(\.rawValue))
+
+        for (language, expectedValues) in expectedCopy {
+            XCTAssertEqual(Set(expectedValues.keys), productionKeys)
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testStartFlowChromeFormatsProgressForEveryLocale() throws {
+        let expected: [String: (header: String, count: String, progress: String)] = [
+            "en": ("Step 2/5", "Step 2 of 5", "Step 2 of 5: Plot"),
+            "zh": ("步骤 2/5", "第 2 步，共 5 步", "第 2 步，共 5 步：地块")
+        ]
+
+        for (language, copy) in expected {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+            )
+            let plot = L10n.StartFlow.text(.progressPlot, in: localizedBundle)
+
+            XCTAssertEqual(L10n.StartFlow.stepHeader(step: 2, totalSteps: 5, in: localizedBundle), copy.header)
+            XCTAssertEqual(L10n.StartFlow.stepCountAccessibility(currentStep: 2, totalSteps: 5, in: localizedBundle), copy.count)
+            XCTAssertEqual(
+                L10n.StartFlow.progressAccessibility(
+                    currentStep: 2,
+                    totalSteps: 5,
+                    label: plot,
+                    in: localizedBundle
+                ),
+                copy.progress
+            )
+        }
+    }
+
+    func testStartFlowChromeStacksControlsAtAccessibilityTextSizes() {
+        XCTAssertFalse(StartFlowChromeLayoutPolicy(isAccessibilitySize: false).stacksVertically)
+        XCTAssertTrue(StartFlowChromeLayoutPolicy(isAccessibilitySize: true).stacksVertically)
+    }
+}
+
 final class DashboardHomeLocalizationTests: XCTestCase {
 
     func testDashboardHomeCopyIsCompleteInEnglishAndChinese() throws {
