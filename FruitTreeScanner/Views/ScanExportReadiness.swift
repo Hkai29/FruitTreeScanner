@@ -20,23 +20,35 @@ struct ScanExportReadiness {
         scanBlockedTitle: String,
         depthRuntimeStatus: String,
         pointCount: Int,
-        exportablePointStatus: String = "Ready"
+        exportablePointStatus: String = "Ready",
+        lifecycleAllowsExport: Bool = true,
+        in bundle: Bundle = .main
     ) -> String {
         if !scanIsReady {
             return scanBlockedTitle
         }
+        if !lifecycleAllowsExport {
+            return L10n.ScanExport.text(.lifecycleBlocked, in: bundle)
+        }
         if depthRuntimeStatus == "NoDepth" {
-            return "当前设备没有 LiDAR 深度，无法生成有效点云"
+            return L10n.ScanExport.text(.noDepth, in: bundle)
         }
         if depthRuntimeStatus == "Wait" {
-            return "LiDAR 深度帧还未到达，请移动设备继续扫描"
+            return L10n.ScanExport.text(.waitingDepth, in: bundle)
+        }
+        if depthRuntimeStatus != "LiDAR" {
+            return L10n.ScanExport.text(.depthUnavailable, in: bundle)
         }
         if exportablePointStatus != "Ready" || pointCount == 0 {
-            return "尚未采集到可导出点云，请先按录制按钮并移动设备扫描"
+            return L10n.ScanExport.text(.noCloud, in: bundle)
         }
         if pointCount < minimumExportablePointCount {
-            return "仅采集到 \(pointCount) 个点（建议至少 200+），请继续从不同角度扫描树冠"
+            return L10n.ScanExport.tooFewPoints(pointCount, in: bundle)
         }
-        return "点云数量 (\(pointCount) 点) 仍不足以估算产量，请扩大扫描覆盖范围后重试"
+        return L10n.ScanExport.text(.preparing, in: bundle)
+    }
+
+    static func finishControlIsDisabled(isEstimating: Bool) -> Bool {
+        isEstimating
     }
 }

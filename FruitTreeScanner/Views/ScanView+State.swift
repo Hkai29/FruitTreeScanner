@@ -16,7 +16,9 @@ extension ScanView {
             scanBlockedTitle: scanReadiness.title,
             depthRuntimeStatus: hudState.depthRuntimeStatus,
             pointCount: hudState.pointCount,
-            exportablePointStatus: hudState.exportablePointStatus
+            exportablePointStatus: hudState.exportablePointStatus,
+            lifecycleAllowsExport: lifecycleSnapshot.state == .recording
+                || lifecycleSnapshot.state == .userPaused
         )
     }
 

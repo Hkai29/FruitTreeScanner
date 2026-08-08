@@ -65,19 +65,21 @@ struct ScanPostCapturePanel: View {
                 .buttonStyle(.plain)
 
                 Button(action: onFinish) {
-                    Label(L10n.ScanCompletion.text(.finishEstimate), systemImage: "checkmark")
+                    Label(
+                        canFinish ? L10n.ScanCompletion.text(.finishEstimate) : L10n.ScanExport.requirementsAction,
+                        systemImage: canFinish ? "checkmark" : "info.circle"
+                    )
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.black.opacity(0.84))
+                        .foregroundColor(canFinish ? .black.opacity(0.84) : .white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity)
                         .frame(height: 38)
-                        .background(canFinish ? Design.Colors.harvest : Design.Colors.Dark.textMuted)
+                        .background(canFinish ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .disabled(!canFinish)
-                .opacity(canFinish ? 1 : 0.55)
+                .accessibilityHint(canFinish ? "" : L10n.ScanExport.requirementsHint)
             }
         }
         .padding(.horizontal, 16)
@@ -235,6 +237,9 @@ struct ScanNoticeToast: View {
             Text(message)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(4)
+                .frame(maxWidth: 300)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
@@ -245,6 +250,7 @@ struct ScanNoticeToast: View {
                     Capsule()
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
+                .padding(.horizontal, 24)
                 .padding(.bottom, 112)
         }
         .transition(.opacity)
