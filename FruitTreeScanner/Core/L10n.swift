@@ -87,6 +87,60 @@ enum L10n {
         }
     }
 
+    // MARK: - Scan Export Readiness
+    enum ScanExport {
+        enum Key: String {
+            case requirementsAction = "scan.export.requirements_action"
+            case requirementsHint = "scan.export.requirements_hint"
+            case lifecycleBlocked = "scan.export.blocked.lifecycle"
+            case noDepth = "scan.export.blocked.no_depth"
+            case waitingDepth = "scan.export.blocked.waiting_depth"
+            case depthUnavailable = "scan.export.blocked.depth_unavailable"
+            case noCloud = "scan.export.blocked.no_cloud"
+            case tooFewPointsFormat = "scan.export.blocked.too_few_points_format"
+            case preparing = "scan.export.blocked.preparing"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .requirementsAction:
+                    return "查看要求"
+                case .requirementsHint:
+                    return "点击查看完成本次扫描前还需要满足的条件。"
+                case .lifecycleBlocked:
+                    return "当前扫描状态还不能完成，请开始录制或等待扫描恢复。"
+                case .noDepth:
+                    return "当前设备没有 LiDAR 深度，无法生成有效点云"
+                case .waitingDepth:
+                    return "LiDAR 深度帧还未到达，请移动设备继续扫描"
+                case .depthUnavailable:
+                    return "LiDAR 深度尚未就绪，请保持相机活跃后重试"
+                case .noCloud:
+                    return "尚未采集到可导出点云，请先按录制按钮并移动设备扫描"
+                case .tooFewPointsFormat:
+                    return "仅采集到 %lld 个点（建议至少 200+），请继续从不同角度扫描树冠"
+                case .preparing:
+                    return "扫描数据仍在准备中，请稍候后重试完成"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static func tooFewPoints(_ pointCount: Int, in bundle: Bundle = .main) -> String {
+            String(format: text(.tooFewPointsFormat, in: bundle), Int64(pointCount))
+        }
+
+        static var requirementsAction: String {
+            text(.requirementsAction)
+        }
+
+        static var requirementsHint: String {
+            text(.requirementsHint)
+        }
+    }
+
     // MARK: - Result
     enum Result {
         static let yieldTitle = NSLocalizedString("result.yield_title", value: "估算产量", comment: "Yield result title")

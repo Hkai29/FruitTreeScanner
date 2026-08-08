@@ -29,6 +29,15 @@
 "scan.readiness.camera_restricted.message" = "Camera access is restricted by the system, so scanning can't start.";
 "scan.readiness.open_settings" = "Open Settings";
 "scan.readiness.back" = "Back";
+"scan.export.requirements_action" = "View Requirements";
+"scan.export.requirements_hint" = "Shows what is needed before this scan can finish.";
+"scan.export.blocked.lifecycle" = "This scan cannot finish in its current state. Start recording or wait for scanning to recover.";
+"scan.export.blocked.no_depth" = "LiDAR depth is unavailable on this device, so a valid point cloud cannot be created.";
+"scan.export.blocked.waiting_depth" = "LiDAR depth frames have not arrived yet. Move the device and continue scanning.";
+"scan.export.blocked.depth_unavailable" = "LiDAR depth is not ready. Keep the camera active and try again.";
+"scan.export.blocked.no_cloud" = "No exportable point cloud has been captured. Tap Record and move around the tree.";
+"scan.export.blocked.too_few_points_format" = "Only %lld points captured (at least 200 recommended). Continue scanning the canopy from different angles.";
+"scan.export.blocked.preparing" = "Scan data is still being prepared. Wait a moment and try Finish again.";
 
 /* Result */
 "result.yield_title" = "Estimated Yield";

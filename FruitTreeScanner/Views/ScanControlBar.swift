@@ -87,9 +87,9 @@ struct ScanBottomControlBar: View {
                 )
 
                 ScanPrimaryControlButton(
-                    title: "完成",
-                    icon: "checkmark",
-                    role: .finish,
+                    title: canFinish ? "完成" : L10n.ScanExport.requirementsAction,
+                    icon: canFinish ? "checkmark" : "info.circle",
+                    role: canFinish ? .finish : .secondary,
                     isLoading: isEstimating,
                     action: onFinish,
                     height: primaryHeight,
@@ -97,8 +97,9 @@ struct ScanBottomControlBar: View {
                     iconSize: primaryIconSize,
                     accessibilityIdentifier: "scan.finish"
                 )
-                .disabled(isFinishDisabled)
-                .opacity(isFinishDisabled ? 0.5 : 1)
+                .disabled(ScanExportReadiness.finishControlIsDisabled(isEstimating: isEstimating))
+                .opacity(isEstimating ? 0.5 : 1)
+                .accessibilityHint(canFinish ? "" : L10n.ScanExport.requirementsHint)
             }
         }
         .padding(.horizontal, Design.Space.lg)
@@ -113,10 +114,6 @@ struct ScanBottomControlBar: View {
         )
         .padding(.horizontal, Design.Space.md)
         .padding(.bottom, Design.Space.lg)
-    }
-
-    private var isFinishDisabled: Bool {
-        isEstimating || !canFinish
     }
 
     private var recordingButtonTitle: String {

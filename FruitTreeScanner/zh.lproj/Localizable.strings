@@ -29,6 +29,15 @@
 "scan.readiness.camera_restricted.message" = "系统限制了相机访问，当前无法开始扫描。";
 "scan.readiness.open_settings" = "打开设置";
 "scan.readiness.back" = "返回";
+"scan.export.requirements_action" = "查看要求";
+"scan.export.requirements_hint" = "点击查看完成本次扫描前还需要满足的条件。";
+"scan.export.blocked.lifecycle" = "当前扫描状态还不能完成，请开始录制或等待扫描恢复。";
+"scan.export.blocked.no_depth" = "当前设备没有 LiDAR 深度，无法生成有效点云";
+"scan.export.blocked.waiting_depth" = "LiDAR 深度帧还未到达，请移动设备继续扫描";
+"scan.export.blocked.depth_unavailable" = "LiDAR 深度尚未就绪，请保持相机活跃后重试";
+"scan.export.blocked.no_cloud" = "尚未采集到可导出点云，请先按录制按钮并移动设备扫描";
+"scan.export.blocked.too_few_points_format" = "仅采集到 %lld 个点（建议至少 200+），请继续从不同角度扫描树冠";
+"scan.export.blocked.preparing" = "扫描数据仍在准备中，请稍候后重试完成";
 
 /* Result */
 "result.yield_title" = "估算产量";
