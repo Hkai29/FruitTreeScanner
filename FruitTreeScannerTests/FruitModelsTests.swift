@@ -1978,6 +1978,60 @@ final class FruitModelsTests: XCTestCase {
 
     // MARK: - Calibration input parsing
 
+    func testCalibrationScanRecordImportPolicyUsesOnlyCompleteEvidenceAndPreservesOrder() {
+        let scanDate = Date(timeIntervalSince1970: 1_720_000_000)
+        func record(
+            id: String,
+            fruitCount: Int,
+            yieldKg: Float,
+            state: ScanPersistenceState
+        ) -> ScanFileRecord {
+            ScanFileRecord(
+                id: id,
+                treeID: id,
+                fileURL: URL(fileURLWithPath: "/tmp/\(id).ply"),
+                scanDate: scanDate,
+                fruitCount: fruitCount,
+                yieldKg: yieldKg,
+                persistenceState: state
+            )
+        }
+
+        let incomplete = record(
+            id: "incomplete",
+            fruitCount: 99,
+            yieldKg: 42,
+            state: .incomplete
+        )
+        let completeZero = record(
+            id: "complete-zero",
+            fruitCount: 0,
+            yieldKg: 0,
+            state: .complete
+        )
+        let invalid = record(
+            id: "invalid",
+            fruitCount: 88,
+            yieldKg: 31,
+            state: .invalid
+        )
+        let completeMeasured = record(
+            id: "complete-measured",
+            fruitCount: 12,
+            yieldKg: 4.5,
+            state: .complete
+        )
+
+        let eligible = CalibrationScanRecordImportPolicy.eligibleRecords(
+            from: [incomplete, completeZero, invalid, completeMeasured]
+        )
+
+        XCTAssertEqual(eligible.map(\.id), [completeZero.id, completeMeasured.id])
+        XCTAssertTrue(CalibrationScanRecordImportPolicy.isEligible(completeZero))
+        XCTAssertFalse(CalibrationScanRecordImportPolicy.isEligible(incomplete))
+        XCTAssertFalse(CalibrationScanRecordImportPolicy.isEligible(invalid))
+    }
+
     func testCalibrationInputParserRequiresNonNegativeEstimatedFruitCount() {
         XCTAssertEqual(CalibrationRecordInputParser.requiredNonNegativeInt(" 12 "), 12)
         XCTAssertEqual(CalibrationRecordInputParser.requiredNonNegativeInt("0"), 0)
