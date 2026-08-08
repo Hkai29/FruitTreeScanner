@@ -10,8 +10,7 @@ struct StartView: View {
 
     @ObservedObject var tagStore = TagStore.shared
     @State var currentStep = 1
-    @State var treeID = ""
-    @State var isTreeIDValid = false
+    @State var treeIdentifierDraft = StartTreeIdentifierDraft()
     @State var selectedPlotId: UUID?
     @State var season: Season = .mature
     @State var selectedTagIds: Set<UUID> = []
@@ -57,7 +56,7 @@ struct StartView: View {
     var stepContent: some View {
         switch currentStep {
         case 1:
-            Step1_IDEntry(treeID: $treeID, isValid: $isTreeIDValid)
+            Step1_IDEntry(draft: $treeIdentifierDraft)
         case 2:
             Step2_PlotSelection(
                 plots: tagStore.plots,
@@ -74,7 +73,7 @@ struct StartView: View {
             )
         case 5:
             Step5_Confirmation(
-                treeID: treeID,
+                treeID: treeIdentifierDraft.normalizedValue,
                 plot: selectedPlot,
                 season: season,
                 selectedFruitCategory: $selectedFruitCategory,
