@@ -22,6 +22,106 @@ enum L10n {
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
     }
 
+    // MARK: - Scan Guidance
+    enum ScanGuidance {
+        enum Key: String {
+            case tooFastTitle = "scan.guidance.hint.too_fast.title"
+            case tooFastSubtitle = "scan.guidance.hint.too_fast.subtitle"
+            case tooCloseTitle = "scan.guidance.hint.too_close.title"
+            case tooCloseSubtitle = "scan.guidance.hint.too_close.subtitle"
+            case tooFarTitle = "scan.guidance.hint.too_far.title"
+            case tooFarSubtitle = "scan.guidance.hint.too_far.subtitle"
+            case trackingLostTitle = "scan.guidance.hint.tracking_lost.title"
+            case trackingLostSubtitle = "scan.guidance.hint.tracking_lost.subtitle"
+            case lowLightTitle = "scan.guidance.hint.low_light.title"
+            case lowLightSubtitle = "scan.guidance.hint.low_light.subtitle"
+            case sparseDepthTitle = "scan.guidance.hint.sparse_depth.title"
+            case sparseDepthSubtitle = "scan.guidance.hint.sparse_depth.subtitle"
+            case goodPaceTitle = "scan.guidance.hint.good_pace.title"
+            case goodPaceSubtitle = "scan.guidance.hint.good_pace.subtitle"
+            case speedFormat = "scan.guidance.speed_format"
+            case guideTitle = "scan.guide.title"
+            case guideSubtitle = "scan.guide.subtitle"
+            case closeGuideAccessibility = "scan.guide.close_accessibility"
+            case slowCircleTitle = "scan.guide.tip.slow_circle.title"
+            case slowCircleMessage = "scan.guide.tip.slow_circle.message"
+            case outlineFirstTitle = "scan.guide.tip.outline_first.title"
+            case outlineFirstMessage = "scan.guide.tip.outline_first.message"
+            case blindSpotsTitle = "scan.guide.tip.blind_spots.title"
+            case blindSpotsMessage = "scan.guide.tip.blind_spots.message"
+            case measureTitle = "scan.guide.tip.measure.title"
+            case measureMessage = "scan.guide.tip.measure.message"
+            case defaultMode = "scan.guide.default_mode"
+            case wholeTree = "scan.guide.whole_tree"
+            case start = "scan.guide.start"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .tooFastTitle: return "移动太快"
+                case .tooFastSubtitle: return "放慢脚步，让树冠和主枝有足够重叠"
+                case .tooCloseTitle: return "距离太近"
+                case .tooCloseSubtitle: return "后退一步，先保住整棵树轮廓"
+                case .tooFarTitle: return "距离太远"
+                case .tooFarSubtitle: return "靠近果树，优先补主干和果实密集区"
+                case .trackingLostTitle: return "追踪丢失"
+                case .trackingLostSubtitle: return "对准树干、地面或纹理清晰的枝条恢复追踪"
+                case .lowLightTitle: return "光线不足"
+                case .lowLightSubtitle: return "光线偏暗，果实检测和纹理质量会下降"
+                case .sparseDepthTitle: return "树冠深度稀疏"
+                case .sparseDepthSubtitle: return "减少天空占比，靠近树冠并放慢移动速度"
+                case .goodPaceTitle: return "速度良好"
+                case .goodPaceSubtitle: return "保持速度，继续绕树补齐背面盲区"
+                case .speedFormat: return "%.1f m/s"
+                case .guideTitle: return "果树 LiDAR 扫描"
+                case .guideSubtitle: return "目标是稳定覆盖树干、树冠和果实区域；红色停止键前，先让点云绕树闭合。"
+                case .closeGuideAccessibility: return "关闭扫描引导"
+                case .slowCircleTitle: return "慢速环绕"
+                case .slowCircleMessage: return "从树干开始，绕树一圈；每一步都让树冠和主枝保持在画面中。"
+                case .outlineFirstTitle: return "先大后小"
+                case .outlineFirstMessage: return "先拿到整棵树的轮廓，再补果实密集区和背光枝条，避免一开始贴太近。"
+                case .blindSpotsTitle: return "补齐盲区"
+                case .blindSpotsMessage: return "覆盖率到 60% 后重点看树冠背面、下层枝条和主干遮挡处。"
+                case .measureTitle: return "可先测量"
+                case .measureMessage: return "停止后不用立刻分析，可以先用测量确认树高、冠幅或样方距离。"
+                case .defaultMode: return "默认模式"
+                case .wholeTree: return "果树全株扫描"
+                case .start: return "开始扫描"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static func speed(_ metersPerSecond: Float, in bundle: Bundle = .main) -> String {
+            String(format: text(.speedFormat, in: bundle), Double(metersPerSecond))
+        }
+    }
+
+    // MARK: - Scan Cancellation
+    enum ScanCancellation {
+        enum Key: String {
+            case title = "scan.cancel.title"
+            case continueAction = "scan.cancel.continue"
+            case discard = "scan.cancel.discard"
+            case message = "scan.cancel.message"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .title: return "取消本次扫描？"
+                case .continueAction: return "继续扫描"
+                case .discard: return "放弃"
+                case .message: return "已采集的点云不会保存。若要保留本次采集，请点击完成。"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+    }
+
     // MARK: - Scan Readiness
     enum ScanReadiness {
         enum Key: String {

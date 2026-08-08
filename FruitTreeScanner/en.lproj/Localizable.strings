@@ -14,6 +14,43 @@
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
 
+/* Scan Guidance */
+"scan.guidance.hint.too_fast.title" = "Moving Too Fast";
+"scan.guidance.hint.too_fast.subtitle" = "Slow down so canopy and main branches overlap";
+"scan.guidance.hint.too_close.title" = "Too Close";
+"scan.guidance.hint.too_close.subtitle" = "Step back to keep the whole-tree outline";
+"scan.guidance.hint.too_far.title" = "Too Far";
+"scan.guidance.hint.too_far.subtitle" = "Move closer; prioritize the trunk and fruit-dense areas";
+"scan.guidance.hint.tracking_lost.title" = "Tracking Lost";
+"scan.guidance.hint.tracking_lost.subtitle" = "Aim at the trunk, ground, or textured branches to resume tracking";
+"scan.guidance.hint.low_light.title" = "Low Light";
+"scan.guidance.hint.low_light.subtitle" = "Dim light reduces fruit detection and texture quality";
+"scan.guidance.hint.sparse_depth.title" = "Sparse Canopy Depth";
+"scan.guidance.hint.sparse_depth.subtitle" = "Reduce sky in frame, move closer to the canopy, and slow down";
+"scan.guidance.hint.good_pace.title" = "Good Pace";
+"scan.guidance.hint.good_pace.subtitle" = "Keep this pace and circle the tree to cover rear blind spots";
+"scan.guidance.speed_format" = "%.1f m/s";
+"scan.guide.title" = "Fruit Tree LiDAR Scan";
+"scan.guide.subtitle" = "Capture the trunk, canopy, and fruit steadily. Before tapping the red stop button, close the point cloud around the tree.";
+"scan.guide.close_accessibility" = "Close Guide";
+"scan.guide.tip.slow_circle.title" = "Slow Circle";
+"scan.guide.tip.slow_circle.message" = "Start at the trunk and circle the tree. Keep the canopy and main branches in frame with every step.";
+"scan.guide.tip.outline_first.title" = "Outline First";
+"scan.guide.tip.outline_first.message" = "Capture the whole-tree outline first, then cover fruit-dense and backlit branches without moving too close.";
+"scan.guide.tip.blind_spots.title" = "Fill Blind Spots";
+"scan.guide.tip.blind_spots.message" = "After 60% coverage, focus on the canopy back, lower branches, and trunk occlusions.";
+"scan.guide.tip.measure.title" = "Measure First";
+"scan.guide.tip.measure.message" = "After stopping, measure tree height, canopy width, or plot distance before analysis.";
+"scan.guide.default_mode" = "Default Mode";
+"scan.guide.whole_tree" = "Whole Tree Scan";
+"scan.guide.start" = "Start Scanning";
+
+/* Scan Cancellation */
+"scan.cancel.title" = "Cancel This Scan?";
+"scan.cancel.continue" = "Keep Scanning";
+"scan.cancel.discard" = "Discard";
+"scan.cancel.message" = "Captured point cloud data won't be saved. Tap Finish if you want to keep this scan.";
+
 /* Scan Readiness */
 "scan.readiness.checking.title" = "Checking Device Capabilities";
 "scan.readiness.checking.message" = "Checking the camera, ARKit, and depth scanning capabilities.";

@@ -23,37 +23,7 @@ struct ScanGuidanceOverlay: View {
     @ViewBuilder
     private var guidanceBanner: some View {
         if showHint, lastHint != .none {
-            HStack(spacing: 10) {
-                Image(systemName: lastHint.icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(lastHint.iconColor)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(lastHint.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text(lastHint.subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-
-                Spacer()
-
-                // 速度指示条
-                if lastHint == .tooFast || lastHint == .goodPace {
-                    SpeedIndicator(speed: hudState.cameraSpeed)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .fill(lastHint.backgroundColor)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .stroke(lastHint.borderColor, lineWidth: 1)
-            )
+            ScanGuidanceBannerCard(hint: lastHint, speed: hudState.cameraSpeed)
             .padding(.horizontal, Design.Space.md)
             .padding(.top, 80)
         }
@@ -87,6 +57,48 @@ struct ScanGuidanceOverlay: View {
     }
 }
 
+struct ScanGuidanceBannerCard: View {
+    let hint: ScanGuidanceHint
+    let speed: Float
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: hint.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(hint.iconColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(hint.title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(hint.subtitle)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.7))
+                    .lineLimit(2)
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 4)
+
+            if hint == .tooFast || hint == .goodPace {
+                SpeedIndicator(speed: speed)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
+                .fill(hint.backgroundColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
+                .stroke(hint.borderColor, lineWidth: 1)
+        )
+    }
+}
+
 // MARK: - Speed Indicator
 
 private struct SpeedIndicator: View {
@@ -117,7 +129,7 @@ private struct SpeedIndicator: View {
             }
             .frame(width: 40, height: 4)
 
-            Text(String(format: "%.1fm/s", speed))
+            Text(L10n.ScanGuidance.speed(speed))
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundColor(.white.opacity(0.6))
         }
@@ -152,28 +164,36 @@ extension ScanGuidanceHint {
     }
 
     var title: String {
+        title(in: .main)
+    }
+
+    func title(in bundle: Bundle) -> String {
         switch self {
         case .none: return ""
-        case .tooFast: return "移动太快"
-        case .tooClose: return "距离太近"
-        case .tooFar: return "距离太远"
-        case .trackingLost: return "追踪丢失"
-        case .lowLight: return "光线不足"
-        case .sparseDepth: return "树冠深度稀疏"
-        case .goodPace: return "速度良好"
+        case .tooFast: return L10n.ScanGuidance.text(.tooFastTitle, in: bundle)
+        case .tooClose: return L10n.ScanGuidance.text(.tooCloseTitle, in: bundle)
+        case .tooFar: return L10n.ScanGuidance.text(.tooFarTitle, in: bundle)
+        case .trackingLost: return L10n.ScanGuidance.text(.trackingLostTitle, in: bundle)
+        case .lowLight: return L10n.ScanGuidance.text(.lowLightTitle, in: bundle)
+        case .sparseDepth: return L10n.ScanGuidance.text(.sparseDepthTitle, in: bundle)
+        case .goodPace: return L10n.ScanGuidance.text(.goodPaceTitle, in: bundle)
         }
     }
 
     var subtitle: String {
+        subtitle(in: .main)
+    }
+
+    func subtitle(in bundle: Bundle) -> String {
         switch self {
         case .none: return ""
-        case .tooFast: return "放慢脚步，让树冠和主枝有足够重叠"
-        case .tooClose: return "后退一步，先保住整棵树轮廓"
-        case .tooFar: return "靠近果树，优先补主干和果实密集区"
-        case .trackingLost: return "对准树干、地面或纹理清晰的枝条恢复追踪"
-        case .lowLight: return "光线偏暗，果实检测和纹理质量会下降"
-        case .sparseDepth: return "减少天空占比，靠近树冠并放慢移动速度"
-        case .goodPace: return "保持速度，继续绕树补齐背面盲区"
+        case .tooFast: return L10n.ScanGuidance.text(.tooFastSubtitle, in: bundle)
+        case .tooClose: return L10n.ScanGuidance.text(.tooCloseSubtitle, in: bundle)
+        case .tooFar: return L10n.ScanGuidance.text(.tooFarSubtitle, in: bundle)
+        case .trackingLost: return L10n.ScanGuidance.text(.trackingLostSubtitle, in: bundle)
+        case .lowLight: return L10n.ScanGuidance.text(.lowLightSubtitle, in: bundle)
+        case .sparseDepth: return L10n.ScanGuidance.text(.sparseDepthSubtitle, in: bundle)
+        case .goodPace: return L10n.ScanGuidance.text(.goodPaceSubtitle, in: bundle)
         }
     }
 
