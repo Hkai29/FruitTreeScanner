@@ -62,12 +62,13 @@ struct StartNoteRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: Design.Space.xs) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundColor(tint)
                 .frame(width: 16, height: 16)
+                .accessibilityHidden(true)
 
             Text(text)
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -80,34 +81,22 @@ struct StartEmptyAction: View {
     let message: String
     let buttonTitle: String
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            HStack(spacing: Design.Space.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Design.Colors.harvest)
-                    .frame(width: 28, height: 28)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    Text(message)
-                        .font(.system(size: 12))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
-            }
+            emptyStateDescription
 
             Button(action: action) {
                 HStack(spacing: Design.Space.xs) {
                     Image(systemName: "plus")
                     Text(buttonTitle)
                 }
-                .font(.system(size: 14, weight: .semibold))
+                .font(.body.weight(.semibold))
                 .foregroundColor(Design.Colors.harvest)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
+                .frame(minHeight: layoutPolicy.minimumControlHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
@@ -116,6 +105,62 @@ struct StartEmptyAction: View {
         }
         .padding(Design.Space.md)
         .startSurface(cornerRadius: 10)
+    }
+
+    @ViewBuilder
+    private var emptyStateDescription: some View {
+        switch layoutPolicy.arrangement {
+        case .horizontal:
+            HStack(alignment: .top, spacing: Design.Space.sm) {
+                descriptionIcon
+                descriptionCopy
+            }
+        case .vertical:
+            VStack(alignment: .leading, spacing: Design.Space.xs) {
+                descriptionIcon
+                descriptionCopy
+            }
+        }
+    }
+
+    private var descriptionIcon: some View {
+        Image(systemName: icon)
+            .font(.body.weight(.semibold))
+            .foregroundColor(Design.Colors.harvest)
+            .frame(width: 28, height: 28)
+            .accessibilityHidden(true)
+    }
+
+    private var descriptionCopy: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var layoutPolicy: StartStepContentLayoutPolicy {
+        StartStepContentLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
+    }
+}
+
+struct StartStepContentLayoutPolicy: Equatable, Sendable {
+    enum Arrangement: Equatable, Sendable {
+        case horizontal
+        case vertical
+    }
+
+    let arrangement: Arrangement
+    let minimumControlHeight: CGFloat
+
+    init(isAccessibilitySize: Bool) {
+        arrangement = isAccessibilitySize ? .vertical : .horizontal
+        minimumControlHeight = Design.Touch.minimumHeight
     }
 }
 
@@ -127,38 +172,73 @@ struct StartSelectionRow<Accessory: View>: View {
     let isSelected: Bool
     let action: () -> Void
     @ViewBuilder let accessory: () -> Accessory
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Design.Space.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(tint)
-                    .frame(width: 28, height: 28)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                        .lineLimit(2)
+            Group {
+                switch layoutPolicy.arrangement {
+                case .horizontal:
+                    HStack(spacing: Design.Space.sm) {
+                        selectionDescription
+                        Spacer(minLength: Design.Space.sm)
+                        selectionStatus
+                    }
+                case .vertical:
+                    VStack(alignment: .leading, spacing: Design.Space.sm) {
+                        selectionDescription
+                        HStack(spacing: Design.Space.sm) {
+                            Spacer(minLength: 0)
+                            selectionStatus
+                        }
+                    }
                 }
-
-                Spacer(minLength: Design.Space.sm)
-
-                accessory()
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(isSelected ? Design.Colors.harvest : Design.Colors.Dark.textMuted)
             }
             .padding(.horizontal, Design.Space.md)
             .padding(.vertical, 13)
+            .frame(minHeight: layoutPolicy.minimumControlHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle())
+        .accessibilityLabel("\(title), \(subtitle)")
+        .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: isSelected))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var selectionDescription: some View {
+        HStack(alignment: .top, spacing: Design.Space.sm) {
+            Image(systemName: icon)
+                .font(.body.weight(.semibold))
+                .foregroundColor(tint)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var selectionStatus: some View {
+        HStack(spacing: Design.Space.sm) {
+            accessory()
+
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(isSelected ? Design.Colors.harvest : Design.Colors.Dark.textMuted)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var layoutPolicy: StartStepContentLayoutPolicy {
+        StartStepContentLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 }
 

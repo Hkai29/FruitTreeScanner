@@ -10,6 +10,7 @@ struct Step5_Confirmation: View {
     @Binding var selectedFruitCategory: FruitCategory
     let tags: [GroupTag]
     @ObservedObject var gps: GPSRecorder
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
@@ -71,91 +72,183 @@ struct Step5_Confirmation: View {
     }
 
     private var fruitCategoryPicker: some View {
-        HStack(spacing: Design.Space.md) {
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 16))
-                .foregroundColor(Design.Colors.harvest)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L10n.FruitCategoryVerification.selectionTitle)
-                    .font(.system(size: 14))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                Text(L10n.FruitCategoryVerification.fixedForScan)
-                    .font(.system(size: 11))
-                    .foregroundColor(Design.Colors.Dark.textMuted)
-            }
-            Spacer()
-            Picker(L10n.FruitCategoryVerification.selectionTitle, selection: $selectedFruitCategory) {
-                ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
-                    Text(L10n.Fruit.name(for: category)).tag(category)
+        Group {
+            switch layoutPolicy.arrangement {
+            case .horizontal:
+                HStack(spacing: Design.Space.md) {
+                    fruitCategoryLabel
+                    Spacer(minLength: Design.Space.sm)
+                    fruitCategoryMenu
+                }
+            case .vertical:
+                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                    fruitCategoryLabel
+                    fruitCategoryMenu
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .pickerStyle(.menu)
-            .tint(Design.Colors.harvest)
-            .accessibilityLabel(L10n.FruitCategoryVerification.selectedAccessibilityLabel)
-            .accessibilityValue(L10n.FruitCategoryVerification.selectionAccessibilityValue(selectedFruitCategory))
-            .accessibilityHint(L10n.FruitCategoryVerification.selectedAccessibilityHint)
         }
+    }
+
+    private var fruitCategoryLabel: some View {
+        HStack(alignment: .top, spacing: Design.Space.md) {
+            Image(systemName: "leaf.fill")
+                .font(.body)
+                .foregroundColor(Design.Colors.harvest)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.FruitCategoryVerification.selectionTitle)
+                    .font(.body)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                Text(L10n.FruitCategoryVerification.fixedForScan)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Dark.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var fruitCategoryMenu: some View {
+        Picker(L10n.FruitCategoryVerification.selectionTitle, selection: $selectedFruitCategory) {
+            ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
+                Text(L10n.Fruit.name(for: category)).tag(category)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(Design.Colors.harvest)
+        .accessibilityLabel(L10n.FruitCategoryVerification.selectedAccessibilityLabel)
+        .accessibilityValue(L10n.FruitCategoryVerification.selectionAccessibilityValue(selectedFruitCategory))
+        .accessibilityHint(L10n.FruitCategoryVerification.selectedAccessibilityHint)
     }
 
     private var tagSummary: some View {
+        Group {
+            switch layoutPolicy.arrangement {
+            case .horizontal:
+                HStack(spacing: Design.Space.md) {
+                    tagSummaryLabel
+                    Spacer(minLength: Design.Space.sm)
+                    compactTagSummaryValue
+                }
+            case .vertical:
+                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                    tagSummaryLabel
+                    Text(tagSummaryText)
+                        .font(.body.weight(.medium))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tagLabelText)
+        .accessibilityValue(tagSummaryText)
+    }
+
+    private var tagSummaryLabel: some View {
         HStack(spacing: Design.Space.md) {
             Image(systemName: "tag.fill")
-                .font(.system(size: 16))
+                .font(.body)
                 .foregroundColor(Design.Colors.harvest)
                 .frame(width: 24)
+                .accessibilityHidden(true)
 
-            Text(L10n.StartSetup.text(.tagsTitle))
-                .font(.system(size: 14))
+            Text(tagLabelText)
+                .font(.body)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+        }
+    }
 
-            Spacer()
-
-            if tags.isEmpty {
-                Text(L10n.StartSetup.text(.confirmationNone))
-                    .font(.system(size: 14))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            } else {
-                HStack(spacing: Design.Space.xs) {
-                    ForEach(tags.prefix(3)) { tag in
-                        Circle()
-                            .fill(Color(hex: tag.colorHex))
-                            .frame(width: 8, height: 8)
-                        Text(tag.name)
-                            .font(.system(size: 12))
-                            .foregroundColor(Design.Colors.Dark.textPrimary)
-                    }
-                    if tags.count > 3 {
-                        Text("+\(tags.count - 3)")
-                            .font(.system(size: 12))
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
-                    }
+    @ViewBuilder
+    private var compactTagSummaryValue: some View {
+        if tags.isEmpty {
+            Text(emptyTagsText)
+                .font(.body)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+        } else {
+            HStack(spacing: Design.Space.xs) {
+                ForEach(tags.prefix(3)) { tag in
+                    Circle()
+                        .fill(Color(hex: tag.colorHex))
+                        .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
+                    Text(tag.name)
+                        .font(.caption)
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                }
+                if tags.count > 3 {
+                    Text("+\(tags.count - 3)")
+                        .font(.caption)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                 }
             }
         }
     }
 
+    private var tagSummaryText: String {
+        guard !tags.isEmpty else { return emptyTagsText }
+        let visibleNames = tags.prefix(3).map(\.name).joined(separator: "、")
+        if tags.count > 3 {
+            return "\(visibleNames) +\(tags.count - 3)"
+        }
+        return visibleNames
+    }
+
+    private var tagLabelText: String { L10n.StartSetup.text(.tagsTitle) }
+
+    private var emptyTagsText: String { L10n.StartSetup.text(.confirmationNone) }
+
     private var gpsSummary: some View {
+        Group {
+            switch layoutPolicy.arrangement {
+            case .horizontal:
+                HStack(spacing: Design.Space.md) {
+                    gpsLabel
+                    Spacer(minLength: Design.Space.sm)
+                    gpsValue
+                }
+            case .vertical:
+                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                    gpsLabel
+                    gpsValue
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("GPS")
+        .accessibilityValue(gpsValueText)
+    }
+
+    private var gpsLabel: some View {
         HStack(spacing: Design.Space.md) {
             Image(systemName: gps.isAvailable ? "location.fill" : "location.slash")
-                .font(.system(size: 16))
+                .font(.body)
                 .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.slate)
                 .frame(width: 24)
+                .accessibilityHidden(true)
 
             Text("GPS")
-                .font(.system(size: 14))
+                .font(.body)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Spacer()
-
-            Text(
-                gps.isAvailable
-                    ? L10n.StartSetup.text(.confirmationGPSAvailable)
-                    : L10n.StartSetup.text(.confirmationGPSPending)
-            )
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
         }
+    }
+
+    private var gpsValue: some View {
+        Text(gpsValueText)
+            .font(.subheadline.monospaced())
+            .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
+    }
+
+    private var gpsValueText: String {
+        gps.isAvailable
+            ? L10n.StartSetup.text(.confirmationGPSAvailable)
+            : L10n.StartSetup.text(.confirmationGPSPending)
+    }
+
+    private var layoutPolicy: StartStepContentLayoutPolicy {
+        StartStepContentLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 }
 
@@ -164,23 +257,53 @@ struct ConfirmationRow: View {
     let label: String
     let value: String
     var valueColor: Color = Design.Colors.Dark.textPrimary
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        Group {
+            switch layoutPolicy.arrangement {
+            case .horizontal:
+                HStack(spacing: Design.Space.md) {
+                    rowLabel
+                    Spacer(minLength: Design.Space.sm)
+                    rowValue
+                        .multilineTextAlignment(.trailing)
+                }
+            case .vertical:
+                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                    rowLabel
+                    rowValue
+                        .multilineTextAlignment(.leading)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+    }
+
+    private var rowLabel: some View {
         HStack(spacing: Design.Space.md) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.body)
                 .foregroundColor(Design.Colors.harvest)
                 .frame(width: 24)
+                .accessibilityHidden(true)
 
             Text(label)
-                .font(.system(size: 14))
+                .font(.body)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Spacer()
-
-            Text(value)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(valueColor)
         }
+    }
+
+    private var rowValue: some View {
+        Text(value)
+            .font(.body.weight(.medium))
+            .foregroundColor(valueColor)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var layoutPolicy: StartStepContentLayoutPolicy {
+        StartStepContentLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 }
