@@ -14,6 +14,46 @@
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
 
+/* Scan Completion */
+"scan.completion.status.complete" = "Scan Complete";
+"scan.completion.status.coverage_good" = "Good Coverage";
+"scan.completion.status.continue_scanning" = "Keep Scanning";
+"scan.completion.status.insufficient" = "Coverage Low";
+"scan.completion.hint.other_side" = "Scan the other side of the canopy";
+"scan.completion.hint.back_side" = "Scan the back of the canopy";
+"scan.completion.hint.vertical" = "Move slowly across the upper and lower canopy";
+"scan.completion.hint.sparse_angles" = "Fill sparse viewing angles";
+"scan.completion.hint.trunk" = "Start at the trunk and circle slowly";
+"scan.completion.hint.discovering" = "Discovering new canopy areas";
+"scan.completion.hint.finish_back" = "Scan the canopy back, then save";
+"scan.completion.hint.stable" = "Coverage complete; ready to analyze";
+"scan.completion.spatial_samples_format" = "%d spatial samples";
+"scan.completion.metric.duration" = "Duration";
+"scan.completion.metric.canopy" = "Canopy";
+"scan.completion.metric.angles" = "Angles";
+"scan.completion.metric.balance" = "Balance";
+"scan.completion.metric.stability" = "Stability";
+"scan.completion.metric.point_cloud" = "Point Cloud";
+"scan.completion.metric.status" = "Status";
+"scan.completion.preview_ready" = "Rough Preview Ready";
+"scan.completion.next.high" = "Coverage is sufficient. Finish now to estimate yield.";
+"scan.completion.next.medium" = "You can finish; if the canopy back is missing, record one more pass.";
+"scan.completion.next.low" = "Continue recording to cover the canopy back and occluded trunk areas.";
+"scan.completion.resume" = "Continue Scan";
+"scan.completion.finish_estimate" = "Finish Estimate";
+"scan.completion.toast.title" = "Coverage Sufficient";
+"scan.completion.toast.message" = "Tap Finish to save the result";
+
+/* Scan Controls */
+"scan.controls.guide" = "Guide";
+"scan.controls.measure" = "Measure";
+"scan.controls.cancel" = "Cancel";
+"scan.controls.start_recording" = "Start Recording";
+"scan.controls.stop_recording" = "Stop Recording";
+"scan.controls.rerecord" = "Record Again";
+"scan.controls.finish" = "Finish";
+"scan.controls.processing" = "Processing";
+
 /* Scan Readiness */
 "scan.readiness.checking.title" = "Checking Device Capabilities";
 "scan.readiness.checking.message" = "Checking the camera, ARKit, and depth scanning capabilities.";

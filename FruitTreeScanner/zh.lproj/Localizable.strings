@@ -14,6 +14,46 @@
 "scan.discard_after_interruption" = "放弃扫描";
 "scan.interruption_accessibility_hint" = "重新开始会清除本次扫描数据；放弃不会生成扫描结果。";
 
+/* 扫描完成反馈 */
+"scan.completion.status.complete" = "扫描完成";
+"scan.completion.status.coverage_good" = "覆盖良好";
+"scan.completion.status.continue_scanning" = "继续扫描";
+"scan.completion.status.insufficient" = "覆盖率不足";
+"scan.completion.hint.other_side" = "补扫树冠另一侧";
+"scan.completion.hint.back_side" = "补扫树冠背面";
+"scan.completion.hint.vertical" = "放慢补扫树冠上下层";
+"scan.completion.hint.sparse_angles" = "补扫稀疏视角";
+"scan.completion.hint.trunk" = "从主干开始慢速环绕";
+"scan.completion.hint.discovering" = "正在发现树冠新区域";
+"scan.completion.hint.finish_back" = "补树冠背面后可保存";
+"scan.completion.hint.stable" = "覆盖完整，可保存分析";
+"scan.completion.spatial_samples_format" = "%d 个空间采样";
+"scan.completion.metric.duration" = "时长";
+"scan.completion.metric.canopy" = "树冠";
+"scan.completion.metric.angles" = "视角";
+"scan.completion.metric.balance" = "均衡";
+"scan.completion.metric.stability" = "稳定";
+"scan.completion.metric.point_cloud" = "点云";
+"scan.completion.metric.status" = "状态";
+"scan.completion.preview_ready" = "粗预览已就绪";
+"scan.completion.next.high" = "覆盖充足，可直接完成并估算产量。";
+"scan.completion.next.medium" = "可完成分析；若树冠背面缺失，继续录制补一圈。";
+"scan.completion.next.low" = "建议继续录制，补齐树冠背面和主干遮挡区域。";
+"scan.completion.resume" = "继续补扫";
+"scan.completion.finish_estimate" = "完成估算";
+"scan.completion.toast.title" = "扫描覆盖充足";
+"scan.completion.toast.message" = "可以点击完成保存结果";
+
+/* 扫描控制 */
+"scan.controls.guide" = "引导";
+"scan.controls.measure" = "测量";
+"scan.controls.cancel" = "取消";
+"scan.controls.start_recording" = "开始录制";
+"scan.controls.stop_recording" = "停止录制";
+"scan.controls.rerecord" = "重新录制";
+"scan.controls.finish" = "完成";
+"scan.controls.processing" = "处理中";
+
 /* 扫描就绪状态 */
 "scan.readiness.checking.title" = "正在检查设备能力";
 "scan.readiness.checking.message" = "正在确认相机、ARKit 和深度扫描链路。";

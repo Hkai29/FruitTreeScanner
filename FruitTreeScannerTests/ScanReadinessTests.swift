@@ -1,5 +1,7 @@
 import XCTest
 import ARKit
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class ScanReadinessTests: XCTestCase {
@@ -654,5 +656,266 @@ final class ScanSessionConfigurationTests: XCTestCase {
         let semantics = ScanSessionConfiguration.preferredDepthSemantics { _ in false }
 
         XCTAssertNil(semantics)
+    }
+}
+
+final class ScanCompletionPresentationTests: XCTestCase {
+    private let expectedCopy: [String: [String: String]] = [
+        "en": [
+            "scan.completion.status.complete": "Scan Complete",
+            "scan.completion.status.coverage_good": "Good Coverage",
+            "scan.completion.status.continue_scanning": "Keep Scanning",
+            "scan.completion.status.insufficient": "Coverage Low",
+            "scan.completion.hint.other_side": "Scan the other side of the canopy",
+            "scan.completion.hint.back_side": "Scan the back of the canopy",
+            "scan.completion.hint.vertical": "Move slowly across the upper and lower canopy",
+            "scan.completion.hint.sparse_angles": "Fill sparse viewing angles",
+            "scan.completion.hint.trunk": "Start at the trunk and circle slowly",
+            "scan.completion.hint.discovering": "Discovering new canopy areas",
+            "scan.completion.hint.finish_back": "Scan the canopy back, then save",
+            "scan.completion.hint.stable": "Coverage complete; ready to analyze",
+            "scan.completion.spatial_samples_format": "%d spatial samples",
+            "scan.completion.metric.duration": "Duration",
+            "scan.completion.metric.canopy": "Canopy",
+            "scan.completion.metric.angles": "Angles",
+            "scan.completion.metric.balance": "Balance",
+            "scan.completion.metric.stability": "Stability",
+            "scan.completion.metric.point_cloud": "Point Cloud",
+            "scan.completion.metric.status": "Status",
+            "scan.completion.preview_ready": "Rough Preview Ready",
+            "scan.completion.next.high": "Coverage is sufficient. Finish now to estimate yield.",
+            "scan.completion.next.medium": "You can finish; if the canopy back is missing, record one more pass.",
+            "scan.completion.next.low": "Continue recording to cover the canopy back and occluded trunk areas.",
+            "scan.completion.resume": "Continue Scan",
+            "scan.completion.finish_estimate": "Finish Estimate",
+            "scan.completion.toast.title": "Coverage Sufficient",
+            "scan.completion.toast.message": "Tap Finish to save the result",
+            "scan.controls.guide": "Guide",
+            "scan.controls.measure": "Measure",
+            "scan.controls.cancel": "Cancel",
+            "scan.controls.start_recording": "Start Recording",
+            "scan.controls.stop_recording": "Stop Recording",
+            "scan.controls.rerecord": "Record Again",
+            "scan.controls.finish": "Finish",
+            "scan.controls.processing": "Processing",
+        ],
+        "zh": [
+            "scan.completion.status.complete": "扫描完成",
+            "scan.completion.status.coverage_good": "覆盖良好",
+            "scan.completion.status.continue_scanning": "继续扫描",
+            "scan.completion.status.insufficient": "覆盖率不足",
+            "scan.completion.hint.other_side": "补扫树冠另一侧",
+            "scan.completion.hint.back_side": "补扫树冠背面",
+            "scan.completion.hint.vertical": "放慢补扫树冠上下层",
+            "scan.completion.hint.sparse_angles": "补扫稀疏视角",
+            "scan.completion.hint.trunk": "从主干开始慢速环绕",
+            "scan.completion.hint.discovering": "正在发现树冠新区域",
+            "scan.completion.hint.finish_back": "补树冠背面后可保存",
+            "scan.completion.hint.stable": "覆盖完整，可保存分析",
+            "scan.completion.spatial_samples_format": "%d 个空间采样",
+            "scan.completion.metric.duration": "时长",
+            "scan.completion.metric.canopy": "树冠",
+            "scan.completion.metric.angles": "视角",
+            "scan.completion.metric.balance": "均衡",
+            "scan.completion.metric.stability": "稳定",
+            "scan.completion.metric.point_cloud": "点云",
+            "scan.completion.metric.status": "状态",
+            "scan.completion.preview_ready": "粗预览已就绪",
+            "scan.completion.next.high": "覆盖充足，可直接完成并估算产量。",
+            "scan.completion.next.medium": "可完成分析；若树冠背面缺失，继续录制补一圈。",
+            "scan.completion.next.low": "建议继续录制，补齐树冠背面和主干遮挡区域。",
+            "scan.completion.resume": "继续补扫",
+            "scan.completion.finish_estimate": "完成估算",
+            "scan.completion.toast.title": "扫描覆盖充足",
+            "scan.completion.toast.message": "可以点击完成保存结果",
+            "scan.controls.guide": "引导",
+            "scan.controls.measure": "测量",
+            "scan.controls.cancel": "取消",
+            "scan.controls.start_recording": "开始录制",
+            "scan.controls.stop_recording": "停止录制",
+            "scan.controls.rerecord": "重新录制",
+            "scan.controls.finish": "完成",
+            "scan.controls.processing": "处理中",
+        ],
+    ]
+
+    func testCompletionAndControlCopyExistsInEnglishAndChinese() throws {
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testCompletionStatusAndHintMappingsKeepExistingDecisionBoundaries() throws {
+        for language in ["en", "zh"] {
+            let bundle = try localizedBundle(language: language)
+            let copy = try XCTUnwrap(expectedCopy[language])
+
+            XCTAssertEqual(ScanCompletion(overall: 0.85).statusTitle(in: bundle), copy["scan.completion.status.complete"])
+            XCTAssertEqual(ScanCompletion(overall: 0.60).statusTitle(in: bundle), copy["scan.completion.status.coverage_good"])
+            XCTAssertEqual(ScanCompletion(overall: 0.30).statusTitle(in: bundle), copy["scan.completion.status.continue_scanning"])
+            XCTAssertEqual(ScanCompletion(overall: 0.29).statusTitle(in: bundle), copy["scan.completion.status.insufficient"])
+
+            let hintCases: [(ScanCompletion, String)] = [
+                (
+                    ScanCompletion(angleCoverageScore: 0.2, voxelCount: 120, discoveryTrend: .stable),
+                    "scan.completion.hint.other_side"
+                ),
+                (
+                    ScanCompletion(
+                        angleCoverageScore: 0.6,
+                        angleUniformityScore: 1,
+                        oppositeSideScore: 0.2,
+                        verticalCoverageScore: 1,
+                        voxelCount: 120,
+                        discoveryTrend: .stable
+                    ),
+                    "scan.completion.hint.back_side"
+                ),
+                (
+                    ScanCompletion(
+                        angleCoverageScore: 0.6,
+                        angleUniformityScore: 1,
+                        oppositeSideScore: 1,
+                        verticalCoverageScore: 0.2,
+                        voxelCount: 140,
+                        discoveryTrend: .stable
+                    ),
+                    "scan.completion.hint.vertical"
+                ),
+                (
+                    ScanCompletion(
+                        angleCoverageScore: 0.6,
+                        angleUniformityScore: 0.2,
+                        oppositeSideScore: 1,
+                        verticalCoverageScore: 1,
+                        voxelCount: 120,
+                        discoveryTrend: .stable
+                    ),
+                    "scan.completion.hint.sparse_angles"
+                ),
+                (ScanCompletion(discoveryTrend: .collecting), "scan.completion.hint.trunk"),
+                (ScanCompletion(discoveryTrend: .increasing), "scan.completion.hint.discovering"),
+                (ScanCompletion(discoveryTrend: .decreasing), "scan.completion.hint.finish_back"),
+                (ScanCompletion(discoveryTrend: .stable), "scan.completion.hint.stable"),
+            ]
+
+            for (completion, key) in hintCases {
+                XCTAssertEqual(completion.statusHint(in: bundle), copy[key], "Incorrect hint mapping for \(key)")
+            }
+        }
+    }
+
+    func testSpatialSampleFormattingUsesTheSelectedLocalizationBundle() throws {
+        XCTAssertEqual(
+            L10n.ScanCompletion.spatialSamples(420, in: try localizedBundle(language: "en")),
+            "420 spatial samples"
+        )
+        XCTAssertEqual(
+            L10n.ScanCompletion.spatialSamples(420, in: try localizedBundle(language: "zh")),
+            "420 个空间采样"
+        )
+    }
+
+    @MainActor
+    func testCompletionFeedbackAndControlsRenderInCompactLayout() throws {
+        let hudState = ScanHUDState()
+        hudState.update(
+            pointCount: 12_345,
+            coveragePercent: 68,
+            scanCompletion: ScanCompletion(
+                overall: 0.68,
+                timeScore: 0.8,
+                voxelScore: 0.75,
+                angleCoverageScore: 0.65,
+                angleUniformityScore: 0.72,
+                oppositeSideScore: 0.58,
+                verticalCoverageScore: 0.70,
+                stabilityScore: 0.82,
+                voxelCount: 420,
+                scanDuration: 75,
+                discoveryTrend: .decreasing
+            )
+        )
+        let measurementController = MetalMeasurementController()
+
+        let rootView = VStack(spacing: 14) {
+            CoverageMapView(completion: hudState.scanCompletion)
+                .padding(.horizontal, Design.Space.lg)
+
+            ScanPostCapturePanel(
+                pointCount: hudState.pointCount,
+                coveragePercent: hudState.coveragePercent,
+                completion: hudState.scanCompletion,
+                canFinish: true,
+                onResume: {},
+                onFinish: {}
+            )
+
+            #if DEBUG
+                ScanBottomControlBar(
+                    isRecording: false,
+                    isEstimating: false,
+                    canFinish: true,
+                    hudState: hudState,
+                    measurementController: measurementController,
+                    onToggleGuide: {},
+                    onToggleRecording: {},
+                    onToggleMeasurement: {},
+                    onCancel: {},
+                    onFinish: {},
+                    onDebug: {}
+                )
+            #else
+                ScanBottomControlBar(
+                    isRecording: false,
+                    isEstimating: false,
+                    canFinish: true,
+                    hudState: hudState,
+                    measurementController: measurementController,
+                    onToggleGuide: {},
+                    onToggleRecording: {},
+                    onToggleMeasurement: {},
+                    onCancel: {},
+                    onFinish: {}
+                )
+            #endif
+
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 20)
+        .frame(width: 390, height: 844, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .transaction { transaction in
+            transaction.disablesAnimations = true
+        }
+        .environment(\.horizontalSizeClass, .compact)
+        .environment(\.colorScheme, .dark)
+
+        let renderer = ImageRenderer(content: rootView)
+        renderer.scale = 3
+        renderer.proposedSize = ProposedViewSize(width: 390, height: 844)
+        let renderedImage = try XCTUnwrap(renderer.uiImage)
+
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "ScanCompletion-\(Locale.preferredLanguages.first ?? "unknown")"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"))
+        return try XCTUnwrap(Bundle(path: path))
     }
 }

@@ -16,12 +16,16 @@ struct ScanPostCapturePanel: View {
                     .foregroundColor(Design.Colors.harvest)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("粗预览已就绪")
+                    Text(L10n.ScanCompletion.text(.previewReady))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Text(nextStepText)
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.68))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
@@ -32,16 +36,27 @@ struct ScanPostCapturePanel: View {
             }
 
             HStack(spacing: 8) {
-                ScanPostCaptureMetric(label: "点云", value: ScanHUDValueFormatter.pointCount(pointCount))
-                ScanPostCaptureMetric(label: "时长", value: completion.formattedDuration)
-                ScanPostCaptureMetric(label: "状态", value: completion.statusTitle)
+                ScanPostCaptureMetric(
+                    label: L10n.ScanCompletion.text(.metricPointCloud),
+                    value: ScanHUDValueFormatter.pointCount(pointCount)
+                )
+                ScanPostCaptureMetric(
+                    label: L10n.ScanCompletion.text(.metricDuration),
+                    value: completion.formattedDuration
+                )
+                ScanPostCaptureMetric(
+                    label: L10n.ScanCompletion.text(.metricStatus),
+                    value: completion.statusTitle
+                )
             }
 
             HStack(spacing: 8) {
                 Button(action: onResume) {
-                    Label("继续补扫", systemImage: "plus.viewfinder")
+                    Label(L10n.ScanCompletion.text(.resume), systemImage: "plus.viewfinder")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity)
                         .frame(height: 38)
                         .background(Design.Colors.Dark.bgElevated.opacity(0.86))
@@ -50,9 +65,11 @@ struct ScanPostCapturePanel: View {
                 .buttonStyle(.plain)
 
                 Button(action: onFinish) {
-                    Label("完成估算", systemImage: "checkmark")
+                    Label(L10n.ScanCompletion.text(.finishEstimate), systemImage: "checkmark")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.black.opacity(0.84))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity)
                         .frame(height: 38)
                         .background(canFinish ? Design.Colors.harvest : Design.Colors.Dark.textMuted)
@@ -65,6 +82,7 @@ struct ScanPostCapturePanel: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
         .background(Design.Colors.Dark.hudBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -77,12 +95,12 @@ struct ScanPostCapturePanel: View {
 
     private var nextStepText: String {
         if completion.overall >= 0.85 {
-            return "覆盖充足，可直接完成并估算产量。"
+            return L10n.ScanCompletion.text(.nextHigh)
         }
         if completion.overall >= 0.6 {
-            return "可完成分析；若树冠背面缺失，继续录制补一圈。"
+            return L10n.ScanCompletion.text(.nextMedium)
         }
-        return "建议继续录制，补齐树冠背面和主干遮挡区域。"
+        return L10n.ScanCompletion.text(.nextLow)
     }
 
     private var statusColor: Color {
@@ -125,10 +143,10 @@ struct ScanCoverageCompleteToast: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 28))
                         .foregroundColor(Design.Colors.forest)
-                    Text("扫描覆盖充足")
+                    Text(L10n.ScanCompletion.text(.toastTitle))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("可以点击完成保存结果")
+                    Text(L10n.ScanCompletion.text(.toastMessage))
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
                 }

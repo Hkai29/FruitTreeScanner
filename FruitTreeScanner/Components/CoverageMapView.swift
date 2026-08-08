@@ -18,6 +18,7 @@ struct CoverageMapView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
         .background(Design.Colors.Dark.hudBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -58,43 +59,49 @@ struct CoverageMapView: View {
             Text(completion.statusTitle)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             Text(completion.statusHint)
                 .font(.system(size: 11))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
             if completion.voxelCount > 0 {
-                Text("\(completion.voxelCount) 个空间采样")
+                Text(L10n.ScanCompletion.spatialSamples(completion.voxelCount))
                     .font(.system(size: 10))
                     .foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.7))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
     }
 
     private var scoreIndicators: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 8) {
             ScoreIndicator(
-                label: "时长",
+                label: L10n.ScanCompletion.text(.metricDuration),
                 value: completion.timeScore,
                 color: Design.Colors.Dark.info
             )
             ScoreIndicator(
-                label: "树冠",
+                label: L10n.ScanCompletion.text(.metricCanopy),
                 value: completion.voxelScore,
                 color: Design.Colors.harvest
             )
             ScoreIndicator(
-                label: "视角",
+                label: L10n.ScanCompletion.text(.metricAngles),
                 value: completion.angleCoverageScore,
                 color: Design.Colors.Dark.info
             )
             ScoreIndicator(
-                label: "均衡",
+                label: L10n.ScanCompletion.text(.metricBalance),
                 value: completion.angleUniformityScore,
                 color: Design.Colors.harvestDark
             )
             ScoreIndicator(
-                label: "稳定",
+                label: L10n.ScanCompletion.text(.metricStability),
                 value: completion.stabilityScore,
                 color: statusColor
             )
@@ -131,6 +138,9 @@ private struct ScoreIndicator: View {
             Text(label)
                 .font(.system(size: 9))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
         }
+        .frame(width: 48)
     }
 }
