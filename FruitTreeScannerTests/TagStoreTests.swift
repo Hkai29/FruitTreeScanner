@@ -56,6 +56,119 @@ final class TagStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.plots.map(\.name), ["North Block"])
     }
 
+    func testCorruptCurrentSnapshotDoesNotRestoreOrOverwriteLegacyRecords() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        let legacyPlot = Plot(name: "Legacy Plot")
+        let legacyTag = GroupTag(name: "Legacy Tag")
+        let legacyAssignment = TreeAssignment(
+            treeId: "TREE-LEGACY",
+            plotId: legacyPlot.id,
+            tagIds: [legacyTag.id],
+            status: .completed
+        )
+        try seedLegacy(
+            plots: [legacyPlot],
+            tags: [legacyTag],
+            assignments: [legacyAssignment],
+            in: defaults
+        )
+        let corruptSnapshot = Data([0xFF, 0x00, 0x7F])
+        defaults.set(corruptSnapshot, forKey: TagStore.snapshotUserDefaultsKey)
+
+        let store = TagStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertTrue(store.plots.isEmpty)
+        XCTAssertTrue(store.tags.isEmpty)
+        XCTAssertTrue(store.assignments.isEmpty)
+        XCTAssertEqual(defaults.data(forKey: TagStore.snapshotUserDefaultsKey), corruptSnapshot)
+    }
+
+    func testWrongTypeCurrentSnapshotDoesNotFallBackToLegacyRecords() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        try seedLegacy(plots: [Plot(name: "Legacy Plot")], in: defaults)
+        defaults.set("unsupported", forKey: TagStore.snapshotUserDefaultsKey)
+
+        let store = TagStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertTrue(store.plots.isEmpty)
+        XCTAssertTrue(store.tags.isEmpty)
+        XCTAssertTrue(store.assignments.isEmpty)
+        XCTAssertEqual(defaults.string(forKey: TagStore.snapshotUserDefaultsKey), "unsupported")
+    }
+
+    func testExplicitWriteAfterCorruptSnapshotCreatesOnlyNewState() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        try seedLegacy(plots: [Plot(name: "Legacy Plot")], in: defaults)
+        defaults.set(Data([0xFF, 0x00, 0x7F]), forKey: TagStore.snapshotUserDefaultsKey)
+
+        let store = TagStore(defaults: defaults)
+        store.addPlot(name: "New Plot")
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(store.plots.map(\.name), ["New Plot"])
+        let persisted: PersistedSnapshot = try persistedSnapshot(from: defaults)
+        XCTAssertEqual(persisted.plots.map(\.name), ["New Plot"])
+        XCTAssertTrue(persisted.tags.isEmpty)
+        XCTAssertTrue(persisted.assignments.isEmpty)
+    }
+
+    func testMissingCurrentSnapshotMigratesLegacyRecords() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        let legacyPlot = Plot(name: "Legacy Plot")
+        let legacyTag = GroupTag(name: "Legacy Tag")
+        let legacyAssignment = TreeAssignment(
+            treeId: "TREE-LEGACY",
+            plotId: legacyPlot.id,
+            tagIds: [legacyTag.id],
+            status: .reviewing
+        )
+        try seedLegacy(
+            plots: [legacyPlot],
+            tags: [legacyTag],
+            assignments: [legacyAssignment],
+            in: defaults
+        )
+
+        let store = TagStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(store.plots, [legacyPlot])
+        XCTAssertEqual(store.tags, [legacyTag])
+        XCTAssertEqual(store.assignments, [legacyAssignment])
+        let persisted: PersistedSnapshot = try persistedSnapshot(from: defaults)
+        XCTAssertEqual(persisted.plots, [legacyPlot])
+        XCTAssertEqual(persisted.tags, [legacyTag])
+        XCTAssertEqual(persisted.assignments, [legacyAssignment])
+    }
+
+    func testValidCurrentSnapshotTakesPrecedenceOverLegacyRecords() throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        let currentPlot = Plot(name: "Current Plot")
+        let currentSnapshot = PersistedSnapshot(
+            plots: [currentPlot],
+            tags: [],
+            assignments: []
+        )
+        defaults.set(
+            try JSONEncoder().encode(currentSnapshot),
+            forKey: TagStore.snapshotUserDefaultsKey
+        )
+        try seedLegacy(plots: [Plot(name: "Legacy Plot")], in: defaults)
+
+        let store = TagStore(defaults: defaults)
+
+        XCTAssertEqual(store.plots, [currentPlot])
+        XCTAssertTrue(store.tags.isEmpty)
+        XCTAssertTrue(store.assignments.isEmpty)
+    }
+
     func testQuickTaggingCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [
@@ -312,7 +425,21 @@ final class TagStoreTests: XCTestCase {
         UserDefaults(suiteName: "TagStoreTests.\(UUID().uuidString)")!
     }
 
+    private func seedLegacy(
+        plots: [Plot] = [],
+        tags: [GroupTag] = [],
+        assignments: [TreeAssignment] = [],
+        in defaults: UserDefaults
+    ) throws {
+        try defaults.setObject(plots, forKey: "TagStore.plots")
+        try defaults.setObject(tags, forKey: "TagStore.tags")
+        try defaults.setObject(assignments, forKey: "TagStore.assignments")
+    }
+
     private func clear(_ defaults: UserDefaults) {
         defaults.removeObject(forKey: TagStore.snapshotUserDefaultsKey)
+        defaults.removeObject(forKey: "TagStore.plots")
+        defaults.removeObject(forKey: "TagStore.tags")
+        defaults.removeObject(forKey: "TagStore.assignments")
     }
 }

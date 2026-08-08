@@ -45,15 +45,21 @@ final class TagStore: ObservableObject {
     // MARK: - Persistence
 
     private func loadData() {
-        do {
-            if let snapshot: TagStoreSnapshot = try defaults.getObject(forKey: StorageKeys.snapshot) {
+        if defaults.object(forKey: StorageKeys.snapshot) != nil {
+            do {
+                guard let snapshot: TagStoreSnapshot = try defaults.getObject(
+                    forKey: StorageKeys.snapshot
+                ) else {
+                    Log.general.error("Tag store snapshot exists but is not encoded data")
+                    return
+                }
                 plots = snapshot.plots
                 tags = snapshot.tags
                 assignments = snapshot.assignments
-                return
+            } catch {
+                Log.general.error("Failed to read tag store snapshot: \(error.localizedDescription)")
             }
-        } catch {
-            Log.general.error("Failed to read tag store snapshot: \(error.localizedDescription)")
+            return
         }
 
         // One-time migration from the legacy independently-written keys.
