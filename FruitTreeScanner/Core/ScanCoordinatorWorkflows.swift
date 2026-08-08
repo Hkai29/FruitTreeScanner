@@ -180,10 +180,15 @@ extension ScanCoordinator {
         scanCompletion = ScanCompletion()
         detectedFruits.removeAll()
         archivedFusionEvidenceDetections.removeAll()
-        activeFruitConfiguration = ScanFruitConfiguration.capture(
+        let scanConfiguration = ScanFruitConfiguration.capture(
             selectedCategory: selectedCategory,
-            settings: settings
+            settings: settings,
+            calibrationRecordsLoader: calibrationRecordsLoader
         )
+        activeFruitConfiguration = scanConfiguration
+        if let warning = scanConfiguration.calibrationWarning {
+            onCalibrationWarning?(warning)
+        }
         hasPublishedCategoryMismatch = false
         hudState?.resetForNewScan()
         publishImageDetectorStatus()

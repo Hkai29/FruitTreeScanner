@@ -7,6 +7,78 @@ import simd
 final class DetectionDebugStateTests: XCTestCase {
 
     @MainActor
+    func testScanFruitConfigurationReportsCalibrationReadFailureAndUsesNeutralCorrection() {
+        let configuration = ScanFruitConfiguration.capture(
+            selectedCategory: .apple,
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+        )
+
+        XCTAssertEqual(configuration.calibrationWarning, .recordsUnavailable)
+        XCTAssertEqual(configuration.calibrationCorrection, .neutral)
+    }
+
+    @MainActor
+    func testScanFruitConfigurationAppliesVerifiedCalibrationWithoutWarning() {
+        let record = CalibrationRecord(
+            id: UUID(),
+            treeID: "T-verified",
+            scanDate: Date(timeIntervalSince1970: 1_780_000_000),
+            estimatedFruitCount: 10,
+            manualFruitCount: 8,
+            estimatedYieldKg: 5,
+            actualYieldKg: 4,
+            fruitType: FruitCategory.apple.rawValue
+        )
+
+        let configuration = ScanFruitConfiguration.capture(
+            selectedCategory: .apple,
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [record] }
+        )
+
+        XCTAssertNil(configuration.calibrationWarning)
+        XCTAssertEqual(configuration.calibrationCorrection.countFactor, 0.8, accuracy: 0.001)
+        XCTAssertEqual(configuration.calibrationCorrection.yieldFactor, 0.8, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testEmptyCalibrationSnapshotIsValidAndDoesNotWarn() {
+        let configuration = ScanFruitConfiguration.capture(
+            selectedCategory: .apple,
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [] }
+        )
+
+        XCTAssertNil(configuration.calibrationWarning)
+        XCTAssertEqual(configuration.calibrationCorrection, .neutral)
+    }
+
+    @MainActor
+    func testScanStartPublishesCalibrationWarningButContinuesWithNeutralCorrection() {
+        var warnings: [ScanCalibrationWarning] = []
+        let coordinator = ScanCoordinator(
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+        )
+        coordinator.onCalibrationWarning = { warnings.append($0) }
+
+        coordinator.startRecording(selectedCategory: .apple)
+
+        XCTAssertEqual(warnings, [.recordsUnavailable])
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertEqual(coordinator.activeFruitConfiguration?.calibrationCorrection, .neutral)
+        XCTAssertEqual(coordinator.activeFruitConfiguration?.calibrationWarning, .recordsUnavailable)
+
+        coordinator.teardown()
+        XCTAssertNil(coordinator.onCalibrationWarning)
+    }
+
+    @MainActor
     func testScanFruitConfigurationRemainsStableWhenGlobalSettingChanges() {
         let settings = SettingsStore.shared
         let originalFruitType = settings.fruitType

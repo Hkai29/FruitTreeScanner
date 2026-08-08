@@ -109,14 +109,30 @@ struct ScanFruitConfiguration {
     let fusionConfig: FruitScanConfig
     let colorFilter: ColorFilter
     let calibrationCorrection: YieldCalibrationCorrection
+    let calibrationWarning: ScanCalibrationWarning?
 
     @MainActor
     /// 固化一次扫描使用的类别、阈值与校准快照，避免扫描途中设置变化污染结果。
-    static func capture(selectedCategory: FruitCategory, settings: ScanSettingsProviding) -> ScanFruitConfiguration {
+    static func capture(
+        selectedCategory: FruitCategory,
+        settings: ScanSettingsProviding,
+        calibrationRecordsLoader: ScanCalibrationRecordsLoader = {
+            try CalibrationRecordPersistence.load()
+        }
+    ) -> ScanFruitConfiguration {
         let parametersSnapshot = FruitParametersStore.shared.parameterSnapshot()
         let defaultParams = parametersSnapshot[selectedCategory.rawValue]
             ?? FruitVarietyParams(category: selectedCategory)
-        let calibrationRecords = (try? CalibrationRecordPersistence.load()) ?? []
+        let calibrationRecords: [CalibrationRecord]
+        let calibrationWarning: ScanCalibrationWarning?
+        do {
+            calibrationRecords = try calibrationRecordsLoader()
+            calibrationWarning = nil
+        } catch {
+            calibrationRecords = []
+            calibrationWarning = .recordsUnavailable
+            Log.scan.error("Calibration records unavailable at scan start: \(error.localizedDescription)")
+        }
         return ScanFruitConfiguration(
             selectedCategory: selectedCategory,
             parametersSnapshot: parametersSnapshot,
@@ -128,15 +144,23 @@ struct ScanFruitConfiguration {
                 from: calibrationRecords,
                 fruitCategory: selectedCategory,
                 fruitType: selectedCategory.rawValue
-            )
+            ),
+            calibrationWarning: calibrationWarning
         )
     }
 }
+
+enum ScanCalibrationWarning: Equatable, Sendable {
+    case recordsUnavailable
+}
+
+typealias ScanCalibrationRecordsLoader = () throws -> [CalibrationRecord]
 
 /// 协调 AR 会话、点云采集、图像检测与产量估算的扫描级生命周期。
 class ScanCoordinator: NSObject {
     let settings: ScanSettingsProviding
     private let sessionRuntime: ScanSessionRuntime
+    let calibrationRecordsLoader: ScanCalibrationRecordsLoader
 
     var renderer: Renderer?
     var session: ARSession?
@@ -144,10 +168,14 @@ class ScanCoordinator: NSObject {
 
     init(
         settings: ScanSettingsProviding = SettingsStore.shared,
-        sessionRuntime: ScanSessionRuntime = .live
+        sessionRuntime: ScanSessionRuntime = .live,
+        calibrationRecordsLoader: @escaping ScanCalibrationRecordsLoader = {
+            try CalibrationRecordPersistence.load()
+        }
     ) {
         self.settings = settings
         self.sessionRuntime = sessionRuntime
+        self.calibrationRecordsLoader = calibrationRecordsLoader
         super.init()
     }
 
@@ -168,6 +196,7 @@ class ScanCoordinator: NSObject {
     var onQualitySampleUpdate: ((ScanQualitySample) -> Void)?
     var onCoveragePercentChange: ((Int) -> Void)?
     var onFruitCategoryMismatch: ((FruitCategoryMismatch) -> Void)?
+    var onCalibrationWarning: ((ScanCalibrationWarning) -> Void)?
     var onLifecycleStateChange: ((ScanLifecycleSnapshot) -> Void)?
     #if DEBUG
     var onDetectionDebugStateChange: ((DetectionDebugState) -> Void)?
@@ -359,6 +388,7 @@ class ScanCoordinator: NSObject {
         onQualitySampleUpdate = nil
         onCoveragePercentChange = nil
         onFruitCategoryMismatch = nil
+        onCalibrationWarning = nil
         onLifecycleStateChange = nil
         #if DEBUG
         onDetectionDebugStateChange = nil

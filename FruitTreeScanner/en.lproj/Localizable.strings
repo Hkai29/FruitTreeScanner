@@ -10,6 +10,7 @@
 "scan.interruption_title" = "Scan Interrupted";
 "scan.interruption_message" = "Camera or AR tracking was interrupted during the scan. Restart the scan to avoid combining discontinuous scan data.";
 "scan.session_failure_title" = "Scan Session Error";
+"scan.calibration_unavailable" = "Local calibration records couldn’t be read. This scan will continue without local correction.";
 "scan.restart_after_interruption" = "Restart Scan";
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.result_persistence.failure.title" = "Result Files Not Saved";
