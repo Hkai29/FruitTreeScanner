@@ -10,6 +10,13 @@ extension ScanView {
             guard isViewActive else { return }
             categoryMismatch = mismatch
         }
+        coordinator.onCalibrationWarning = { warning in
+            guard isViewActive else { return }
+            switch warning {
+            case .recordsUnavailable:
+                showTemporaryNotice(L10n.Scan.calibrationUnavailable)
+            }
+        }
         coordinator.onLifecycleStateChange = { snapshot in
             guard isViewActive else { return }
             lifecycleSnapshot = snapshot
