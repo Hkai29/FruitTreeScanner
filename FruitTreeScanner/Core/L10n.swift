@@ -917,6 +917,48 @@ enum L10n {
         static let measurementDistance = NSLocalizedString("point_cloud.measurement.distance", value: "测量距离", comment: "Point-cloud measured distance label")
         static let closeMeasurementAccessibility = NSLocalizedString("point_cloud.accessibility.close_measurement", value: "停止测量", comment: "Stop point-cloud measurement accessibility label")
 
+        enum ScanMeasurementPrompt: String, CaseIterable {
+            case selectFirst = "scan.measurement.prompt.select_first"
+            case recordPointCloud = "scan.measurement.prompt.record_point_cloud"
+            case surfaceNotFound = "scan.measurement.prompt.surface_not_found"
+            case selectSecond = "scan.measurement.prompt.select_second"
+            case complete = "scan.measurement.prompt.complete"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .selectFirst: return "点击第1个点"
+                case .recordPointCloud: return "请先录制点云"
+                case .surfaceNotFound: return "未选中点云，请点果树表面"
+                case .selectSecond: return "点击第2个点"
+                case .complete: return "测量完成，点击重置"
+                }
+            }
+        }
+
+        static func scanMeasurementPrompt(
+            _ prompt: ScanMeasurementPrompt,
+            in bundle: Bundle = .main
+        ) -> String {
+            bundle.localizedString(forKey: prompt.rawValue, value: prompt.fallback, table: nil)
+        }
+
+        static func scanMeasurementCalculating(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "scan.measurement.calculating",
+                value: "计算中…",
+                table: nil
+            )
+        }
+
+        static func scanMeasurementDistance(_ distance: Float, in bundle: Bundle = .main) -> String {
+            let format = bundle.localizedString(
+                forKey: "scan.measurement.distance_format",
+                value: "%.2f m",
+                table: nil
+            )
+            return String(format: format, Double(distance))
+        }
+
         private static let noSearchResultsFormat = NSLocalizedString("point_cloud.selector.no_results", value: "未找到编号“%@”的记录", comment: "No point-cloud record matching the entered tree ID")
         private static let colorLegendFormat = NSLocalizedString("point_cloud.legend.color_format", value: "色彩：%@", comment: "Point-cloud color legend with selected mode")
         private static let actualHeightFormat = NSLocalizedString("point_cloud.legend.actual_height_format", value: "真实高度 %@", comment: "Actual point-cloud height")
