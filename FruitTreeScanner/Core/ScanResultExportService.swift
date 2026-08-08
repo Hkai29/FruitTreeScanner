@@ -1,8 +1,65 @@
 import Foundation
 import os
 
+private final class ScanResultExportCoordinator: @unchecked Sendable {
+    private struct Entry {
+        let semaphore: DispatchSemaphore
+        var users: Int
+    }
+
+    private let registryLock = NSLock()
+    private var entries: [String: Entry] = [:]
+
+    func withTransaction<T>(for key: String, operation: () throws -> T) throws -> T {
+        let semaphore = retainSemaphore(for: key)
+        var acquired = false
+        defer {
+            if acquired {
+                semaphore.signal()
+            }
+            releaseSemaphore(for: key)
+        }
+
+        while semaphore.wait(timeout: .now() + .milliseconds(50)) == .timedOut {
+            try Task.checkCancellation()
+        }
+        acquired = true
+        try Task.checkCancellation()
+        return try operation()
+    }
+
+    private func retainSemaphore(for key: String) -> DispatchSemaphore {
+        registryLock.lock()
+        defer { registryLock.unlock() }
+
+        if var entry = entries[key] {
+            entry.users += 1
+            entries[key] = entry
+            return entry.semaphore
+        }
+
+        let semaphore = DispatchSemaphore(value: 1)
+        entries[key] = Entry(semaphore: semaphore, users: 1)
+        return semaphore
+    }
+
+    private func releaseSemaphore(for key: String) {
+        registryLock.lock()
+        defer { registryLock.unlock() }
+
+        guard var entry = entries[key] else { return }
+        if entry.users == 1 {
+            entries.removeValue(forKey: key)
+        } else {
+            entry.users -= 1
+            entries[key] = entry
+        }
+    }
+}
+
 final class ScanResultExportService: @unchecked Sendable {
     static let shared = ScanResultExportService()
+    private static let transactionCoordinator = ScanResultExportCoordinator()
 
     struct ExportRequest: Sendable {
         let treeID: String
@@ -67,6 +124,28 @@ final class ScanResultExportService: @unchecked Sendable {
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
         let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
         let manifestURL = scansDir.appendingPathComponent("\(baseName)_complete.json")
+        let transactionKey = manifestURL.standardizedFileURL.resolvingSymlinksInPath().path
+
+        return try Self.transactionCoordinator.withTransaction(for: transactionKey) {
+            try exportTransactionIfNeeded(
+                request,
+                scansDirectory: scansDir,
+                baseName: baseName,
+                csvURL: csvURL,
+                metadataURL: metadataURL,
+                manifestURL: manifestURL
+            )
+        }
+    }
+
+    private func exportTransactionIfNeeded(
+        _ request: ExportRequest,
+        scansDirectory: URL,
+        baseName: String,
+        csvURL: URL,
+        metadataURL: URL,
+        manifestURL: URL
+    ) throws -> ExportedFiles? {
         let unsignedMetadata = try makeMetadataData(for: request, baseName: baseName, revision: "")
         let revision = transactionRevision(for: unsignedMetadata, includeCSV: request.includeCSV)
 
@@ -84,7 +163,7 @@ final class ScanResultExportService: @unchecked Sendable {
             )
         }
 
-        let stagingDirectory = scansDir.appendingPathComponent(
+        let stagingDirectory = scansDirectory.appendingPathComponent(
             ".\(baseName).\(revision).staging",
             isDirectory: true
         )
