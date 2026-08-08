@@ -55,10 +55,10 @@ struct StatusIndicator: View {
 
     private var label: String {
         switch status {
-        case .ready: return "就绪"
-        case .recording: return "采集中"
-        case .processing: return "处理中"
-        case .error: return "错误"
+        case .ready: return L10n.ScanHUD.ready
+        case .recording: return L10n.ScanHUD.recording
+        case .processing: return L10n.ScanHUD.processing
+        case .error: return L10n.ScanHUD.error
         }
     }
 
@@ -80,6 +80,8 @@ struct StatusIndicator: View {
             Text(label)
                 .font(.system(size: labelSize, weight: .regular))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

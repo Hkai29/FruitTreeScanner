@@ -296,6 +296,51 @@
 "quality.bright" = "偏亮";
 "quality.too_bright" = "过曝";
 
+/* Scan HUD */
+"scan.hud.whole_tree" = "果树全株";
+"scan.hud.tree_id_format" = "树号 %@";
+"scan.hud.metric.tree_id" = "树号";
+"scan.hud.metric.coverage" = "覆盖";
+"scan.hud.metric.fruit_count" = "果数";
+"scan.hud.metric.quality" = "质量";
+"scan.hud.metric.depth" = "深度";
+"scan.hud.metric.points" = "点数";
+"scan.hud.metric.vision" = "图像";
+"scan.hud.metric.model" = "模型";
+"scan.hud.metric.point_cloud" = "点云";
+"scan.hud.metric.frames" = "帧数";
+"scan.hud.metric.fusion" = "融合";
+"scan.hud.metric.density" = "密度";
+"scan.hud.metric.lighting" = "光照";
+"scan.hud.state.ready" = "就绪";
+"scan.hud.state.recording" = "采集中";
+"scan.hud.state.processing" = "处理中";
+"scan.hud.state.error" = "错误";
+"scan.hud.route.trunk" = "从主干开始，慢速绕树一圈";
+"scan.hud.route.discovering" = "正在发现新区域，继续保持树冠在画面中";
+"scan.hud.route.finishing" = "接近完成，补树冠背面和下层枝条";
+"scan.hud.route.stable" = "覆盖稳定，可以停止录制并进入粗预览";
+"scan.hud.vision.on_device" = "本机";
+"scan.hud.vision.fallback" = "备用";
+"scan.hud.vision.model_not_loaded" = "未载入";
+"scan.hud.vision.model_loaded" = "已载入";
+"scan.hud.runtime.available" = "可用";
+"scan.hud.runtime.waiting" = "等待";
+"scan.hud.runtime.no_depth" = "无深度";
+"scan.hud.runtime.unavailable" = "不可用";
+"scan.hud.runtime.exportable" = "可导出";
+"scan.hud.runtime.fused" = "已融合";
+"scan.hud.runtime.low_confidence" = "低置信";
+"scan.hud.runtime.scanning" = "扫描中";
+"scan.hud.runtime.rescanning" = "补扫中";
+"scan.hud.runtime.interrupted" = "已中断";
+"scan.hud.runtime.failed" = "失败";
+"scan.hud.quality.poor" = "差";
+"scan.hud.quality.fair" = "一般";
+"scan.hud.quality.good" = "良好";
+"scan.hud.quality.excellent" = "优秀";
+"scan.hud.quality.outstanding" = "极佳";
+
 /* Voxel Trend */
 "voxel.collecting" = "收集中...";
 "voxel.discovering" = "持续发现新区域";
