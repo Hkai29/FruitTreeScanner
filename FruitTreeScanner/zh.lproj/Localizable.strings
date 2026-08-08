@@ -12,6 +12,13 @@
 "scan.session_failure_title" = "扫描会话发生错误";
 "scan.restart_after_interruption" = "重新开始";
 "scan.discard_after_interruption" = "放弃扫描";
+"scan.result_persistence.failure.title" = "结果文件未保存";
+"scan.result_persistence.failure.message" = "点云已安全保存，但果数和产量结果文件尚未保存。请在离开前重试，以保留完整记录。";
+"scan.result_persistence.retry" = "重试保存";
+"scan.result_persistence.retrying" = "正在重试…";
+"scan.result_persistence.retry_hint" = "无需重新扫描，直接重试保存结果文件。";
+"scan.result_persistence.success_notice" = "结果文件已保存。";
+"scan.result_persistence.failure_notice" = "结果文件仍无法保存，请检查存储空间后重试。";
 "scan.interruption_accessibility_hint" = "重新开始会清除本次扫描数据；放弃不会生成扫描结果。";
 
 /* 扫描完成反馈 */

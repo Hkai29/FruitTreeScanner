@@ -12,6 +12,13 @@
 "scan.session_failure_title" = "Scan Session Error";
 "scan.restart_after_interruption" = "Restart Scan";
 "scan.discard_after_interruption" = "Discard Scan";
+"scan.result_persistence.failure.title" = "Result Files Not Saved";
+"scan.result_persistence.failure.message" = "The point cloud is safe, but fruit count and yield files were not saved. Retry before leaving to keep a complete record.";
+"scan.result_persistence.retry" = "Retry Saving";
+"scan.result_persistence.retrying" = "Retrying…";
+"scan.result_persistence.retry_hint" = "Retries the result files without scanning the tree again.";
+"scan.result_persistence.success_notice" = "Result files saved.";
+"scan.result_persistence.failure_notice" = "Result files still could not be saved. Check storage space and retry.";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
 
 /* Scan Completion */

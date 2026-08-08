@@ -13,6 +13,7 @@ extension ScanView {
             onResumeRecording: resumeRecording,
             onFinishScan: finishScan,
             onClearMeasurement: clearMeasurementState,
+            onRetryResultPersistence: retryResultPersistence,
             onDismissResult: dismissResult,
             onDismissResultToHome: dismissResultToHome,
             onDebug: showDebugSnapshot
@@ -28,6 +29,7 @@ extension ScanView {
             onResumeRecording: resumeRecording,
             onFinishScan: finishScan,
             onClearMeasurement: clearMeasurementState,
+            onRetryResultPersistence: retryResultPersistence,
             onDismissResult: dismissResult,
             onDismissResultToHome: dismissResultToHome
         )

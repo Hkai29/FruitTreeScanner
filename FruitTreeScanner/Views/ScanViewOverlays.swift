@@ -10,6 +10,7 @@ struct ScanScannerInterfaceActions {
     let onResumeRecording: () -> Void
     let onFinishScan: () -> Void
     let onClearMeasurement: () -> Void
+    let onRetryResultPersistence: () -> Void
     let onDismissResult: () -> Void
     let onDismissResultToHome: () -> Void
     let onDebug: (() -> Void)?
@@ -24,6 +25,7 @@ struct ScanScannerInterfaceActions {
         onResumeRecording: @escaping () -> Void,
         onFinishScan: @escaping () -> Void,
         onClearMeasurement: @escaping () -> Void,
+        onRetryResultPersistence: @escaping () -> Void,
         onDismissResult: @escaping () -> Void,
         onDismissResultToHome: @escaping () -> Void,
         onDebug: (() -> Void)? = nil
@@ -37,6 +39,7 @@ struct ScanScannerInterfaceActions {
         self.onResumeRecording = onResumeRecording
         self.onFinishScan = onFinishScan
         self.onClearMeasurement = onClearMeasurement
+        self.onRetryResultPersistence = onRetryResultPersistence
         self.onDismissResult = onDismissResult
         self.onDismissResultToHome = onDismissResultToHome
         self.onDebug = onDebug
@@ -54,6 +57,7 @@ struct ScanScannerInterfaceLayer: View {
     let showResult: Bool
     let showCoverageComplete: Bool
     let yieldResult: YieldResult?
+    let resultPersistenceState: ScanResultPersistenceState
     let detectionDebugState: DetectionDebugState?
 
     @ObservedObject var hudState: ScanHUDState
@@ -109,6 +113,8 @@ struct ScanScannerInterfaceLayer: View {
                 treeID: treeID,
                 showResult: showResult,
                 yieldResult: yieldResult,
+                resultPersistenceState: resultPersistenceState,
+                onRetryResultPersistence: actions.onRetryResultPersistence,
                 onDismissResult: actions.onDismissResult,
                 onDismissResultToHome: actions.onDismissResultToHome
             )

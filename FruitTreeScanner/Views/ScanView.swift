@@ -21,6 +21,7 @@ struct ScanView: View {
     @State var showGuide = true
     @State var savedFilename = ""
     @State var yieldResult: YieldResult? = nil
+    @State var resultPersistenceState: ScanResultPersistenceState = .idle
     @State var showResult = false
     @State var isEstimating = false
     @State var showCoverageComplete = false
@@ -66,6 +67,7 @@ struct ScanView: View {
                 showResult: showResult,
                 showCoverageComplete: showCoverageComplete,
                 yieldResult: yieldResult,
+                resultPersistenceState: resultPersistenceState,
                 detectionDebugState: currentDetectionDebugState,
                 hudState: hudState,
                 qualityMonitor: qualityMonitor,

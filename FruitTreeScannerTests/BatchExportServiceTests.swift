@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class BatchExportServiceTests: XCTestCase {
@@ -2510,5 +2512,73 @@ final class BatchExportServiceTests: XCTestCase {
         let xml = try await exportExcelContent(records: [record], options: options)
         XCTAssertFalse(xml.contains("果树编号"))
         XCTAssertTrue(xml.contains("水果类型"))
+    }
+
+    func testScanResultPersistenceRecoveryCopyExistsInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "scan.result_persistence.failure.title": "Result Files Not Saved",
+                "scan.result_persistence.failure.message": "The point cloud is safe, but fruit count and yield files were not saved. Retry before leaving to keep a complete record.",
+                "scan.result_persistence.retry": "Retry Saving",
+                "scan.result_persistence.retrying": "Retrying…",
+                "scan.result_persistence.retry_hint": "Retries the result files without scanning the tree again.",
+                "scan.result_persistence.success_notice": "Result files saved.",
+                "scan.result_persistence.failure_notice": "Result files still could not be saved. Check storage space and retry.",
+            ],
+            "zh": [
+                "scan.result_persistence.failure.title": "结果文件未保存",
+                "scan.result_persistence.failure.message": "点云已安全保存，但果数和产量结果文件尚未保存。请在离开前重试，以保留完整记录。",
+                "scan.result_persistence.retry": "重试保存",
+                "scan.result_persistence.retrying": "正在重试…",
+                "scan.result_persistence.retry_hint": "无需重新扫描，直接重试保存结果文件。",
+                "scan.result_persistence.success_notice": "结果文件已保存。",
+                "scan.result_persistence.failure_notice": "结果文件仍无法保存，请检查存储空间后重试。",
+            ],
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+            )
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testScanResultPersistenceStateKeepsFailureRecoverableAndBlocksDismissalOnlyDuringRetry() {
+        XCTAssertEqual(ScanResultPersistenceState.resolved(didPersist: true), .saved)
+        XCTAssertEqual(ScanResultPersistenceState.resolved(didPersist: false), .failed)
+
+        XCTAssertFalse(ScanResultPersistenceState.idle.showsRecovery)
+        XCTAssertFalse(ScanResultPersistenceState.saved.showsRecovery)
+        XCTAssertTrue(ScanResultPersistenceState.failed.showsRecovery)
+        XCTAssertTrue(ScanResultPersistenceState.retrying.showsRecovery)
+
+        XCTAssertFalse(ScanResultPersistenceState.failed.blocksResultDismissal)
+        XCTAssertTrue(ScanResultPersistenceState.retrying.blocksResultDismissal)
+    }
+
+    @MainActor
+    func testScanResultPersistenceRecoveryCardRendersInCompactLayout() throws {
+        let content = ResultPersistenceRecoveryCard(state: .failed, onRetry: {})
+            .frame(width: 390, height: 330)
+            .background(Design.Colors.Dark.bgDeep)
+            .environment(\.colorScheme, .dark)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 3
+        renderer.proposedSize = ProposedViewSize(width: 390, height: 330)
+        let image = try XCTUnwrap(renderer.uiImage)
+        XCTAssertEqual(image.size, CGSize(width: 390, height: 330))
+
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "ScanResultPersistenceRecovery-\(Locale.preferredLanguages.first ?? "unknown")"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

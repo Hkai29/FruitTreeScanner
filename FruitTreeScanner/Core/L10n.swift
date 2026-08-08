@@ -228,6 +228,35 @@ enum L10n {
         }
     }
 
+    // MARK: - Scan Result Persistence
+    enum ScanResultPersistence {
+        enum Key: String {
+            case failureTitle = "scan.result_persistence.failure.title"
+            case failureMessage = "scan.result_persistence.failure.message"
+            case retry = "scan.result_persistence.retry"
+            case retrying = "scan.result_persistence.retrying"
+            case retryHint = "scan.result_persistence.retry_hint"
+            case successNotice = "scan.result_persistence.success_notice"
+            case failureNotice = "scan.result_persistence.failure_notice"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .failureTitle: return "结果文件未保存"
+                case .failureMessage: return "点云已安全保存，但果数和产量结果文件尚未保存。请在离开前重试，以保留完整记录。"
+                case .retry: return "重试保存"
+                case .retrying: return "正在重试…"
+                case .retryHint: return "无需重新扫描，直接重试保存结果文件。"
+                case .successNotice: return "结果文件已保存。"
+                case .failureNotice: return "结果文件仍无法保存，请检查存储空间后重试。"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+    }
+
     // MARK: - Scan Readiness
     enum ScanReadiness {
         enum Key: String {

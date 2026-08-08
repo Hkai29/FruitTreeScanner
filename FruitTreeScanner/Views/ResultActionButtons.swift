@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ResultActionButtons: View {
+    let isDisabled: Bool
     let onDismiss: () -> Void
     let onDismissToHome: () -> Void
 
@@ -34,6 +35,8 @@ struct ResultActionButtons: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.55 : 1)
         .padding(.horizontal, 18)
         .padding(.bottom, 40)
     }

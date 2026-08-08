@@ -1,5 +1,28 @@
 import SwiftUI
 
+enum ScanResultPersistenceState: Equatable {
+    case idle
+    case saved
+    case failed
+    case retrying
+
+    static func resolved(didPersist: Bool) -> Self {
+        didPersist ? .saved : .failed
+    }
+
+    var showsRecovery: Bool {
+        self == .failed || self == .retrying
+    }
+
+    var isRetrying: Bool {
+        self == .retrying
+    }
+
+    var blocksResultDismissal: Bool {
+        isRetrying
+    }
+}
+
 extension ScanView {
     func finishScan() {
         guard !isEstimating else { return }
@@ -26,6 +49,7 @@ extension ScanView {
         }
 
         clearMeasurementState()
+        resultPersistenceState = .idle
         withAnimation(.easeInOut(duration: 0.2)) { isEstimating = true }
         let gpsSnapshot = gps.reliableLocationSnapshot()
         coordinator.exportPLY(
@@ -49,19 +73,46 @@ extension ScanView {
 
                     if !didPersist {
                         ScanHistoryStore.shared.notifyRecordsUpdated()
-                        self.showTemporaryNotice("结果文件保存失败，请保留点云后重试导出")
                     }
 
                     self.isEstimating = false
                     self.yieldResult = result
+                    self.resultPersistenceState = .resolved(didPersist: didPersist)
                     if didPersist {
-                        self.coordinator.markScanCompleted()
-                        self.lifecycleSnapshot = self.coordinator.lifecycleSnapshot()
+                        self.markResultPersistenceComplete()
                     }
                     withAnimation(.easeInOut(duration: 0.3)) { self.showResult = true }
                 }
             }
         }
+    }
+
+    func retryResultPersistence() {
+        guard resultPersistenceState == .failed,
+              let result = yieldResult,
+              !savedFilename.isEmpty
+        else { return }
+
+        resultPersistenceState = .retrying
+        let filename = savedFilename
+        Task { @MainActor in
+            let didPersist = await persistScanResult(result: result, filename: filename)
+            guard isViewActive else { return }
+
+            resultPersistenceState = .resolved(didPersist: didPersist)
+            if didPersist {
+                markResultPersistenceComplete()
+                showTemporaryNotice(L10n.ScanResultPersistence.text(.successNotice))
+            } else {
+                ScanHistoryStore.shared.notifyRecordsUpdated()
+                showTemporaryNotice(L10n.ScanResultPersistence.text(.failureNotice))
+            }
+        }
+    }
+
+    private func markResultPersistenceComplete() {
+        coordinator.markScanCompleted()
+        lifecycleSnapshot = coordinator.lifecycleSnapshot()
     }
 
     @MainActor
