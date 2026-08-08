@@ -1141,9 +1141,21 @@ final class BatchExportServiceTests: XCTestCase {
         }
 
         let csv = try String(contentsOf: csvURL, encoding: .utf8)
-        XCTAssertTrue(csv.contains(",0,0.00,"))
-        XCTAssertFalse(csv.contains("-9"))
-        XCTAssertFalse(csv.contains("-2.50"))
+        let lines = csv.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
+        let headers = try XCTUnwrap(lines.first).split(separator: ",").map(String.init)
+        let values = try XCTUnwrap(lines.dropFirst().first).split(
+            separator: ",",
+            omittingEmptySubsequences: false
+        ).map(String.init)
+        let valueForHeader: (String) -> String? = { header in
+            guard let index = headers.firstIndex(of: header), values.indices.contains(index) else {
+                return nil
+            }
+            return values[index]
+        }
+
+        XCTAssertEqual(valueForHeader("果实数量"), "0")
+        XCTAssertEqual(valueForHeader("产量(kg)"), "0.00")
 
         let metadataURL = try XCTUnwrap(exported.metadataURL)
         let data = try Data(contentsOf: metadataURL)
