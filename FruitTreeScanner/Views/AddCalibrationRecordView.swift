@@ -1,5 +1,15 @@
 import SwiftUI
 
+enum CalibrationScanRecordImportPolicy {
+    static func isEligible(_ record: ScanFileRecord) -> Bool {
+        record.persistenceState == .complete
+    }
+
+    static func eligibleRecords(from records: [ScanFileRecord]) -> [ScanFileRecord] {
+        records.filter(isEligible)
+    }
+}
+
 struct AddCalibrationRecordView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject private var historyStore = ScanHistoryStore.shared
@@ -21,7 +31,9 @@ struct AddCalibrationRecordView: View {
                     .ignoresSafeArea()
 
                 AddCalibrationRecordForm(
-                    recentRecords: historyStore.scanFiles,
+                    recentRecords: CalibrationScanRecordImportPolicy.eligibleRecords(
+                        from: historyStore.scanFiles
+                    ),
                     treeID: $treeID,
                     estimatedFruitCount: $estimatedFruitCount,
                     estimatedYieldKg: $estimatedYieldKg,
@@ -62,6 +74,8 @@ struct AddCalibrationRecordView: View {
     }
 
     private func applyScanRecord(_ record: ScanFileRecord) {
+        guard CalibrationScanRecordImportPolicy.isEligible(record) else { return }
+
         treeID = record.treeID
         estimatedFruitCount = "\(record.fruitCount)"
         estimatedYieldKg = String(format: "%.2f", record.yieldKg)
