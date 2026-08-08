@@ -14,15 +14,15 @@ struct Step1_IDEntry: View {
             StartStepHeader(
                 step: 1,
                 totalSteps: 5,
-                title: "果树编号",
-                subtitle: "用于记录、导出和后续对比，建议与果园现场编号一致。"
+                title: L10n.StartSetup.text(.identifierTitle),
+                subtitle: L10n.StartSetup.text(.identifierSubtitle)
             )
 
             inputCard
 
             StartNoteRow(
                 icon: "link",
-                text: "编号会写入扫描记录和导出文件，不会影响点云采集本身。",
+                text: L10n.StartSetup.text(.identifierNote),
                 tint: Design.Colors.harvest
             )
         }
@@ -37,7 +37,7 @@ struct Step1_IDEntry: View {
     private var inputCard: some View {
         VStack(alignment: .leading, spacing: Design.Space.sm) {
             HStack {
-                Text("编号")
+                Text(L10n.StartSetup.text(.identifierFieldLabel))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                 Spacer()
@@ -46,7 +46,7 @@ struct Step1_IDEntry: View {
                     .foregroundColor(statusColor)
             }
 
-            TextField("例：T001", text: $draftTreeID)
+            TextField(L10n.StartSetup.text(.identifierPlaceholder), text: $draftTreeID)
                 .font(.system(size: 19, weight: .semibold, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(.horizontal, Design.Space.md)
@@ -70,7 +70,13 @@ struct Step1_IDEntry: View {
     }
 
     private var statusText: String {
-        localIsValid ? "可用" : (validationErrorMessage != nil ? "无效" : "必填")
+        localIsValid
+            ? L10n.StartSetup.text(.identifierAvailable)
+            : (
+                validationErrorMessage != nil
+                    ? L10n.StartSetup.text(.identifierInvalid)
+                    : L10n.StartSetup.text(.identifierRequired)
+            )
     }
 
     private var statusColor: Color {
@@ -106,9 +112,9 @@ struct Step1_IDEntry: View {
         if normalized.isEmpty {
             localIsValid = false
             validationErrorMessage = nil
-        } else if let error = TreeIdentifierPolicy.validationError(for: normalized) {
+        } else if let issue = TreeIdentifierPolicy.validationIssue(for: normalized) {
             localIsValid = false
-            validationErrorMessage = error
+            validationErrorMessage = L10n.StartSetup.validationError(for: issue)
         } else {
             localIsValid = true
             validationErrorMessage = nil

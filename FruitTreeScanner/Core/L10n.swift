@@ -379,6 +379,203 @@ enum L10n {
         }
     }
 
+    // MARK: - Start Setup
+    enum StartSetup {
+        enum Key: String, CaseIterable {
+            case identifierTitle = "start.setup.identifier.title"
+            case identifierToolSubtitle = "start.setup.identifier.tool_subtitle"
+            case identifierSubtitle = "start.setup.identifier.subtitle"
+            case identifierNote = "start.setup.identifier.note"
+            case identifierFieldLabel = "start.setup.identifier.field_label"
+            case identifierPlaceholder = "start.setup.identifier.placeholder"
+            case identifierAvailable = "start.setup.identifier.status.available"
+            case identifierInvalid = "start.setup.identifier.status.invalid"
+            case identifierRequired = "start.setup.identifier.status.required"
+            case identifierErrorEmpty = "start.setup.identifier.error.empty"
+            case identifierErrorTooLong = "start.setup.identifier.error.too_long"
+            case identifierErrorPathMarker = "start.setup.identifier.error.path_marker"
+            case identifierErrorForbidden = "start.setup.identifier.error.forbidden"
+            case plotToolTitle = "start.setup.plot.tool_title"
+            case plotToolSubtitle = "start.setup.plot.tool_subtitle"
+            case plotTitle = "start.setup.plot.title"
+            case plotSubtitle = "start.setup.plot.subtitle"
+            case plotEmptyTitle = "start.setup.plot.empty.title"
+            case plotEmptyMessage = "start.setup.plot.empty.message"
+            case plotCreate = "start.setup.plot.create"
+            case plotNoneTitle = "start.setup.plot.none.title"
+            case plotNoneSubtitle = "start.setup.plot.none.subtitle"
+            case plotAssignedSubtitle = "start.setup.plot.assigned_subtitle"
+            case plotAdd = "start.setup.plot.add"
+            case seasonTitle = "start.setup.season.title"
+            case seasonToolSubtitle = "start.setup.season.tool_subtitle"
+            case seasonSubtitle = "start.setup.season.subtitle"
+            case seasonNote = "start.setup.season.note"
+            case seasonMatureTitle = "start.setup.season.mature.title"
+            case seasonMatureSubtitle = "start.setup.season.mature.subtitle"
+            case seasonOffTitle = "start.setup.season.off.title"
+            case seasonOffSubtitle = "start.setup.season.off.subtitle"
+            case seasonCalibrationPending = "start.setup.season.calibration_pending"
+            case tagsToolTitle = "start.setup.tags.tool_title"
+            case tagsToolSubtitle = "start.setup.tags.tool_subtitle"
+            case tagsTitle = "start.setup.tags.title"
+            case tagsSubtitle = "start.setup.tags.subtitle"
+            case tagsEmptyTitle = "start.setup.tags.empty.title"
+            case tagsEmptyMessage = "start.setup.tags.empty.message"
+            case tagsCreate = "start.setup.tags.create"
+            case tagsAdd = "start.setup.tags.add"
+            case tagsSelectedCount = "start.setup.tags.selected_count"
+            case confirmationToolTitle = "start.setup.confirmation.tool_title"
+            case confirmationToolSubtitle = "start.setup.confirmation.tool_subtitle"
+            case confirmationTitle = "start.setup.confirmation.title"
+            case confirmationSubtitle = "start.setup.confirmation.subtitle"
+            case confirmationUnassigned = "start.setup.confirmation.unassigned"
+            case confirmationMatureSeason = "start.setup.confirmation.season.mature"
+            case confirmationOffSeason = "start.setup.confirmation.season.off"
+            case confirmationNone = "start.setup.confirmation.none"
+            case confirmationGPSAvailable = "start.setup.confirmation.gps.available"
+            case confirmationGPSPending = "start.setup.confirmation.gps.pending"
+            case confirmationNote = "start.setup.confirmation.note"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .identifierTitle:
+                    return "果树编号"
+                case .identifierToolSubtitle:
+                    return "先建立可追踪的树体档案，后续记录会自动归到这个编号。"
+                case .identifierSubtitle:
+                    return "用于记录、导出和后续对比，建议与果园现场编号一致。"
+                case .identifierNote:
+                    return "编号会写入扫描记录和导出文件，不会影响点云采集本身。"
+                case .identifierFieldLabel:
+                    return "编号"
+                case .identifierPlaceholder:
+                    return "例：T001"
+                case .identifierAvailable:
+                    return "可用"
+                case .identifierInvalid:
+                    return "无效"
+                case .identifierRequired:
+                    return "必填"
+                case .identifierErrorEmpty:
+                    return "请输入果树编号"
+                case .identifierErrorTooLong:
+                    return "编号最多 %d 个字符"
+                case .identifierErrorPathMarker:
+                    return "编号不能使用路径标记"
+                case .identifierErrorForbidden:
+                    return "编号不能包含 /、\\、: 或换行"
+                case .plotToolTitle:
+                    return "地块归档"
+                case .plotToolSubtitle:
+                    return "把扫描挂到对应地块，便于之后按区域筛选和汇总。"
+                case .plotTitle:
+                    return "地块"
+                case .plotSubtitle:
+                    return "可选。用于后续按地块筛选和汇总。"
+                case .plotEmptyTitle:
+                    return "还没有地块"
+                case .plotEmptyMessage:
+                    return "这次扫描可以跳过，之后也能在标签管理中维护。"
+                case .plotCreate:
+                    return "创建地块"
+                case .plotNoneTitle:
+                    return "暂不分配"
+                case .plotNoneSubtitle:
+                    return "扫描完成后再归档到地块"
+                case .plotAssignedSubtitle:
+                    return "分配到该地块"
+                case .plotAdd:
+                    return "添加地块"
+                case .seasonTitle:
+                    return "估算阶段"
+                case .seasonToolSubtitle:
+                    return "当前开放成熟期融合估算；冠层回归完成实测标定后开放。"
+                case .seasonSubtitle:
+                    return "当前仅开放已具备可靠输入的成熟期估算。"
+                case .seasonNote:
+                    return "非成熟期冠层路线需先用真实称重数据完成模型标定，避免输出缺乏依据的产量。"
+                case .seasonMatureTitle:
+                    return "成熟期"
+                case .seasonMatureSubtitle:
+                    return "RGB + LiDAR 果实融合估算"
+                case .seasonOffTitle:
+                    return "非成熟期（待标定）"
+                case .seasonOffSubtitle:
+                    return "冠层回归尚缺实测系数，暂不可选择"
+                case .seasonCalibrationPending:
+                    return "待标定"
+                case .tagsToolTitle:
+                    return "标签分组"
+                case .tagsToolSubtitle:
+                    return "用标签标记品种、试验组或管理状态，方便后续复盘。"
+                case .tagsTitle:
+                    return "标签"
+                case .tagsSubtitle:
+                    return "可选。用于标记品种、试验组或管理状态。"
+                case .tagsEmptyTitle:
+                    return "还没有标签"
+                case .tagsEmptyMessage:
+                    return "标签可以跳过，不会影响扫描。"
+                case .tagsCreate:
+                    return "创建标签"
+                case .tagsAdd:
+                    return "添加"
+                case .tagsSelectedCount:
+                    return "已选 %d 个标签"
+                case .confirmationToolTitle:
+                    return "启动扫描"
+                case .confirmationToolSubtitle:
+                    return "确认信息后进入 LiDAR 采集，请围绕树体缓慢移动。"
+                case .confirmationTitle:
+                    return "启动前检查"
+                case .confirmationSubtitle:
+                    return "确认编号、分组和定位状态。"
+                case .confirmationUnassigned:
+                    return "未分配"
+                case .confirmationMatureSeason:
+                    return "成熟期（RGB + LiDAR 融合）"
+                case .confirmationOffSeason:
+                    return "非成熟期（待标定）"
+                case .confirmationNone:
+                    return "无"
+                case .confirmationGPSAvailable:
+                    return "已获取"
+                case .confirmationGPSPending:
+                    return "获取中..."
+                case .confirmationNote:
+                    return "开始后请围绕树体缓慢移动，尽量让树冠与果实进入稳定视野。"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static func selectedTagCount(_ count: Int, in bundle: Bundle = .main) -> String {
+            String.localizedStringWithFormat(text(.tagsSelectedCount, in: bundle), count)
+        }
+
+        static func validationError(
+            for issue: TreeIdentifierPolicy.ValidationIssue,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch issue {
+            case .empty:
+                return text(.identifierErrorEmpty, in: bundle)
+            case .tooLong(let maximumCharacterCount):
+                return String(
+                    format: text(.identifierErrorTooLong, in: bundle),
+                    maximumCharacterCount
+                )
+            case .pathMarker:
+                return text(.identifierErrorPathMarker, in: bundle)
+            case .forbiddenCharacters:
+                return text(.identifierErrorForbidden, in: bundle)
+            }
+        }
+    }
+
     // MARK: - Settings
     enum Settings {
         static let title = NSLocalizedString("settings.title", value: "设置", comment: "Settings title")

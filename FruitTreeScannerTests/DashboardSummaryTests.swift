@@ -527,6 +527,170 @@ final class QuickScanLocalizationTests: XCTestCase {
     }
 }
 
+final class StartSetupLocalizationTests: XCTestCase {
+
+    func testStartSetupCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "start.setup.identifier.title": "Tree ID",
+                "start.setup.identifier.tool_subtitle": "Use one ID to track this tree across scans.",
+                "start.setup.identifier.subtitle": "Used in records, exports, and comparisons. Match the ID used in the orchard.",
+                "start.setup.identifier.note": "The ID is saved in scan records and exports. It does not affect point-cloud capture.",
+                "start.setup.identifier.field_label": "ID",
+                "start.setup.identifier.placeholder": "Example: T001",
+                "start.setup.identifier.status.available": "Available",
+                "start.setup.identifier.status.invalid": "Invalid",
+                "start.setup.identifier.status.required": "Required",
+                "start.setup.identifier.error.empty": "Enter a tree ID",
+                "start.setup.identifier.error.too_long": "Tree ID must be no more than %d characters",
+                "start.setup.identifier.error.path_marker": "Tree ID cannot be a path marker",
+                "start.setup.identifier.error.forbidden": "Tree ID cannot contain /, \\, :, or line breaks",
+                "start.setup.plot.tool_title": "Plot Assignment",
+                "start.setup.plot.tool_subtitle": "Assign a plot for filtering and summaries.",
+                "start.setup.plot.title": "Plot",
+                "start.setup.plot.subtitle": "Optional. Used to filter and summarize scans by plot.",
+                "start.setup.plot.empty.title": "No plots yet",
+                "start.setup.plot.empty.message": "You can skip this scan and manage plots later in Plot & Tag Management.",
+                "start.setup.plot.create": "Create Plot",
+                "start.setup.plot.none.title": "Do Not Assign",
+                "start.setup.plot.none.subtitle": "Assign the plot after the scan",
+                "start.setup.plot.assigned_subtitle": "Assign to this plot",
+                "start.setup.plot.add": "Add Plot",
+                "start.setup.season.title": "Estimation Stage",
+                "start.setup.season.tool_subtitle": "Mature fusion is ready; canopy calibration pending.",
+                "start.setup.season.subtitle": "Only mature-stage estimation currently has reliable inputs.",
+                "start.setup.season.note": "Non-mature canopy estimation requires calibration with measured weights before it can report evidence-based yield.",
+                "start.setup.season.mature.title": "Mature Stage",
+                "start.setup.season.mature.subtitle": "RGB + LiDAR fruit fusion",
+                "start.setup.season.off.title": "Non-Mature Stage (Calibration Pending)",
+                "start.setup.season.off.subtitle": "Canopy regression lacks measured coefficients and cannot be selected yet",
+                "start.setup.season.calibration_pending": "Calibration Pending",
+                "start.setup.tags.tool_title": "Tag Groups",
+                "start.setup.tags.tool_subtitle": "Group varieties, trials, or management status.",
+                "start.setup.tags.title": "Tags",
+                "start.setup.tags.subtitle": "Optional. Mark varieties, trial groups, or management status.",
+                "start.setup.tags.empty.title": "No tags yet",
+                "start.setup.tags.empty.message": "Tags are optional and do not affect scanning.",
+                "start.setup.tags.create": "Create Tag",
+                "start.setup.tags.add": "Add",
+                "start.setup.tags.selected_count": "Selected tags: %d",
+                "start.setup.confirmation.tool_title": "Start Scan",
+                "start.setup.confirmation.tool_subtitle": "Review details, then start LiDAR capture.",
+                "start.setup.confirmation.title": "Pre-Scan Check",
+                "start.setup.confirmation.subtitle": "Confirm the ID, grouping, and location status.",
+                "start.setup.confirmation.unassigned": "Unassigned",
+                "start.setup.confirmation.season.mature": "Mature Stage (RGB + LiDAR Fusion)",
+                "start.setup.confirmation.season.off": "Non-Mature Stage (Calibration Pending)",
+                "start.setup.confirmation.none": "None",
+                "start.setup.confirmation.gps.available": "Acquired",
+                "start.setup.confirmation.gps.pending": "Acquiring...",
+                "start.setup.confirmation.note": "After starting, move slowly around the tree and keep the canopy and fruit steadily in view."
+            ],
+            "zh": [
+                "start.setup.identifier.title": "果树编号",
+                "start.setup.identifier.tool_subtitle": "先建立可追踪的树体档案，后续记录会自动归到这个编号。",
+                "start.setup.identifier.subtitle": "用于记录、导出和后续对比，建议与果园现场编号一致。",
+                "start.setup.identifier.note": "编号会写入扫描记录和导出文件，不会影响点云采集本身。",
+                "start.setup.identifier.field_label": "编号",
+                "start.setup.identifier.placeholder": "例：T001",
+                "start.setup.identifier.status.available": "可用",
+                "start.setup.identifier.status.invalid": "无效",
+                "start.setup.identifier.status.required": "必填",
+                "start.setup.identifier.error.empty": "请输入果树编号",
+                "start.setup.identifier.error.too_long": "编号最多 %d 个字符",
+                "start.setup.identifier.error.path_marker": "编号不能使用路径标记",
+                "start.setup.identifier.error.forbidden": "编号不能包含 /、\\、: 或换行",
+                "start.setup.plot.tool_title": "地块归档",
+                "start.setup.plot.tool_subtitle": "把扫描挂到对应地块，便于之后按区域筛选和汇总。",
+                "start.setup.plot.title": "地块",
+                "start.setup.plot.subtitle": "可选。用于后续按地块筛选和汇总。",
+                "start.setup.plot.empty.title": "还没有地块",
+                "start.setup.plot.empty.message": "这次扫描可以跳过，之后也能在标签管理中维护。",
+                "start.setup.plot.create": "创建地块",
+                "start.setup.plot.none.title": "暂不分配",
+                "start.setup.plot.none.subtitle": "扫描完成后再归档到地块",
+                "start.setup.plot.assigned_subtitle": "分配到该地块",
+                "start.setup.plot.add": "添加地块",
+                "start.setup.season.title": "估算阶段",
+                "start.setup.season.tool_subtitle": "当前开放成熟期融合估算；冠层回归完成实测标定后开放。",
+                "start.setup.season.subtitle": "当前仅开放已具备可靠输入的成熟期估算。",
+                "start.setup.season.note": "非成熟期冠层路线需先用真实称重数据完成模型标定，避免输出缺乏依据的产量。",
+                "start.setup.season.mature.title": "成熟期",
+                "start.setup.season.mature.subtitle": "RGB + LiDAR 果实融合估算",
+                "start.setup.season.off.title": "非成熟期（待标定）",
+                "start.setup.season.off.subtitle": "冠层回归尚缺实测系数，暂不可选择",
+                "start.setup.season.calibration_pending": "待标定",
+                "start.setup.tags.tool_title": "标签分组",
+                "start.setup.tags.tool_subtitle": "用标签标记品种、试验组或管理状态，方便后续复盘。",
+                "start.setup.tags.title": "标签",
+                "start.setup.tags.subtitle": "可选。用于标记品种、试验组或管理状态。",
+                "start.setup.tags.empty.title": "还没有标签",
+                "start.setup.tags.empty.message": "标签可以跳过，不会影响扫描。",
+                "start.setup.tags.create": "创建标签",
+                "start.setup.tags.add": "添加",
+                "start.setup.tags.selected_count": "已选 %d 个标签",
+                "start.setup.confirmation.tool_title": "启动扫描",
+                "start.setup.confirmation.tool_subtitle": "确认信息后进入 LiDAR 采集，请围绕树体缓慢移动。",
+                "start.setup.confirmation.title": "启动前检查",
+                "start.setup.confirmation.subtitle": "确认编号、分组和定位状态。",
+                "start.setup.confirmation.unassigned": "未分配",
+                "start.setup.confirmation.season.mature": "成熟期（RGB + LiDAR 融合）",
+                "start.setup.confirmation.season.off": "非成熟期（待标定）",
+                "start.setup.confirmation.none": "无",
+                "start.setup.confirmation.gps.available": "已获取",
+                "start.setup.confirmation.gps.pending": "获取中...",
+                "start.setup.confirmation.note": "开始后请围绕树体缓慢移动，尽量让树冠与果实进入稳定视野。"
+            ]
+        ]
+
+        let productionKeys = Set(L10n.StartSetup.Key.allCases.map(\.rawValue))
+
+        for (language, expectedValues) in expectedCopy {
+            XCTAssertEqual(productionKeys, Set(expectedValues.keys))
+            let localizedBundle = try localizedBundle(language)
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testStartSetupFormatsDynamicCopyInBothLanguages() throws {
+        let english = try localizedBundle("en")
+        let chinese = try localizedBundle("zh")
+
+        XCTAssertEqual(L10n.StartSetup.selectedTagCount(3, in: english), "Selected tags: 3")
+        XCTAssertEqual(L10n.StartSetup.selectedTagCount(3, in: chinese), "已选 3 个标签")
+    }
+
+    func testStartSetupMapsEveryTreeIdentifierIssueInBothLanguages() throws {
+        let issues: [TreeIdentifierPolicy.ValidationIssue] = [
+            .empty,
+            .tooLong(maximumCharacterCount: 64),
+            .pathMarker,
+            .forbiddenCharacters
+        ]
+
+        for language in ["en", "zh"] {
+            let bundle = try localizedBundle(language)
+            let messages = issues.map { L10n.StartSetup.validationError(for: $0, in: bundle) }
+            XCTAssertTrue(messages.allSatisfy { !$0.isEmpty })
+            XCTAssertTrue(messages[1].contains("64"))
+        }
+    }
+
+    private func localizedBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
+    }
+}
+
 final class DashboardHomeLocalizationTests: XCTestCase {
 
     func testDashboardHomeCopyIsCompleteInEnglishAndChinese() throws {

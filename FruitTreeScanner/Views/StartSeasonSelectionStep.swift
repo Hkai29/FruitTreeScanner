@@ -8,15 +8,15 @@ struct Step3_SeasonSelection: View {
             StartStepHeader(
                 step: 3,
                 totalSteps: 5,
-                title: "估算阶段",
-                subtitle: "当前仅开放已具备可靠输入的成熟期估算。"
+                title: L10n.StartSetup.text(.seasonTitle),
+                subtitle: L10n.StartSetup.text(.seasonSubtitle)
             )
 
             optionList
 
             StartNoteRow(
                 icon: "info.circle",
-                text: "非成熟期冠层路线需先用真实称重数据完成模型标定，避免输出缺乏依据的产量。"
+                text: L10n.StartSetup.text(.seasonNote)
             )
         }
     }
@@ -25,8 +25,8 @@ struct Step3_SeasonSelection: View {
         VStack(spacing: 0) {
             SeasonOptionRow(
                 icon: "apple.logo",
-                title: "成熟期",
-                subtitle: "RGB + LiDAR 果实融合估算",
+                title: L10n.StartSetup.text(.seasonMatureTitle),
+                subtitle: L10n.StartSetup.text(.seasonMatureSubtitle),
                 isSelected: season == .mature,
                 color: Design.Colors.forest
             ) {
@@ -37,8 +37,8 @@ struct Step3_SeasonSelection: View {
 
             SeasonOptionRow(
                 icon: "leaf.fill",
-                title: "非成熟期（待标定）",
-                subtitle: "冠层回归尚缺实测系数，暂不可选择",
+                title: L10n.StartSetup.text(.seasonOffTitle),
+                subtitle: L10n.StartSetup.text(.seasonOffSubtitle),
                 isSelected: season == .off,
                 color: Design.Colors.harvest,
                 isEnabled: false
@@ -69,7 +69,7 @@ struct SeasonOptionRow: View {
             action: action
         ) {
             if !isEnabled {
-                Text("待标定")
+                Text(L10n.StartSetup.text(.seasonCalibrationPending))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
