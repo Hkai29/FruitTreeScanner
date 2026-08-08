@@ -70,8 +70,9 @@ struct SeasonOptionRow: View {
         ) {
             if !isEnabled {
                 Text("待标定")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .disabled(!isEnabled)

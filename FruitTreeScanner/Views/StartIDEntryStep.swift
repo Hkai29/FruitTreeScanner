@@ -3,6 +3,7 @@ import SwiftUI
 struct Step1_IDEntry: View {
     @Binding var treeID: String
     @Binding var isValid: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var draftTreeID = ""
     @State private var localIsValid = false
@@ -36,21 +37,14 @@ struct Step1_IDEntry: View {
 
     private var inputCard: some View {
         VStack(alignment: .leading, spacing: Design.Space.sm) {
-            HStack {
-                Text("编号")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                Spacer()
-                Text(statusText)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(statusColor)
-            }
+            inputHeader
 
             TextField("例：T001", text: $draftTreeID)
-                .font(.system(size: 19, weight: .semibold, design: .monospaced))
+                .font(.title3.weight(.semibold).monospaced())
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(.horizontal, Design.Space.md)
                 .padding(.vertical, 14)
+                .frame(minHeight: layoutPolicy.minimumControlHeight)
                 .background(Design.Colors.Dark.bgElevated)
                 .cornerRadius(8)
                 .textInputAutocapitalization(.characters)
@@ -61,12 +55,46 @@ struct Step1_IDEntry: View {
 
             if let error = validationErrorMessage {
                 Text(error)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundColor(Design.Colors.harvest)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(Design.Space.lg)
         .startSurface(cornerRadius: 10)
+    }
+
+    @ViewBuilder
+    private var inputHeader: some View {
+        switch layoutPolicy.arrangement {
+        case .horizontal:
+            HStack {
+                inputLabel
+                Spacer()
+                inputStatus
+            }
+        case .vertical:
+            VStack(alignment: .leading, spacing: Design.Space.xs) {
+                inputLabel
+                inputStatus
+            }
+        }
+    }
+
+    private var inputLabel: some View {
+        Text("编号")
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(Design.Colors.Dark.textSecondary)
+    }
+
+    private var inputStatus: some View {
+        Text(statusText)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(statusColor)
+    }
+
+    private var layoutPolicy: StartStepContentLayoutPolicy {
+        StartStepContentLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 
     private var statusText: String {

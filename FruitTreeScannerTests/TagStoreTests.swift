@@ -207,6 +207,16 @@ final class TagStoreTests: XCTestCase {
         window.resignKey()
     }
 
+    func testStartStepContentLayoutPolicyStacksAccessibilitySizesAndKeepsMinimumTarget() {
+        let standard = StartStepContentLayoutPolicy(isAccessibilitySize: false)
+        XCTAssertEqual(standard.arrangement, .horizontal)
+        XCTAssertEqual(standard.minimumControlHeight, Design.Touch.minimumHeight)
+
+        let accessibility = StartStepContentLayoutPolicy(isAccessibilitySize: true)
+        XCTAssertEqual(accessibility.arrangement, .vertical)
+        XCTAssertEqual(accessibility.minimumControlHeight, Design.Touch.minimumHeight)
+    }
+
     func testPlotDeletionRequestDefersCascadeUntilConfirmationAndExplainsImpact() async throws {
         let defaults = makeDefaults()
         defer { clear(defaults) }

@@ -68,10 +68,11 @@ struct Step2_PlotSelection: View {
                     Text("添加地块")
                     Spacer()
                 }
-                .font(.system(size: 14, weight: .semibold))
+                .font(.body.weight(.semibold))
                 .foregroundColor(Design.Colors.harvest)
                 .padding(.horizontal, Design.Space.md)
                 .padding(.vertical, 13)
+                .frame(minHeight: Design.Touch.minimumHeight)
             }
             .buttonStyle(ScaleButtonStyle())
         }

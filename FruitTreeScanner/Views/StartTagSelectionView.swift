@@ -45,10 +45,11 @@ struct Step4_TagSelection: View {
                         Image(systemName: "plus")
                         Text("添加")
                     }
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundColor(Design.Colors.harvest)
                     .padding(.horizontal, Design.Space.md)
                     .padding(.vertical, Design.Space.sm)
+                    .frame(minHeight: Design.Touch.minimumHeight)
                     .background(
                         Capsule()
                             .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
@@ -58,8 +59,9 @@ struct Step4_TagSelection: View {
 
             if !selectedTagIds.isEmpty {
                 Text("已选 \(selectedTagIds.count) 个标签")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(Design.Colors.forest)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(Design.Space.md)
@@ -86,23 +88,31 @@ struct TagChip: View {
                 Circle()
                     .fill(Color(hex: tag.colorHex))
                     .frame(width: 10, height: 10)
+                    .accessibilityHidden(true)
 
                 Text(tag.name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.body.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.body.weight(.bold))
+                        .accessibilityHidden(true)
                 }
             }
             .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
             .padding(.horizontal, Design.Space.md)
             .padding(.vertical, Design.Space.sm)
+            .frame(minHeight: Design.Touch.minimumHeight)
             .background(
                 Capsule()
                     .fill(isSelected ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
             )
         }
         .buttonStyle(ScaleButtonStyle())
+        .accessibilityLabel(tag.name)
+        .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: isSelected))
+        .accessibilityHint(L10n.QuickTagging.tagHint)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
