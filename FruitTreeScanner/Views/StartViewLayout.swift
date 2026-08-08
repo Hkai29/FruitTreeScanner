@@ -1,5 +1,13 @@
 import SwiftUI
 
+struct StartFlowChromeLayoutPolicy: Equatable, Sendable {
+    let stacksVertically: Bool
+
+    init(isAccessibilitySize: Bool) {
+        stacksVertically = isAccessibilitySize
+    }
+}
+
 struct StartFlowToolHeaderContent {
     let imageName: String
     let title: String
@@ -9,6 +17,8 @@ struct StartFlowToolHeaderContent {
 }
 
 struct StartViewLayout<StepContent: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let currentStep: Int
     let totalSteps: Int
     let canGoBack: Bool
@@ -19,6 +29,10 @@ struct StartViewLayout<StepContent: View>: View {
     let onBack: () -> Void
     let onNext: () -> Void
     @ViewBuilder let stepContent: () -> StepContent
+
+    private var layoutPolicy: StartFlowChromeLayoutPolicy {
+        StartFlowChromeLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -115,26 +129,45 @@ struct StartViewLayout<StepContent: View>: View {
     }
 
     private var topNavigation: some View {
-        HStack {
-            Button("取消", action: onCancel)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Design.Colors.harvest)
-                .accessibilityIdentifier("start.cancel")
+        Group {
+            if layoutPolicy.stacksVertically {
+                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                    cancelButton
+                    navigationTitle
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack {
+                    cancelButton
 
-            Spacer()
+                    Spacer()
 
-            Text("新建扫描")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                    navigationTitle
 
-            Spacer()
+                    Spacer()
 
-            Text("取消")
-                .font(.system(size: 16, weight: .medium))
-                .hidden()
-                .accessibilityHidden(true)
+                    Text(L10n.StartFlow.cancel)
+                        .font(.body.weight(.medium))
+                        .hidden()
+                        .accessibilityHidden(true)
+                }
+            }
         }
         .padding(.horizontal, Design.Space.lg)
         .padding(.vertical, Design.Space.md)
+    }
+
+    private var cancelButton: some View {
+        Button(L10n.StartFlow.cancel, action: onCancel)
+            .font(.body.weight(.medium))
+            .foregroundColor(Design.Colors.harvest)
+            .accessibilityIdentifier("start.cancel")
+    }
+
+    private var navigationTitle: some View {
+        Text(L10n.StartFlow.navigationTitle)
+            .font(.headline)
+            .foregroundColor(Design.Colors.Dark.textPrimary)
+            .accessibilityAddTraits(.isHeader)
     }
 }

@@ -185,6 +185,23 @@
 "扫描历史" = "Scan History";
 "完成" = "Done";
 
+/* Start Flow Chrome */
+"start.flow.cancel" = "Cancel";
+"start.flow.navigation_title" = "New Scan";
+"start.flow.previous" = "Previous";
+"start.flow.next" = "Next";
+"start.flow.launching" = "Starting...";
+"start.flow.launch" = "Start Scanning";
+"start.flow.progress.identifier" = "ID";
+"start.flow.progress.plot" = "Plot";
+"start.flow.progress.season" = "Season";
+"start.flow.progress.tags" = "Tags";
+"start.flow.progress.confirmation" = "Confirm";
+"start.flow.step_count_format" = "%1$d / %2$d";
+"start.flow.step_count_accessibility_format" = "Step %1$d of %2$d";
+"start.flow.step_header_format" = "Step %1$d/%2$d";
+"start.flow.progress_accessibility_format" = "Step %1$d of %2$d: %3$@";
+
 /* Quick Scan */
 "quick_scan.navigation_title" = "Quick Scan";
 "quick_scan.header_title" = "Quick Capture";

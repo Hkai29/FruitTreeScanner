@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct StepNavigationBar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let currentStep: Int
     let totalSteps: Int
     let canGoBack: Bool
@@ -11,32 +13,61 @@ struct StepNavigationBar: View {
 
     private var isLastStep: Bool { currentStep == totalSteps }
 
+    private var layoutPolicy: StartFlowChromeLayoutPolicy {
+        StartFlowChromeLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
+    }
+
     var body: some View {
-        HStack {
-            if canGoBack {
-                backButton
+        Group {
+            if layoutPolicy.stacksVertically {
+                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                    stepCount
+
+                    if canGoBack {
+                        backButton
+                    }
+
+                    nextButton
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            } else {
+                HStack {
+                    if canGoBack {
+                        backButton
+                    }
+
+                    Spacer()
+
+                    stepCount
+
+                    Spacer()
+
+                    nextButton
+                }
             }
-
-            Spacer()
-
-            Text("\(currentStep) / \(totalSteps)")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Spacer()
-
-            nextButton
         }
         .padding(.vertical, Design.Space.sm)
+    }
+
+    private var stepCount: some View {
+        Text(L10n.StartFlow.stepCount(currentStep: currentStep, totalSteps: totalSteps))
+            .font(.subheadline.weight(.medium))
+            .foregroundColor(Design.Colors.Dark.textSecondary)
+            .accessibilityLabel(
+                L10n.StartFlow.stepCountAccessibility(
+                    currentStep: currentStep,
+                    totalSteps: totalSteps
+                )
+            )
     }
 
     private var backButton: some View {
         Button(action: onBack) {
             HStack(spacing: 4) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .medium))
-                Text("上一步")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.subheadline.weight(.medium))
+                Text(L10n.StartFlow.previous)
+                    .font(.body.weight(.medium))
             }
             .foregroundColor(Design.Colors.Dark.textPrimary)
             .padding(.vertical, 13)
@@ -44,24 +75,26 @@ struct StepNavigationBar: View {
             .background(Design.Colors.Dark.bgElevated)
             .cornerRadius(8)
         }
+        .accessibilityLabel(L10n.StartFlow.previous)
         .accessibilityIdentifier("start.back")
     }
 
     private var nextButton: some View {
         Button(action: onNext) {
             HStack(spacing: 4) {
-                Text(isLaunching ? "启动中..." : (isLastStep ? "开始扫描" : "下一步"))
-                    .font(.system(size: 15, weight: .semibold))
+                Text(nextButtonTitle)
+                    .font(.body.weight(.semibold))
                 if isLaunching {
                     ProgressView()
                         .tint(.white)
                         .scaleEffect(0.75)
+                        .accessibilityHidden(true)
                 } else if !isLastStep {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                 } else {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                 }
             }
             .foregroundColor(canGoNext ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textSecondary)
@@ -73,6 +106,14 @@ struct StepNavigationBar: View {
             )
         }
         .disabled(!canGoNext)
+        .accessibilityLabel(nextButtonTitle)
         .accessibilityIdentifier(isLastStep ? "start.launchScan" : "start.next")
+    }
+
+    private var nextButtonTitle: String {
+        if isLaunching {
+            return L10n.StartFlow.launching
+        }
+        return isLastStep ? L10n.StartFlow.launch : L10n.StartFlow.next
     }
 }

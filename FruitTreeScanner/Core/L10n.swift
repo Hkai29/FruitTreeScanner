@@ -344,6 +344,98 @@ enum L10n {
         }
     }
 
+    // MARK: - Start Flow
+    enum StartFlow {
+        enum Key: String, CaseIterable {
+            case cancel = "start.flow.cancel"
+            case navigationTitle = "start.flow.navigation_title"
+            case previous = "start.flow.previous"
+            case next = "start.flow.next"
+            case launching = "start.flow.launching"
+            case launch = "start.flow.launch"
+            case progressIdentifier = "start.flow.progress.identifier"
+            case progressPlot = "start.flow.progress.plot"
+            case progressSeason = "start.flow.progress.season"
+            case progressTags = "start.flow.progress.tags"
+            case progressConfirmation = "start.flow.progress.confirmation"
+            case stepCountFormat = "start.flow.step_count_format"
+            case stepCountAccessibilityFormat = "start.flow.step_count_accessibility_format"
+            case stepHeaderFormat = "start.flow.step_header_format"
+            case progressAccessibilityFormat = "start.flow.progress_accessibility_format"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .cancel: return "取消"
+                case .navigationTitle: return "新建扫描"
+                case .previous: return "上一步"
+                case .next: return "下一步"
+                case .launching: return "启动中..."
+                case .launch: return "开始扫描"
+                case .progressIdentifier: return "编号"
+                case .progressPlot: return "地块"
+                case .progressSeason: return "季节"
+                case .progressTags: return "标签"
+                case .progressConfirmation: return "确认"
+                case .stepCountFormat: return "%1$d / %2$d"
+                case .stepCountAccessibilityFormat: return "第 %1$d 步，共 %2$d 步"
+                case .stepHeaderFormat: return "步骤 %1$d/%2$d"
+                case .progressAccessibilityFormat: return "第 %1$d 步，共 %2$d 步：%3$@"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static var cancel: String { text(.cancel) }
+        static var navigationTitle: String { text(.navigationTitle) }
+        static var previous: String { text(.previous) }
+        static var next: String { text(.next) }
+        static var launching: String { text(.launching) }
+        static var launch: String { text(.launch) }
+
+        static var progressLabels: [String] {
+            [
+                text(.progressIdentifier),
+                text(.progressPlot),
+                text(.progressSeason),
+                text(.progressTags),
+                text(.progressConfirmation)
+            ]
+        }
+
+        static func stepCount(currentStep: Int, totalSteps: Int, in bundle: Bundle = .main) -> String {
+            String(format: text(.stepCountFormat, in: bundle), currentStep, totalSteps)
+        }
+
+        static func stepCountAccessibility(
+            currentStep: Int,
+            totalSteps: Int,
+            in bundle: Bundle = .main
+        ) -> String {
+            String(format: text(.stepCountAccessibilityFormat, in: bundle), currentStep, totalSteps)
+        }
+
+        static func stepHeader(step: Int, totalSteps: Int, in bundle: Bundle = .main) -> String {
+            String(format: text(.stepHeaderFormat, in: bundle), step, totalSteps)
+        }
+
+        static func progressAccessibility(
+            currentStep: Int,
+            totalSteps: Int,
+            label: String,
+            in bundle: Bundle = .main
+        ) -> String {
+            String(
+                format: text(.progressAccessibilityFormat, in: bundle),
+                currentStep,
+                totalSteps,
+                label
+            )
+        }
+    }
+
     // MARK: - Quick Scan
     enum QuickScan {
         static let navigationTitle = NSLocalizedString("quick_scan.navigation_title", value: "快速扫描", comment: "Quick scan navigation title")

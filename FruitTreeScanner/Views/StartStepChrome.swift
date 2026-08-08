@@ -1,34 +1,56 @@
 import SwiftUI
 
 struct StartStepHeader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let step: Int
     let totalSteps: Int
     let title: String
     let subtitle: String
 
+    private var layoutPolicy: StartFlowChromeLayoutPolicy {
+        StartFlowChromeLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.xs) {
-            HStack(spacing: Design.Space.xs) {
-                Text("步骤 \(step)/\(totalSteps)")
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Design.Colors.harvest)
+            if layoutPolicy.stacksVertically {
+                VStack(alignment: .leading, spacing: Design.Space.xs) {
+                    stepLabel
+                    titleLabel
+                }
+            } else {
+                HStack(spacing: Design.Space.xs) {
+                    stepLabel
 
-                Capsule()
-                    .fill(Design.Colors.Dark.glassBorder)
-                    .frame(width: 4, height: 4)
+                    Capsule()
+                        .fill(Design.Colors.Dark.glassBorder)
+                        .frame(width: 4, height: 4)
 
-                Text(title)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .lineLimit(1)
+                    titleLabel
+                }
             }
 
             Text(subtitle)
-                .font(.system(size: 13))
+                .font(.footnote)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var stepLabel: some View {
+        Text(L10n.StartFlow.stepHeader(step: step, totalSteps: totalSteps))
+            .font(.caption.weight(.semibold).monospaced())
+            .foregroundColor(Design.Colors.harvest)
+    }
+
+    private var titleLabel: some View {
+        Text(title)
+            .font(.title3.weight(.semibold))
+            .foregroundColor(Design.Colors.Dark.textPrimary)
+            .lineLimit(layoutPolicy.stacksVertically ? nil : 1)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
