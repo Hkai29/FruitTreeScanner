@@ -70,8 +70,9 @@ struct SeasonOptionRow: View {
         ) {
             if !isEnabled {
                 Text(L10n.StartSetup.text(.seasonCalibrationPending))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .disabled(!isEnabled)
