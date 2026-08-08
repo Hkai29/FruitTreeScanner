@@ -4,12 +4,30 @@ struct ScanFieldGuideOverlay: View {
     let onClose: () -> Void
     let onStartScan: () -> Void
 
-    private let tips: [(icon: String, title: String, message: String)] = [
-        ("figure.walk.motion", "慢速环绕", "从树干开始，绕树一圈；每一步都让树冠和主枝保持在画面中。"),
-        ("scope", "先大后小", "先拿到整棵树的轮廓，再补果实密集区和背光枝条，避免一开始贴太近。"),
-        ("square.3.layers.3d", "补齐盲区", "覆盖率到 60% 后重点看树冠背面、下层枝条和主干遮挡处。"),
-        ("ruler", "可先测量", "停止后不用立刻分析，可以先用测量确认树高、冠幅或样方距离。")
-    ]
+    private var tips: [(icon: String, title: String, message: String)] {
+        [
+            (
+                "figure.walk.motion",
+                L10n.ScanGuidance.text(.slowCircleTitle),
+                L10n.ScanGuidance.text(.slowCircleMessage)
+            ),
+            (
+                "scope",
+                L10n.ScanGuidance.text(.outlineFirstTitle),
+                L10n.ScanGuidance.text(.outlineFirstMessage)
+            ),
+            (
+                "square.3.layers.3d",
+                L10n.ScanGuidance.text(.blindSpotsTitle),
+                L10n.ScanGuidance.text(.blindSpotsMessage)
+            ),
+            (
+                "ruler",
+                L10n.ScanGuidance.text(.measureTitle),
+                L10n.ScanGuidance.text(.measureMessage)
+            ),
+        ]
+    }
 
     var body: some View {
         ZStack {
@@ -19,10 +37,10 @@ struct ScanFieldGuideOverlay: View {
             VStack(spacing: 16) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("果树 LiDAR 扫描")
+                        Text(L10n.ScanGuidance.text(.guideTitle))
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.white)
-                        Text("目标是稳定覆盖树干、树冠和果实区域；红色停止键前，先让点云绕树闭合。")
+                        Text(L10n.ScanGuidance.text(.guideSubtitle))
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.72))
                             .fixedSize(horizontal: false, vertical: true)
@@ -36,6 +54,7 @@ struct ScanFieldGuideOverlay: View {
                             .foregroundColor(.white.opacity(0.9))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(L10n.ScanGuidance.text(.closeGuideAccessibility))
                 }
 
                 VStack(spacing: 10) {
@@ -45,7 +64,7 @@ struct ScanFieldGuideOverlay: View {
                 }
 
                 HStack(spacing: 10) {
-                    Label("默认模式", systemImage: "viewfinder")
+                    Label(L10n.ScanGuidance.text(.defaultMode), systemImage: "viewfinder")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Design.Colors.harvest)
                         .padding(.horizontal, 10)
@@ -53,7 +72,7 @@ struct ScanFieldGuideOverlay: View {
                         .background(Design.Colors.harvest.opacity(0.14))
                         .clipShape(Capsule())
 
-                    Text("果树全株扫描")
+                    Text(L10n.ScanGuidance.text(.wholeTree))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.72))
 
@@ -61,7 +80,7 @@ struct ScanFieldGuideOverlay: View {
                 }
 
                 Button(action: onStartScan) {
-                    Text("开始扫描")
+                    Text(L10n.ScanGuidance.text(.start))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)

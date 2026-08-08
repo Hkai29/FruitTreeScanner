@@ -97,13 +97,13 @@ struct ScanView: View {
                 )
             }
         #endif
-            .alert("取消本次扫描？", isPresented: $showCancelConfirmation) {
-                Button("继续扫描", role: .cancel) {}
-                Button("放弃", role: .destructive) {
+            .alert(L10n.ScanCancellation.text(.title), isPresented: $showCancelConfirmation) {
+                Button(L10n.ScanCancellation.text(.continueAction), role: .cancel) {}
+                Button(L10n.ScanCancellation.text(.discard), role: .destructive) {
                     cancelScan()
                 }
             } message: {
-                Text("已采集的点云不会保存。若要保留本次采集，请点击完成。")
+                Text(L10n.ScanCancellation.text(.message))
             }
             .alert(item: $categoryMismatch) { mismatch in
                 Alert(

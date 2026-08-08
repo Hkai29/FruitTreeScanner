@@ -3,6 +3,8 @@ import ARKit
 import CoreVideo
 import Metal
 import SceneKit
+import SwiftUI
+import UIKit
 import simd
 @testable import FruitTreeScanner
 
@@ -496,6 +498,178 @@ final class PointCloudProcessingTests: XCTestCase {
             ),
             .goodPace
         )
+    }
+
+    func testScanGuidanceCopyExistsInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "scan.guidance.hint.too_fast.title": "Moving Too Fast",
+                "scan.guidance.hint.too_fast.subtitle": "Slow down so canopy and main branches overlap",
+                "scan.guidance.hint.too_close.title": "Too Close",
+                "scan.guidance.hint.too_close.subtitle": "Step back to keep the whole-tree outline",
+                "scan.guidance.hint.too_far.title": "Too Far",
+                "scan.guidance.hint.too_far.subtitle": "Move closer; prioritize the trunk and fruit-dense areas",
+                "scan.guidance.hint.tracking_lost.title": "Tracking Lost",
+                "scan.guidance.hint.tracking_lost.subtitle": "Aim at the trunk, ground, or textured branches to resume tracking",
+                "scan.guidance.hint.low_light.title": "Low Light",
+                "scan.guidance.hint.low_light.subtitle": "Dim light reduces fruit detection and texture quality",
+                "scan.guidance.hint.sparse_depth.title": "Sparse Canopy Depth",
+                "scan.guidance.hint.sparse_depth.subtitle": "Reduce sky in frame, move closer to the canopy, and slow down",
+                "scan.guidance.hint.good_pace.title": "Good Pace",
+                "scan.guidance.hint.good_pace.subtitle": "Keep this pace and circle the tree to cover rear blind spots",
+                "scan.guidance.speed_format": "%.1f m/s",
+                "scan.guide.title": "Fruit Tree LiDAR Scan",
+                "scan.guide.subtitle": "Capture the trunk, canopy, and fruit steadily. Before tapping the red stop button, close the point cloud around the tree.",
+                "scan.guide.close_accessibility": "Close Guide",
+                "scan.guide.tip.slow_circle.title": "Slow Circle",
+                "scan.guide.tip.slow_circle.message": "Start at the trunk and circle the tree. Keep the canopy and main branches in frame with every step.",
+                "scan.guide.tip.outline_first.title": "Outline First",
+                "scan.guide.tip.outline_first.message": "Capture the whole-tree outline first, then cover fruit-dense and backlit branches without moving too close.",
+                "scan.guide.tip.blind_spots.title": "Fill Blind Spots",
+                "scan.guide.tip.blind_spots.message": "After 60% coverage, focus on the canopy back, lower branches, and trunk occlusions.",
+                "scan.guide.tip.measure.title": "Measure First",
+                "scan.guide.tip.measure.message": "After stopping, measure tree height, canopy width, or plot distance before analysis.",
+                "scan.guide.default_mode": "Default Mode",
+                "scan.guide.whole_tree": "Whole Tree Scan",
+                "scan.guide.start": "Start Scanning",
+                "scan.cancel.title": "Cancel This Scan?",
+                "scan.cancel.continue": "Keep Scanning",
+                "scan.cancel.discard": "Discard",
+                "scan.cancel.message": "Captured point cloud data won't be saved. Tap Finish if you want to keep this scan.",
+            ],
+            "zh": [
+                "scan.guidance.hint.too_fast.title": "移动太快",
+                "scan.guidance.hint.too_fast.subtitle": "放慢脚步，让树冠和主枝有足够重叠",
+                "scan.guidance.hint.too_close.title": "距离太近",
+                "scan.guidance.hint.too_close.subtitle": "后退一步，先保住整棵树轮廓",
+                "scan.guidance.hint.too_far.title": "距离太远",
+                "scan.guidance.hint.too_far.subtitle": "靠近果树，优先补主干和果实密集区",
+                "scan.guidance.hint.tracking_lost.title": "追踪丢失",
+                "scan.guidance.hint.tracking_lost.subtitle": "对准树干、地面或纹理清晰的枝条恢复追踪",
+                "scan.guidance.hint.low_light.title": "光线不足",
+                "scan.guidance.hint.low_light.subtitle": "光线偏暗，果实检测和纹理质量会下降",
+                "scan.guidance.hint.sparse_depth.title": "树冠深度稀疏",
+                "scan.guidance.hint.sparse_depth.subtitle": "减少天空占比，靠近树冠并放慢移动速度",
+                "scan.guidance.hint.good_pace.title": "速度良好",
+                "scan.guidance.hint.good_pace.subtitle": "保持速度，继续绕树补齐背面盲区",
+                "scan.guidance.speed_format": "%.1f m/s",
+                "scan.guide.title": "果树 LiDAR 扫描",
+                "scan.guide.subtitle": "目标是稳定覆盖树干、树冠和果实区域；红色停止键前，先让点云绕树闭合。",
+                "scan.guide.close_accessibility": "关闭扫描引导",
+                "scan.guide.tip.slow_circle.title": "慢速环绕",
+                "scan.guide.tip.slow_circle.message": "从树干开始，绕树一圈；每一步都让树冠和主枝保持在画面中。",
+                "scan.guide.tip.outline_first.title": "先大后小",
+                "scan.guide.tip.outline_first.message": "先拿到整棵树的轮廓，再补果实密集区和背光枝条，避免一开始贴太近。",
+                "scan.guide.tip.blind_spots.title": "补齐盲区",
+                "scan.guide.tip.blind_spots.message": "覆盖率到 60% 后重点看树冠背面、下层枝条和主干遮挡处。",
+                "scan.guide.tip.measure.title": "可先测量",
+                "scan.guide.tip.measure.message": "停止后不用立刻分析，可以先用测量确认树高、冠幅或样方距离。",
+                "scan.guide.default_mode": "默认模式",
+                "scan.guide.whole_tree": "果树全株扫描",
+                "scan.guide.start": "开始扫描",
+                "scan.cancel.title": "取消本次扫描？",
+                "scan.cancel.continue": "继续扫描",
+                "scan.cancel.discard": "放弃",
+                "scan.cancel.message": "已采集的点云不会保存。若要保留本次采集，请点击完成。",
+            ],
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testScanGuidanceHintPresentationMapsEveryRuntimeSignalWithoutChangingTheEnum() throws {
+        let mappings: [(hint: ScanGuidanceHint, titleKey: String, subtitleKey: String)] = [
+            (.tooFast, "scan.guidance.hint.too_fast.title", "scan.guidance.hint.too_fast.subtitle"),
+            (.tooClose, "scan.guidance.hint.too_close.title", "scan.guidance.hint.too_close.subtitle"),
+            (.tooFar, "scan.guidance.hint.too_far.title", "scan.guidance.hint.too_far.subtitle"),
+            (.trackingLost, "scan.guidance.hint.tracking_lost.title", "scan.guidance.hint.tracking_lost.subtitle"),
+            (.lowLight, "scan.guidance.hint.low_light.title", "scan.guidance.hint.low_light.subtitle"),
+            (.sparseDepth, "scan.guidance.hint.sparse_depth.title", "scan.guidance.hint.sparse_depth.subtitle"),
+            (.goodPace, "scan.guidance.hint.good_pace.title", "scan.guidance.hint.good_pace.subtitle"),
+        ]
+
+        for language in ["en", "zh"] {
+            let bundle = try localizedBundle(language: language)
+            for mapping in mappings {
+                XCTAssertEqual(
+                    mapping.hint.title(in: bundle),
+                    bundle.localizedString(forKey: mapping.titleKey, value: nil, table: nil)
+                )
+                XCTAssertEqual(
+                    mapping.hint.subtitle(in: bundle),
+                    bundle.localizedString(forKey: mapping.subtitleKey, value: nil, table: nil)
+                )
+            }
+        }
+
+        XCTAssertEqual(ScanGuidanceHint.none.title, "")
+        XCTAssertEqual(ScanGuidanceHint.none.subtitle, "")
+    }
+
+    func testScanGuidanceSpeedFormattingUsesTheSelectedLocalizationBundle() throws {
+        XCTAssertEqual(
+            L10n.ScanGuidance.speed(0.4, in: try localizedBundle(language: "en")),
+            "0.4 m/s"
+        )
+        XCTAssertEqual(
+            L10n.ScanGuidance.speed(0.4, in: try localizedBundle(language: "zh")),
+            "0.4 m/s"
+        )
+    }
+
+    @MainActor
+    func testScanGuidanceAndFieldGuideRenderInCompactLayout() throws {
+        let guide = ScanFieldGuideOverlay(onClose: {}, onStartScan: {})
+            .frame(width: 390, height: 844)
+            .environment(\.colorScheme, .dark)
+        let guideImage = try renderImage(guide, size: CGSize(width: 390, height: 844))
+        let guideAttachment = XCTAttachment(image: guideImage)
+        guideAttachment.name = "ScanFieldGuide-\(Locale.preferredLanguages.first ?? "unknown")"
+        guideAttachment.lifetime = .keepAlways
+        add(guideAttachment)
+
+        let banners = VStack(spacing: 12) {
+            ScanGuidanceBannerCard(hint: .sparseDepth, speed: 0.2)
+            ScanGuidanceBannerCard(hint: .trackingLost, speed: 0)
+            ScanGuidanceBannerCard(hint: .tooFast, speed: 0.8)
+        }
+        .padding(16)
+        .frame(width: 390, height: 320, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.colorScheme, .dark)
+        let bannerImage = try renderImage(banners, size: CGSize(width: 390, height: 320))
+        let bannerAttachment = XCTAttachment(image: bannerImage)
+        bannerAttachment.name = "ScanGuidanceBanners-\(Locale.preferredLanguages.first ?? "unknown")"
+        bannerAttachment.lifetime = .keepAlways
+        add(bannerAttachment)
+    }
+
+    @MainActor
+    private func renderImage<Content: View>(_ content: Content, size: CGSize) throws -> UIImage {
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 3
+        renderer.proposedSize = ProposedViewSize(width: size.width, height: size.height)
+        let image = try XCTUnwrap(renderer.uiImage)
+        XCTAssertEqual(image.size, size)
+        return image
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"))
+        return try XCTUnwrap(Bundle(path: path))
     }
 
     func testDepthTexturePairFailsClosedForUnsupportedPixelFormats() throws {
