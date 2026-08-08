@@ -4,22 +4,45 @@
 import SwiftUI
 import UIKit
 
+@MainActor
+final class QuickScanTreeIdentifierDraft: ObservableObject {
+    @Published var value: String
+
+    init(value: String) {
+        self.value = value
+    }
+
+    var normalizedValue: String {
+        TreeIdentifierPolicy.normalized(value)
+    }
+
+    var validationIssue: TreeIdentifierPolicy.ValidationIssue? {
+        TreeIdentifierPolicy.validationIssue(for: normalizedValue)
+    }
+
+    var isValid: Bool {
+        validationIssue == nil
+    }
+
+    var validatedValue: String? {
+        guard isValid else { return nil }
+        return normalizedValue
+    }
+}
+
 struct QuickScanView: View {
     var onLaunchScan: (ScanLaunchRequest) -> Void
 
     @Environment(\.dismiss) var dismiss
     @StateObject private var gps = GPSRecorder()
     @StateObject private var launchGate = ScanLaunchSubmissionGate()
-    @State private var treeID: String = QuickScanView.makeDefaultTreeID()
-    @State private var isTreeIDValid = true
+    @StateObject private var treeIdentifierDraft = QuickScanTreeIdentifierDraft(
+        value: QuickScanView.makeDefaultTreeID()
+    )
     @State private var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
 
     private var canLaunch: Bool {
-        !launchGate.isSubmitting && isTreeIDValid
-    }
-
-    private var normalizedTreeID: String {
-        TreeIdentifierPolicy.normalized(treeID)
+        !launchGate.isSubmitting && treeIdentifierDraft.validatedValue != nil
     }
 
     var body: some View {
@@ -37,10 +60,7 @@ struct QuickScanView: View {
                                 icon: "bolt.fill",
                                 accent: Design.Colors.harvest
                             )
-                            QuickScanTreeIDInput(initialTreeID: treeID) { value, isValid in
-                                treeID = value
-                                isTreeIDValid = isValid
-                            }
+                            QuickScanTreeIDInput(draft: treeIdentifierDraft)
                             fruitCategoryPicker
                             gpsStatusRow
                         }
@@ -139,11 +159,9 @@ struct QuickScanView: View {
 
         launchGate.submit(
             makeRequest: { () -> ScanLaunchRequest? in
-                guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
-                    return nil
-                }
+                guard let treeID = treeIdentifierDraft.validatedValue else { return nil }
                 return ScanLaunchRequest(
-                    treeID: normalizedTreeID,
+                    treeID: treeID,
                     selectedFruitCategory: selectedFruitCategory,
                     season: .mature,
                     gps: gps,
@@ -164,17 +182,18 @@ struct QuickScanView: View {
 }
 
 private struct QuickScanTreeIDInput: View {
-    let onChange: (String, Bool) -> Void
+    @ObservedObject var draft: QuickScanTreeIdentifierDraft
 
-    @State private var draftTreeID: String
-    @State private var isValid = true
-    @State private var validationErrorMessage: String?
-    @State private var syncTask: Task<Void, Never>?
+    private var isValid: Bool {
+        draft.isValid
+    }
 
-    init(initialTreeID: String, onChange: @escaping (String, Bool) -> Void) {
-        self.onChange = onChange
-        _draftTreeID = State(initialValue: initialTreeID)
-        _isValid = State(initialValue: TreeIdentifierPolicy.isValid(initialTreeID))
+    private var validationErrorMessage: String? {
+        guard !draft.normalizedValue.isEmpty,
+              let issue = draft.validationIssue else {
+            return nil
+        }
+        return L10n.QuickScan.validationError(for: issue)
     }
 
     var body: some View {
@@ -193,7 +212,7 @@ private struct QuickScanTreeIDInput: View {
                     .foregroundColor(isValid ? Design.Colors.forest : Design.Colors.harvest)
             }
 
-            TextField(L10n.QuickScan.treeIDPlaceholder, text: $draftTreeID)
+            TextField(L10n.QuickScan.treeIDPlaceholder, text: $draft.value)
                 .font(.system(size: 16, weight: .medium, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(.horizontal, 14)
@@ -204,7 +223,6 @@ private struct QuickScanTreeIDInput: View {
                 .autocorrectionDisabled(true)
                 .textContentType(.none)
                 .submitLabel(.done)
-                .onSubmit(syncImmediately)
 
             if let error = validationErrorMessage {
                 Text(error)
@@ -214,39 +232,5 @@ private struct QuickScanTreeIDInput: View {
         }
         .padding(16)
         .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-        .onDisappear {
-            syncImmediately()
-            syncTask?.cancel()
-        }
-        .onChange(of: draftTreeID) { newValue in
-            let normalized = TreeIdentifierPolicy.normalized(newValue)
-            if normalized.isEmpty {
-                isValid = false
-                validationErrorMessage = nil
-            } else if let issue = TreeIdentifierPolicy.validationIssue(for: normalized) {
-                isValid = false
-                validationErrorMessage = L10n.QuickScan.validationError(for: issue)
-            } else {
-                isValid = true
-                validationErrorMessage = nil
-            }
-            syncTask?.cancel()
-            syncTask = Task {
-                try? await Task.sleep(nanoseconds: 140_000_000)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    publish(newValue)
-                }
-            }
-        }
-    }
-
-    private func syncImmediately() {
-        publish(draftTreeID)
-    }
-
-    private func publish(_ value: String) {
-        let normalized = TreeIdentifierPolicy.normalized(value)
-        onChange(normalized, TreeIdentifierPolicy.isValid(normalized))
     }
 }
