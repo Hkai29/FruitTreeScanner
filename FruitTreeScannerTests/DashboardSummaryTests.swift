@@ -224,6 +224,40 @@ final class DashboardSummaryTests: XCTestCase {
     }
 
     @MainActor
+    func testQuickScanTreeIdentifierDraftUsesLatestValidValueSynchronously() {
+        let draft = QuickScanTreeIdentifierDraft(value: "Q1000")
+
+        draft.value = "  TREE-NEW  "
+
+        XCTAssertEqual(draft.normalizedValue, "TREE-NEW")
+        XCTAssertEqual(draft.validatedValue, "TREE-NEW")
+        XCTAssertTrue(draft.isValid)
+    }
+
+    @MainActor
+    func testQuickScanTreeIdentifierDraftRejectsLatestInvalidValueSynchronously() {
+        let draft = QuickScanTreeIdentifierDraft(value: "Q1000")
+
+        draft.value = " .. "
+
+        XCTAssertEqual(draft.normalizedValue, "..")
+        XCTAssertEqual(draft.validationIssue, .pathMarker)
+        XCTAssertNil(draft.validatedValue)
+        XCTAssertFalse(draft.isValid)
+    }
+
+    @MainActor
+    func testQuickScanTreeIdentifierDraftKeepsFinalRapidUpdate() {
+        let draft = QuickScanTreeIdentifierDraft(value: "Q1000")
+
+        draft.value = "TREE-A"
+        draft.value = "TREE-B"
+        draft.value = "TREE-C"
+
+        XCTAssertEqual(draft.validatedValue, "TREE-C")
+    }
+
+    @MainActor
     func testNavigationRouterReceivesRequestPostedAfterInitialization() {
         let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
