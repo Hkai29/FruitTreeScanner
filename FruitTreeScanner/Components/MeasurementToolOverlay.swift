@@ -1,17 +1,24 @@
 import SwiftUI
 import SceneKit
+import UIKit
 
 struct MeasurementToolOverlay: View {
     @ObservedObject var controller: PointCloudMeasurementController
     @Binding var measuredDistance: Float?
     let onClose: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .subheadline) private var markerDiameter: CGFloat = 10
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                instructionBanner(in: geo)
+                instructionBanner(
+                    in: geo,
+                    distance: dynamicTypeSize.isAccessibilitySize ? controller.measuredDistance : nil
+                )
 
-                if let distance = controller.measuredDistance {
+                if !dynamicTypeSize.isAccessibilitySize,
+                   let distance = controller.measuredDistance {
                     distanceDisplay(distance: distance)
                 }
             }
@@ -26,54 +33,63 @@ struct MeasurementToolOverlay: View {
         }
         .onChange(of: controller.measuredDistance) { newValue in
             measuredDistance = newValue
+            guard let newValue else { return }
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: "\(L10n.PointCloud.measurementDistance): \(formattedDistance(newValue))"
+            )
         }
     }
 
-    private func instructionBanner(in geo: GeometryProxy) -> some View {
+    private func instructionBanner(in geo: GeometryProxy, distance: Float?) -> some View {
         VStack {
             HStack {
                 Spacer()
-                VStack(alignment: .trailing, spacing: 6) {
-                    HStack(alignment: .top, spacing: 10) {
-                        VStack(alignment: .trailing, spacing: 6) {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Design.Colors.apple)
-                                    .frame(width: 10, height: 10)
-                                Text(L10n.PointCloud.measurementStart)
-                                    .font(.system(size: 11))
-                            }
-
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Design.Colors.earth)
-                                    .frame(width: 10, height: 10)
-                                Text(L10n.PointCloud.measurementEnd)
-                                    .font(.system(size: 11))
-                            }
+                VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 8) {
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            measurementMarker(
+                                color: Design.Colors.apple,
+                                label: L10n.PointCloud.measurementStart
+                            )
+                            measurementMarker(
+                                color: Design.Colors.earth,
+                                label: L10n.PointCloud.measurementEnd
+                            )
                         }
 
-                        Button(action: onClose) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(L10n.PointCloud.closeMeasurementAccessibility)
+                        Spacer(minLength: dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+
+                        closeButton
                     }
 
                     Text(L10n.PointCloud.measurementInstruction)
-                        .font(.system(size: 10))
-                        .foregroundColor(Color.gray)
+                        .font(.callout)
+                        .foregroundColor(.white.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let distance {
+                        Divider()
+                            .overlay(Design.Colors.Dark.hudBorder)
+
+                        distanceContent(distance: distance)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .foregroundColor(.white)
-                .padding(12)
+                .padding(Design.Space.md)
                 .background(Design.Colors.Dark.hudBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: Design.Radius.medium)
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
-                .cornerRadius(10)
+                .clipShape(RoundedRectangle(cornerRadius: Design.Radius.medium))
+                .frame(
+                    maxWidth: dynamicTypeSize.isAccessibilitySize
+                        ? min(max(geo.size.width - 32, 0), 520)
+                        : nil,
+                    alignment: .trailing
+                )
                 .padding(.trailing, 16)
                 .padding(.top, 60)
             }
@@ -81,29 +97,68 @@ struct MeasurementToolOverlay: View {
         }
     }
 
+    private func measurementMarker(color: Color, label: String) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(color)
+                .frame(width: markerDiameter, height: markerDiameter)
+                .accessibilityHidden(true)
+
+            Text(label)
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(.white.opacity(0.9))
+                .frame(
+                    minWidth: Design.Touch.minimumWidth,
+                    minHeight: Design.Touch.minimumHeight
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.PointCloud.closeMeasurementAccessibility)
+    }
+
     private func distanceDisplay(distance: Float) -> some View {
         VStack {
             Spacer()
             HStack {
                 Spacer()
-                VStack(spacing: 4) {
-                    Text(String(format: "%.2f m", distance))
-                        .font(.system(size: 24, weight: .semibold, design: .monospaced))
-                        .foregroundColor(Design.Colors.harvest)
-
-                    Text(L10n.PointCloud.measurementDistance)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.7))
-                }
+                distanceContent(distance: distance)
                 .padding(16)
                 .background(Design.Colors.Dark.hudBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: Design.Radius.medium)
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
-                .cornerRadius(10)
+                .clipShape(RoundedRectangle(cornerRadius: Design.Radius.medium))
                 .padding(16)
             }
         }
+    }
+
+    private func distanceContent(distance: Float) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(formattedDistance(distance))
+                .font(.system(.title2, design: .monospaced).weight(.semibold))
+                .foregroundColor(Design.Colors.harvest)
+
+            Text(L10n.PointCloud.measurementDistance)
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.75))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.PointCloud.measurementDistance)
+        .accessibilityValue(formattedDistance(distance))
+    }
+
+    private func formattedDistance(_ distance: Float) -> String {
+        String(format: "%.2f m", locale: Locale.current, distance)
     }
 }
