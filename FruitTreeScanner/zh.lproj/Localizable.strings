@@ -576,6 +576,30 @@
 "voxel.complete" = "覆盖完成";
 
 /* Export */
+"export.options.format_title" = "导出格式";
+"export.options.fields_title" = "包含字段";
+"export.options.grouping_title" = "分组方式";
+"export.options.field.tree_id" = "果树编号";
+"export.options.field.fruit_count" = "果实数量";
+"export.options.field.yield" = "产量";
+"export.options.field.gps" = "GPS 位置";
+"export.options.field.scan_date" = "扫描日期";
+"export.format.csv" = "CSV";
+"export.format.excel" = "Excel (XML)";
+"export.format.research_json" = "研究 JSON";
+"export.grouping_compact.none" = "无";
+"export.grouping_compact.fruit_type" = "水果类型";
+"export.grouping_compact.date" = "日期";
+"export.grouping_compact.plot" = "地块";
+"export.options.fields_compact_count" = "%d / 5";
+"export.accessibility.format_selected" = "已选择";
+"export.accessibility.format_not_selected" = "未选择";
+"export.accessibility.format_hint" = "选择下次导出的文件格式";
+"export.accessibility.field_included" = "已包含";
+"export.accessibility.field_excluded" = "未包含";
+"export.accessibility.field_hint" = "切换此字段是否包含在导出文件中";
+"export.accessibility.fields_count" = "已包含 %d / 5 个字段";
+"export.accessibility.fields_menu_hint" = "打开菜单以选择导出字段";
 "export.csv_desc" = "通用数据格式，兼容所有表格软件";
 "export.excel_desc" = "Microsoft Excel 兼容格式";
 "export.no_grouping" = "不分组";

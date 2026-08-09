@@ -9,12 +9,21 @@ struct BatchExportFormatButton: View {
         Button(action: action) {
             HStack(spacing: Design.Space.xs) {
                 Image(systemName: format.icon)
-                Text(format.rawValue)
+                    .accessibilityHidden(true)
+
+                Text(displayName)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .accessibilityHidden(true)
+                }
             }
-            .font(Design.Typography.subheadline)
+            .font(.subheadline)
             .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
             .padding(.horizontal, Design.Space.md)
             .padding(.vertical, Design.Space.sm)
+            .frame(minHeight: Design.Touch.minimumHeight)
             .background(
                 RoundedRectangle(cornerRadius: Design.Radius.small)
                     .fill(isSelected ? Design.Colors.harvest : Design.Colors.Dark.bgDeep)
@@ -22,6 +31,14 @@ struct BatchExportFormatButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("batchExport.format.\(format.accessibilityIdentifier)")
+        .accessibilityLabel(displayName)
+        .accessibilityValue(isSelected ? L10n.Export.formatSelected : L10n.Export.formatNotSelected)
+        .accessibilityHint(L10n.Export.formatSelectionHint)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var displayName: String {
+        L10n.Export.formatName(format)
     }
 }
 
@@ -36,15 +53,23 @@ struct BatchExportOptionToggle: View {
         } label: {
             HStack(spacing: Design.Space.xs) {
                 Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundColor(isOn ? Design.Colors.harvest : Design.Colors.Dark.textSecondary)
+                    .accessibilityHidden(true)
                 Text(label)
-                    .font(.system(size: 12))
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .foregroundColor(Design.Colors.Dark.textPrimary)
+            .frame(minWidth: Design.Touch.minimumWidth, minHeight: Design.Touch.minimumHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("batchExport.option.\(accessibilityIdentifier)")
+        .accessibilityLabel(label)
+        .accessibilityValue(isOn ? L10n.Export.fieldIncluded : L10n.Export.fieldExcluded)
+        .accessibilityHint(L10n.Export.fieldToggleHint)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 

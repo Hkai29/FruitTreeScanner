@@ -1501,6 +1501,21 @@ enum L10n {
 
     // MARK: - Export
     enum Export {
+        static let formatTitle = NSLocalizedString("export.options.format_title", value: "导出格式", comment: "Batch export format section title")
+        static let fieldsTitle = NSLocalizedString("export.options.fields_title", value: "包含字段", comment: "Batch export included fields section title")
+        static let groupingTitle = NSLocalizedString("export.options.grouping_title", value: "分组方式", comment: "Batch export grouping section title")
+        static let treeIDField = NSLocalizedString("export.options.field.tree_id", value: "果树编号", comment: "Batch export tree identifier field")
+        static let fruitCountField = NSLocalizedString("export.options.field.fruit_count", value: "果实数量", comment: "Batch export fruit count field")
+        static let yieldField = NSLocalizedString("export.options.field.yield", value: "产量", comment: "Batch export yield field")
+        static let gpsField = NSLocalizedString("export.options.field.gps", value: "GPS 位置", comment: "Batch export GPS field")
+        static let scanDateField = NSLocalizedString("export.options.field.scan_date", value: "扫描日期", comment: "Batch export scan date field")
+        static let formatSelected = NSLocalizedString("export.accessibility.format_selected", value: "已选择", comment: "Selected export format accessibility value")
+        static let formatNotSelected = NSLocalizedString("export.accessibility.format_not_selected", value: "未选择", comment: "Unselected export format accessibility value")
+        static let formatSelectionHint = NSLocalizedString("export.accessibility.format_hint", value: "选择下次导出的文件格式", comment: "Export format button accessibility hint")
+        static let fieldIncluded = NSLocalizedString("export.accessibility.field_included", value: "已包含", comment: "Included export field accessibility value")
+        static let fieldExcluded = NSLocalizedString("export.accessibility.field_excluded", value: "未包含", comment: "Excluded export field accessibility value")
+        static let fieldToggleHint = NSLocalizedString("export.accessibility.field_hint", value: "切换此字段是否包含在导出文件中", comment: "Export field toggle accessibility hint")
+        static let fieldsMenuHint = NSLocalizedString("export.accessibility.fields_menu_hint", value: "打开菜单以选择导出字段", comment: "Export fields menu accessibility hint")
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")
@@ -1508,6 +1523,96 @@ enum L10n {
         static let byDate = NSLocalizedString("export.by_date", value: "按日期", comment: "Group by date")
         static let byPlot = NSLocalizedString("export.by_plot", value: "按地块", comment: "Group by plot")
         static let noRecords = NSLocalizedString("export.no_records", value: "没有可导出的记录", comment: "No exportable records")
+
+        static func formatName(
+            _ format: BatchExportService.ExportFormat,
+            in bundle: Bundle = .main
+        ) -> String {
+            let key: String
+            let fallback: String
+            switch format {
+            case .csv:
+                key = "export.format.csv"
+                fallback = "CSV"
+            case .excel:
+                key = "export.format.excel"
+                fallback = "Excel (XML)"
+            case .json:
+                key = "export.format.research_json"
+                fallback = "研究 JSON"
+            }
+            return bundle.localizedString(forKey: key, value: fallback, table: nil)
+        }
+
+        static func groupingName(
+            _ option: BatchExportService.ExportOptions.GroupByOption,
+            in bundle: Bundle = .main
+        ) -> String {
+            let key: String
+            let fallback: String
+            switch option {
+            case .none:
+                key = "export.no_grouping"
+                fallback = "不分组"
+            case .fruitType:
+                key = "export.by_fruit_type"
+                fallback = "按水果类型"
+            case .date:
+                key = "export.by_date"
+                fallback = "按日期"
+            case .plot:
+                key = "export.by_plot"
+                fallback = "按地块"
+            }
+            return bundle.localizedString(forKey: key, value: fallback, table: nil)
+        }
+
+        static func compactGroupingName(
+            _ option: BatchExportService.ExportOptions.GroupByOption,
+            in bundle: Bundle = .main
+        ) -> String {
+            let key: String
+            let fallback: String
+            switch option {
+            case .none:
+                key = "export.grouping_compact.none"
+                fallback = "无"
+            case .fruitType:
+                key = "export.grouping_compact.fruit_type"
+                fallback = "水果类型"
+            case .date:
+                key = "export.grouping_compact.date"
+                fallback = "日期"
+            case .plot:
+                key = "export.grouping_compact.plot"
+                fallback = "地块"
+            }
+            return bundle.localizedString(forKey: key, value: fallback, table: nil)
+        }
+
+        static func compactFieldsSummary(
+            includedCount: Int,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "export.options.fields_compact_count",
+                value: "%d / 5",
+                table: nil
+            )
+            return String(format: format, includedCount)
+        }
+
+        static func fieldsAccessibilityValue(
+            includedCount: Int,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "export.accessibility.fields_count",
+                value: "已包含 %d / 5 个字段",
+                table: nil
+            )
+            return String(format: format, includedCount)
+        }
     }
 
     // MARK: - Import
