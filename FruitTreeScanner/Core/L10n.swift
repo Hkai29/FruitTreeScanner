@@ -1516,6 +1516,42 @@ enum L10n {
         static let fieldExcluded = NSLocalizedString("export.accessibility.field_excluded", value: "未包含", comment: "Excluded export field accessibility value")
         static let fieldToggleHint = NSLocalizedString("export.accessibility.field_hint", value: "切换此字段是否包含在导出文件中", comment: "Export field toggle accessibility hint")
         static let fieldsMenuHint = NSLocalizedString("export.accessibility.fields_menu_hint", value: "打开菜单以选择导出字段", comment: "Export fields menu accessibility hint")
+        private static func localized(
+            _ key: String,
+            fallback: String,
+            bundle: Bundle = .main
+        ) -> String {
+            bundle.localizedString(forKey: key, value: fallback, table: nil)
+        }
+
+        private static func formatted(
+            _ key: String,
+            fallback: String,
+            bundle: Bundle = .main,
+            arguments: [CVarArg]
+        ) -> String {
+            let format = localized(key, fallback: fallback, bundle: bundle)
+            let localeIdentifier = bundle.preferredLocalizations.first ?? Locale.current.identifier
+            return String(
+                format: format,
+                locale: Locale(identifier: localeIdentifier),
+                arguments: arguments
+            )
+        }
+
+        static let navigationTitle = localized("export.navigation_title", fallback: "批次导出")
+        static let headerTitle = localized("export.header_title", fallback: "批量导出")
+        static let headerSubtitle = localized(
+            "export.header_subtitle",
+            fallback: "选择多条扫描记录，导出字段、产量和地块标签。"
+        )
+        static let close = localized("export.close", fallback: "关闭")
+        static let selectAll = localized("export.select_all", fallback: "全选")
+        static let deselectAll = localized("export.deselect_all", fallback: "取消全选")
+        static let selectionProgress = localized(
+            "export.selection_progress",
+            fallback: "导出记录选择进度"
+        )
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")
@@ -1612,6 +1648,123 @@ enum L10n {
                 table: nil
             )
             return String(format: format, includedCount)
+        }
+
+        static func selectionSummary(
+            selectedCount: Int,
+            totalCount: Int,
+            bundle: Bundle = .main
+        ) -> String {
+            let key = totalCount == 1
+                ? "export.selection_summary_one"
+                : "export.selection_summary_other"
+            let fallback = totalCount == 1
+                ? "已选择 %d / 1 条可导出记录"
+                : "已选择 %d / %d 条可导出记录"
+            let arguments: [CVarArg] = totalCount == 1
+                ? [selectedCount]
+                : [selectedCount, totalCount]
+            return formatted(
+                key,
+                fallback: fallback,
+                bundle: bundle,
+                arguments: arguments
+            )
+        }
+
+        static func compactSelectionSummary(
+            selectedCount: Int,
+            totalCount: Int,
+            bundle: Bundle = .main
+        ) -> String {
+            formatted(
+                "export.selection_summary_compact",
+                fallback: "已选 %d / %d",
+                bundle: bundle,
+                arguments: [selectedCount, totalCount]
+            )
+        }
+
+        static func selectedMetrics(
+            totalYield: Float,
+            totalFruitCount: Int,
+            bundle: Bundle = .main
+        ) -> String {
+            let key = totalFruitCount == 1
+                ? "export.selected_metrics_one"
+                : "export.selected_metrics_other"
+            let fallback = totalFruitCount == 1
+                ? "%.1f kg · 1 个果实"
+                : "%.1f kg · %d 个果实"
+            let arguments: [CVarArg] = totalFruitCount == 1
+                ? [Double(totalYield)]
+                : [Double(totalYield), totalFruitCount]
+            return formatted(
+                key,
+                fallback: fallback,
+                bundle: bundle,
+                arguments: arguments
+            )
+        }
+
+        static func compactSelectedMetrics(
+            totalYield: Float,
+            totalFruitCount: Int,
+            bundle: Bundle = .main
+        ) -> String {
+            let key = totalFruitCount == 1
+                ? "export.selected_metrics_compact_one"
+                : "export.selected_metrics_compact_other"
+            let fallback = totalFruitCount == 1
+                ? "%.1f kg · 1 果"
+                : "%.1f kg · %d 果"
+            let arguments: [CVarArg] = totalFruitCount == 1
+                ? [Double(totalYield)]
+                : [Double(totalYield), totalFruitCount]
+            return formatted(
+                key,
+                fallback: fallback,
+                bundle: bundle,
+                arguments: arguments
+            )
+        }
+
+        static func unavailableSummary(
+            count: Int,
+            bundle: Bundle = .main
+        ) -> String {
+            let key = count == 1
+                ? "export.unavailable_summary_one"
+                : "export.unavailable_summary_other"
+            let fallback = count == 1
+                ? "1 条记录未完整保存或数据无效，未纳入导出"
+                : "%d 条记录未完整保存或数据无效，未纳入导出"
+            let arguments: [CVarArg] = count == 1 ? [] : [count]
+            return formatted(
+                key,
+                fallback: fallback,
+                bundle: bundle,
+                arguments: arguments
+            )
+        }
+
+        static func compactUnavailableSummary(
+            count: Int,
+            bundle: Bundle = .main
+        ) -> String {
+            let key = count == 1
+                ? "export.unavailable_summary_compact_one"
+                : "export.unavailable_summary_compact_other"
+            let fallback = count == 1
+                ? "1 条不可导出"
+                : "%d 条不可导出"
+            let arguments: [CVarArg] = count == 1 ? [] : [count]
+            return formatted(
+                key,
+                fallback: fallback,
+                bundle: bundle,
+                arguments: arguments
+            )
         }
     }
 
