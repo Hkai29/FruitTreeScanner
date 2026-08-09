@@ -1552,6 +1552,13 @@ enum L10n {
             "export.selection_progress",
             fallback: "导出记录选择进度"
         )
+        static let emptyTitle = NSLocalizedString("export.empty.title", value: "暂无可导出的记录", comment: "Batch export empty-state title")
+        static let emptyMessage = NSLocalizedString("export.empty.message", value: "扫描或导入 PLY 文件后，可在这里批量选择并导出 CSV 或 Excel 兼容表格。", comment: "Batch export empty-state guidance")
+        static let emptyCompactMessage = NSLocalizedString("export.empty.message_compact", value: "扫描或导入 PLY 文件以添加可导出记录。", comment: "Compact batch export empty-state guidance for accessibility text sizes")
+        static let startScan = NSLocalizedString("export.empty.start_scan", value: "开始扫描", comment: "Start a scan from the batch export empty state")
+        static let startScanHint = NSLocalizedString("export.empty.start_scan_hint", value: "打开扫描设置，创建可导出的扫描记录。", comment: "Accessibility hint for starting a scan from batch export")
+        static let importPLY = NSLocalizedString("export.empty.import_ply", value: "导入 PLY", comment: "Import a PLY file from the batch export empty state")
+        static let importPLYHint = NSLocalizedString("export.empty.import_ply_hint", value: "打开文件导入，将已有点云加入扫描记录。", comment: "Accessibility hint for importing PLY from batch export")
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")

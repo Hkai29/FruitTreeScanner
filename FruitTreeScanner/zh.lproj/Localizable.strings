@@ -618,6 +618,13 @@
 "export.unavailable_summary_other" = "%d 条记录未完整保存或数据无效，未纳入导出";
 "export.unavailable_summary_compact_one" = "1 条不可导出";
 "export.unavailable_summary_compact_other" = "%d 条不可导出";
+"export.empty.title" = "暂无可导出的记录";
+"export.empty.message" = "扫描或导入 PLY 文件后，可在这里批量选择并导出 CSV 或 Excel 兼容表格。";
+"export.empty.message_compact" = "扫描或导入 PLY 文件以添加可导出记录。";
+"export.empty.start_scan" = "开始扫描";
+"export.empty.start_scan_hint" = "打开扫描设置，创建可导出的扫描记录。";
+"export.empty.import_ply" = "导入 PLY";
+"export.empty.import_ply_hint" = "打开文件导入，将已有点云加入扫描记录。";
 "export.csv_desc" = "通用数据格式，兼容所有表格软件";
 "export.excel_desc" = "Microsoft Excel 兼容格式";
 "export.no_grouping" = "不分组";
