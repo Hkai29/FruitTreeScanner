@@ -98,8 +98,8 @@ extension BatchExportView {
                 guard !Task.isCancelled,
                       exportGeneration == generation
                 else { return }
-                errorMessage = error.localizedDescription
-                showError = true
+                Log.export.error("Batch export failed: \(error.localizedDescription)")
+                exportFailure = BatchExportFailurePresentation(error: error)
             }
         }
     }

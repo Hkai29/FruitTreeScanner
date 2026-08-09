@@ -176,8 +176,15 @@ enum BatchExportError: LocalizedError, Equatable {
     
     var errorDescription: String? {
         switch self {
-        case .noRecords: return "没有可导出的记录"
-        case .aggregateOutOfRange: return "所选记录的汇总数值超出支持范围"
+        case .noRecords: return L10n.Export.noRecords
+        case .aggregateOutOfRange: return L10n.Export.aggregateOutOfRange
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .noRecords: return L10n.Export.noRecordsRecovery
+        case .aggregateOutOfRange: return L10n.Export.aggregateOutOfRangeRecovery
         }
     }
 }

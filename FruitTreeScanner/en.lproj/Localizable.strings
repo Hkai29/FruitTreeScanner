@@ -642,6 +642,15 @@
 "export.primary.reexport_one" = "Re-export 1 Record";
 "export.primary.reexport_count" = "Re-export %d Records";
 "export.primary.reexport_hint" = "Replace the temporary export using the current records and options.";
+"export.failure.title" = "Couldn’t Export Records";
+"export.failure.cancel" = "Cancel";
+"export.failure.retry" = "Try Again";
+"export.failure.no_records_recovery" = "Select at least one complete record and try again.";
+"export.aggregate_out_of_range" = "The selected record totals exceed the supported range";
+"export.failure.aggregate_out_of_range" = "Select fewer records and try again.";
+"export.failure.out_of_space" = "There isn’t enough available storage to create the export. Free up space and try again.";
+"export.failure.file_write" = "The export file couldn’t be written. Check available storage and try again.";
+"export.failure.generic" = "The export couldn’t be completed. Try again; if the problem continues, choose another format.";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";
