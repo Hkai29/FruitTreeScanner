@@ -303,6 +303,30 @@
 "voxel.complete" = "Coverage Complete";
 
 /* Export */
+"export.options.format_title" = "Export Format";
+"export.options.fields_title" = "Included Fields";
+"export.options.grouping_title" = "Grouping";
+"export.options.field.tree_id" = "Tree ID";
+"export.options.field.fruit_count" = "Fruit Count";
+"export.options.field.yield" = "Yield";
+"export.options.field.gps" = "GPS Location";
+"export.options.field.scan_date" = "Scan Date";
+"export.format.csv" = "CSV";
+"export.format.excel" = "Excel (XML)";
+"export.format.research_json" = "Research JSON";
+"export.grouping_compact.none" = "None";
+"export.grouping_compact.fruit_type" = "Fruit Type";
+"export.grouping_compact.date" = "Date";
+"export.grouping_compact.plot" = "Plot";
+"export.options.fields_compact_count" = "%d / 5";
+"export.accessibility.format_selected" = "Selected";
+"export.accessibility.format_not_selected" = "Not selected";
+"export.accessibility.format_hint" = "Selects this file format for the next export";
+"export.accessibility.field_included" = "Included";
+"export.accessibility.field_excluded" = "Not included";
+"export.accessibility.field_hint" = "Toggles whether this field is included in the exported file";
+"export.accessibility.fields_count" = "%d of 5 fields included";
+"export.accessibility.fields_menu_hint" = "Opens a menu for choosing export fields";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";

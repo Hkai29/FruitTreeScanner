@@ -1,8 +1,172 @@
 import XCTest
 import Combine
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
+    func testBatchExportOptionCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.options.format_title": "Export Format",
+                "export.options.fields_title": "Included Fields",
+                "export.options.grouping_title": "Grouping",
+                "export.options.field.tree_id": "Tree ID",
+                "export.options.field.fruit_count": "Fruit Count",
+                "export.options.field.yield": "Yield",
+                "export.options.field.gps": "GPS Location",
+                "export.options.field.scan_date": "Scan Date",
+                "export.format.csv": "CSV",
+                "export.format.excel": "Excel (XML)",
+                "export.format.research_json": "Research JSON",
+                "export.grouping_compact.none": "None",
+                "export.grouping_compact.fruit_type": "Fruit Type",
+                "export.grouping_compact.date": "Date",
+                "export.grouping_compact.plot": "Plot",
+                "export.options.fields_compact_count": "%d / 5",
+                "export.no_grouping": "No Grouping",
+                "export.by_fruit_type": "By Fruit Type",
+                "export.by_date": "By Date",
+                "export.by_plot": "By Plot",
+                "export.accessibility.format_selected": "Selected",
+                "export.accessibility.format_not_selected": "Not selected",
+                "export.accessibility.format_hint": "Selects this file format for the next export",
+                "export.accessibility.field_included": "Included",
+                "export.accessibility.field_excluded": "Not included",
+                "export.accessibility.field_hint": "Toggles whether this field is included in the exported file",
+                "export.accessibility.fields_count": "%d of 5 fields included",
+                "export.accessibility.fields_menu_hint": "Opens a menu for choosing export fields"
+            ],
+            "zh": [
+                "export.options.format_title": "导出格式",
+                "export.options.fields_title": "包含字段",
+                "export.options.grouping_title": "分组方式",
+                "export.options.field.tree_id": "果树编号",
+                "export.options.field.fruit_count": "果实数量",
+                "export.options.field.yield": "产量",
+                "export.options.field.gps": "GPS 位置",
+                "export.options.field.scan_date": "扫描日期",
+                "export.format.csv": "CSV",
+                "export.format.excel": "Excel (XML)",
+                "export.format.research_json": "研究 JSON",
+                "export.grouping_compact.none": "无",
+                "export.grouping_compact.fruit_type": "水果类型",
+                "export.grouping_compact.date": "日期",
+                "export.grouping_compact.plot": "地块",
+                "export.options.fields_compact_count": "%d / 5",
+                "export.no_grouping": "不分组",
+                "export.by_fruit_type": "按水果类型",
+                "export.by_date": "按日期",
+                "export.by_plot": "按地块",
+                "export.accessibility.format_selected": "已选择",
+                "export.accessibility.format_not_selected": "未选择",
+                "export.accessibility.format_hint": "选择下次导出的文件格式",
+                "export.accessibility.field_included": "已包含",
+                "export.accessibility.field_excluded": "未包含",
+                "export.accessibility.field_hint": "切换此字段是否包含在导出文件中",
+                "export.accessibility.fields_count": "已包含 %d / 5 个字段",
+                "export.accessibility.fields_menu_hint": "打开菜单以选择导出字段"
+            ]
+        ]
+
+        var bundles: [String: Bundle] = [:]
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+            bundles[language] = localizedBundle
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+
+        let englishBundle = try XCTUnwrap(bundles["en"])
+        let chineseBundle = try XCTUnwrap(bundles["zh"])
+        XCTAssertEqual(L10n.Export.formatName(.json, in: englishBundle), "Research JSON")
+        XCTAssertEqual(L10n.Export.formatName(.json, in: chineseBundle), "研究 JSON")
+        XCTAssertEqual(L10n.Export.groupingName(.fruitType, in: englishBundle), "By Fruit Type")
+        XCTAssertEqual(L10n.Export.groupingName(.fruitType, in: chineseBundle), "按水果类型")
+        XCTAssertEqual(L10n.Export.compactGroupingName(.fruitType, in: englishBundle), "Fruit Type")
+        XCTAssertEqual(L10n.Export.compactGroupingName(.fruitType, in: chineseBundle), "水果类型")
+        XCTAssertEqual(L10n.Export.compactFieldsSummary(includedCount: 3, in: englishBundle), "3 / 5")
+        XCTAssertEqual(L10n.Export.fieldsAccessibilityValue(includedCount: 3, in: englishBundle), "3 of 5 fields included")
+        XCTAssertEqual(L10n.Export.fieldsAccessibilityValue(includedCount: 3, in: chineseBundle), "已包含 3 / 5 个字段")
+
+        XCTAssertEqual(
+            BatchExportService.ExportFormat.allCases.map(\.rawValue),
+            ["CSV", "Excel (XML)", "Research JSON"],
+            "Persisted and exported format identifiers must remain unchanged"
+        )
+        XCTAssertEqual(
+            BatchExportService.ExportOptions.GroupByOption.allCases.map(\.rawValue),
+            ["不分组", "按水果类型", "按日期", "按地块"],
+            "Persisted JSON grouping identifiers must remain unchanged"
+        )
+    }
+
+    @MainActor
+    func testBatchExportOptionsRenderAtStandardAndAccessibilityTextSizes() {
+        var options = BatchExportService.ExportOptions()
+        options.includeGPS = false
+        options.includeYield = false
+        options.groupBy = .fruitType
+
+        let sizes: [(name: String, value: DynamicTypeSize)] = [
+            ("Standard", .large),
+            ("AX5", .accessibility5)
+        ]
+
+        for size in sizes {
+            let rootView = VStack(spacing: 0) {
+                BatchExportOptionsView(
+                    exportFormat: .constant(.excel),
+                    exportOptions: .constant(options),
+                    isExporting: false,
+                    onOptionsChanged: {}
+                )
+                Spacer(minLength: 0)
+            }
+            .environment(\.dynamicTypeSize, size.value)
+            .frame(width: 390, height: 844, alignment: .top)
+            .background(Design.Colors.Dark.bgDeep)
+            .environment(\.colorScheme, .dark)
+
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+                .image { _ in
+                    didDraw = hostingController.view.drawHierarchy(
+                        in: hostingController.view.bounds,
+                        afterScreenUpdates: true
+                    )
+                }
+
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportOptions-\(size.name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.isHidden = true
+        }
+    }
+
 
     func testFruitCategorySuggestionRequiresStableDominantFrames() {
         let stableApple = (0..<3).map { offset in
