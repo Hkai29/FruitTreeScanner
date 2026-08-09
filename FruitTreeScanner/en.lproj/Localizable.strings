@@ -625,6 +625,12 @@
 "export.empty.start_scan_hint" = "Open scan setup to create an exportable scan record.";
 "export.empty.import_ply" = "Import PLY";
 "export.empty.import_ply_hint" = "Open file import to add an existing point cloud to Scan History.";
+"export.completion.title" = "Export Complete";
+"export.completion.file" = "Exported file: %@";
+"export.completion.share" = "Share";
+"export.completion.share_hint" = "Open the share sheet for the exported file.";
+"export.completion.dismiss" = "Dismiss";
+"export.completion.dismiss_hint" = "Remove this completion status and delete the temporary export file.";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";

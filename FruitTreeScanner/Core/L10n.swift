@@ -1559,6 +1559,11 @@ enum L10n {
         static let startScanHint = NSLocalizedString("export.empty.start_scan_hint", value: "打开扫描设置，创建可导出的扫描记录。", comment: "Accessibility hint for starting a scan from batch export")
         static let importPLY = NSLocalizedString("export.empty.import_ply", value: "导入 PLY", comment: "Import a PLY file from the batch export empty state")
         static let importPLYHint = NSLocalizedString("export.empty.import_ply_hint", value: "打开文件导入，将已有点云加入扫描记录。", comment: "Accessibility hint for importing PLY from batch export")
+        static let completionTitle = NSLocalizedString("export.completion.title", value: "导出完成", comment: "Batch export completion title")
+        static let completionShare = NSLocalizedString("export.completion.share", value: "分享", comment: "Share a completed batch export")
+        static let completionShareHint = NSLocalizedString("export.completion.share_hint", value: "打开已导出文件的分享面板。", comment: "Accessibility hint for sharing a completed batch export")
+        static let completionDismiss = NSLocalizedString("export.completion.dismiss", value: "收起", comment: "Dismiss a completed batch export")
+        static let completionDismissHint = NSLocalizedString("export.completion.dismiss_hint", value: "移除此完成状态，并删除临时导出文件。", comment: "Accessibility hint for dismissing and deleting a temporary completed export")
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")
@@ -1772,6 +1777,10 @@ enum L10n {
                 bundle: bundle,
                 arguments: arguments
             )
+        private static let completionFileFormat = NSLocalizedString("export.completion.file", value: "导出文件：%@", comment: "Accessibility label containing the completed export filename")
+
+        static func completionFileName(_ fileName: String) -> String {
+            String(format: completionFileFormat, fileName)
         }
     }
 

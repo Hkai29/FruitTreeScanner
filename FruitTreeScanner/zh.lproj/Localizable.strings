@@ -625,6 +625,12 @@
 "export.empty.start_scan_hint" = "打开扫描设置，创建可导出的扫描记录。";
 "export.empty.import_ply" = "导入 PLY";
 "export.empty.import_ply_hint" = "打开文件导入，将已有点云加入扫描记录。";
+"export.completion.title" = "导出完成";
+"export.completion.file" = "导出文件：%@";
+"export.completion.share" = "分享";
+"export.completion.share_hint" = "打开已导出文件的分享面板。";
+"export.completion.dismiss" = "收起";
+"export.completion.dismiss_hint" = "移除此完成状态，并删除临时导出文件。";
 "export.csv_desc" = "通用数据格式，兼容所有表格软件";
 "export.excel_desc" = "Microsoft Excel 兼容格式";
 "export.no_grouping" = "不分组";
