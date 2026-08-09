@@ -557,6 +557,11 @@ enum L10n {
 
     // MARK: - Export
     enum Export {
+        static let completionTitle = NSLocalizedString("export.completion.title", value: "导出完成", comment: "Batch export completion title")
+        static let completionShare = NSLocalizedString("export.completion.share", value: "分享", comment: "Share a completed batch export")
+        static let completionShareHint = NSLocalizedString("export.completion.share_hint", value: "打开已导出文件的分享面板。", comment: "Accessibility hint for sharing a completed batch export")
+        static let completionDismiss = NSLocalizedString("export.completion.dismiss", value: "收起", comment: "Dismiss a completed batch export")
+        static let completionDismissHint = NSLocalizedString("export.completion.dismiss_hint", value: "移除此完成状态，并删除临时导出文件。", comment: "Accessibility hint for dismissing and deleting a temporary completed export")
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")
@@ -564,6 +569,12 @@ enum L10n {
         static let byDate = NSLocalizedString("export.by_date", value: "按日期", comment: "Group by date")
         static let byPlot = NSLocalizedString("export.by_plot", value: "按地块", comment: "Group by plot")
         static let noRecords = NSLocalizedString("export.no_records", value: "没有可导出的记录", comment: "No exportable records")
+
+        private static let completionFileFormat = NSLocalizedString("export.completion.file", value: "导出文件：%@", comment: "Accessibility label containing the completed export filename")
+
+        static func completionFileName(_ fileName: String) -> String {
+            String(format: completionFileFormat, fileName)
+        }
     }
 
     // MARK: - Import

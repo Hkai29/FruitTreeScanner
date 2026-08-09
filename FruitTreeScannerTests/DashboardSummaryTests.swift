@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -695,5 +697,97 @@ final class DashboardHomeLocalizationTests: XCTestCase {
         XCTAssertEqual(AppMode.scan.title, L10n.Dashboard.scanMode)
         XCTAssertEqual(AppMode.history.title, L10n.Dashboard.historyMode)
         XCTAssertEqual(AppMode.analytics.title, L10n.Dashboard.analyticsMode)
+    }
+}
+
+final class BatchExportCompletionPanelLocalizationTests: XCTestCase {
+    func testBatchExportCompletionCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.completion.title": "Export Complete",
+                "export.completion.file": "Exported file: %@",
+                "export.completion.share": "Share",
+                "export.completion.share_hint": "Open the share sheet for the exported file.",
+                "export.completion.dismiss": "Dismiss",
+                "export.completion.dismiss_hint": "Remove this completion status and delete the temporary export file."
+            ],
+            "zh": [
+                "export.completion.title": "导出完成",
+                "export.completion.file": "导出文件：%@",
+                "export.completion.share": "分享",
+                "export.completion.share_hint": "打开已导出文件的分享面板。",
+                "export.completion.dismiss": "收起",
+                "export.completion.dismiss_hint": "移除此完成状态，并删除临时导出文件。"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    func testBatchExportCompletionPanelRendersAtStandardAndAccessibilityTextSizes() {
+        let cases: [(name: String, size: DynamicTypeSize)] = [
+            ("Large", .large),
+            ("AX5", .accessibility5)
+        ]
+        let exportedURL = URL(
+            fileURLWithPath: "/tmp/orchard-batch-export-2026-08-09-long-filename-for-accessibility.csv"
+        )
+
+        for testCase in cases {
+            let panel = BatchExportCompletionPanel(
+                url: exportedURL,
+                onShare: {},
+                onClear: {}
+            )
+            .environment(\.dynamicTypeSize, testCase.size)
+            .padding(Design.Space.md)
+
+            let rootView = panel
+                .frame(width: 390, height: 844, alignment: .top)
+                .background(Design.Colors.Dark.bgDeep)
+                .environment(\.colorScheme, .dark)
+
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+                .image { _ in
+                    didDraw = hostingController.view.drawHierarchy(
+                        in: hostingController.view.bounds,
+                        afterScreenUpdates: true
+                    )
+                }
+
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportCompletion-\(Locale.preferredLanguages.first ?? "unknown")-\(testCase.name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
     }
 }
