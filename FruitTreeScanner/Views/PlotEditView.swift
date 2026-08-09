@@ -35,23 +35,23 @@ struct PlotEditView: View {
                 TagEntityEditForm(
                     name: $name,
                     selectedColor: $selectedColor,
-                    namePlaceholder: "输入地块名称"
+                    namePlaceholder: L10n.TagManagement.plotPlaceholder
                 )
             }
-            .navigationTitle(isEditing ? "编辑地块" : "添加地块")
+            .navigationTitle(isEditing ? L10n.TagManagement.editPlot : L10n.TagManagement.addPlot)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
+                    Button(L10n.TagManagement.cancel) {
                         dismiss()
                     }
                     .foregroundColor(Design.Colors.forest)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
+                    Button(L10n.TagManagement.save) {
                         savePlot()
                     }
                     .foregroundColor(Design.Colors.forest)

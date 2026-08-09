@@ -459,6 +459,207 @@ enum L10n {
         }
     }
 
+    // MARK: - Tag Management
+    enum TagManagement {
+        enum Key: String, CaseIterable {
+            case navigationTitle = "tag_management.navigation_title"
+            case headerTitle = "tag_management.header.title"
+            case headerSubtitle = "tag_management.header.subtitle"
+            case tabPickerLabel = "tag_management.tab_picker_label"
+            case plotsTab = "tag_management.tab.plots"
+            case tagsTab = "tag_management.tab.tags"
+            case statusTab = "tag_management.tab.status"
+            case confirmDelete = "tag_management.confirm_delete"
+            case cancel = "tag_management.cancel"
+            case done = "tag_management.done"
+            case save = "tag_management.save"
+            case addPlot = "tag_management.plot.add"
+            case editPlot = "tag_management.plot.edit"
+            case addTag = "tag_management.tag.add"
+            case editTag = "tag_management.tag.edit"
+            case plotPlaceholder = "tag_management.plot.placeholder"
+            case tagPlaceholder = "tag_management.tag.placeholder"
+            case nameLabel = "tag_management.name_label"
+            case colorLabel = "tag_management.color_label"
+            case plotsEmptyTitle = "tag_management.plot.empty.title"
+            case plotsEmptyMessage = "tag_management.plot.empty.message"
+            case tagsEmptyTitle = "tag_management.tag.empty.title"
+            case tagsEmptyMessage = "tag_management.tag.empty.message"
+            case statusEmptyTitle = "tag_management.status.empty.title"
+            case statusEmptyMessage = "tag_management.status.empty.message"
+            case startScan = "tag_management.start_scan"
+            case treeCountOne = "tag_management.tree_count.one"
+            case treeCountOther = "tag_management.tree_count.other"
+            case editPlotHint = "tag_management.plot.edit_hint"
+            case editTagHint = "tag_management.tag.edit_hint"
+            case deletePlotAction = "tag_management.plot.delete_action"
+            case deleteTagAction = "tag_management.tag.delete_action"
+            case plotDeletionTitle = "tag_management.plot.delete.title"
+            case tagDeletionTitle = "tag_management.tag.delete.title"
+            case plotDeletionMessageOne = "tag_management.plot.delete.message.one"
+            case plotDeletionMessageOther = "tag_management.plot.delete.message.other"
+            case tagDeletionMessageOne = "tag_management.tag.delete.message.one"
+            case tagDeletionMessageOther = "tag_management.tag.delete.message.other"
+            case selected = "tag_management.selected"
+            case notSelected = "tag_management.not_selected"
+            case colorAccessibilityLabel = "tag_management.color.accessibility_label"
+            case colorGreen = "tag_management.color.green"
+            case colorAmber = "tag_management.color.amber"
+            case colorBlue = "tag_management.color.blue"
+            case colorRed = "tag_management.color.red"
+            case colorBrown = "tag_management.color.brown"
+            case colorOlive = "tag_management.color.olive"
+            case colorGray = "tag_management.color.gray"
+            case colorCharcoal = "tag_management.color.charcoal"
+
+            var fallback: String {
+                switch self {
+                case .navigationTitle: return "标签管理"
+                case .headerTitle: return "地块标签"
+                case .headerSubtitle: return "维护地块、标签和扫描状态，让每棵树都有清晰归属。"
+                case .tabPickerLabel: return "标签管理"
+                case .plotsTab: return "地块"
+                case .tagsTab: return "标签"
+                case .statusTab: return "状态"
+                case .confirmDelete: return "确认删除"
+                case .cancel: return "取消"
+                case .done: return "完成"
+                case .save: return "保存"
+                case .addPlot: return "添加地块"
+                case .editPlot: return "编辑地块"
+                case .addTag: return "添加标签"
+                case .editTag: return "编辑标签"
+                case .plotPlaceholder: return "输入地块名称"
+                case .tagPlaceholder: return "输入标签名称"
+                case .nameLabel: return "名称"
+                case .colorLabel: return "颜色"
+                case .plotsEmptyTitle: return "暂无地块"
+                case .plotsEmptyMessage: return "添加地块后，可把果树扫描记录归到具体区域。"
+                case .tagsEmptyTitle: return "暂无标签"
+                case .tagsEmptyMessage: return "标签用于标记试验组、品种批次或管理状态。"
+                case .statusEmptyTitle: return "暂无树体状态"
+                case .statusEmptyMessage: return "开始扫描并选择地块或标签后，这里会汇总待扫描、复核中和已完成的树体数量。"
+                case .startScan: return "开始扫描"
+                case .treeCountOne, .treeCountOther: return "%d 棵树"
+                case .editPlotHint: return "打开地块编辑页面。"
+                case .editTagHint: return "打开标签编辑页面。"
+                case .deletePlotAction: return "删除地块"
+                case .deleteTagAction: return "删除标签"
+                case .plotDeletionTitle: return "删除地块“%@”？"
+                case .tagDeletionTitle: return "删除标签“%@”？"
+                case .plotDeletionMessageOne, .plotDeletionMessageOther:
+                    return "该操作会取消 %d 棵树的地块归属，但不会删除扫描记录。"
+                case .tagDeletionMessageOne, .tagDeletionMessageOther:
+                    return "该操作会从 %d 棵树移除此标签，但不会删除扫描记录。"
+                case .selected: return "已选择"
+                case .notSelected: return "未选择"
+                case .colorAccessibilityLabel: return "颜色：%@"
+                case .colorGreen: return "绿色"
+                case .colorAmber: return "琥珀色"
+                case .colorBlue: return "蓝色"
+                case .colorRed: return "红色"
+                case .colorBrown: return "棕色"
+                case .colorOlive: return "橄榄色"
+                case .colorGray: return "灰色"
+                case .colorCharcoal: return "炭灰色"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static var navigationTitle: String { text(.navigationTitle) }
+        static var headerTitle: String { text(.headerTitle) }
+        static var headerSubtitle: String { text(.headerSubtitle) }
+        static var tabPickerLabel: String { text(.tabPickerLabel) }
+        static var plotsTab: String { text(.plotsTab) }
+        static var tagsTab: String { text(.tagsTab) }
+        static var statusTab: String { text(.statusTab) }
+        static var confirmDelete: String { text(.confirmDelete) }
+        static var cancel: String { text(.cancel) }
+        static var done: String { text(.done) }
+        static var save: String { text(.save) }
+        static var addPlot: String { text(.addPlot) }
+        static var editPlot: String { text(.editPlot) }
+        static var addTag: String { text(.addTag) }
+        static var editTag: String { text(.editTag) }
+        static var plotPlaceholder: String { text(.plotPlaceholder) }
+        static var tagPlaceholder: String { text(.tagPlaceholder) }
+        static var nameLabel: String { text(.nameLabel) }
+        static var colorLabel: String { text(.colorLabel) }
+        static var plotsEmptyTitle: String { text(.plotsEmptyTitle) }
+        static var plotsEmptyMessage: String { text(.plotsEmptyMessage) }
+        static var tagsEmptyTitle: String { text(.tagsEmptyTitle) }
+        static var tagsEmptyMessage: String { text(.tagsEmptyMessage) }
+        static var statusEmptyTitle: String { text(.statusEmptyTitle) }
+        static var statusEmptyMessage: String { text(.statusEmptyMessage) }
+        static var startScan: String { text(.startScan) }
+        static var editPlotHint: String { text(.editPlotHint) }
+        static var editTagHint: String { text(.editTagHint) }
+        static var deletePlotAction: String { text(.deletePlotAction) }
+        static var deleteTagAction: String { text(.deleteTagAction) }
+
+        static func treeCount(_ count: Int, in bundle: Bundle = .main) -> String {
+            let key: Key = count == 1 ? .treeCountOne : .treeCountOther
+            return String(format: text(key, in: bundle), count)
+        }
+
+        static func plotDeletionTitle(name: String, in bundle: Bundle = .main) -> String {
+            String(format: text(.plotDeletionTitle, in: bundle), name)
+        }
+
+        static func tagDeletionTitle(name: String, in bundle: Bundle = .main) -> String {
+            String(format: text(.tagDeletionTitle, in: bundle), name)
+        }
+
+        static func plotDeletionMessage(treeCount: Int, in bundle: Bundle = .main) -> String {
+            let key: Key = treeCount == 1 ? .plotDeletionMessageOne : .plotDeletionMessageOther
+            return String(format: text(key, in: bundle), treeCount)
+        }
+
+        static func tagDeletionMessage(treeCount: Int, in bundle: Bundle = .main) -> String {
+            let key: Key = treeCount == 1 ? .tagDeletionMessageOne : .tagDeletionMessageOther
+            return String(format: text(key, in: bundle), treeCount)
+        }
+
+        static func statusName(for status: ScanStatus, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: QuickTagging.statusLocalizationKey(status),
+                value: status.rawValue,
+                table: nil
+            )
+        }
+
+        static func selectionValue(isSelected: Bool, in bundle: Bundle = .main) -> String {
+            text(isSelected ? .selected : .notSelected, in: bundle)
+        }
+
+        static func colorName(for colorHex: String, in bundle: Bundle = .main) -> String {
+            let key: Key
+            switch colorHex.uppercased() {
+            case "#6F8F63": key = .colorGreen
+            case "#B8843A": key = .colorAmber
+            case "#4D7588": key = .colorBlue
+            case "#B8564B": key = .colorRed
+            case "#8A7657": key = .colorBrown
+            case "#6C7B58": key = .colorOlive
+            case "#7E8580": key = .colorGray
+            case "#34362F": key = .colorCharcoal
+            default: return colorHex
+            }
+            return text(key, in: bundle)
+        }
+
+        static func colorAccessibilityLabel(for colorHex: String, in bundle: Bundle = .main) -> String {
+            String(
+                format: text(.colorAccessibilityLabel, in: bundle),
+                colorName(for: colorHex, in: bundle)
+            )
+        }
+    }
+
     // MARK: - Dashboard
     enum Dashboard {
         static let title = NSLocalizedString("dashboard.title", value: "果园概览", comment: "Dashboard title")

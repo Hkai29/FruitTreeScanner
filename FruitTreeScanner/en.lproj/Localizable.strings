@@ -181,6 +181,57 @@
 "quick_tagging.status.reviewing" = "Reviewing";
 "quick_tagging.status.completed" = "Completed";
 
+/* Tag management */
+"tag_management.navigation_title" = "Plot & Tag Management";
+"tag_management.header.title" = "Plots & Tags";
+"tag_management.header.subtitle" = "Organize every tree by plot, tag, and scan status.";
+"tag_management.tab_picker_label" = "Plot and tag management";
+"tag_management.tab.plots" = "Plots";
+"tag_management.tab.tags" = "Tags";
+"tag_management.tab.status" = "Status";
+"tag_management.confirm_delete" = "Confirm Deletion";
+"tag_management.cancel" = "Cancel";
+"tag_management.done" = "Done";
+"tag_management.save" = "Save";
+"tag_management.plot.add" = "Add Plot";
+"tag_management.plot.edit" = "Edit Plot";
+"tag_management.tag.add" = "Add Tag";
+"tag_management.tag.edit" = "Edit Tag";
+"tag_management.plot.placeholder" = "Enter plot name";
+"tag_management.tag.placeholder" = "Enter tag name";
+"tag_management.name_label" = "Name";
+"tag_management.color_label" = "Color";
+"tag_management.plot.empty.title" = "No Plots Yet";
+"tag_management.plot.empty.message" = "Add a plot to organize tree scans by orchard area.";
+"tag_management.tag.empty.title" = "No Tags Yet";
+"tag_management.tag.empty.message" = "Use tags for trial groups, cultivar batches, or management status.";
+"tag_management.status.empty.title" = "No Tree Status Yet";
+"tag_management.status.empty.message" = "After you scan trees and choose plots or tags, this page summarizes trees that need scanning, review, or completion.";
+"tag_management.start_scan" = "Start Scan";
+"tag_management.tree_count.one" = "%d tree";
+"tag_management.tree_count.other" = "%d trees";
+"tag_management.plot.edit_hint" = "Opens the plot editor.";
+"tag_management.tag.edit_hint" = "Opens the tag editor.";
+"tag_management.plot.delete_action" = "Delete Plot";
+"tag_management.tag.delete_action" = "Delete Tag";
+"tag_management.plot.delete.title" = "Delete “%@”?";
+"tag_management.tag.delete.title" = "Delete “%@”?";
+"tag_management.plot.delete.message.one" = "This removes the plot assignment from %d tree without deleting any scan records.";
+"tag_management.plot.delete.message.other" = "This removes the plot assignment from %d trees without deleting any scan records.";
+"tag_management.tag.delete.message.one" = "This removes the tag from %d tree without deleting any scan records.";
+"tag_management.tag.delete.message.other" = "This removes the tag from %d trees without deleting any scan records.";
+"tag_management.selected" = "Selected";
+"tag_management.not_selected" = "Not selected";
+"tag_management.color.accessibility_label" = "Color: %@";
+"tag_management.color.green" = "Green";
+"tag_management.color.amber" = "Amber";
+"tag_management.color.blue" = "Blue";
+"tag_management.color.red" = "Red";
+"tag_management.color.brown" = "Brown";
+"tag_management.color.olive" = "Olive";
+"tag_management.color.gray" = "Gray";
+"tag_management.color.charcoal" = "Charcoal";
+
 /* Dashboard */
 "dashboard.title" = "Orchard Overview";
 "dashboard.today_scans" = "Today's Scans";

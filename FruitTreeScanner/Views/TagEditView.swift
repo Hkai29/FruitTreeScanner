@@ -35,23 +35,23 @@ struct TagEditView: View {
                 TagEntityEditForm(
                     name: $name,
                     selectedColor: $selectedColor,
-                    namePlaceholder: "输入标签名称"
+                    namePlaceholder: L10n.TagManagement.tagPlaceholder
                 )
             }
-            .navigationTitle(isEditing ? "编辑标签" : "添加标签")
+            .navigationTitle(isEditing ? L10n.TagManagement.editTag : L10n.TagManagement.addTag)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
+                    Button(L10n.TagManagement.cancel) {
                         dismiss()
                     }
                     .foregroundColor(Design.Colors.forest)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
+                    Button(L10n.TagManagement.save) {
                         saveTag()
                     }
                     .foregroundColor(Design.Colors.forest)

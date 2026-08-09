@@ -10,13 +10,18 @@ struct TagListView: View {
     var body: some View {
         List {
             ForEach(tags) { tag in
-                TagRowView(
-                    tag: tag,
-                    treeCount: treeCount(tag.id)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
+                let count = treeCount(tag.id)
+                Button {
                     onEdit(tag)
+                } label: {
+                    TagRowView(tag: tag, treeCount: count)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tag.name)
+                .accessibilityValue(L10n.TagManagement.treeCount(count))
+                .accessibilityHint(L10n.TagManagement.editTagHint)
+                .accessibilityAction(named: Text(L10n.TagManagement.deleteTagAction)) {
+                    onDelete(tag)
                 }
             }
             .onDelete { indexSet in
@@ -32,9 +37,13 @@ struct TagListView: View {
                 TagManagementEmptyState(
                     icon: "tag",
                     imageName: "FeatureTagManagement",
-                    title: "暂无标签",
-                    message: "标签用于标记试验组、品种批次或管理状态。",
-                    primaryAction: DashboardSheetAction(title: "添加标签", icon: "plus", action: onAdd)
+                    title: L10n.TagManagement.tagsEmptyTitle,
+                    message: L10n.TagManagement.tagsEmptyMessage,
+                    primaryAction: DashboardSheetAction(
+                        title: L10n.TagManagement.addTag,
+                        icon: "plus",
+                        action: onAdd
+                    )
                 )
             }
         }
