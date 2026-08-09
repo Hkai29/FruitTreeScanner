@@ -31,9 +31,13 @@ struct StatusOverviewView: View {
                 TagManagementEmptyState(
                     icon: "checklist",
                     imageName: "FeatureTagManagement",
-                    title: "暂无树体状态",
-                    message: "开始扫描并选择地块或标签后，这里会汇总待扫描、复核中和已完成的树体数量。",
-                    primaryAction: action(title: "开始扫描", icon: "viewfinder", handler: onStartScan)
+                    title: L10n.TagManagement.statusEmptyTitle,
+                    message: L10n.TagManagement.statusEmptyMessage,
+                    primaryAction: action(
+                        title: L10n.TagManagement.startScan,
+                        icon: "viewfinder",
+                        handler: onStartScan
+                    )
                 )
             }
         }
@@ -70,17 +74,17 @@ struct StatusRowView: View {
     var body: some View {
         HStack(spacing: Design.Space.md) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
+                .font(.headline.weight(.medium))
                 .foregroundColor(iconColor)
-                .frame(width: 24)
+                .frame(minWidth: 24)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(status.rawValue)
-                    .font(.system(size: 15, weight: .semibold))
+                Text(L10n.TagManagement.statusName(for: status))
+                    .font(.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
-                Text("\(count) 棵树")
-                    .font(.system(size: 12))
+                Text(L10n.TagManagement.treeCount(count))
+                    .font(.caption)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
@@ -88,5 +92,6 @@ struct StatusRowView: View {
         }
         .padding(.vertical, 7)
         .listRowBackground(Design.Colors.Dark.bgDeep)
+        .accessibilityElement(children: .combine)
     }
 }

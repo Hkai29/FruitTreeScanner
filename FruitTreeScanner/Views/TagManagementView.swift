@@ -8,29 +8,47 @@ enum TagManagementDeletionRequest {
     case tag(GroupTag, affectedTreeCount: Int)
 
     var title: String {
+        title(in: .main)
+    }
+
+    func title(in bundle: Bundle) -> String {
         switch self {
         case .plot(let plot, _):
-            return "删除地块“\(plot.name)”？"
+            return L10n.TagManagement.plotDeletionTitle(name: plot.name, in: bundle)
         case .tag(let tag, _):
-            return "删除标签“\(tag.name)”？"
+            return L10n.TagManagement.tagDeletionTitle(name: tag.name, in: bundle)
         }
     }
 
     var confirmationTitle: String {
+        confirmationTitle(in: .main)
+    }
+
+    func confirmationTitle(in bundle: Bundle) -> String {
         switch self {
         case .plot:
-            return "删除地块"
+            return L10n.TagManagement.text(.deletePlotAction, in: bundle)
         case .tag:
-            return "删除标签"
+            return L10n.TagManagement.text(.deleteTagAction, in: bundle)
         }
     }
 
     var message: String {
+        message(in: .main)
+    }
+
+    func message(in bundle: Bundle) -> String {
         switch self {
         case .plot(_, let affectedTreeCount):
-            return "该操作会取消 \(affectedTreeCount) 棵树的地块归属，但不会删除扫描记录。"
+            return L10n.TagManagement.plotDeletionMessage(
+                treeCount: affectedTreeCount,
+                in: bundle
+            )
         case .tag(_, let affectedTreeCount):
-            return "该操作会从 \(affectedTreeCount) 棵树移除此标签，但不会删除扫描记录。"
+            return L10n.TagManagement.tagDeletionMessage(
+                treeCount: affectedTreeCount,
+                in: bundle
+            )
         }
     }
 
@@ -61,8 +79,8 @@ struct TagManagementView: View {
                 VStack(spacing: 12) {
                     DashboardToolHeader(
                         imageName: "FeatureTagManagement",
-                        title: "地块标签",
-                        subtitle: "维护地块、标签和扫描状态，让每棵树都有清晰归属。",
+                        title: L10n.TagManagement.headerTitle,
+                        subtitle: L10n.TagManagement.headerSubtitle,
                         icon: "tag",
                         accent: Design.Colors.harvest
                     )
@@ -70,10 +88,10 @@ struct TagManagementView: View {
                     .padding(.top, Design.Space.md)
 
                     // Tab Picker
-                    Picker("标签管理", selection: $selectedTab) {
-                        Text("地块").tag(0)
-                        Text("标签").tag(1)
-                        Text("状态").tag(2)
+                    Picker(L10n.TagManagement.tabPickerLabel, selection: $selectedTab) {
+                        Text(L10n.TagManagement.plotsTab).tag(0)
+                        Text(L10n.TagManagement.tagsTab).tag(1)
+                        Text(L10n.TagManagement.statusTab).tag(2)
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal, Design.Space.md)
@@ -119,7 +137,7 @@ struct TagManagementView: View {
                 }
             }
             .confirmationDialog(
-                Text(pendingDeletion?.title ?? "确认删除"),
+                Text(pendingDeletion?.title ?? L10n.TagManagement.confirmDelete),
                 isPresented: isDeletionDialogPresented,
                 titleVisibility: .visible,
                 presenting: pendingDeletion
@@ -127,18 +145,18 @@ struct TagManagementView: View {
                 Button(request.confirmationTitle, role: .destructive) {
                     request.confirm(in: tagStore)
                 }
-                Button("取消", role: .cancel) {}
+                Button(L10n.TagManagement.cancel, role: .cancel) {}
             } message: { request in
                 Text(request.message)
             }
-            .navigationTitle("标签管理")
+            .navigationTitle(L10n.TagManagement.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("完成") {
+                    Button(L10n.TagManagement.done) {
                         dismiss()
                     }
                     .foregroundColor(Design.Colors.harvest)
@@ -150,7 +168,9 @@ struct TagManagementView: View {
                             Image(systemName: "plus")
                                 .foregroundColor(Design.Colors.harvest)
                         }
-                        .accessibilityLabel(selectedTab == 0 ? "添加地块" : "添加标签")
+                        .accessibilityLabel(
+                            selectedTab == 0 ? L10n.TagManagement.addPlot : L10n.TagManagement.addTag
+                        )
                     }
                 }
             }

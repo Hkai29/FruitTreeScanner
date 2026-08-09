@@ -207,6 +207,112 @@ final class TagStoreTests: XCTestCase {
         window.resignKey()
     }
 
+    func testTagManagementCopyIsCompleteInEnglishAndChinese() throws {
+        let bundles = [
+            "en": try localizedBundle(for: "en"),
+            "zh": try localizedBundle(for: "zh")
+        ]
+
+        for (language, bundle) in bundles {
+            let missingKeys = L10n.TagManagement.Key.allCases.filter { key in
+                bundle.localizedString(forKey: key.rawValue, value: nil, table: nil) == key.rawValue
+            }
+            XCTAssertTrue(
+                missingKeys.isEmpty,
+                "\(language) localization is missing: \(missingKeys.map(\.rawValue).joined(separator: ", "))"
+            )
+        }
+
+        let english = try XCTUnwrap(bundles["en"])
+        let chinese = try XCTUnwrap(bundles["zh"])
+        XCTAssertEqual(L10n.TagManagement.text(.navigationTitle, in: english), "Plot & Tag Management")
+        XCTAssertEqual(L10n.TagManagement.text(.headerTitle, in: chinese), "地块标签")
+        XCTAssertEqual(L10n.TagManagement.treeCount(1, in: english), "1 tree")
+        XCTAssertEqual(L10n.TagManagement.treeCount(3, in: english), "3 trees")
+        XCTAssertEqual(L10n.TagManagement.treeCount(3, in: chinese), "3 棵树")
+        XCTAssertEqual(
+            L10n.TagManagement.plotDeletionMessage(treeCount: 1, in: english),
+            "This removes the plot assignment from 1 tree without deleting any scan records."
+        )
+        XCTAssertEqual(
+            L10n.TagManagement.plotDeletionMessage(treeCount: 2, in: english),
+            "This removes the plot assignment from 2 trees without deleting any scan records."
+        )
+        XCTAssertEqual(
+            L10n.TagManagement.tagDeletionMessage(treeCount: 1, in: english),
+            "This removes the tag from 1 tree without deleting any scan records."
+        )
+        XCTAssertEqual(
+            L10n.TagManagement.tagDeletionMessage(treeCount: 2, in: english),
+            "This removes the tag from 2 trees without deleting any scan records."
+        )
+    }
+
+    func testTagManagementDynamicCopyCoversPaletteAndStablePersistedStatuses() throws {
+        let english = try localizedBundle(for: "en")
+        let chinese = try localizedBundle(for: "zh")
+
+        XCTAssertEqual(
+            L10n.TagManagement.colorName(for: "#6F8F63", in: english),
+            "Green"
+        )
+        XCTAssertEqual(
+            L10n.TagManagement.colorAccessibilityLabel(for: "#34362F", in: chinese),
+            "颜色：炭灰色"
+        )
+        XCTAssertEqual(
+            ScanStatus.allCases.map { L10n.TagManagement.statusName(for: $0, in: english) },
+            ["Not Scanned", "Scanned", "Reviewing", "Completed"]
+        )
+        XCTAssertEqual(
+            ScanStatus.allCases.map(\.rawValue),
+            ["未扫描", "已扫描", "复查中", "已完成"],
+            "Localized display names must not change the Codable raw values in persisted snapshots"
+        )
+    }
+
+    func testTagManagementEditFormRendersAtAccessibilityTextSize() {
+        let form = TagEntityEditForm(
+            name: .constant("North Plot"),
+            selectedColor: .constant("#4D7588"),
+            namePlaceholder: L10n.TagManagement.plotPlaceholder
+        )
+        .environment(\.dynamicTypeSize, .accessibility5)
+
+        let rootView = form
+            .frame(width: 390, height: 844, alignment: .top)
+            .background(Design.Colors.Dark.bgDeep)
+            .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "TagManagementEditForm-\(Locale.preferredLanguages.first ?? "unknown")-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
+    }
+
     func testPlotDeletionRequestDefersCascadeUntilConfirmationAndExplainsImpact() async throws {
         let defaults = makeDefaults()
         defer { clear(defaults) }
@@ -234,10 +340,11 @@ final class TagStoreTests: XCTestCase {
             affectedTreeCount: store.treeCount(forPlotId: plot.id)
         )
 
-        XCTAssertEqual(request.title, "删除地块“北区”？")
-        XCTAssertEqual(request.confirmationTitle, "删除地块")
+        let chinese = try localizedBundle(for: "zh")
+        XCTAssertEqual(request.title(in: chinese), "删除地块“北区”？")
+        XCTAssertEqual(request.confirmationTitle(in: chinese), "删除地块")
         XCTAssertEqual(
-            request.message,
+            request.message(in: chinese),
             "该操作会取消 2 棵树的地块归属，但不会删除扫描记录。"
         )
         XCTAssertNotNil(store.getPlot(id: plot.id))
@@ -279,10 +386,11 @@ final class TagStoreTests: XCTestCase {
             affectedTreeCount: store.treeCount(forTagId: targetTag.id)
         )
 
-        XCTAssertEqual(request.title, "删除标签“灌溉组”？")
-        XCTAssertEqual(request.confirmationTitle, "删除标签")
+        let chinese = try localizedBundle(for: "zh")
+        XCTAssertEqual(request.title(in: chinese), "删除标签“灌溉组”？")
+        XCTAssertEqual(request.confirmationTitle(in: chinese), "删除标签")
         XCTAssertEqual(
-            request.message,
+            request.message(in: chinese),
             "该操作会从 1 棵树移除此标签，但不会删除扫描记录。"
         )
         XCTAssertNotNil(store.getTag(id: targetTag.id))
@@ -310,6 +418,13 @@ final class TagStoreTests: XCTestCase {
 
     private func makeDefaults() -> UserDefaults {
         UserDefaults(suiteName: "TagStoreTests.\(UUID().uuidString)")!
+    }
+
+    private func localizedBundle(for language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
     }
 
     private func clear(_ defaults: UserDefaults) {

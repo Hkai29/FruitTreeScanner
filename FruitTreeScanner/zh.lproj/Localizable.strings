@@ -87,6 +87,57 @@
 "quick_tagging.status.reviewing" = "复查中";
 "quick_tagging.status.completed" = "已完成";
 
+/* 标签管理 */
+"tag_management.navigation_title" = "标签管理";
+"tag_management.header.title" = "地块标签";
+"tag_management.header.subtitle" = "维护地块、标签和扫描状态，让每棵树都有清晰归属。";
+"tag_management.tab_picker_label" = "标签管理";
+"tag_management.tab.plots" = "地块";
+"tag_management.tab.tags" = "标签";
+"tag_management.tab.status" = "状态";
+"tag_management.confirm_delete" = "确认删除";
+"tag_management.cancel" = "取消";
+"tag_management.done" = "完成";
+"tag_management.save" = "保存";
+"tag_management.plot.add" = "添加地块";
+"tag_management.plot.edit" = "编辑地块";
+"tag_management.tag.add" = "添加标签";
+"tag_management.tag.edit" = "编辑标签";
+"tag_management.plot.placeholder" = "输入地块名称";
+"tag_management.tag.placeholder" = "输入标签名称";
+"tag_management.name_label" = "名称";
+"tag_management.color_label" = "颜色";
+"tag_management.plot.empty.title" = "暂无地块";
+"tag_management.plot.empty.message" = "添加地块后，可把果树扫描记录归到具体区域。";
+"tag_management.tag.empty.title" = "暂无标签";
+"tag_management.tag.empty.message" = "标签用于标记试验组、品种批次或管理状态。";
+"tag_management.status.empty.title" = "暂无树体状态";
+"tag_management.status.empty.message" = "开始扫描并选择地块或标签后，这里会汇总待扫描、复核中和已完成的树体数量。";
+"tag_management.start_scan" = "开始扫描";
+"tag_management.tree_count.one" = "%d 棵树";
+"tag_management.tree_count.other" = "%d 棵树";
+"tag_management.plot.edit_hint" = "打开地块编辑页面。";
+"tag_management.tag.edit_hint" = "打开标签编辑页面。";
+"tag_management.plot.delete_action" = "删除地块";
+"tag_management.tag.delete_action" = "删除标签";
+"tag_management.plot.delete.title" = "删除地块“%@”？";
+"tag_management.tag.delete.title" = "删除标签“%@”？";
+"tag_management.plot.delete.message.one" = "该操作会取消 %d 棵树的地块归属，但不会删除扫描记录。";
+"tag_management.plot.delete.message.other" = "该操作会取消 %d 棵树的地块归属，但不会删除扫描记录。";
+"tag_management.tag.delete.message.one" = "该操作会从 %d 棵树移除此标签，但不会删除扫描记录。";
+"tag_management.tag.delete.message.other" = "该操作会从 %d 棵树移除此标签，但不会删除扫描记录。";
+"tag_management.selected" = "已选择";
+"tag_management.not_selected" = "未选择";
+"tag_management.color.accessibility_label" = "颜色：%@";
+"tag_management.color.green" = "绿色";
+"tag_management.color.amber" = "琥珀色";
+"tag_management.color.blue" = "蓝色";
+"tag_management.color.red" = "红色";
+"tag_management.color.brown" = "棕色";
+"tag_management.color.olive" = "橄榄色";
+"tag_management.color.gray" = "灰色";
+"tag_management.color.charcoal" = "炭灰色";
+
 /* Dashboard */
 "dashboard.title" = "果园概览";
 "dashboard.today_scans" = "扫描数量";

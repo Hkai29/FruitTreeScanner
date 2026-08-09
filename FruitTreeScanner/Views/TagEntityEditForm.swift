@@ -24,15 +24,16 @@ struct TagEntityEditForm: View {
 
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("名称")
-                .font(.system(size: 13, weight: .semibold))
+            Text(L10n.TagManagement.nameLabel)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             TextField(namePlaceholder, text: $name)
-                .font(.system(size: 16, weight: .medium))
+                .font(.body.weight(.medium))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(.horizontal, 14)
-                .frame(height: 48)
+                .padding(.vertical, 12)
+                .frame(minHeight: 48)
                 .background(Design.Colors.Dark.bgElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
@@ -48,11 +49,11 @@ struct TagEntityEditForm: View {
 
     private var colorSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("颜色")
-                .font(.system(size: 13, weight: .semibold))
+            Text(L10n.TagManagement.colorLabel)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 54))], spacing: 12) {
                 ForEach(colorOptions, id: \.self) { colorHex in
                     colorSwatch(colorHex)
                 }
@@ -72,19 +73,33 @@ struct TagEntityEditForm: View {
         Button {
             selectedColor = colorHex
         } label: {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(hex: colorHex))
-                .frame(height: 34)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(selectedColor == colorHex ? Color.white : Color.clear, lineWidth: 2)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Design.Colors.Dark.glassBorder.opacity(0.35), lineWidth: 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(hex: colorHex))
+
+                if selectedColor == colorHex {
+                    Image(systemName: "checkmark")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.45), radius: 1, y: 1)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(minHeight: 44)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(selectedColor == colorHex ? Color.white : Color.clear, lineWidth: 2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Design.Colors.Dark.glassBorder.opacity(0.35), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("颜色 \(colorHex)")
+        .accessibilityLabel(L10n.TagManagement.colorAccessibilityLabel(for: colorHex))
+        .accessibilityValue(
+            L10n.TagManagement.selectionValue(isSelected: selectedColor == colorHex)
+        )
+        .accessibilityAddTraits(selectedColor == colorHex ? .isSelected : [])
     }
 }

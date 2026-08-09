@@ -8,7 +8,7 @@ struct PlotRowView: View {
         TagManagementRow(
             colorHex: plot.colorHex,
             title: plot.name,
-            detail: "\(treeCount) 棵树"
+            detail: L10n.TagManagement.treeCount(treeCount)
         )
     }
 }
@@ -21,7 +21,7 @@ struct TagRowView: View {
         TagManagementRow(
             colorHex: tag.colorHex,
             title: tag.name,
-            detail: "\(treeCount) 棵树"
+            detail: L10n.TagManagement.treeCount(treeCount)
         )
     }
 }
@@ -36,22 +36,24 @@ private struct TagManagementRow: View {
             RoundedRectangle(cornerRadius: 5)
                 .fill(Color(hex: colorHex))
                 .frame(width: 18, height: 18)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text(detail)
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+                .accessibilityHidden(true)
         }
         .padding(.vertical, 7)
         .listRowBackground(Design.Colors.Dark.bgDeep)

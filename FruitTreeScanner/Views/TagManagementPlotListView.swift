@@ -10,13 +10,18 @@ struct PlotListView: View {
     var body: some View {
         List {
             ForEach(plots) { plot in
-                PlotRowView(
-                    plot: plot,
-                    treeCount: treeCount(plot.id)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
+                let count = treeCount(plot.id)
+                Button {
                     onEdit(plot)
+                } label: {
+                    PlotRowView(plot: plot, treeCount: count)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(plot.name)
+                .accessibilityValue(L10n.TagManagement.treeCount(count))
+                .accessibilityHint(L10n.TagManagement.editPlotHint)
+                .accessibilityAction(named: Text(L10n.TagManagement.deletePlotAction)) {
+                    onDelete(plot)
                 }
             }
             .onDelete { indexSet in
@@ -32,9 +37,13 @@ struct PlotListView: View {
                 TagManagementEmptyState(
                     icon: "map",
                     imageName: "FeatureTagManagement",
-                    title: "暂无地块",
-                    message: "添加地块后，可把果树扫描记录归到具体区域。",
-                    primaryAction: DashboardSheetAction(title: "添加地块", icon: "plus", action: onAdd)
+                    title: L10n.TagManagement.plotsEmptyTitle,
+                    message: L10n.TagManagement.plotsEmptyMessage,
+                    primaryAction: DashboardSheetAction(
+                        title: L10n.TagManagement.addPlot,
+                        icon: "plus",
+                        action: onAdd
+                    )
                 )
             }
         }
