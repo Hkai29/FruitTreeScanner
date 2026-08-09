@@ -303,6 +303,14 @@
 "voxel.complete" = "覆盖完成";
 
 /* Export */
+"export.primary.cancel" = "取消导出";
+"export.primary.cancel_hint" = "停止当前导出。";
+"export.primary.export_one" = "导出 1 条记录";
+"export.primary.export_count" = "导出 %d 条记录";
+"export.primary.export_hint" = "为所选记录创建导出文件并打开分享面板。";
+"export.primary.reexport_one" = "重新导出 1 条记录";
+"export.primary.reexport_count" = "重新导出 %d 条记录";
+"export.primary.reexport_hint" = "使用当前记录和选项替换临时导出文件。";
 "export.csv_desc" = "通用数据格式，兼容所有表格软件";
 "export.excel_desc" = "Microsoft Excel 兼容格式";
 "export.no_grouping" = "不分组";

@@ -60,28 +60,45 @@ struct BatchExportPrimaryButton: View {
                 if isExporting {
                     ProgressView()
                         .tint(.white)
+                        .accessibilityHidden(true)
                 } else {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.headline)
+                        .accessibilityHidden(true)
                 }
 
                 Text(buttonTitle)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .foregroundColor(.white)
+            .padding(.horizontal, Design.Space.md)
+            .padding(.vertical, Design.Space.xs)
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
+            .frame(minHeight: 48)
             .background(selectedCount == 0 && !isExporting ? Color.gray : Design.Colors.harvest)
             .clipShape(RoundedRectangle(cornerRadius: 10))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(buttonTitle)
+        .accessibilityHint(buttonHint)
         .accessibilityIdentifier(isExporting ? "batchExport.cancel" : "batchExport.export")
     }
 
     private var buttonTitle: String {
-        if isExporting { return "取消导出" }
-        if hasCompletedExport { return "重新导出 \(selectedCount) 条记录" }
-        return "导出 \(selectedCount) 条记录"
+        if isExporting { return L10n.Export.primaryCancel }
+        if hasCompletedExport {
+            return L10n.Export.primaryReexportTitle(recordCount: selectedCount)
+        }
+        return L10n.Export.primaryExportTitle(recordCount: selectedCount)
+    }
+
+    private var buttonHint: String {
+        if isExporting { return L10n.Export.primaryCancelHint }
+        if hasCompletedExport { return L10n.Export.primaryReexportHint }
+        return L10n.Export.primaryExportHint
     }
 }
 

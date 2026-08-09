@@ -303,6 +303,14 @@
 "voxel.complete" = "Coverage Complete";
 
 /* Export */
+"export.primary.cancel" = "Cancel Export";
+"export.primary.cancel_hint" = "Stop the current export.";
+"export.primary.export_one" = "Export 1 Record";
+"export.primary.export_count" = "Export %d Records";
+"export.primary.export_hint" = "Create an export file for the selected records and open the share sheet.";
+"export.primary.reexport_one" = "Re-export 1 Record";
+"export.primary.reexport_count" = "Re-export %d Records";
+"export.primary.reexport_hint" = "Replace the temporary export using the current records and options.";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";
