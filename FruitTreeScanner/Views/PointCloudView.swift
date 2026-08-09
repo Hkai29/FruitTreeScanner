@@ -188,7 +188,9 @@ struct PointCloudView: View {
     }
 }
 
-private struct PointCloudStatusPanel: View {
+struct PointCloudStatusPanel: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let icon: String
     let title: String
     let message: String
@@ -197,33 +199,40 @@ private struct PointCloudStatusPanel: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(tint.opacity(0.14))
-                    .frame(width: 34, height: 34)
-                if showsProgress {
-                    ProgressView()
-                        .tint(tint)
-                        .scaleEffect(0.75)
-                } else {
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(tint)
+            if !dynamicTypeSize.isAccessibilitySize {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(tint.opacity(0.14))
+                        .frame(width: 34, height: 34)
+                    if showsProgress {
+                        ProgressView()
+                            .tint(tint)
+                            .scaleEffect(0.75)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(tint)
+                    }
                 }
+                .accessibilityHidden(true)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                 Text(message)
-                    .font(.system(size: 12))
+                    .font(.subheadline)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
         }
         .padding(14)
-        .frame(maxWidth: 280, alignment: .leading)
+        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 280, alignment: .leading)
         .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.hudBackground)
+        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? Design.Space.lg : 0)
     }
 }
