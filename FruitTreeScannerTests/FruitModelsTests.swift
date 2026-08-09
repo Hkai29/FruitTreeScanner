@@ -1596,6 +1596,77 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertTrue(L10n.PointCloud.footprintAccessibility("2.00 x 4.00 m").contains("2.00 x 4.00 m"))
     }
 
+    @MainActor
+    func testPointCloudSelectionAndStatusRenderAtAccessibilityTextSize() {
+        let firstURL = URL(fileURLWithPath: "/tmp/NORTH-ORCHARD-TREE-2026-08-09-A.ply")
+        let records = [
+            ScanFileRecord(
+                id: "north-tree.ply",
+                treeID: "NORTH-ORCHARD-TREE-2026-08-09-A",
+                fileURL: firstURL,
+                scanDate: Date(timeIntervalSince1970: 1_754_740_800),
+                yieldKg: 12.4
+            ),
+            ScanFileRecord(
+                id: "south-tree.ply",
+                treeID: "SOUTH-BLOCK-TREE-B",
+                fileURL: URL(fileURLWithPath: "/tmp/SOUTH-BLOCK-TREE-B.ply"),
+                scanDate: Date(timeIntervalSince1970: 1_754_737_200),
+                yieldKg: 8.1
+            )
+        ]
+        let rootView = VStack(spacing: 0) {
+            PointCloudFileSelector(
+                records: records,
+                selectedFile: firstURL,
+                searchText: .constant("TREE"),
+                onSelect: { _ in }
+            )
+
+            Spacer(minLength: 16)
+
+            PointCloudStatusPanel(
+                icon: "cube",
+                title: L10n.PointCloud.noFileTitle,
+                message: L10n.PointCloud.noFileMessage
+            )
+
+            Spacer(minLength: 16)
+        }
+        .frame(width: 390, height: 844)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "PointCloudSelectionAndStatus-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
+    }
+
     // MARK: - Scan history loading and recovery
 
     func testScanHistoryDiskReadDistinguishesMissingDirectoryFromReadFailure() {
