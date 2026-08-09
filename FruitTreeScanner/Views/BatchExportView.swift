@@ -52,15 +52,13 @@ struct BatchExportView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Export.close, action: close)
+                        .accessibilityHint(L10n.Export.closeHint)
+                        .accessibilityIdentifier("batchExport.navigation.close")
                 }
 
                 ToolbarItem(placement: .primaryAction) {
                     if !exportableRecordIDs.isEmpty {
-                        Button(
-                            selectedRecords == exportableRecordIDs
-                                ? L10n.Export.deselectAll
-                                : L10n.Export.selectAll
-                        ) {
+                        Button(selectionActionTitle) {
                             toggleSelectAll()
                         }
                         .disabled(isExporting)

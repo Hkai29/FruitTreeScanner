@@ -604,8 +604,11 @@
 "export.header_title" = "批量导出";
 "export.header_subtitle" = "选择多条扫描记录，导出字段、产量和地块标签。";
 "export.close" = "关闭";
+"export.navigation.close_hint" = "关闭批量导出；正在进行的导出会被取消。";
 "export.select_all" = "全选";
+"export.navigation.select_all_hint" = "选择全部可导出记录。";
 "export.deselect_all" = "取消全选";
+"export.navigation.deselect_all_hint" = "清除当前导出选择。";
 "export.selection_progress" = "导出记录选择进度";
 "export.selection_summary_one" = "已选择 %d / 1 条可导出记录";
 "export.selection_summary_other" = "已选择 %d / %d 条可导出记录";

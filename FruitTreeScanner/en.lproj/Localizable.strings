@@ -604,8 +604,11 @@
 "export.header_title" = "Batch Export";
 "export.header_subtitle" = "Select multiple scan records and export fields, yield, and plot tags.";
 "export.close" = "Close";
+"export.navigation.close_hint" = "Close batch export. An active export will be cancelled.";
 "export.select_all" = "Select All";
+"export.navigation.select_all_hint" = "Select all available records for export.";
 "export.deselect_all" = "Deselect All";
+"export.navigation.deselect_all_hint" = "Clear the current export selection.";
 "export.selection_progress" = "Export record selection";
 "export.selection_summary_one" = "Selected %d of 1 exportable record";
 "export.selection_summary_other" = "Selected %d of %d exportable records";

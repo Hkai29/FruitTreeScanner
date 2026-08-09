@@ -1967,3 +1967,93 @@ final class BatchExportPrimaryButtonLocalizationTests: XCTestCase {
         }
     }
 }
+
+final class BatchExportNavigationChromeLocalizationTests: XCTestCase {
+    func testBatchExportNavigationCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.navigation_title": "Batch Export",
+                "export.close": "Close",
+                "export.navigation.close_hint": "Close batch export. An active export will be cancelled.",
+                "export.select_all": "Select All",
+                "export.navigation.select_all_hint": "Select all available records for export.",
+                "export.deselect_all": "Deselect All",
+                "export.navigation.deselect_all_hint": "Clear the current export selection."
+            ],
+            "zh": [
+                "export.navigation_title": "批次导出",
+                "export.close": "关闭",
+                "export.navigation.close_hint": "关闭批量导出；正在进行的导出会被取消。",
+                "export.select_all": "全选",
+                "export.navigation.select_all_hint": "选择全部可导出记录。",
+                "export.deselect_all": "取消全选",
+                "export.navigation.deselect_all_hint": "清除当前导出选择。"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    func testBatchExportNavigationRendersAtLargeAndAccessibilityTextSizes() async throws {
+        let record = ScanFileRecord(
+            id: "navigation-record",
+            treeID: "TREE-001",
+            fileURL: URL(fileURLWithPath: "/tmp/navigation-record.ply"),
+            scanDate: Date(timeIntervalSince1970: 1_700_000_000),
+            fruitCount: 12,
+            yieldKg: 3.4
+        )
+        let store = ScanHistoryStore(recordsLoader: { .success([record]) })
+        await store.reloadRecords()
+
+        let suiteName = "BatchExportNavigationChromeTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let tagStore = TagStore(defaults: defaults)
+
+        for (size, name) in [(DynamicTypeSize.large, "Large"), (.accessibility5, "AX5")] {
+            let view = BatchExportView(store: store, tagStore: tagStore)
+                .environment(\.dynamicTypeSize, size)
+                .environment(\.colorScheme, .dark)
+            let hostingController = UIHostingController(rootView: view)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportNavigation-\(Locale.preferredLanguages.first ?? "unknown")-\(name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
+    }
+}

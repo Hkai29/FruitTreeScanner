@@ -1546,8 +1546,11 @@ enum L10n {
             fallback: "选择多条扫描记录，导出字段、产量和地块标签。"
         )
         static let close = localized("export.close", fallback: "关闭")
+        static let closeHint = NSLocalizedString("export.navigation.close_hint", value: "关闭批量导出；正在进行的导出会被取消。", comment: "Close batch export accessibility hint")
         static let selectAll = localized("export.select_all", fallback: "全选")
+        static let selectAllHint = NSLocalizedString("export.navigation.select_all_hint", value: "选择全部可导出记录。", comment: "Select all exportable records accessibility hint")
         static let deselectAll = localized("export.deselect_all", fallback: "取消全选")
+        static let deselectAllHint = NSLocalizedString("export.navigation.deselect_all_hint", value: "清除当前导出选择。", comment: "Deselect all export records accessibility hint")
         static let selectionProgress = localized(
             "export.selection_progress",
             fallback: "导出记录选择进度"
