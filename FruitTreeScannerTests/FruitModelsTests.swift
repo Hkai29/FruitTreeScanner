@@ -1,5 +1,6 @@
 import XCTest
 import Combine
+import SceneKit
 import SwiftUI
 import UIKit
 @testable import FruitTreeScanner
@@ -1665,6 +1666,73 @@ final class FruitModelsTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
         window.resignKey()
+    }
+
+    @MainActor
+    func testPointCloudControlsRenderAtAccessibilityTextSize() throws {
+        let bounds = try XCTUnwrap(
+            PointCloudBounds(vertices: [
+                SCNVector3(-0.75, 0, -0.45),
+                SCNVector3(0.75, 2.8, 0.45)
+            ])
+        )
+        let rootView = VStack(spacing: 16) {
+            PointCloudTopBar(
+                pointCount: 12_345,
+                bounds: bounds,
+                viewMode: .orbit,
+                canExport: true,
+                onClose: {},
+                onExport: {}
+            )
+
+            Spacer(minLength: 16)
+
+            PointCloudBottomControls(
+                pointCount: 12_345,
+                canInteract: true,
+                bounds: bounds,
+                colorMode: .constant(.height),
+                viewMode: .constant(.orbit),
+                isMeasurementActive: true,
+                onResetCamera: {},
+                onZoomIn: {},
+                onZoomOut: {},
+                onToggleMeasurement: {}
+            )
+        }
+        .padding(16)
+        .frame(width: 390, height: 844)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "PointCloudControls-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.isHidden = true
     }
 
     // MARK: - Scan history loading and recovery

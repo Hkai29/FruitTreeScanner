@@ -30,26 +30,54 @@ struct PointCloudColorModeMenu: View {
 }
 
 struct PointCloudColorLegend: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let colorMode: PointCloudColorMode
     let bounds: PointCloudBounds?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(L10n.PointCloud.colorLegend(modeName: colorMode.displayName))
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white.opacity(0.66))
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        colorModeLabel
+                        legendItems
+                        actualHeight
+                    }
+                    .fixedSize(horizontal: true, vertical: true)
+                    .padding(.vertical, 1)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    colorModeLabel
 
-            legendItems
+                    legendItems
 
-            Spacer(minLength: 4)
+                    Spacer(minLength: 4)
 
-            if let bounds {
-                Text(L10n.PointCloud.actualHeight(bounds.heightText))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(Design.Colors.harvest)
+                    actualHeight
+                }
             }
         }
         .padding(.horizontal, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var colorModeLabel: some View {
+        Text(L10n.PointCloud.colorLegend(modeName: colorMode.displayName))
+            .font(.caption2.weight(.medium))
+            .foregroundColor(.white.opacity(0.66))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var actualHeight: some View {
+        if let bounds {
+            Text(L10n.PointCloud.actualHeight(bounds.heightText))
+                .font(.system(.caption2, design: .monospaced, weight: .medium))
+                .foregroundColor(Design.Colors.harvest)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     @ViewBuilder
@@ -57,28 +85,35 @@ struct PointCloudColorLegend: View {
         switch colorMode {
         case .height:
             HStack(spacing: 4) {
-                Rectangle().fill(Design.Colors.forest).frame(width: 14, height: 7).cornerRadius(2)
-                Text(L10n.PointCloud.legendLow).font(.system(size: 10)).foregroundColor(.white.opacity(0.58))
-                Rectangle().fill(Design.Colors.harvest).frame(width: 14, height: 7).cornerRadius(2)
-                Text(L10n.PointCloud.legendHigh).font(.system(size: 10)).foregroundColor(.white.opacity(0.58))
+                Rectangle().fill(Design.Colors.forest).frame(width: 14, height: 7).cornerRadius(2).accessibilityHidden(true)
+                legendText(L10n.PointCloud.legendLow)
+                Rectangle().fill(Design.Colors.harvest).frame(width: 14, height: 7).cornerRadius(2).accessibilityHidden(true)
+                legendText(L10n.PointCloud.legendHigh)
             }
         case .density:
             HStack(spacing: 4) {
-                Rectangle().fill(Color(hex: "8E8E93").opacity(0.35)).frame(width: 14, height: 7).cornerRadius(2)
-                Text(L10n.PointCloud.legendSparse).font(.system(size: 10)).foregroundColor(.white.opacity(0.58))
-                Rectangle().fill(Design.Colors.earth).frame(width: 14, height: 7).cornerRadius(2)
-                Text(L10n.PointCloud.legendDense).font(.system(size: 10)).foregroundColor(.white.opacity(0.58))
+                Rectangle().fill(Color(hex: "8E8E93").opacity(0.35)).frame(width: 14, height: 7).cornerRadius(2).accessibilityHidden(true)
+                legendText(L10n.PointCloud.legendSparse)
+                Rectangle().fill(Design.Colors.earth).frame(width: 14, height: 7).cornerRadius(2).accessibilityHidden(true)
+                legendText(L10n.PointCloud.legendDense)
             }
         case .fruit:
             HStack(spacing: 4) {
-                Circle().fill(Design.Colors.harvest).frame(width: 8, height: 8)
-                Text(L10n.PointCloud.legendFruitCandidates).font(.system(size: 10)).foregroundColor(.white.opacity(0.58))
+                Circle().fill(Design.Colors.harvest).frame(width: 8, height: 8).accessibilityHidden(true)
+                legendText(L10n.PointCloud.legendFruitCandidates)
             }
         case .uniform:
             HStack(spacing: 4) {
-                Circle().fill(Design.Colors.forest).frame(width: 8, height: 8)
-                Text(L10n.PointCloud.legendUniformBright).font(.system(size: 10)).foregroundColor(.white.opacity(0.58))
+                Circle().fill(Design.Colors.forest).frame(width: 8, height: 8).accessibilityHidden(true)
+                legendText(L10n.PointCloud.legendUniformBright)
             }
         }
+    }
+
+    private func legendText(_ value: String) -> some View {
+        Text(value)
+            .font(.caption2)
+            .foregroundColor(.white.opacity(0.58))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
