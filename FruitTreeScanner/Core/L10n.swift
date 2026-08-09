@@ -557,6 +557,13 @@ enum L10n {
 
     // MARK: - Export
     enum Export {
+        static let navigationTitle = NSLocalizedString("export.navigation.title", value: "批次导出", comment: "Batch export navigation title")
+        static let close = NSLocalizedString("export.navigation.close", value: "关闭", comment: "Close batch export action")
+        static let closeHint = NSLocalizedString("export.navigation.close_hint", value: "关闭批量导出；正在进行的导出会被取消。", comment: "Close batch export accessibility hint")
+        static let selectAll = NSLocalizedString("export.navigation.select_all", value: "全选", comment: "Select all exportable records action")
+        static let selectAllHint = NSLocalizedString("export.navigation.select_all_hint", value: "选择全部可导出记录。", comment: "Select all exportable records accessibility hint")
+        static let deselectAll = NSLocalizedString("export.navigation.deselect_all", value: "取消全选", comment: "Deselect all export records action")
+        static let deselectAllHint = NSLocalizedString("export.navigation.deselect_all_hint", value: "清除当前导出选择。", comment: "Deselect all export records accessibility hint")
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")

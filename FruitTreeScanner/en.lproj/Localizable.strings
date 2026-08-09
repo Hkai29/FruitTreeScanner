@@ -303,6 +303,13 @@
 "voxel.complete" = "Coverage Complete";
 
 /* Export */
+"export.navigation.title" = "Batch Export";
+"export.navigation.close" = "Close";
+"export.navigation.close_hint" = "Close batch export. An active export will be cancelled.";
+"export.navigation.select_all" = "Select All";
+"export.navigation.select_all_hint" = "Select all available records for export.";
+"export.navigation.deselect_all" = "Deselect All";
+"export.navigation.deselect_all_hint" = "Clear the current export selection.";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";

@@ -44,22 +44,26 @@ struct BatchExportView: View {
                     onPrimaryAction: handlePrimaryExportAction
                 )
             }
-            .navigationTitle("批次导出")
+            .navigationTitle(L10n.Export.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭", action: close)
+                    Button(L10n.Export.close, action: close)
+                        .accessibilityHint(L10n.Export.closeHint)
+                        .accessibilityIdentifier("batchExport.navigation.close")
                 }
 
                 ToolbarItem(placement: .primaryAction) {
                     if !exportableRecordIDs.isEmpty {
-                        Button(selectedRecords == exportableRecordIDs ? "取消全选" : "全选") {
+                        Button(selectionActionTitle) {
                             toggleSelectAll()
                         }
                         .disabled(isExporting)
+                        .accessibilityHint(selectionActionHint)
+                        .accessibilityIdentifier(selectionActionAccessibilityIdentifier)
                     }
                 }
             }
@@ -82,6 +86,24 @@ struct BatchExportView: View {
 
     private func close() {
         dismiss()
+    }
+
+    private var hasSelectedAllExportableRecords: Bool {
+        selectedRecords == exportableRecordIDs
+    }
+
+    private var selectionActionTitle: String {
+        hasSelectedAllExportableRecords ? L10n.Export.deselectAll : L10n.Export.selectAll
+    }
+
+    private var selectionActionHint: String {
+        hasSelectedAllExportableRecords ? L10n.Export.deselectAllHint : L10n.Export.selectAllHint
+    }
+
+    private var selectionActionAccessibilityIdentifier: String {
+        hasSelectedAllExportableRecords
+            ? "batchExport.navigation.deselectAll"
+            : "batchExport.navigation.selectAll"
     }
 }
 

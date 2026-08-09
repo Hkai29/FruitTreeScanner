@@ -303,6 +303,13 @@
 "voxel.complete" = "覆盖完成";
 
 /* Export */
+"export.navigation.title" = "批次导出";
+"export.navigation.close" = "关闭";
+"export.navigation.close_hint" = "关闭批量导出；正在进行的导出会被取消。";
+"export.navigation.select_all" = "全选";
+"export.navigation.select_all_hint" = "选择全部可导出记录。";
+"export.navigation.deselect_all" = "取消全选";
+"export.navigation.deselect_all_hint" = "清除当前导出选择。";
 "export.csv_desc" = "通用数据格式，兼容所有表格软件";
 "export.excel_desc" = "Microsoft Excel 兼容格式";
 "export.no_grouping" = "不分组";
