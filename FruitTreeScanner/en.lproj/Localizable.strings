@@ -303,6 +303,13 @@
 "voxel.complete" = "Coverage Complete";
 
 /* Export */
+"export.failure.title" = "Couldn’t Export Records";
+"export.failure.cancel" = "Cancel";
+"export.failure.retry" = "Try Again";
+"export.failure.no_records_recovery" = "Select at least one complete record and try again.";
+"export.failure.out_of_space" = "There isn’t enough available storage to create the export. Free up space and try again.";
+"export.failure.file_write" = "The export file couldn’t be written. Check available storage and try again.";
+"export.failure.generic" = "The export couldn’t be completed. Try again; if the problem continues, choose another format.";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";

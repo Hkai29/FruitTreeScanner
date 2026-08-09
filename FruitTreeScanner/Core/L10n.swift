@@ -557,6 +557,13 @@ enum L10n {
 
     // MARK: - Export
     enum Export {
+        static let failureTitle = NSLocalizedString("export.failure.title", value: "无法导出记录", comment: "Batch export failure alert title")
+        static let failureCancel = NSLocalizedString("export.failure.cancel", value: "取消", comment: "Dismiss batch export failure without retrying")
+        static let failureRetry = NSLocalizedString("export.failure.retry", value: "重试", comment: "Retry batch export after a failure")
+        static let noRecordsRecovery = NSLocalizedString("export.failure.no_records_recovery", value: "请选择至少一条完整记录后重试。", comment: "Recovery guidance when batch export has no records")
+        static let outOfSpaceRecovery = NSLocalizedString("export.failure.out_of_space", value: "可用存储空间不足，无法创建导出文件。请释放空间后重试。", comment: "Recovery guidance when batch export runs out of storage")
+        static let fileWriteRecovery = NSLocalizedString("export.failure.file_write", value: "无法写入导出文件。请检查可用存储空间后重试。", comment: "Recovery guidance when a batch export file cannot be written")
+        static let genericFailureRecovery = NSLocalizedString("export.failure.generic", value: "导出未能完成。请重试；如果问题持续，可改用其他导出格式。", comment: "Generic batch export recovery guidance")
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")

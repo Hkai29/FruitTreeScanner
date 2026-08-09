@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class DashboardSummaryTests: XCTestCase {
@@ -695,5 +697,155 @@ final class DashboardHomeLocalizationTests: XCTestCase {
         XCTAssertEqual(AppMode.scan.title, L10n.Dashboard.scanMode)
         XCTAssertEqual(AppMode.history.title, L10n.Dashboard.historyMode)
         XCTAssertEqual(AppMode.analytics.title, L10n.Dashboard.analyticsMode)
+    }
+}
+
+final class BatchExportFailureFeedbackTests: XCTestCase {
+
+    func testBatchExportFailureCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.failure.title": "Couldn’t Export Records",
+                "export.failure.cancel": "Cancel",
+                "export.failure.retry": "Try Again",
+                "export.failure.no_records_recovery": "Select at least one complete record and try again.",
+                "export.failure.out_of_space": "There isn’t enough available storage to create the export. Free up space and try again.",
+                "export.failure.file_write": "The export file couldn’t be written. Check available storage and try again.",
+                "export.failure.generic": "The export couldn’t be completed. Try again; if the problem continues, choose another format.",
+                "export.no_records": "No records to export"
+            ],
+            "zh": [
+                "export.failure.title": "无法导出记录",
+                "export.failure.cancel": "取消",
+                "export.failure.retry": "重试",
+                "export.failure.no_records_recovery": "请选择至少一条完整记录后重试。",
+                "export.failure.out_of_space": "可用存储空间不足，无法创建导出文件。请释放空间后重试。",
+                "export.failure.file_write": "无法写入导出文件。请检查可用存储空间后重试。",
+                "export.failure.generic": "导出未能完成。请重试；如果问题持续，可改用其他导出格式。",
+                "export.no_records": "没有可导出的记录"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testBatchExportFailureClassifiesErrorsAndProvidesRecoveryCopy() {
+        let noRecords = BatchExportFailurePresentation(error: BatchExportError.noRecords)
+        let outOfSpace = BatchExportFailurePresentation(error: CocoaError(.fileWriteOutOfSpace))
+        let fileWrite = BatchExportFailurePresentation(error: CocoaError(.fileWriteNoPermission))
+        let generic = BatchExportFailurePresentation(
+            error: NSError(domain: "BatchExportFailureTests", code: 1)
+        )
+        let wrappedOutOfSpace = BatchExportFailurePresentation(
+            error: NSError(
+                domain: "BatchExportFailureTests",
+                code: 2,
+                userInfo: [NSUnderlyingErrorKey: CocoaError(.fileWriteOutOfSpace)]
+            )
+        )
+
+        XCTAssertEqual(noRecords.kind, .noRecords)
+        XCTAssertEqual(outOfSpace.kind, .outOfSpace)
+        XCTAssertEqual(fileWrite.kind, .fileWrite)
+        XCTAssertEqual(generic.kind, .generic)
+        XCTAssertEqual(wrappedOutOfSpace.kind, .outOfSpace)
+        XCTAssertEqual(BatchExportError.noRecords.errorDescription, L10n.Export.noRecords)
+        XCTAssertEqual(BatchExportError.noRecords.recoverySuggestion, L10n.Export.noRecordsRecovery)
+        XCTAssertTrue([noRecords, outOfSpace, fileWrite, generic].allSatisfy { !$0.message.isEmpty })
+        XCTAssertEqual(Set([noRecords.message, outOfSpace.message, fileWrite.message, generic.message]).count, 4)
+    }
+
+    @MainActor
+    func testBatchExportFailureAlertRendersAtLargeAndAccessibilityTextSizes() async throws {
+        for (size, name) in [(DynamicTypeSize.large, "Large"), (.accessibility5, "AX5")] {
+            let rootView = BatchExportFailureAlertHarness(
+                failure: BatchExportFailurePresentation(
+                    error: CocoaError(.fileWriteOutOfSpace)
+                )
+            ) {
+                Color.black.ignoresSafeArea()
+            }
+                .environment(\.dynamicTypeSize, size)
+                .environment(\.colorScheme, .dark)
+
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let windowScene = try XCTUnwrap(
+                UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .first { $0.activationState == .foregroundActive }
+            )
+            let window = UIWindow(windowScene: windowScene)
+            window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+
+            let alertController = try XCTUnwrap(
+                hostingController.presentedViewController as? UIAlertController
+            )
+            XCTAssertEqual(alertController.title, L10n.Export.failureTitle)
+            XCTAssertEqual(alertController.message, L10n.Export.outOfSpaceRecovery)
+            XCTAssertEqual(alertController.actions.count, 2)
+            XCTAssertEqual(
+                Set(alertController.actions.compactMap(\.title)),
+                Set([L10n.Export.failureCancel, L10n.Export.failureRetry])
+            )
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+                .image { _ in
+                    didDraw = window.drawHierarchy(
+                        in: window.bounds,
+                        afterScreenUpdates: true
+                    )
+                }
+
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size.width, window.bounds.width, accuracy: 1)
+            XCTAssertEqual(renderedImage.size.height, window.bounds.height, accuracy: 1)
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportFailure-\(Locale.preferredLanguages.first ?? "unknown")-\(name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            alertController.dismiss(animated: false)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+    }
+}
+
+private struct BatchExportFailureAlertHarness<Content: View>: View {
+    @State private var failure: BatchExportFailurePresentation?
+    private let content: Content
+
+    init(
+        failure: BatchExportFailurePresentation,
+        @ViewBuilder content: () -> Content
+    ) {
+        _failure = State(initialValue: failure)
+        self.content = content()
+    }
+
+    var body: some View {
+        content.batchExportFailureAlert(failure: $failure, onRetry: {})
     }
 }

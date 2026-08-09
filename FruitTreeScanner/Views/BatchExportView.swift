@@ -13,8 +13,7 @@ struct BatchExportView: View {
     @State var exportOptions = BatchExportService.ExportOptions()
     @State var exportedURL: URL?
     @State var isExporting = false
-    @State var showError = false
-    @State var errorMessage = ""
+    @State var exportFailure: BatchExportFailurePresentation?
     @State var presentedSheet: BatchExportSheet?
     @State var exportTask: Task<Void, Never>?
     @State var exportGeneration = 0
@@ -70,11 +69,7 @@ struct BatchExportView: View {
                 ShareSheet(items: [url])
             }
         }
-        .alert("导出错误", isPresented: $showError) {
-            Button("确定", role: .cancel) {}
-        } message: {
-            Text(errorMessage)
-        }
+        .batchExportFailureAlert(failure: $exportFailure, onRetry: performExport)
         .onAppear(perform: handleAppear)
         .onChange(of: store.scanFiles, perform: handleRecordsChanged)
         .onDisappear(perform: handleDisappear)
@@ -93,5 +88,109 @@ enum BatchExportSheet: Identifiable {
         case .share(let url):
             return "share-\(url.path)"
         }
+    }
+}
+
+struct BatchExportFailurePresentation {
+    enum Kind: Equatable {
+        case noRecords
+        case outOfSpace
+        case fileWrite
+        case generic
+    }
+
+    let kind: Kind
+
+    init(error: Error) {
+        kind = Self.kind(for: error)
+    }
+
+    var message: String {
+        switch kind {
+        case .noRecords:
+            return L10n.Export.noRecordsRecovery
+        case .outOfSpace:
+            return L10n.Export.outOfSpaceRecovery
+        case .fileWrite:
+            return L10n.Export.fileWriteRecovery
+        case .generic:
+            return L10n.Export.genericFailureRecovery
+        }
+    }
+
+    private static let fileWriteErrorCodes: Set<Int> = [
+        CocoaError.Code.fileWriteUnknown.rawValue,
+        CocoaError.Code.fileWriteNoPermission.rawValue,
+        CocoaError.Code.fileWriteInvalidFileName.rawValue,
+        CocoaError.Code.fileWriteFileExists.rawValue,
+        CocoaError.Code.fileWriteInapplicableStringEncoding.rawValue,
+        CocoaError.Code.fileWriteUnsupportedScheme.rawValue,
+        CocoaError.Code.fileWriteVolumeReadOnly.rawValue
+    ]
+
+    private static func kind(for error: Error) -> Kind {
+        if let batchExportError = error as? BatchExportError,
+           batchExportError == .noRecords {
+            return .noRecords
+        }
+
+        let nsError = error as NSError
+        let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+        for candidate in [nsError, underlyingError].compactMap({ $0 }) {
+            guard candidate.domain == NSCocoaErrorDomain else { continue }
+            if candidate.code == CocoaError.Code.fileWriteOutOfSpace.rawValue {
+                return .outOfSpace
+            }
+            if fileWriteErrorCodes.contains(candidate.code) {
+                return .fileWrite
+            }
+        }
+        return .generic
+    }
+}
+
+struct BatchExportFailureAlertModifier: ViewModifier {
+    @Binding var failure: BatchExportFailurePresentation?
+    let onRetry: () -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            L10n.Export.failureTitle,
+            isPresented: isPresented,
+            presenting: failure
+        ) { _ in
+            Button(L10n.Export.failureCancel, role: .cancel) {
+                failure = nil
+            }
+            .accessibilityIdentifier("batchExport.failure.cancel")
+
+            Button(L10n.Export.failureRetry) {
+                failure = nil
+                onRetry()
+            }
+            .accessibilityIdentifier("batchExport.failure.retry")
+        } message: {
+            Text($0.message)
+        }
+    }
+
+    private var isPresented: Binding<Bool> {
+        Binding(
+            get: { failure != nil },
+            set: { newValue in
+                if !newValue {
+                    failure = nil
+                }
+            }
+        )
+    }
+}
+
+extension View {
+    func batchExportFailureAlert(
+        failure: Binding<BatchExportFailurePresentation?>,
+        onRetry: @escaping () -> Void
+    ) -> some View {
+        modifier(BatchExportFailureAlertModifier(failure: failure, onRetry: onRetry))
     }
 }

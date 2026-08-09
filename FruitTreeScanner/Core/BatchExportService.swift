@@ -143,7 +143,13 @@ enum BatchExportError: LocalizedError {
     
     var errorDescription: String? {
         switch self {
-        case .noRecords: return "没有可导出的记录"
+        case .noRecords: return L10n.Export.noRecords
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .noRecords: return L10n.Export.noRecordsRecovery
         }
     }
 }
