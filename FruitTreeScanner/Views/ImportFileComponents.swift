@@ -13,6 +13,8 @@ struct ImportHeader: View {
 }
 
 struct ImportStatusPanel: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let icon: String
     let title: String
     let message: String
@@ -21,31 +23,37 @@ struct ImportStatusPanel: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(tint.opacity(0.12))
-                    .frame(width: 34, height: 34)
-                if showsProgress {
-                    ProgressView()
-                        .scaleEffect(0.75)
-                        .tint(tint)
-                } else {
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(tint)
+            if !dynamicTypeSize.isAccessibilitySize {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(tint.opacity(0.12))
+                        .frame(width: 34, height: 34)
+                    if showsProgress {
+                        ProgressView()
+                            .scaleEffect(0.75)
+                            .tint(tint)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(tint)
+                    }
                 }
+                .accessibilityHidden(true)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
 
                 Text(message)
-                    .font(.system(size: 12))
+                    .font(.subheadline)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -66,19 +74,26 @@ struct ImportRulesList: View {
 }
 
 private struct ImportRuleRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let icon: String
     let text: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.info)
-                .frame(width: 18)
+        HStack(alignment: .top, spacing: 10) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(Design.Colors.Dark.info)
+                    .frame(width: 18)
+                    .accessibilityHidden(true)
+            }
 
             Text(text)
-                .font(.system(size: 13))
+                .font(.subheadline)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
 
             Spacer(minLength: 0)
         }
