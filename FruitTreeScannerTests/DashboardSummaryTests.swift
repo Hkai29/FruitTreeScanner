@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -695,5 +697,209 @@ final class DashboardHomeLocalizationTests: XCTestCase {
         XCTAssertEqual(AppMode.scan.title, L10n.Dashboard.scanMode)
         XCTAssertEqual(AppMode.history.title, L10n.Dashboard.historyMode)
         XCTAssertEqual(AppMode.analytics.title, L10n.Dashboard.analyticsMode)
+    }
+}
+
+final class BatchExportHeaderLocalizationTests: XCTestCase {
+    func testBatchExportHeaderCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.navigation_title": "Batch Export",
+                "export.header_title": "Batch Export",
+                "export.header_subtitle": "Select multiple scan records and export fields, yield, and plot tags.",
+                "export.close": "Close",
+                "export.select_all": "Select All",
+                "export.deselect_all": "Deselect All",
+                "export.selection_progress": "Export record selection",
+                "export.selection_summary_one": "Selected %d of 1 exportable record",
+                "export.selection_summary_other": "Selected %d of %d exportable records",
+                "export.selection_summary_compact": "%d of %d selected",
+                "export.selected_metrics_one": "%.1f kg · 1 fruit",
+                "export.selected_metrics_other": "%.1f kg · %d fruits",
+                "export.selected_metrics_compact_one": "%.1f kg · 1 fruit",
+                "export.selected_metrics_compact_other": "%.1f kg · %d fruits",
+                "export.unavailable_summary_one": "1 record is incomplete or invalid and won't be exported",
+                "export.unavailable_summary_other": "%d records are incomplete or invalid and won't be exported",
+                "export.unavailable_summary_compact_one": "1 unavailable",
+                "export.unavailable_summary_compact_other": "%d unavailable"
+            ],
+            "zh": [
+                "export.navigation_title": "批次导出",
+                "export.header_title": "批量导出",
+                "export.header_subtitle": "选择多条扫描记录，导出字段、产量和地块标签。",
+                "export.close": "关闭",
+                "export.select_all": "全选",
+                "export.deselect_all": "取消全选",
+                "export.selection_progress": "导出记录选择进度",
+                "export.selection_summary_one": "已选择 %d / 1 条可导出记录",
+                "export.selection_summary_other": "已选择 %d / %d 条可导出记录",
+                "export.selection_summary_compact": "已选 %d / %d",
+                "export.selected_metrics_one": "%.1f kg · 1 个果实",
+                "export.selected_metrics_other": "%.1f kg · %d 个果实",
+                "export.selected_metrics_compact_one": "%.1f kg · 1 果",
+                "export.selected_metrics_compact_other": "%.1f kg · %d 果",
+                "export.unavailable_summary_one": "1 条记录未完整保存或数据无效，未纳入导出",
+                "export.unavailable_summary_other": "%d 条记录未完整保存或数据无效，未纳入导出",
+                "export.unavailable_summary_compact_one": "1 条不可导出",
+                "export.unavailable_summary_compact_other": "%d 条不可导出"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testBatchExportHeaderFormatsSingularPluralAndMetricCopy() throws {
+        let englishBundle = try XCTUnwrap(
+            Bundle.main.path(forResource: "en", ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+        let chineseBundle = try XCTUnwrap(
+            Bundle.main.path(forResource: "zh", ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+
+        XCTAssertEqual(
+            L10n.Export.selectionSummary(selectedCount: 1, totalCount: 1, bundle: englishBundle),
+            "Selected 1 of 1 exportable record"
+        )
+        XCTAssertEqual(
+            L10n.Export.selectionSummary(selectedCount: 0, totalCount: 0, bundle: englishBundle),
+            "Selected 0 of 0 exportable records"
+        )
+        XCTAssertEqual(
+            L10n.Export.selectionSummary(selectedCount: 2, totalCount: 5, bundle: englishBundle),
+            "Selected 2 of 5 exportable records"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactSelectionSummary(selectedCount: 2, totalCount: 5, bundle: englishBundle),
+            "2 of 5 selected"
+        )
+        XCTAssertEqual(
+            L10n.Export.selectedMetrics(totalYield: 1.25, totalFruitCount: 1, bundle: englishBundle),
+            "1.2 kg · 1 fruit"
+        )
+        XCTAssertEqual(
+            L10n.Export.selectedMetrics(totalYield: 8.75, totalFruitCount: 12, bundle: englishBundle),
+            "8.8 kg · 12 fruits"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactSelectedMetrics(totalYield: 8.75, totalFruitCount: 12, bundle: englishBundle),
+            "8.8 kg · 12 fruits"
+        )
+        XCTAssertEqual(
+            L10n.Export.unavailableSummary(count: 1, bundle: englishBundle),
+            "1 record is incomplete or invalid and won't be exported"
+        )
+        XCTAssertEqual(
+            L10n.Export.unavailableSummary(count: 3, bundle: englishBundle),
+            "3 records are incomplete or invalid and won't be exported"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactUnavailableSummary(count: 1, bundle: englishBundle),
+            "1 unavailable"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactUnavailableSummary(count: 3, bundle: englishBundle),
+            "3 unavailable"
+        )
+
+        XCTAssertEqual(
+            L10n.Export.selectionSummary(selectedCount: 2, totalCount: 5, bundle: chineseBundle),
+            "已选择 2 / 5 条可导出记录"
+        )
+        XCTAssertEqual(
+            L10n.Export.selectionSummary(selectedCount: 0, totalCount: 0, bundle: chineseBundle),
+            "已选择 0 / 0 条可导出记录"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactSelectionSummary(selectedCount: 2, totalCount: 5, bundle: chineseBundle),
+            "已选 2 / 5"
+        )
+        XCTAssertEqual(
+            L10n.Export.selectedMetrics(totalYield: 8.75, totalFruitCount: 12, bundle: chineseBundle),
+            "8.8 kg · 12 个果实"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactSelectedMetrics(totalYield: 8.75, totalFruitCount: 12, bundle: chineseBundle),
+            "8.8 kg · 12 果"
+        )
+        XCTAssertEqual(
+            L10n.Export.unavailableSummary(count: 3, bundle: chineseBundle),
+            "3 条记录未完整保存或数据无效，未纳入导出"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactUnavailableSummary(count: 3, bundle: chineseBundle),
+            "3 条不可导出"
+        )
+        XCTAssertEqual(
+            L10n.Export.compactUnavailableSummary(count: 1, bundle: chineseBundle),
+            "1 条不可导出"
+        )
+    }
+
+    @MainActor
+    func testBatchExportHeaderRendersAtStandardAndAccessibilityTextSizes() {
+        let cases: [(name: String, size: DynamicTypeSize)] = [
+            ("Large", .large),
+            ("AX5", .accessibility5)
+        ]
+
+        for testCase in cases {
+            let header = BatchExportHeaderBar(
+                selectedCount: 2,
+                totalCount: 5,
+                unavailableCount: 2,
+                totalYield: 8.75,
+                totalFruitCount: 12
+            )
+            .environment(\.dynamicTypeSize, testCase.size)
+
+            let rootView = VStack(spacing: 0) {
+                header
+                Spacer(minLength: 0)
+            }
+            .frame(width: 390, height: 844, alignment: .top)
+            .background(Design.Colors.Dark.bgDeep)
+            .environment(\.colorScheme, .dark)
+
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+                .image { _ in
+                    didDraw = hostingController.view.drawHierarchy(
+                        in: hostingController.view.bounds,
+                        afterScreenUpdates: true
+                    )
+                }
+
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportHeader-\(Locale.preferredLanguages.first ?? "unknown")-\(testCase.name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
     }
 }

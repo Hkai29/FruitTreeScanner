@@ -44,19 +44,23 @@ struct BatchExportView: View {
                     onPrimaryAction: handlePrimaryExportAction
                 )
             }
-            .navigationTitle("批次导出")
+            .navigationTitle(L10n.Export.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭", action: close)
+                    Button(L10n.Export.close, action: close)
                 }
 
                 ToolbarItem(placement: .primaryAction) {
                     if !exportableRecordIDs.isEmpty {
-                        Button(selectedRecords == exportableRecordIDs ? "取消全选" : "全选") {
+                        Button(
+                            selectedRecords == exportableRecordIDs
+                                ? L10n.Export.deselectAll
+                                : L10n.Export.selectAll
+                        ) {
                             toggleSelectAll()
                         }
                         .disabled(isExporting)
