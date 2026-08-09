@@ -1861,3 +1861,109 @@ final class BatchExportCompletionPanelLocalizationTests: XCTestCase {
         }
     }
 }
+
+final class BatchExportPrimaryButtonLocalizationTests: XCTestCase {
+    func testBatchExportPrimaryActionCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.primary.cancel": "Cancel Export",
+                "export.primary.cancel_hint": "Stop the current export.",
+                "export.primary.export_one": "Export 1 Record",
+                "export.primary.export_count": "Export %d Records",
+                "export.primary.export_hint": "Create an export file for the selected records and open the share sheet.",
+                "export.primary.reexport_one": "Re-export 1 Record",
+                "export.primary.reexport_count": "Re-export %d Records",
+                "export.primary.reexport_hint": "Replace the temporary export using the current records and options."
+            ],
+            "zh": [
+                "export.primary.cancel": "取消导出",
+                "export.primary.cancel_hint": "停止当前导出。",
+                "export.primary.export_one": "导出 1 条记录",
+                "export.primary.export_count": "导出 %d 条记录",
+                "export.primary.export_hint": "为所选记录创建导出文件并打开分享面板。",
+                "export.primary.reexport_one": "重新导出 1 条记录",
+                "export.primary.reexport_count": "重新导出 %d 条记录",
+                "export.primary.reexport_hint": "使用当前记录和选项替换临时导出文件。"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testBatchExportPrimaryActionTitlesPreserveZeroSingularPluralAndReexportStates() {
+        let zeroRecords = L10n.Export.primaryExportTitle(recordCount: 0)
+        let oneRecord = L10n.Export.primaryExportTitle(recordCount: 1)
+        let multipleRecords = L10n.Export.primaryExportTitle(recordCount: 12)
+        let repeatedExport = L10n.Export.primaryReexportTitle(recordCount: 12)
+
+        XCTAssertTrue(zeroRecords.contains("0"))
+        XCTAssertTrue(oneRecord.contains("1"))
+        XCTAssertTrue(multipleRecords.contains("12"))
+        XCTAssertTrue(repeatedExport.contains("12"))
+        XCTAssertNotEqual(zeroRecords, oneRecord)
+        XCTAssertNotEqual(oneRecord, multipleRecords)
+        XCTAssertNotEqual(multipleRecords, repeatedExport)
+        XCTAssertNotEqual(L10n.Export.primaryCancel, repeatedExport)
+    }
+
+    @MainActor
+    func testBatchExportPrimaryActionRendersEveryStateAtStandardAndAccessibilityTextSizes() {
+        let cases: [(name: String, size: DynamicTypeSize)] = [
+            ("Large", .large),
+            ("AX5", .accessibility5)
+        ]
+
+        for testCase in cases {
+            let buttons = VStack(spacing: Design.Space.md) {
+                BatchExportPrimaryButton(selectedCount: 1, isExporting: false, hasCompletedExport: false, action: {})
+                BatchExportPrimaryButton(selectedCount: 12, isExporting: false, hasCompletedExport: false, action: {})
+                BatchExportPrimaryButton(selectedCount: 12, isExporting: false, hasCompletedExport: true, action: {})
+                BatchExportPrimaryButton(selectedCount: 12, isExporting: true, hasCompletedExport: false, action: {})
+            }
+            .environment(\.dynamicTypeSize, testCase.size)
+            .padding(Design.Space.md)
+
+            let rootView = buttons
+                .frame(width: 390, height: 844, alignment: .top)
+                .background(Design.Colors.Dark.bgDeep)
+                .environment(\.colorScheme, .dark)
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportPrimaryAction-\(Locale.preferredLanguages.first ?? "unknown")-\(testCase.name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
+    }
+}

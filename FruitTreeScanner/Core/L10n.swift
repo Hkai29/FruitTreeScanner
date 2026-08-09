@@ -1564,6 +1564,10 @@ enum L10n {
         static let completionShareHint = NSLocalizedString("export.completion.share_hint", value: "打开已导出文件的分享面板。", comment: "Accessibility hint for sharing a completed batch export")
         static let completionDismiss = NSLocalizedString("export.completion.dismiss", value: "收起", comment: "Dismiss a completed batch export")
         static let completionDismissHint = NSLocalizedString("export.completion.dismiss_hint", value: "移除此完成状态，并删除临时导出文件。", comment: "Accessibility hint for dismissing and deleting a temporary completed export")
+        static let primaryCancel = NSLocalizedString("export.primary.cancel", value: "取消导出", comment: "Cancel the active batch export")
+        static let primaryCancelHint = NSLocalizedString("export.primary.cancel_hint", value: "停止当前导出。", comment: "Accessibility hint for cancelling the active batch export")
+        static let primaryExportHint = NSLocalizedString("export.primary.export_hint", value: "为所选记录创建导出文件并打开分享面板。", comment: "Accessibility hint for starting a batch export")
+        static let primaryReexportHint = NSLocalizedString("export.primary.reexport_hint", value: "使用当前记录和选项替换临时导出文件。", comment: "Accessibility hint for repeating a batch export")
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")
@@ -1781,6 +1785,19 @@ enum L10n {
 
         static func completionFileName(_ fileName: String) -> String {
             String(format: completionFileFormat, fileName)
+        }
+
+        private static let primaryExportOne = NSLocalizedString("export.primary.export_one", value: "导出 1 条记录", comment: "Export exactly one selected record")
+        private static let primaryExportCount = NSLocalizedString("export.primary.export_count", value: "导出 %d 条记录", comment: "Export a selected record count")
+        private static let primaryReexportOne = NSLocalizedString("export.primary.reexport_one", value: "重新导出 1 条记录", comment: "Re-export exactly one selected record")
+        private static let primaryReexportCount = NSLocalizedString("export.primary.reexport_count", value: "重新导出 %d 条记录", comment: "Re-export a selected record count")
+
+        static func primaryExportTitle(recordCount: Int) -> String {
+            recordCount == 1 ? primaryExportOne : String(format: primaryExportCount, recordCount)
+        }
+
+        static func primaryReexportTitle(recordCount: Int) -> String {
+            recordCount == 1 ? primaryReexportOne : String(format: primaryReexportCount, recordCount)
         }
     }
 
