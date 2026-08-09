@@ -1,7 +1,75 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
 final class DashboardSummaryTests: XCTestCase {
+    @MainActor
+    func testSharedDashboardToolPresentationRendersAtAccessibilityTextSize() {
+        let rootView = ScrollView {
+            VStack(spacing: 16) {
+                DashboardToolHeader(
+                    imageName: "FeatureImportFile",
+                    title: "Import Point Cloud",
+                    subtitle: "Choose an existing PLY scan for preview, comparison, and export.",
+                    icon: "square.and.arrow.down",
+                    accent: Design.Colors.harvest
+                )
+
+                DashboardSheetEmptyState(
+                    icon: "clock.arrow.circlepath",
+                    imageName: "FeatureScanHistory",
+                    title: "No Scan Records",
+                    message: "Complete a scan or import a PLY file, then review, share, or recover it here.",
+                    primaryAction: DashboardSheetAction(
+                        title: "Start Scanning",
+                        icon: "viewfinder",
+                        action: {}
+                    ),
+                    secondaryAction: DashboardSheetAction(
+                        title: "Import PLY",
+                        icon: "square.and.arrow.down",
+                        action: {}
+                    ),
+                    outerPadding: false
+                )
+            }
+            .padding(16)
+        }
+        .frame(width: 390, height: 844)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "SharedDashboardToolPresentation-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
+    }
+
     func testNextTreeNavigationWaitsForActiveScanDismissal() {
         var state = PostScanNavigationState()
 
