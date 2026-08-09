@@ -1,5 +1,7 @@
 import XCTest
 import Combine
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -1231,6 +1233,55 @@ final class FruitModelsTests: XCTestCase {
                 )
             }
         }
+    }
+
+    @MainActor
+    func testPointCloudMeasurementOverlayRendersAtAccessibilityTextSize() {
+        let controller = PointCloudMeasurementController()
+        controller.measuredDistance = 1.234
+        var synchronizedDistance: Float?
+        let measuredDistance = Binding<Float?>(
+            get: { synchronizedDistance },
+            set: { synchronizedDistance = $0 }
+        )
+        let rootView = MeasurementToolOverlay(
+            controller: controller,
+            measuredDistance: measuredDistance,
+            onClose: {}
+        )
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .frame(width: 390, height: 844)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        XCTAssertEqual(synchronizedDistance, controller.measuredDistance)
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "PointCloudMeasurementOverlay-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.isHidden = true
     }
 
     func testPointCloudModesKeepStableRawValuesAndUseLocalizedDisplayNames() {
