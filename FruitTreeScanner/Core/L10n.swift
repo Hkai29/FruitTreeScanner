@@ -261,6 +261,92 @@ enum L10n {
         }
     }
 
+    // MARK: - Batch Export
+    enum BatchExport {
+        static func fruitCountLabel(_ count: Int, in bundle: Bundle = .main) -> String {
+            let key = count == 1
+                ? "batch_export.record.fruit_count_one"
+                : "batch_export.record.fruit_count_other"
+            let fallback = "%d 个果实"
+            let format = bundle.localizedString(forKey: key, value: fallback, table: nil)
+            return String(format: format, count)
+        }
+
+        static func yieldLabel(_ yieldKg: Float, in bundle: Bundle = .main) -> String {
+            let format = bundle.localizedString(
+                forKey: "batch_export.record.yield_format",
+                value: "%.1f kg",
+                table: nil
+            )
+            return String(format: format, Double(yieldKg))
+        }
+
+        static func unavailableMessage(
+            for state: ScanPersistenceState,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch state {
+            case .complete:
+                return ""
+            case .incomplete:
+                return bundle.localizedString(
+                    forKey: "batch_export.record.unavailable.incomplete",
+                    value: "记录未完整保存，无法导出",
+                    table: nil
+                )
+            case .invalid:
+                return bundle.localizedString(
+                    forKey: "batch_export.record.unavailable.invalid",
+                    value: "记录数据无效，无法导出",
+                    table: nil
+                )
+            }
+        }
+
+        static func recordAccessibilityLabel(
+            treeID: String,
+            fruitCount: Int,
+            yieldKg: Float,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "batch_export.record.accessibility.label",
+                value: "%@，%@，%@",
+                table: nil
+            )
+            return String(
+                format: format,
+                treeID,
+                fruitCountLabel(fruitCount, in: bundle),
+                yieldLabel(yieldKg, in: bundle)
+            )
+        }
+
+        static func recordAccessibilityValue(
+            isExportable: Bool,
+            isSelected: Bool,
+            persistenceState: ScanPersistenceState,
+            in bundle: Bundle = .main
+        ) -> String {
+            guard isExportable else {
+                return unavailableMessage(for: persistenceState, in: bundle)
+            }
+            let key = isSelected
+                ? "batch_export.record.accessibility.selected"
+                : "batch_export.record.accessibility.not_selected"
+            let fallback = isSelected ? "已选择，可导出" : "未选择，可导出"
+            return bundle.localizedString(forKey: key, value: fallback, table: nil)
+        }
+
+        static func toggleSelectionHint(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "batch_export.record.accessibility.toggle_hint",
+                value: "双击切换选择状态",
+                table: nil
+            )
+        }
+    }
+
     // MARK: - Scan History
     enum History {
         static let navigationTitle = NSLocalizedString("history.navigation_title", value: "扫描历史", comment: "Scan history navigation title")

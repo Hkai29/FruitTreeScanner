@@ -143,6 +143,17 @@
 "dashboard.today_overview" = "今日概览";
 "dashboard.tree_ids" = "树编号";
 
+/* 批量导出记录 */
+"batch_export.record.fruit_count_one" = "%d 个果实";
+"batch_export.record.fruit_count_other" = "%d 个果实";
+"batch_export.record.yield_format" = "%.1f kg";
+"batch_export.record.unavailable.incomplete" = "记录未完整保存，无法导出";
+"batch_export.record.unavailable.invalid" = "记录数据无效，无法导出";
+"batch_export.record.accessibility.label" = "%@，%@，%@";
+"batch_export.record.accessibility.selected" = "已选择，可导出";
+"batch_export.record.accessibility.not_selected" = "未选择，可导出";
+"batch_export.record.accessibility.toggle_hint" = "双击切换选择状态";
+
 /* 扫描历史 */
 "history.title" = "扫描历史";
 "history.filter.plot" = "地块";

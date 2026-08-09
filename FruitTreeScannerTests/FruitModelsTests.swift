@@ -1,5 +1,7 @@
 import XCTest
 import Combine
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -861,6 +863,176 @@ final class FruitModelsTests: XCTestCase {
 
         XCTAssertEqual(boundaryRecord.gpsLat, 90, accuracy: 0.000001)
         XCTAssertEqual(boundaryRecord.gpsLon, 180, accuracy: 0.000001)
+    }
+
+    @MainActor
+    func testBatchExportRecordRowsRenderAtSupportedTextSizes() {
+        let scanDate = Date(timeIntervalSince1970: 1_786_230_000)
+        let completeRecord = ScanFileRecord(
+            id: "complete-batch-row.ply",
+            treeID: "NORTH-ORCHARD-TREE-2026-08-09-A",
+            fileURL: URL(fileURLWithPath: "/tmp/complete-batch-row.ply"),
+            scanDate: scanDate,
+            fruitCount: 123,
+            yieldKg: 45.6,
+            gpsLat: 36.12,
+            gpsLon: 139.65,
+            fruitType: "apple",
+            persistenceState: .complete
+        )
+        let invalidRecord = ScanFileRecord(
+            id: "invalid-batch-row.ply",
+            treeID: "SOUTH-BLOCK-TREE-B",
+            fileURL: URL(fileURLWithPath: "/tmp/invalid-batch-row.ply"),
+            scanDate: scanDate,
+            fruitType: "pear",
+            persistenceState: .invalid
+        )
+        let rows: [(name: String, dynamicTypeSize: DynamicTypeSize, view: AnyView)] = [
+            (
+                "Selected-AX5",
+                .accessibility5,
+                AnyView(
+                    BatchExportRecordRow(
+                        record: completeRecord,
+                        isExportable: true,
+                        isSelected: true,
+                        onToggle: {}
+                    )
+                )
+            ),
+            (
+                "Invalid-AX5",
+                .accessibility5,
+                AnyView(
+                    BatchExportRecordRow(
+                        record: invalidRecord,
+                        isExportable: false,
+                        isSelected: false,
+                        onToggle: {}
+                    )
+                )
+            ),
+            (
+                "Selected-Standard",
+                .large,
+                AnyView(
+                    BatchExportRecordRow(
+                        record: completeRecord,
+                        isExportable: true,
+                        isSelected: true,
+                        onToggle: {}
+                    )
+                )
+            )
+        ]
+
+        for row in rows {
+            let rootView = VStack {
+                row.view
+                Spacer(minLength: 0)
+            }
+            .padding(Design.Space.md)
+            .environment(\.dynamicTypeSize, row.dynamicTypeSize)
+            .frame(width: 390, height: 844, alignment: .top)
+            .background(Design.Colors.Dark.bgDeep)
+            .environment(\.colorScheme, .dark)
+
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+                .image { _ in
+                    didDraw = hostingController.view.drawHierarchy(
+                        in: hostingController.view.bounds,
+                        afterScreenUpdates: true
+                    )
+                }
+
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportRecordRow-\(row.name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.isHidden = true
+        }
+    }
+
+    func testBatchExportRecordCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "batch_export.record.fruit_count_one": "%d fruit",
+                "batch_export.record.fruit_count_other": "%d fruits",
+                "batch_export.record.yield_format": "%.1f kg",
+                "batch_export.record.unavailable.incomplete": "This record was not saved completely and can’t be exported",
+                "batch_export.record.unavailable.invalid": "This record contains invalid data and can’t be exported",
+                "batch_export.record.accessibility.label": "%@, %@, %@",
+                "batch_export.record.accessibility.selected": "Selected, exportable",
+                "batch_export.record.accessibility.not_selected": "Not selected, exportable",
+                "batch_export.record.accessibility.toggle_hint": "Double-tap to toggle selection"
+            ],
+            "zh": [
+                "batch_export.record.fruit_count_one": "%d 个果实",
+                "batch_export.record.fruit_count_other": "%d 个果实",
+                "batch_export.record.yield_format": "%.1f kg",
+                "batch_export.record.unavailable.incomplete": "记录未完整保存，无法导出",
+                "batch_export.record.unavailable.invalid": "记录数据无效，无法导出",
+                "batch_export.record.accessibility.label": "%@，%@，%@",
+                "batch_export.record.accessibility.selected": "已选择，可导出",
+                "batch_export.record.accessibility.not_selected": "未选择，可导出",
+                "batch_export.record.accessibility.toggle_hint": "双击切换选择状态"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+
+        let englishBundle = try XCTUnwrap(
+            Bundle.main.path(forResource: "en", ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+        let chineseBundle = try XCTUnwrap(
+            Bundle.main.path(forResource: "zh", ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+        XCTAssertEqual(
+            L10n.BatchExport.recordAccessibilityLabel(
+                treeID: "TREE-17",
+                fruitCount: 2,
+                yieldKg: 1.5,
+                in: englishBundle
+            ),
+            "TREE-17, 2 fruits, 1.5 kg"
+        )
+        XCTAssertEqual(
+            L10n.BatchExport.recordAccessibilityValue(
+                isExportable: false,
+                isSelected: false,
+                persistenceState: .invalid,
+                in: chineseBundle
+            ),
+            "记录数据无效，无法导出"
+        )
     }
 
     func testHistoryPresentationTreatsCompleteZeroAsReliableResult() {
