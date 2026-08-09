@@ -288,6 +288,17 @@
 "dashboard.today_overview" = "Today’s Overview";
 "dashboard.tree_ids" = "Tree IDs";
 
+/* Batch Export Record */
+"batch_export.record.fruit_count_one" = "%d fruit";
+"batch_export.record.fruit_count_other" = "%d fruits";
+"batch_export.record.yield_format" = "%.1f kg";
+"batch_export.record.unavailable.incomplete" = "This record was not saved completely and can’t be exported";
+"batch_export.record.unavailable.invalid" = "This record contains invalid data and can’t be exported";
+"batch_export.record.accessibility.label" = "%@, %@, %@";
+"batch_export.record.accessibility.selected" = "Selected, exportable";
+"batch_export.record.accessibility.not_selected" = "Not selected, exportable";
+"batch_export.record.accessibility.toggle_hint" = "Double-tap to toggle selection";
+
 /* Scan History */
 "history.title" = "Scan History";
 "history.filter.plot" = "Plot";
