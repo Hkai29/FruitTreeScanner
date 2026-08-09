@@ -1033,6 +1033,13 @@ final class FruitModelsTests: XCTestCase {
             ),
             "记录数据无效，无法导出"
         )
+        XCTAssertEqual(L10n.BatchExport.fruitTypeLabel("apple", in: englishBundle), "Apple")
+        XCTAssertEqual(L10n.BatchExport.fruitTypeLabel("apple", in: chineseBundle), "苹果")
+        XCTAssertEqual(
+            L10n.BatchExport.fruitTypeLabel("custom-orchard-fruit", in: chineseBundle),
+            "custom-orchard-fruit",
+            "Unknown persisted identifiers must remain unchanged"
+        )
     }
 
     func testHistoryPresentationTreatsCompleteZeroAsReliableResult() {

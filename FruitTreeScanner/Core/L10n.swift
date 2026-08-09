@@ -263,6 +263,15 @@ enum L10n {
 
     // MARK: - Batch Export
     enum BatchExport {
+        static func fruitTypeLabel(_ rawValue: String, in bundle: Bundle = .main) -> String {
+            guard let category = FruitCategory(rawValue: rawValue) else { return rawValue }
+            return bundle.localizedString(
+                forKey: "fruit.\(category.rawValue)",
+                value: category.displayName,
+                table: nil
+            )
+        }
+
         static func fruitCountLabel(_ count: Int, in bundle: Bundle = .main) -> String {
             let key = count == 1
                 ? "batch_export.record.fruit_count_one"
