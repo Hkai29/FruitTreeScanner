@@ -69,6 +69,7 @@ struct StartViewLayout<StepContent: View>: View {
                 .padding(.top, Design.Space.lg)
                 .padding(.bottom, Design.Space.xl)
             }
+            .id(currentStep)
             .scrollDismissesKeyboard(.interactively)
 
             bottomNavigation
@@ -95,6 +96,7 @@ struct StartViewLayout<StepContent: View>: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .padding(.bottom, Design.Space.xl)
                 }
+                .id(currentStep)
                 .scrollDismissesKeyboard(.interactively)
             }
             .padding(.horizontal, Design.Space.lg)
