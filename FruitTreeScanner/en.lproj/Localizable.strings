@@ -303,6 +303,13 @@
 "voxel.complete" = "Coverage Complete";
 
 /* Export */
+"export.empty.title" = "No Records to Export";
+"export.empty.message" = "Scan or import a PLY file, then select records here for CSV or Excel-compatible export.";
+"export.empty.message_compact" = "Scan or import a PLY file to add exportable records.";
+"export.empty.start_scan" = "Start Scan";
+"export.empty.start_scan_hint" = "Open scan setup to create an exportable scan record.";
+"export.empty.import_ply" = "Import PLY";
+"export.empty.import_ply_hint" = "Open file import to add an existing point cloud to Scan History.";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";

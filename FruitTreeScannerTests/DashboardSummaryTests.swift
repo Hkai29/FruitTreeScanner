@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -695,5 +697,105 @@ final class DashboardHomeLocalizationTests: XCTestCase {
         XCTAssertEqual(AppMode.scan.title, L10n.Dashboard.scanMode)
         XCTAssertEqual(AppMode.history.title, L10n.Dashboard.historyMode)
         XCTAssertEqual(AppMode.analytics.title, L10n.Dashboard.analyticsMode)
+    }
+}
+
+final class BatchExportEmptyStateLocalizationTests: XCTestCase {
+    func testBatchExportEmptyStateCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.empty.title": "No Records to Export",
+                "export.empty.message": "Scan or import a PLY file, then select records here for CSV or Excel-compatible export.",
+                "export.empty.message_compact": "Scan or import a PLY file to add exportable records.",
+                "export.empty.start_scan": "Start Scan",
+                "export.empty.start_scan_hint": "Open scan setup to create an exportable scan record.",
+                "export.empty.import_ply": "Import PLY",
+                "export.empty.import_ply_hint": "Open file import to add an existing point cloud to Scan History."
+            ],
+            "zh": [
+                "export.empty.title": "暂无可导出的记录",
+                "export.empty.message": "扫描或导入 PLY 文件后，可在这里批量选择并导出 CSV 或 Excel 兼容表格。",
+                "export.empty.message_compact": "扫描或导入 PLY 文件以添加可导出记录。",
+                "export.empty.start_scan": "开始扫描",
+                "export.empty.start_scan_hint": "打开扫描设置，创建可导出的扫描记录。",
+                "export.empty.import_ply": "导入 PLY",
+                "export.empty.import_ply_hint": "打开文件导入，将已有点云加入扫描记录。"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    func testBatchExportContentRendersProductionEmptyPathAtStandardAndAccessibilityTextSizes() {
+        let cases: [(name: String, size: DynamicTypeSize)] = [
+            ("Large", .large),
+            ("AX5", .accessibility5)
+        ]
+
+        for testCase in cases {
+            let content = BatchExportContentView(
+                records: [],
+                selectedRecords: [],
+                exportFormat: .constant(.csv),
+                exportOptions: .constant(BatchExportService.ExportOptions()),
+                exportedURL: nil,
+                isExporting: false,
+                onStartScan: {},
+                onImportFile: {},
+                onToggleSelection: { _ in },
+                onOptionsChanged: {},
+                onShareExport: {},
+                onClearExport: {},
+                onPrimaryAction: {}
+            )
+            .environment(\.dynamicTypeSize, testCase.size)
+
+            let rootView = content
+                .frame(width: 390, height: 844, alignment: .top)
+                .background(Design.Colors.Dark.bgDeep)
+                .environment(\.colorScheme, .dark)
+
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+                .image { _ in
+                    didDraw = hostingController.view.drawHierarchy(
+                        in: hostingController.view.bounds,
+                        afterScreenUpdates: true
+                    )
+                }
+
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "BatchExportEmpty-\(Locale.preferredLanguages.first ?? "unknown")-\(testCase.name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
     }
 }
