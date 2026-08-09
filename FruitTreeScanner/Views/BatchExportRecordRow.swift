@@ -118,7 +118,7 @@ struct BatchExportRecordRow: View {
             )
             .fixedSize(horizontal: false, vertical: true)
             if !record.fruitType.isEmpty {
-                Text(record.fruitType)
+                Text(L10n.BatchExport.fruitTypeLabel(record.fruitType))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
