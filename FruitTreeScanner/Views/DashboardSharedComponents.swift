@@ -122,6 +122,8 @@ struct DashboardFeatureHeader: View {
 }
 
 struct DashboardToolHeader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let imageName: String
     let title: String
     let subtitle: String
@@ -129,30 +131,37 @@ struct DashboardToolHeader: View {
     var accent: Color = Design.Colors.harvest
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            DashboardFeatureImage(name: imageName, accent: accent)
-                .frame(width: 86, height: 66)
+        HStack(alignment: .top, spacing: 12) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                DashboardFeatureImage(name: imageName, accent: accent)
+                    .frame(width: 86, height: 66)
+                    .accessibilityHidden(true)
+            }
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
                     Image(systemName: icon)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(accent)
-                        .frame(width: 25, height: 25)
+                        .padding(6)
                         .background(accent.opacity(0.14))
                         .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .accessibilityHidden(true)
 
                     Text(title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.headline)
                         .foregroundColor(Design.Colors.Dark.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                 }
 
                 Text(subtitle)
-                    .font(.system(size: 12))
+                    .font(.subheadline)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
 
             Spacer(minLength: 0)
         }

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct DashboardSheetEmptyState: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let icon: String
     var imageName: String? = nil
     let title: String
@@ -13,34 +15,39 @@ struct DashboardSheetEmptyState: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
-                if let imageName {
+                if let imageName, !dynamicTypeSize.isAccessibilitySize {
                     DashboardFeatureImage(name: imageName, accent: accent)
                         .frame(width: 96, height: 76)
+                        .accessibilityHidden(true)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: icon)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(accent)
-                            .frame(width: 26, height: 26)
+                            .padding(6)
                             .background(accent.opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .accessibilityHidden(true)
 
                         Text(title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.headline)
                             .foregroundColor(Design.Colors.Dark.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
                     }
 
                     Text(message)
-                        .font(.system(size: 13))
+                        .font(.subheadline)
                         .foregroundColor(Design.Colors.Dark.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .accessibilityElement(children: .combine)
             }
 
             if primaryAction != nil || secondaryAction != nil {
-                HStack(spacing: 10) {
+                actionLayout {
                     if let primaryAction {
                         actionButton(primaryAction, isPrimary: true)
                     }
@@ -58,13 +65,21 @@ struct DashboardSheetEmptyState: View {
         .frame(maxWidth: .infinity, maxHeight: outerPadding ? .infinity : nil, alignment: .top)
     }
 
+    private var actionLayout: AnyLayout {
+        if dynamicTypeSize.isAccessibilitySize {
+            return AnyLayout(VStackLayout(spacing: 10))
+        }
+        return AnyLayout(HStackLayout(spacing: 10))
+    }
+
     private func actionButton(_ action: DashboardSheetAction, isPrimary: Bool) -> some View {
         Button(action: action.action) {
-            Label(action.title, systemImage: action.icon)
-                .font(.system(size: 13, weight: .semibold))
+            actionLabel(action)
                 .foregroundColor(isPrimary ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textPrimary)
+                .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 4 : 8)
+                .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
-                .frame(height: 38)
+                .frame(minHeight: 44)
                 .background(isPrimary ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 9))
                 .overlay(
@@ -73,5 +88,20 @@ struct DashboardSheetEmptyState: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(action.title)
+    }
+
+    @ViewBuilder
+    private func actionLabel(_ action: DashboardSheetAction) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Text(action.title)
+                .font(.caption.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+        } else {
+            Label(action.title, systemImage: action.icon)
+                .font(.caption.weight(.semibold))
+        }
     }
 }
