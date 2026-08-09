@@ -1,5 +1,7 @@
 import XCTest
 import Combine
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -1097,6 +1099,47 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(ImportStatus.processing("TREE-17.ply").afterImporterDismissal, .processing("TREE-17.ply"))
         XCTAssertEqual(ImportStatus.success("TREE-17.ply").afterImporterDismissal, .success("TREE-17.ply"))
         XCTAssertEqual(ImportStatus.error("broken").afterImporterDismissal, .error("broken"))
+    }
+
+    @MainActor
+    func testImportFileContentRendersAtAccessibilityTextSize() {
+        let rootView = ImportFileContentView(
+            status: .success("NORTH-ORCHARD-TREE-2026-08-09.ply"),
+            isProcessing: false,
+            onImportTap: {}
+        )
+        .frame(width: 390, height: 844)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "ImportFileContent-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
     }
 
     func testPointCloudPreviewCopyIsCompleteInEnglishAndChinese() throws {
