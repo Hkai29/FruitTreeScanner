@@ -426,6 +426,13 @@
 "common.save" = "保存";
 "common.share" = "分享";
 
+/* 果园地图树木标记 */
+"orchard_map.pin.tree_label" = "果树 %@";
+"orchard_map.pin.level_high" = "高产";
+"orchard_map.pin.level_medium" = "中产";
+"orchard_map.pin.level_low" = "低产";
+"orchard_map.pin.selected_value" = "%@，已选中";
+
 /* 扫描历史删除 */
 "history.delete.record.title" = "删除扫描记录";
 "history.delete.record.message" = "将删除这条记录关联的 PLY 点云、CSV、结果 JSON 和完成清单。";

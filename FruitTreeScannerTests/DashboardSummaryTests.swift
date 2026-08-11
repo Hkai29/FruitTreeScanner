@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import FruitTreeScanner
 
@@ -426,6 +427,119 @@ final class DashboardSummaryTests: XCTestCase {
         let tree = try XCTUnwrap(mapData.trees.first)
         XCTAssertEqual(tree.yieldLevel, .low)
         XCTAssertEqual(tree.weight, 0, accuracy: 0.001)
+    }
+
+    func testOrchardTreePinCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "orchard_map.pin.tree_label": "Tree %@",
+                "orchard_map.pin.level_high": "High yield",
+                "orchard_map.pin.level_medium": "Medium yield",
+                "orchard_map.pin.level_low": "Low yield",
+                "orchard_map.pin.selected_value": "%@, selected"
+            ],
+            "zh": [
+                "orchard_map.pin.tree_label": "果树 %@",
+                "orchard_map.pin.level_high": "高产",
+                "orchard_map.pin.level_medium": "中产",
+                "orchard_map.pin.level_low": "低产",
+                "orchard_map.pin.selected_value": "%@，已选中"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try orchardTreePinLocalizationBundle(language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    bundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testOrchardTreePinPresentationUsesDistinctYieldSymbols() throws {
+        let bundle = try orchardTreePinLocalizationBundle("en")
+        let cases: [(yieldKg: Float, symbol: String, value: String)] = [
+            (50, "arrow.up.circle.fill", "High yield"),
+            (40, "minus.circle.fill", "Medium yield"),
+            (20, "arrow.down.circle.fill", "Low yield")
+        ]
+
+        let presentations = try cases.enumerated().map { index, item in
+            OrchardTreePinPresentation(
+                tree: try makePinTree(id: "pin-\(index)", treeID: "T-\(index)", yieldKg: item.yieldKg),
+                isSelected: false,
+                bundle: bundle
+            )
+        }
+
+        XCTAssertEqual(presentations.map(\.symbolName), cases.map(\.symbol))
+        XCTAssertEqual(presentations.map(\.accessibilityValue), cases.map(\.value))
+        XCTAssertEqual(Set(presentations.map(\.symbolName)).count, 3)
+    }
+
+    func testOrchardTreePinPresentationAnnouncesSelection() throws {
+        let tree = try makePinTree(id: "medium", treeID: "T-017", yieldKg: 40)
+        let bundle = try orchardTreePinLocalizationBundle("en")
+        let unselected = OrchardTreePinPresentation(tree: tree, isSelected: false, bundle: bundle)
+        let selected = OrchardTreePinPresentation(tree: tree, isSelected: true, bundle: bundle)
+
+        XCTAssertEqual(unselected.accessibilityLabel, "Tree T-017")
+        XCTAssertEqual(unselected.accessibilityValue, "Medium yield")
+        XCTAssertEqual(selected.accessibilityLabel, unselected.accessibilityLabel)
+        XCTAssertEqual(selected.accessibilityValue, "Medium yield, selected")
+        XCTAssertEqual(selected.symbolName, unselected.symbolName)
+    }
+
+    func testOrchardTreePinPresentationLocalizesZeroYieldTree() throws {
+        let tree = try makePinTree(id: "zero", treeID: "T-000", yieldKg: 0)
+        let bundle = try orchardTreePinLocalizationBundle("zh")
+        let unselected = OrchardTreePinPresentation(tree: tree, isSelected: false, bundle: bundle)
+        let selected = OrchardTreePinPresentation(tree: tree, isSelected: true, bundle: bundle)
+
+        XCTAssertEqual(unselected.symbolName, "arrow.down.circle.fill")
+        XCTAssertEqual(unselected.accessibilityLabel, "果树 T-000")
+        XCTAssertEqual(unselected.accessibilityValue, "低产")
+        XCTAssertEqual(selected.accessibilityValue, "低产，已选中")
+    }
+
+    @MainActor
+    func testOrchardTreeMapPinUsesRecommendedInteractionSize() throws {
+        let tree = try makePinTree(id: "size", treeID: "T-SIZE", yieldKg: 50)
+
+        for isSelected in [false, true] {
+            let hostingController = UIHostingController(
+                rootView: TreeMapPin(tree: tree, isSelected: isSelected)
+            )
+            let size = hostingController.sizeThatFits(in: CGSize(width: 100, height: 100))
+
+            XCTAssertEqual(size.width, 44, accuracy: 0.5)
+            XCTAssertEqual(size.height, 44, accuracy: 0.5)
+        }
+    }
+
+    private func orchardTreePinLocalizationBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
+    }
+
+    private func makePinTree(id: String, treeID: String, yieldKg: Float) throws -> TreeAnnotation {
+        try XCTUnwrap(
+            OrchardMapData(records: [
+                makeRecord(
+                    id: id,
+                    treeID: treeID,
+                    scanDate: Date(),
+                    yieldKg: yieldKg,
+                    gpsLat: 31.2304,
+                    gpsLon: 121.4737
+                )
+            ]).trees.first
+        )
     }
 
     private func makeRecord(
