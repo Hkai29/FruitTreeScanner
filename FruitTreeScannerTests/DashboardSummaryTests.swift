@@ -27,6 +27,21 @@ final class DashboardSummaryTests: XCTestCase {
         )
     }
 
+    func testImportFileHandoffUsesDistinctDestinationsWithinTheSheetLane() {
+        let sourceDestinations: [DashboardDestination] = [
+            .scanHistory,
+            .pointCloud(nil),
+            .batchExport
+        ]
+        let importDestination = DashboardDestination.importFile
+
+        XCTAssertFalse(importDestination.isFullScreen)
+        for sourceDestination in sourceDestinations {
+            XCTAssertFalse(sourceDestination.isFullScreen)
+            XCTAssertNotEqual(sourceDestination.id, importDestination.id)
+        }
+    }
+
     @MainActor
     func testScanLaunchSubmissionGateDeliversSynchronously() {
         let gate = ScanLaunchSubmissionGate()
