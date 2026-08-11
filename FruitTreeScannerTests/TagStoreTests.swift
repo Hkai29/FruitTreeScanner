@@ -280,6 +280,67 @@ final class TagStoreTests: XCTestCase {
         XCTAssertEqual(persisted.assignments, store.assignments)
     }
 
+    func testLegacyMigrationRepairsAssignmentsBeforePersistingSnapshot() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let plot = Plot(name: "Legacy Block")
+        let tag = GroupTag(name: "Legacy Trial")
+        let stalePlotID = UUID()
+        let staleTagID = UUID()
+        try defaults.setObject([plot], forKey: "TagStore.plots")
+        try defaults.setObject([tag], forKey: "TagStore.tags")
+        try defaults.setObject(
+            [
+                TreeAssignment(
+                    treeId: " LEGACY-001 ",
+                    plotId: plot.id,
+                    tagIds: [tag.id, staleTagID, tag.id],
+                    status: .reviewing
+                ),
+                TreeAssignment(
+                    treeId: "LEGACY-002",
+                    plotId: stalePlotID,
+                    tagIds: [staleTagID],
+                    status: .scanned
+                ),
+                TreeAssignment(
+                    treeId: "   ",
+                    plotId: plot.id,
+                    tagIds: [tag.id],
+                    status: .completed
+                )
+            ],
+            forKey: "TagStore.assignments"
+        )
+
+        let store = TagStore(defaults: defaults)
+        await store.waitForPendingSave()
+
+        XCTAssertEqual(
+            store.assignments,
+            [
+                TreeAssignment(
+                    treeId: "LEGACY-001",
+                    plotId: plot.id,
+                    tagIds: [tag.id],
+                    status: .reviewing
+                ),
+                TreeAssignment(
+                    treeId: "LEGACY-002",
+                    plotId: nil,
+                    tagIds: [],
+                    status: .scanned
+                )
+            ]
+        )
+
+        let persisted: PersistedSnapshot = try persistedSnapshot(from: defaults)
+        XCTAssertEqual(persisted.plots, [plot])
+        XCTAssertEqual(persisted.tags, [tag])
+        XCTAssertEqual(persisted.assignments, store.assignments)
+    }
+
     func testQuickTaggingCardRendersAtAccessibilityTextSize() {
         let card = QuickTaggingCard(
             treeID: "TREE-QUICK-TAG",
