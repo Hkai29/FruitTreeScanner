@@ -3,6 +3,112 @@
 
 import SwiftUI
 
+struct DashboardAnalyticsRecordPresentation: Equatable {
+    let treeID: String
+    let dateText: String
+    let shortDateText: String
+    let yieldValueText: String
+    let yieldText: String
+    let fruitCountText: String
+    let rowAccessibilityLabel: String
+    let trendAccessibilityLabel: String
+
+    init(
+        record: ScanFileRecord,
+        bundle: Bundle = .main,
+        locale: Locale = .current,
+        timeZone: TimeZone = .current
+    ) {
+        let localizedDate = Self.formattedDate(
+            record.scanDate,
+            template: "yMMMd",
+            locale: locale,
+            timeZone: timeZone
+        )
+        let localizedShortDate = Self.formattedDate(
+            record.scanDate,
+            template: "Md",
+            locale: locale,
+            timeZone: timeZone
+        )
+        let localizedYieldValue = Self.formattedYield(record.yieldKg, locale: locale)
+        let localizedFruitCount = L10n.Dashboard.fruitCountLabel(record.fruitCount, in: bundle)
+
+        let yieldFormat = bundle.localizedString(
+            forKey: "dashboard.analytics.yield_format",
+            value: "%@ kg",
+            table: nil
+        )
+        let localizedYield = String(format: yieldFormat, locale: locale, localizedYieldValue)
+
+        let rowFormat = bundle.localizedString(
+            forKey: "dashboard.analytics.record_accessibility",
+            value: "树体 %@，%@，%@，%@",
+            table: nil
+        )
+        let localizedRowAccessibilityLabel = String(
+            format: rowFormat,
+            locale: locale,
+            record.treeID,
+            localizedDate,
+            localizedYield,
+            localizedFruitCount
+        )
+
+        let trendFormat = bundle.localizedString(
+            forKey: "dashboard.analytics.trend_accessibility",
+            value: "%@，产量%@",
+            table: nil
+        )
+        let localizedTrendAccessibilityLabel = String(
+            format: trendFormat,
+            locale: locale,
+            localizedDate,
+            localizedYield
+        )
+
+        treeID = record.treeID
+        dateText = localizedDate
+        shortDateText = localizedShortDate
+        yieldValueText = localizedYieldValue
+        yieldText = localizedYield
+        fruitCountText = localizedFruitCount
+        rowAccessibilityLabel = localizedRowAccessibilityLabel
+        trendAccessibilityLabel = localizedTrendAccessibilityLabel
+    }
+
+    private static func formattedDate(
+        _ date: Date,
+        template: String,
+        locale: Locale,
+        timeZone: TimeZone
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        return formatter.string(from: date)
+    }
+
+    private static func formattedYield(_ yieldKg: Float, locale: Locale) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = locale
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 1
+        formatter.maximumFractionDigits = 1
+        return formatter.string(from: NSNumber(value: yieldKg)) ?? "0.0"
+    }
+}
+
+enum DashboardAnalyticsRecordLayout: Equatable {
+    case horizontal
+    case stacked
+
+    init(dynamicTypeSize: DynamicTypeSize) {
+        self = dynamicTypeSize.isAccessibilitySize ? .stacked : .horizontal
+    }
+}
+
 struct DashboardSheetMetric: Identifiable {
     let id = UUID()
     let title: String
@@ -57,38 +163,64 @@ private struct DashboardSheetMetricCell: View {
 struct YieldRecordRow: View {
     let record: ScanFileRecord
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.locale) private var locale
+    @Environment(\.timeZone) private var timeZone
+
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(record.treeID)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+        let layout = DashboardAnalyticsRecordLayout(dynamicTypeSize: dynamicTypeSize)
+        let presentation = DashboardAnalyticsRecordPresentation(
+            record: record,
+            locale: locale,
+            timeZone: timeZone
+        )
 
-                Text(Self.formatDate(record.scanDate))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(String(format: "%.1f kg", record.yieldKg))
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Design.Colors.harvest)
-
-                Text("\(record.fruitCount) 个")
-                    .font(.system(size: 11))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+        Group {
+            switch layout {
+            case .horizontal:
+                HStack(spacing: 12) {
+                    identity(presentation)
+                    Spacer()
+                    metrics(presentation, alignment: .trailing)
+                }
+            case .stacked:
+                VStack(alignment: .leading, spacing: 8) {
+                    identity(presentation)
+                    metrics(presentation, alignment: .leading)
+                }
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(presentation.rowAccessibilityLabel)
     }
 
-    private static func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+    private func identity(_ presentation: DashboardAnalyticsRecordPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(presentation.treeID)
+                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
+
+            Text(presentation.dateText)
+                .font(.caption.weight(.medium))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+        }
+    }
+
+    private func metrics(
+        _ presentation: DashboardAnalyticsRecordPresentation,
+        alignment: HorizontalAlignment
+    ) -> some View {
+        VStack(alignment: alignment, spacing: 4) {
+            Text(presentation.yieldText)
+                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                .foregroundColor(Design.Colors.harvest)
+
+            Text(presentation.fruitCountText)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+        }
     }
 }
 
@@ -97,26 +229,42 @@ struct TrendBar: View {
     let maxYield: Float
     let color: Color
 
+    @ScaledMetric(relativeTo: .caption2) private var barWidth: CGFloat = 24
+    @ScaledMetric(relativeTo: .caption2) private var columnWidth: CGFloat = 42
+    @ScaledMetric(relativeTo: .caption2) private var minimumBarHeight: CGFloat = 6
+    @ScaledMetric(relativeTo: .caption2) private var maximumBarHeight: CGFloat = 120
+    @Environment(\.locale) private var locale
+    @Environment(\.timeZone) private var timeZone
+
     var body: some View {
+        let presentation = DashboardAnalyticsRecordPresentation(
+            record: record,
+            locale: locale,
+            timeZone: timeZone
+        )
+
         VStack(spacing: 5) {
-            Text(String(format: "%.1f", record.yieldKg))
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+            Text(presentation.yieldValueText)
+                .font(.caption2.weight(.medium))
+                .monospacedDigit()
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             RoundedRectangle(cornerRadius: 3)
                 .fill(color)
-                .frame(width: 24, height: max(6, CGFloat(record.yieldKg / maxYield) * 120))
+                .frame(
+                    width: barWidth,
+                    height: max(
+                        minimumBarHeight,
+                        CGFloat(record.yieldKg / maxYield) * maximumBarHeight
+                    )
+                )
 
-            Text(Self.shortDate(record.scanDate))
-                .font(.system(size: 10))
+            Text(presentation.shortDateText)
+                .font(.caption2)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
-        .frame(width: 42)
-    }
-
-    private static func shortDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd"
-        return formatter.string(from: date)
+        .frame(width: columnWidth)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(presentation.trendAccessibilityLabel)
     }
 }

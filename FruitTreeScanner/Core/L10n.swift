@@ -226,8 +226,6 @@ enum L10n {
         private static let treeUnitOther = NSLocalizedString("dashboard.tree_unit_other", value: "棵", comment: "Dashboard tree count unit for multiple trees")
         private static let quickActionAccessibility = NSLocalizedString("dashboard.quick_action_accessibility", value: "%@，%@", comment: "Dashboard quick action accessibility label containing title and description")
         private static let viewPointCloudAccessibility = NSLocalizedString("dashboard.view_point_cloud_accessibility", value: "查看 %@ 点云", comment: "View a tree point cloud accessibility label")
-        private static let fruitCountOne = NSLocalizedString("dashboard.fruit_count_one", value: "%d 个果实", comment: "Dashboard fruit count for one fruit")
-        private static let fruitCountOther = NSLocalizedString("dashboard.fruit_count_other", value: "%d 个果实", comment: "Dashboard fruit count for multiple fruits")
 
         static func scanHistoryAccessibilityLabel(recordCount: Int) -> String {
             switch recordCount {
@@ -256,8 +254,11 @@ enum L10n {
             String(format: viewPointCloudAccessibility, treeID)
         }
 
-        static func fruitCountLabel(_ count: Int) -> String {
-            String(format: count == 1 ? fruitCountOne : fruitCountOther, count)
+        static func fruitCountLabel(_ count: Int, in bundle: Bundle = .main) -> String {
+            let key = count == 1 ? "dashboard.fruit_count_one" : "dashboard.fruit_count_other"
+            let fallback = "%d 个果实"
+            let format = bundle.localizedString(forKey: key, value: fallback, table: nil)
+            return String(format: format, count)
         }
     }
 

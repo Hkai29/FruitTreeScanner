@@ -140,6 +140,9 @@
 "dashboard.start_first_scan" = "开始第一次扫描";
 "dashboard.fruit_count_one" = "%d 个果实";
 "dashboard.fruit_count_other" = "%d 个果实";
+"dashboard.analytics.yield_format" = "%@ kg";
+"dashboard.analytics.record_accessibility" = "树体 %@，%@，%@，%@";
+"dashboard.analytics.trend_accessibility" = "%@，产量%@";
 "dashboard.today_overview" = "今日概览";
 "dashboard.tree_ids" = "树编号";
 
