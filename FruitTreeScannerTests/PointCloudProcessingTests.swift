@@ -498,6 +498,103 @@ final class PointCloudProcessingTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testCoverageCompletionPresentationDismissesCurrentScanAfterDelay() async throws {
+        let delayDriver = ScanCoverageDismissDelayDriver()
+        let controller = ScanCoverageCompletionPresentationController {
+            await delayDriver.wait()
+        }
+
+        controller.beginNewScan()
+        let dismissTask = try XCTUnwrap(controller.presentIfNeeded())
+        let request = await delayDriver.nextRequest()
+
+        XCTAssertTrue(controller.isPresented)
+        XCTAssertNil(
+            controller.presentIfNeeded(),
+            "Coverage completion must be shown only once per logical scan"
+        )
+
+        await delayDriver.resume(request: request)
+        await dismissTask.value
+
+        XCTAssertFalse(controller.isPresented)
+    }
+
+    @MainActor
+    func testCoverageCompletionPauseHidesWithoutRearmingSameScan() async throws {
+        let delayDriver = ScanCoverageDismissDelayDriver()
+        let controller = ScanCoverageCompletionPresentationController {
+            await delayDriver.wait()
+        }
+
+        controller.beginNewScan()
+        let staleTask = try XCTUnwrap(controller.presentIfNeeded())
+        let staleRequest = await delayDriver.nextRequest()
+
+        controller.pauseCurrentScan()
+
+        XCTAssertFalse(controller.isPresented)
+        XCTAssertNil(
+            controller.presentIfNeeded(),
+            "Pausing and resuming preserved capture must not repeat the same completion toast"
+        )
+
+        await delayDriver.resume(request: staleRequest)
+        await staleTask.value
+
+        XCTAssertFalse(controller.isPresented)
+    }
+
+    @MainActor
+    func testCoverageCompletionNewScanRejectsPriorDismissalAndRearmsToast() async throws {
+        let delayDriver = ScanCoverageDismissDelayDriver()
+        let controller = ScanCoverageCompletionPresentationController {
+            await delayDriver.wait()
+        }
+
+        controller.beginNewScan()
+        let priorTask = try XCTUnwrap(controller.presentIfNeeded())
+        let priorRequest = await delayDriver.nextRequest()
+
+        controller.beginNewScan()
+        let currentTask = try XCTUnwrap(controller.presentIfNeeded())
+        let currentRequest = await delayDriver.nextRequest()
+
+        await delayDriver.resume(request: priorRequest)
+        await priorTask.value
+
+        XCTAssertTrue(
+            controller.isPresented,
+            "A delayed callback from the prior scan must not hide the current scan toast"
+        )
+
+        await delayDriver.resume(request: currentRequest)
+        await currentTask.value
+
+        XCTAssertFalse(controller.isPresented)
+    }
+
+    @MainActor
+    func testCoverageCompletionInvalidateRejectsLateDismissal() async throws {
+        let delayDriver = ScanCoverageDismissDelayDriver()
+        let controller = ScanCoverageCompletionPresentationController {
+            await delayDriver.wait()
+        }
+
+        controller.beginNewScan()
+        let staleTask = try XCTUnwrap(controller.presentIfNeeded())
+        let staleRequest = await delayDriver.nextRequest()
+
+        controller.invalidate()
+        XCTAssertFalse(controller.isPresented)
+
+        await delayDriver.resume(request: staleRequest)
+        await staleTask.value
+
+        XCTAssertFalse(controller.isPresented)
+    }
+
     func testDepthTexturePairFailsClosedForUnsupportedPixelFormats() throws {
         let unsupportedDepth = try makePixelBuffer(
             width: 8,
@@ -2356,5 +2453,43 @@ final class PointCloudProcessingTests: XCTestCase {
             UInt8((bits >> 8) & 0xFF),
             UInt8(bits & 0xFF),
         ])
+    }
+}
+
+private actor ScanCoverageDismissDelayDriver {
+    private var nextRequestID = 0
+    private var queuedRequests: [Int] = []
+    private var requestWaiters: [CheckedContinuation<Int, Never>] = []
+    private var delayContinuations: [Int: CheckedContinuation<Void, Never>] = [:]
+
+    func wait() async {
+        let request = nextRequestID
+        nextRequestID += 1
+
+        if requestWaiters.isEmpty {
+            queuedRequests.append(request)
+        } else {
+            requestWaiters.removeFirst().resume(returning: request)
+        }
+
+        await withCheckedContinuation { continuation in
+            delayContinuations[request] = continuation
+        }
+    }
+
+    func nextRequest() async -> Int {
+        if !queuedRequests.isEmpty {
+            return queuedRequests.removeFirst()
+        }
+        return await withCheckedContinuation { continuation in
+            requestWaiters.append(continuation)
+        }
+    }
+
+    func resume(request: Int) {
+        guard let continuation = delayContinuations.removeValue(forKey: request) else {
+            preconditionFailure("No pending scan coverage dismissal for request \(request)")
+        }
+        continuation.resume()
     }
 }
