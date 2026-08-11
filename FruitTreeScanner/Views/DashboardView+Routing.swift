@@ -29,6 +29,86 @@ struct PostScanNavigationState {
     }
 }
 
+enum ScanLaunchPresentationEvent<Request> {
+    case requestQueued(Request)
+    case sourceDismissed
+}
+
+struct ScanLaunchPresentationState<Request> {
+    private var pendingRequest: Request?
+
+    var hasPendingRequest: Bool {
+        pendingRequest != nil
+    }
+
+    mutating func transition(for event: ScanLaunchPresentationEvent<Request>) -> Request? {
+        switch event {
+        case .requestQueued(let request):
+            pendingRequest = request
+            return nil
+        case .sourceDismissed:
+            defer { pendingRequest = nil }
+            return pendingRequest
+        }
+    }
+}
+
+enum DashboardSheetScanHandoffEvent {
+    case startScanRequested
+    case sheetDismissed
+}
+
+struct DashboardSheetScanHandoffState {
+    private var hasPendingStartScan = false
+
+    mutating func transition(for event: DashboardSheetScanHandoffEvent) -> DashboardDestination? {
+        switch event {
+        case .startScanRequested:
+            hasPendingStartScan = true
+            return nil
+        case .sheetDismissed:
+            guard hasPendingStartScan else { return nil }
+            hasPendingStartScan = false
+            return .startScan
+        }
+    }
+}
+
+enum DashboardExternalNavigationDisposition: Equatable {
+    case present
+    case deferUntilIdle
+    case alreadySatisfied
+}
+
+struct DashboardExternalNavigationPolicy {
+    static func disposition(
+        for navigation: AppNavigation,
+        destination currentDestination: DashboardDestination?,
+        hasPendingScanRequest: Bool,
+        hasActiveScanRequest: Bool
+    ) -> DashboardExternalNavigationDisposition {
+        if currentDestination == destination(for: navigation) {
+            return .alreadySatisfied
+        }
+        if navigation == .scanner, hasPendingScanRequest || hasActiveScanRequest {
+            return .alreadySatisfied
+        }
+        if currentDestination != nil || hasPendingScanRequest || hasActiveScanRequest {
+            return .deferUntilIdle
+        }
+        return .present
+    }
+
+    static func destination(for navigation: AppNavigation) -> DashboardDestination {
+        switch navigation {
+        case .scanner: return .startScan
+        case .history: return .scanHistory
+        case .batchExport: return .batchExport
+        case .map: return .map
+        }
+    }
+}
+
 extension DashboardView {
     var sheetDestination: Binding<DashboardDestination?> {
         Binding(
@@ -62,6 +142,21 @@ extension DashboardView {
         destination = .startScan
     }
 
+    func showStartScanAfterDismissingSheet() {
+        _ = sheetScanHandoffState.transition(for: .startScanRequested)
+        destination = nil
+    }
+
+    func handleSheetDismissal() {
+        if let nextDestination = sheetScanHandoffState.transition(for: .sheetDismissed) {
+            destination = nextDestination
+            presentPendingNavigationIfPossible()
+            return
+        }
+        presentPendingScanIfNeeded()
+        presentPendingNavigationIfPossible()
+    }
+
     func showQuickScan() {
         destination = .quickScan
     }
@@ -78,10 +173,12 @@ extension DashboardView {
 
     func handleActiveScanDismissal() {
         refreshScanHistory()
-        guard let nextDestination = postScanNavigationState.transition(for: .activeScanDismissed) else {
+        if let nextDestination = postScanNavigationState.transition(for: .activeScanDismissed) {
+            destination = nextDestination
+            presentPendingNavigationIfPossible()
             return
         }
-        destination = nextDestination
+        presentPendingNavigationIfPossible()
     }
 
     func openPointCloud(_ record: ScanFileRecord) {
@@ -89,12 +186,27 @@ extension DashboardView {
     }
 
     func applyNavigation(_ nav: AppNavigation) {
-        switch nav {
-        case .scanner: destination = .startScan
-        case .history: destination = .scanHistory
-        case .batchExport: destination = .batchExport
-        case .map: destination = .map
+        destination = DashboardExternalNavigationPolicy.destination(for: nav)
+    }
+
+    func presentPendingNavigationIfPossible() {
+        guard let navigation = router.pendingDestination else { return }
+        let disposition = DashboardExternalNavigationPolicy.disposition(
+            for: navigation,
+            destination: destination,
+            hasPendingScanRequest: scanLaunchPresentationState.hasPendingRequest,
+            hasActiveScanRequest: activeScanRequest != nil
+        )
+        guard disposition != .deferUntilIdle else { return }
+        guard let consumedNavigation = router.takePendingDestination(if: true) else { return }
+        if disposition == .present {
+            applyNavigation(consumedNavigation)
         }
+    }
+
+    func handleDestinationDismissal() {
+        presentPendingScanIfNeeded()
+        presentPendingNavigationIfPossible()
     }
 
     func handleQuickAction(_ action: QuickAction) {
@@ -115,9 +227,15 @@ extension DashboardView {
     }
 
     func presentPendingScanIfNeeded() {
-        guard let request = pendingScanRequest else { return }
-        pendingScanRequest = nil
-        launchScan(request)
+        guard let request = scanLaunchPresentationState.transition(for: .sourceDismissed) else {
+            return
+        }
+        activateScan(request)
+    }
+
+    func queueScanAfterSourceDismissal(_ request: ScanLaunchRequest) {
+        _ = scanLaunchPresentationState.transition(for: .requestQueued(request))
+        destination = nil
     }
 
     @ViewBuilder
@@ -125,13 +243,11 @@ extension DashboardView {
         switch destination {
         case .startScan:
             StartView { request in
-                pendingScanRequest = request
-                self.destination = nil
+                queueScanAfterSourceDismissal(request)
             }
         case .quickScan:
             QuickScanView { request in
-                pendingScanRequest = request
-                self.destination = nil
+                queueScanAfterSourceDismissal(request)
             }
         default:
             EmptyView()
@@ -147,27 +263,27 @@ extension DashboardView {
             CalibrationView()
         case .scanHistory:
             HistorySheetView(
-                onStartScan: showStartScan,
+                onStartScan: showStartScanAfterDismissingSheet,
                 onRescanTree: launchRescan,
                 onImportFile: { self.destination = .importFile }
             )
         case .pointCloud(let initialFileURL):
             PointCloudSheet(
                 initialFileURL: initialFileURL,
-                onStartScan: showStartScan,
+                onStartScan: showStartScanAfterDismissingSheet,
                 onImportFile: { self.destination = .importFile }
             )
         case .tagManagement:
-            TagManagementView(onStartScan: showStartScan)
+            TagManagementView(onStartScan: showStartScanAfterDismissingSheet)
         case .yieldReport:
-            YieldReportSheet(onStartScan: showStartScan)
+            YieldReportSheet(onStartScan: showStartScanAfterDismissingSheet)
         case .compare:
-            HistoricalCompareView(onStartScan: showStartScan)
+            HistoricalCompareView(onStartScan: showStartScanAfterDismissingSheet)
         case .trends:
-            TrendsSheet(onStartScan: showStartScan)
+            TrendsSheet(onStartScan: showStartScanAfterDismissingSheet)
         case .map:
             if #available(iOS 17, *) {
-                MapSheet(onStartScan: showStartScan)
+                MapSheet(onStartScan: showStartScanAfterDismissingSheet)
             } else {
                 Text("地图功能需要 iOS 17")
             }
@@ -175,7 +291,7 @@ extension DashboardView {
             ImportFileView()
         case .batchExport:
             BatchExportView(
-                onStartScan: showStartScan,
+                onStartScan: showStartScanAfterDismissingSheet,
                 onImportFile: { self.destination = .importFile }
             )
         case .startScan, .quickScan:
@@ -186,10 +302,9 @@ extension DashboardView {
     func launchRescan(treeID: String) {
         let normalizedTreeID = TreeIdentifierPolicy.normalized(treeID)
         guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
-            destination = .startScan
+            showStartScanAfterDismissingSheet()
             return
         }
-        destination = nil
         let existing = TagStore.shared.getAssignment(treeId: normalizedTreeID)
         let request = ScanLaunchRequest(
             treeID: normalizedTreeID,
@@ -199,10 +314,10 @@ extension DashboardView {
             plotId: existing?.plotId,
             tagIds: existing?.tagIds ?? []
         )
-        launchScan(request)
+        queueScanAfterSourceDismissal(request)
     }
 
-    private func launchScan(_ request: ScanLaunchRequest) {
+    private func activateScan(_ request: ScanLaunchRequest) {
         let existing = TagStore.shared.getAssignment(treeId: request.treeID)
         TagStore.shared.createOrUpdateAssignment(
             treeId: request.treeID,
@@ -210,8 +325,6 @@ extension DashboardView {
             tagIds: request.tagIds,
             status: existing?.status ?? .notScanned
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            activeScanRequest = request
-        }
+        activeScanRequest = request
     }
 }

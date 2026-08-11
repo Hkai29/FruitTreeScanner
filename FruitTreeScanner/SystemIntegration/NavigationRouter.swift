@@ -58,26 +58,46 @@ final class NavigationRouter: ObservableObject {
     }
 
     func handle(_ destination: AppNavigation) {
+        defaults.set(destination.rawValue, forKey: AppNavigation.defaultsKey)
         pendingDestination = destination
     }
 
+    func takePendingDestination(if canConsume: Bool) -> AppNavigation? {
+        guard canConsume, let destination = pendingDestination else { return nil }
+        pendingDestination = nil
+        clearPersistedDestination(ifMatching: destination)
+        return destination
+    }
+
     func clear() {
+        if let pendingDestination {
+            clearPersistedDestination(ifMatching: pendingDestination)
+        }
         pendingDestination = nil
     }
 
     func consumePendingUserDefaults() {
         guard let raw = defaults.string(forKey: AppNavigation.defaultsKey) else { return }
-        defaults.removeObject(forKey: AppNavigation.defaultsKey)
-        guard let destination = AppNavigation(rawValue: raw) else { return }
+        guard let destination = AppNavigation(rawValue: raw) else {
+            defaults.removeObject(forKey: AppNavigation.defaultsKey)
+            return
+        }
         pendingDestination = destination
     }
 
     private func handleNavigationNotification(_ notification: Notification) {
         guard let raw = notification.object as? String else { return }
-        if defaults.string(forKey: AppNavigation.defaultsKey) == raw {
-            defaults.removeObject(forKey: AppNavigation.defaultsKey)
+        guard let destination = AppNavigation(rawValue: raw) else {
+            if defaults.string(forKey: AppNavigation.defaultsKey) == raw {
+                defaults.removeObject(forKey: AppNavigation.defaultsKey)
+            }
+            return
         }
-        guard let destination = AppNavigation(rawValue: raw) else { return }
         handle(destination)
+    }
+
+    private func clearPersistedDestination(ifMatching destination: AppNavigation) {
+        guard defaults.string(forKey: AppNavigation.defaultsKey) == destination.rawValue else { return }
+        defaults.removeObject(forKey: AppNavigation.defaultsKey)
     }
 }
