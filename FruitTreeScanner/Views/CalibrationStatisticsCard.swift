@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CalibrationStatisticsCard: View {
     let records: [CalibrationRecord]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var metrics: CalibrationValidationMetrics {
         CalibrationValidationMetrics.make(from: records)
@@ -14,7 +15,7 @@ struct CalibrationStatisticsCard: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(Design.Colors.Dark.glow)
 
-                Text("误差统计")
+                Text(L10n.CalibrationWorkspace.statisticsTitle)
                     .font(Design.Typography.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
@@ -24,7 +25,7 @@ struct CalibrationStatisticsCard: View {
             Divider()
 
             if !metrics.hasEvidence {
-                Text("暂无校准数据")
+                Text(L10n.CalibrationWorkspace.statisticsEmpty)
                     .font(Design.Typography.subheadline)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -42,25 +43,38 @@ struct CalibrationStatisticsCard: View {
     }
 
     private var statisticsRow: some View {
-        return HStack(spacing: Design.Space.xl) {
-            CalibrationStatBox(
-                title: "果数 MAPE",
-                value: percentageValue(metrics.countMAPE),
-                color: metricColor(metrics.countMAPE)
-            )
-
-            CalibrationStatBox(
-                title: "产量 MAPE",
-                value: percentageValue(metrics.yieldMAPE),
-                color: metricColor(metrics.yieldMAPE)
-            )
-
-            CalibrationStatBox(
-                title: "校准次数",
-                value: "\(metrics.recordCount)",
-                color: Design.Colors.Dark.glow
-            )
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: Design.Space.md) {
+                    statisticBoxes
+                }
+            } else {
+                HStack(spacing: Design.Space.xl) {
+                    statisticBoxes
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private var statisticBoxes: some View {
+        CalibrationStatBox(
+            title: L10n.CalibrationWorkspace.countMAPE,
+            value: percentageValue(metrics.countMAPE),
+            color: metricColor(metrics.countMAPE)
+        )
+
+        CalibrationStatBox(
+            title: L10n.CalibrationWorkspace.yieldMAPE,
+            value: percentageValue(metrics.yieldMAPE),
+            color: metricColor(metrics.yieldMAPE)
+        )
+
+        CalibrationStatBox(
+            title: L10n.CalibrationWorkspace.recordCount,
+            value: "\(metrics.recordCount)",
+            color: Design.Colors.Dark.glow
+        )
     }
 
     private func percentageValue(_ value: Double?) -> String {
@@ -97,6 +111,7 @@ private struct CalibrationStatBox: View {
             Text(title)
                 .font(Design.Typography.caption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
     }

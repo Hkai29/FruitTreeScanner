@@ -16,7 +16,7 @@ struct CalibrationParametersCard: View {
             Divider().background(Design.Colors.Dark.glassBorder)
 
             CalibrationSliderRow(
-                title: "最小聚类点数",
+                title: L10n.CalibrationWorkspace.minimumClusterPoints,
                 valueText: "\(Int(minClusterPoints))",
                 value: $minClusterPoints,
                 range: 3...150,
@@ -25,7 +25,7 @@ struct CalibrationParametersCard: View {
             )
 
             CalibrationSliderRow(
-                title: "最大聚类直径 (m)",
+                title: L10n.CalibrationWorkspace.maximumClusterDiameter,
                 valueText: String(format: "%.3f m", maxDiameter),
                 value: $maxDiameter,
                 range: 0.04...0.20,
@@ -34,7 +34,7 @@ struct CalibrationParametersCard: View {
             )
 
             CalibrationSliderRow(
-                title: "最小球形度",
+                title: L10n.CalibrationWorkspace.minimumSphericity,
                 valueText: String(format: "%.2f", sphericity),
                 value: $sphericity,
                 range: 0.2...0.8,
@@ -58,7 +58,7 @@ struct CalibrationParametersCard: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(Design.Colors.Dark.glow)
 
-            Text("算法参数")
+            Text(L10n.CalibrationWorkspace.parametersTitle)
                 .font(Design.Typography.headline)
                 .foregroundColor(Design.Colors.Dark.textPrimary)
 
@@ -74,20 +74,11 @@ private struct CalibrationSliderRow: View {
     let range: ClosedRange<Double>
     let step: Double
     let onCommit: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.xs) {
-            HStack {
-                Text(title)
-                    .font(Design.Typography.subheadline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Spacer()
-
-                Text(valueText)
-                    .font(Design.Typography.mono)
-                    .foregroundColor(Design.Colors.Dark.glow)
-            }
+            sliderHeader
 
             Slider(
                 value: $value,
@@ -99,6 +90,35 @@ private struct CalibrationSliderRow: View {
         }
     }
 
+    @ViewBuilder
+    private var sliderHeader: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Design.Space.xs) {
+                titleText
+                valueLabel
+            }
+        } else {
+            HStack {
+                titleText
+                Spacer()
+                valueLabel
+            }
+        }
+    }
+
+    private var titleText: some View {
+        Text(title)
+            .font(Design.Typography.subheadline)
+            .foregroundColor(Design.Colors.Dark.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var valueLabel: some View {
+        Text(valueText)
+            .font(Design.Typography.mono)
+            .foregroundColor(Design.Colors.Dark.glow)
+    }
+
     private func commitWhenEditingEnds(_ isEditing: Bool) {
         if !isEditing {
             onCommit()
@@ -107,23 +127,40 @@ private struct CalibrationSliderRow: View {
 }
 
 private struct CalibrationHSVSummary: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.xs) {
-            Text("HSV 色调范围")
+            Text(L10n.CalibrationWorkspace.hueRange)
                 .font(Design.Typography.subheadline)
                 .foregroundColor(Design.Colors.Dark.textPrimary)
 
-            HStack {
-                Text("H: \(Int(SettingsStore.shared.hsvHMin))° - \(Int(SettingsStore.shared.hsvHMax))°")
-                    .font(Design.Typography.monoSmall)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                Spacer()
-
-                Text("S≥\(String(format: "%.0f%%", SettingsStore.shared.hsvSMin * 100)) V≥\(String(format: "%.0f%%", SettingsStore.shared.hsvVMin * 100))")
-                    .font(Design.Typography.monoSmall)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: Design.Space.xs) {
+                        hueValue
+                        saturationValue
+                    }
+                } else {
+                    HStack {
+                        hueValue
+                        Spacer()
+                        saturationValue
+                    }
+                }
             }
         }
+    }
+
+    private var hueValue: some View {
+        Text("H: \(Int(SettingsStore.shared.hsvHMin))° - \(Int(SettingsStore.shared.hsvHMax))°")
+            .font(Design.Typography.monoSmall)
+            .foregroundColor(Design.Colors.Dark.textSecondary)
+    }
+
+    private var saturationValue: some View {
+        Text("S≥\(String(format: "%.0f%%", SettingsStore.shared.hsvSMin * 100)) V≥\(String(format: "%.0f%%", SettingsStore.shared.hsvVMin * 100))")
+            .font(Design.Typography.monoSmall)
+            .foregroundColor(Design.Colors.Dark.textSecondary)
     }
 }

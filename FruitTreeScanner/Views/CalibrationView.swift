@@ -35,8 +35,8 @@ struct CalibrationView: View {
                     VStack(spacing: Design.Space.lg) {
                         DashboardToolHeader(
                             imageName: "FeatureCalibration",
-                            title: "算法校准",
-                            subtitle: "用实测果径、聚类阈值和误差记录调准产量估算。",
+                            title: L10n.CalibrationWorkspace.title,
+                            subtitle: L10n.CalibrationWorkspace.subtitle,
                             icon: "slider.horizontal.3",
                             accent: Design.Colors.Dark.info
                         )
@@ -60,14 +60,14 @@ struct CalibrationView: View {
                 }
             }
             .preferredColorScheme(.dark)
-            .navigationTitle("算法校准")
+            .navigationTitle(L10n.CalibrationWorkspace.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") {
+                    Button(L10n.CalibrationWorkspace.close) {
                         dismiss()
                     }
                 }
@@ -80,7 +80,7 @@ struct CalibrationView: View {
                             .font(.system(size: 22))
                             .foregroundColor(Design.Colors.Dark.glow)
                     }
-                    .accessibilityLabel("添加校准记录")
+                    .accessibilityLabel(L10n.CalibrationWorkspace.addRecordAccessibility)
                 }
             }
         }
@@ -90,15 +90,15 @@ struct CalibrationView: View {
                 saveRecords()
             }
         }
-        .alert("删除校准记录", isPresented: deleteAlertBinding) {
-            Button("取消", role: .cancel) {
+        .alert(L10n.CalibrationWorkspace.deleteTitle, isPresented: deleteAlertBinding) {
+            Button(L10n.Common.cancel, role: .cancel) {
                 recordPendingDeletion = nil
             }
-            Button("删除", role: .destructive) {
+            Button(L10n.Common.delete, role: .destructive) {
                 deletePendingRecord()
             }
         } message: {
-            Text("这条校准记录会从本机移除，扫描原始记录不会被删除。")
+            Text(L10n.CalibrationWorkspace.deleteMessage)
         }
         .onAppear {
             loadRecords()

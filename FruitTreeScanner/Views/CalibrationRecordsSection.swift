@@ -12,7 +12,7 @@ struct CalibrationRecordsSection: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(Design.Colors.Dark.glow)
 
-                Text("校准记录")
+                Text(L10n.CalibrationWorkspace.recordsTitle)
                     .font(Design.Typography.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
@@ -48,11 +48,11 @@ private struct CalibrationEmptyRecordState: View {
         DashboardSheetEmptyState(
             icon: "plus",
             imageName: "FeatureCalibration",
-            title: "暂无校准记录",
-            message: "添加人工计数或实际重量后，这里会显示误差对比。",
+            title: L10n.CalibrationWorkspace.recordsEmptyTitle,
+            message: L10n.CalibrationWorkspace.recordsEmptyMessage,
             accent: Design.Colors.Dark.info,
             primaryAction: DashboardSheetAction(
-                title: "添加记录",
+                title: L10n.CalibrationWorkspace.addRecord,
                 icon: "plus",
                 action: onAdd
             ),
