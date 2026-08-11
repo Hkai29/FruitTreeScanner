@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -695,5 +697,268 @@ final class DashboardHomeLocalizationTests: XCTestCase {
         XCTAssertEqual(AppMode.scan.title, L10n.Dashboard.scanMode)
         XCTAssertEqual(AppMode.history.title, L10n.Dashboard.historyMode)
         XCTAssertEqual(AppMode.analytics.title, L10n.Dashboard.analyticsMode)
+    }
+}
+
+final class YieldReportPresentationTests: XCTestCase {
+    func testCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "yield_report.title": "Yield Report",
+                "yield_report.done": "Done",
+                "yield_report.done_hint": "Closes the yield report.",
+                "yield_report.empty_title": "No Reliable Yield Data",
+                "yield_report.empty_message": "Complete and save a scan to summarize yield, fruit count, and averages by tree.",
+                "yield_report.start_scan": "Start Scanning",
+                "yield_report.header_subtitle": "Summarize fruit count, weight, and each tree's scan result for post-harvest review.",
+                "yield_report.tree_details": "Tree Details",
+                "yield_report.metric.scans": "Scans",
+                "yield_report.metric.total_yield": "Total Yield",
+                "yield_report.metric.average_yield": "Average",
+                "yield_report.metric.fruit": "Fruit",
+                "yield_report.unit.scan_one": "scan",
+                "yield_report.unit.scan_other": "scans",
+                "yield_report.unit.fruit_one": "fruit",
+                "yield_report.unit.fruit_other": "fruits",
+                "yield_report.unit.kilograms": "kg"
+            ],
+            "zh": [
+                "yield_report.title": "产量报告",
+                "yield_report.done": "完成",
+                "yield_report.done_hint": "关闭产量报告。",
+                "yield_report.empty_title": "暂无可靠产量数据",
+                "yield_report.empty_message": "完成扫描并保存完整结果后，这里会按树体汇总产量、果数和平均值。",
+                "yield_report.start_scan": "开始扫描",
+                "yield_report.header_subtitle": "汇总果数、重量和每棵树的扫描结果，适合采收后复核。",
+                "yield_report.tree_details": "树体明细",
+                "yield_report.metric.scans": "扫描",
+                "yield_report.metric.total_yield": "总产量",
+                "yield_report.metric.average_yield": "平均",
+                "yield_report.metric.fruit": "果实",
+                "yield_report.unit.scan_one": "次",
+                "yield_report.unit.scan_other": "次",
+                "yield_report.unit.fruit_one": "个",
+                "yield_report.unit.fruit_other": "个",
+                "yield_report.unit.kilograms": "kg"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testPresentationMapsEnglishAndChineseCopy() throws {
+        let english = YieldReportPresentation(bundle: try localizedBundle("en"))
+        let chinese = YieldReportPresentation(bundle: try localizedBundle("zh"))
+
+        XCTAssertEqual(
+            [
+                english.title,
+                english.done,
+                english.doneHint,
+                english.emptyTitle,
+                english.emptyMessage,
+                english.startScan,
+                english.headerSubtitle,
+                english.treeDetailsTitle
+            ],
+            [
+                "Yield Report",
+                "Done",
+                "Closes the yield report.",
+                "No Reliable Yield Data",
+                "Complete and save a scan to summarize yield, fruit count, and averages by tree.",
+                "Start Scanning",
+                "Summarize fruit count, weight, and each tree's scan result for post-harvest review.",
+                "Tree Details"
+            ]
+        )
+        XCTAssertEqual(
+            [
+                chinese.title,
+                chinese.done,
+                chinese.doneHint,
+                chinese.emptyTitle,
+                chinese.emptyMessage,
+                chinese.startScan,
+                chinese.headerSubtitle,
+                chinese.treeDetailsTitle
+            ],
+            [
+                "产量报告",
+                "完成",
+                "关闭产量报告。",
+                "暂无可靠产量数据",
+                "完成扫描并保存完整结果后，这里会按树体汇总产量、果数和平均值。",
+                "开始扫描",
+                "汇总果数、重量和每棵树的扫描结果，适合采收后复核。",
+                "树体明细"
+            ]
+        )
+    }
+
+    func testMetricsUseLocalizedGroupingAndPluralUnits() throws {
+        let english = YieldReportPresentation(bundle: try localizedBundle("en"))
+        let chinese = YieldReportPresentation(bundle: try localizedBundle("zh"))
+
+        XCTAssertEqual(
+            english.metricPresentations(
+                totalScans: 1_234,
+                totalYield: 9_876.5,
+                averageYield: 8,
+                totalFruit: 12_345,
+                locale: Locale(identifier: "en_US")
+            ),
+            [
+                .init(title: "Scans", value: "1,234", unit: "scans"),
+                .init(title: "Total Yield", value: "9,876.5", unit: "kg"),
+                .init(title: "Average", value: "8.0", unit: "kg"),
+                .init(title: "Fruit", value: "12,345", unit: "fruits")
+            ]
+        )
+
+        let singularEnglish = english.metricPresentations(
+            totalScans: 1,
+            totalYield: 1,
+            averageYield: 1,
+            totalFruit: 1,
+            locale: Locale(identifier: "en_US")
+        )
+        XCTAssertEqual(singularEnglish[0].unit, "scan")
+        XCTAssertEqual(singularEnglish[3].unit, "fruit")
+
+        XCTAssertEqual(
+            chinese.metricPresentations(
+                totalScans: 1_234,
+                totalYield: 9_876.5,
+                averageYield: 8,
+                totalFruit: 12_345,
+                locale: Locale(identifier: "zh_CN")
+            ),
+            [
+                .init(title: "扫描", value: "1,234", unit: "次"),
+                .init(title: "总产量", value: "9,876.5", unit: "kg"),
+                .init(title: "平均", value: "8.0", unit: "kg"),
+                .init(title: "果实", value: "12,345", unit: "个")
+            ]
+        )
+    }
+
+    func testRecordRowsUseLocalizedDateGroupingAndUnits() throws {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 6
+        components.day = 1
+        let scanDate = try XCTUnwrap(components.date)
+        let record = ScanFileRecord(
+            id: "record-1234",
+            treeID: "TREE-1234",
+            fileURL: URL(fileURLWithPath: "/tmp/record-1234.ply"),
+            scanDate: scanDate,
+            fruitCount: 1_234,
+            yieldKg: 9_876.5
+        )
+
+        let english = YieldReportPresentation(bundle: try localizedBundle("en"))
+            .recordPresentation(for: record, locale: Locale(identifier: "en_US"))
+        XCTAssertEqual(
+            english,
+            YieldReportRecordPresentation(
+                treeID: "TREE-1234",
+                date: "06/01/2026",
+                yield: "9,876.5 kg",
+                fruit: "1,234 fruits"
+            )
+        )
+
+        let chinese = YieldReportPresentation(bundle: try localizedBundle("zh"))
+            .recordPresentation(for: record, locale: Locale(identifier: "zh_CN"))
+        XCTAssertEqual(
+            chinese,
+            YieldReportRecordPresentation(
+                treeID: "TREE-1234",
+                date: "2026/06/01",
+                yield: "9,876.5 kg",
+                fruit: "1,234 个"
+            )
+        )
+
+        let singularRecord = ScanFileRecord(
+            id: "record-1",
+            treeID: "TREE-1",
+            fileURL: URL(fileURLWithPath: "/tmp/record-1.ply"),
+            scanDate: scanDate,
+            fruitCount: 1,
+            yieldKg: 1
+        )
+        XCTAssertEqual(
+            YieldReportPresentation(bundle: try localizedBundle("en"))
+                .recordPresentation(for: singularRecord, locale: Locale(identifier: "en_US"))
+                .fruit,
+            "1 fruit"
+        )
+    }
+
+    @MainActor
+    func testSheetRendersEnglishAndChineseAtLargestAccessibilityTextSize() throws {
+        for language in ["en", "zh"] {
+            let rootView = YieldReportSheet(
+                onStartScan: {},
+                bundle: try localizedBundle(language)
+            )
+            .environment(\.dynamicTypeSize, .accessibility5)
+            .environment(\.locale, Locale(identifier: language))
+            .environment(\.colorScheme, .dark)
+            .frame(width: 390, height: 844)
+
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+            var didDraw = false
+            let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+                .image { _ in
+                    didDraw = hostingController.view.drawHierarchy(
+                        in: hostingController.view.bounds,
+                        afterScreenUpdates: true
+                    )
+                }
+
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: renderedImage)
+            attachment.name = "YieldReportSheet-\(language)-AX5"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
+    }
+
+    private func localizedBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
     }
 }
