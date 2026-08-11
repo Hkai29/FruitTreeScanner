@@ -11,7 +11,8 @@ enum L10n {
         static let recording = NSLocalizedString("scan.recording", value: "录制中", comment: "Recording status")
         static let noPointCloud = NSLocalizedString("scan.no_point_cloud", value: "请先录制一段点云后再测量", comment: "No point cloud notice")
         static let exportFailed = NSLocalizedString("scan.export_failed", value: "点云导出失败（文件写入错误），请检查存储空间后重试", comment: "PLY export failure")
-        static let coverageComplete = NSLocalizedString("scan.coverage_complete", value: "覆盖完成", comment: "Scan coverage complete toast")
+        static var coverageComplete: String { coverageCompleteTitle() }
+        static var coverageCompleteHint: String { coverageCompleteMessage() }
         static let scanning = NSLocalizedString("scan.scanning", value: "扫描中", comment: "Scanning status")
         static let detecting = NSLocalizedString("scan.detecting", value: "检测中...", comment: "Detecting camera resolution")
         static let interruptionTitle = NSLocalizedString("scan.interruption_title", value: "扫描已中断", comment: "Scan interruption alert title")
@@ -20,6 +21,341 @@ enum L10n {
         static let restartAfterInterruption = NSLocalizedString("scan.restart_after_interruption", value: "重新开始", comment: "Restart interrupted scan action")
         static let discardAfterInterruption = NSLocalizedString("scan.discard_after_interruption", value: "放弃扫描", comment: "Discard interrupted scan action")
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
+
+        static func coverageCompleteTitle(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "scan.coverage_complete",
+                value: "扫描覆盖充足",
+                table: nil
+            )
+        }
+
+        static func coverageCompleteMessage(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "scan.coverage_complete_hint",
+                value: "可以点击完成保存结果",
+                table: nil
+            )
+        }
+
+        static func transientAnnouncement(
+            title: String,
+            message: String,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "scan.transient_accessibility_announcement",
+                value: "%1$@。%2$@",
+                table: nil
+            )
+            return String(format: format, title, message)
+        }
+    }
+
+    // MARK: - Scan Guidance
+    enum ScanGuidance {
+        enum Key: String {
+            case tooFastTitle = "scan.guidance.too_fast.title"
+            case tooFastMessage = "scan.guidance.too_fast.message"
+            case tooCloseTitle = "scan.guidance.too_close.title"
+            case tooCloseMessage = "scan.guidance.too_close.message"
+            case tooFarTitle = "scan.guidance.too_far.title"
+            case tooFarMessage = "scan.guidance.too_far.message"
+            case trackingLostTitle = "scan.guidance.tracking_lost.title"
+            case trackingLostMessage = "scan.guidance.tracking_lost.message"
+            case lowLightTitle = "scan.guidance.low_light.title"
+            case lowLightMessage = "scan.guidance.low_light.message"
+            case sparseDepthTitle = "scan.guidance.sparse_depth.title"
+            case sparseDepthMessage = "scan.guidance.sparse_depth.message"
+            case goodPaceTitle = "scan.guidance.good_pace.title"
+            case goodPaceMessage = "scan.guidance.good_pace.message"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .tooFastTitle: return "移动太快"
+                case .tooFastMessage: return "放慢脚步，让树冠和主枝有足够重叠"
+                case .tooCloseTitle: return "距离太近"
+                case .tooCloseMessage: return "后退一步，先保住整棵树轮廓"
+                case .tooFarTitle: return "距离太远"
+                case .tooFarMessage: return "靠近果树，优先补主干和果实密集区"
+                case .trackingLostTitle: return "追踪丢失"
+                case .trackingLostMessage: return "对准树干、地面或纹理清晰的枝条恢复追踪"
+                case .lowLightTitle: return "光线不足"
+                case .lowLightMessage: return "光线偏暗，果实检测和纹理质量会下降"
+                case .sparseDepthTitle: return "树冠深度稀疏"
+                case .sparseDepthMessage: return "减少天空占比，靠近树冠并放慢移动速度"
+                case .goodPaceTitle: return "速度良好"
+                case .goodPaceMessage: return "保持速度，继续绕树补齐背面盲区"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static func title(for hint: ScanGuidanceHint, in bundle: Bundle = .main) -> String {
+            guard let key = titleKey(for: hint) else { return "" }
+            return text(key, in: bundle)
+        }
+
+        static func message(for hint: ScanGuidanceHint, in bundle: Bundle = .main) -> String {
+            guard let key = messageKey(for: hint) else { return "" }
+            return text(key, in: bundle)
+        }
+
+        static func announcement(for hint: ScanGuidanceHint, in bundle: Bundle = .main) -> String {
+            guard hint != .none else { return "" }
+            return Scan.transientAnnouncement(
+                title: title(for: hint, in: bundle),
+                message: message(for: hint, in: bundle),
+                in: bundle
+            )
+        }
+
+        private static func titleKey(for hint: ScanGuidanceHint) -> Key? {
+            switch hint {
+            case .none: return nil
+            case .tooFast: return .tooFastTitle
+            case .tooClose: return .tooCloseTitle
+            case .tooFar: return .tooFarTitle
+            case .trackingLost: return .trackingLostTitle
+            case .lowLight: return .lowLightTitle
+            case .sparseDepth: return .sparseDepthTitle
+            case .goodPace: return .goodPaceTitle
+            }
+        }
+
+        private static func messageKey(for hint: ScanGuidanceHint) -> Key? {
+            switch hint {
+            case .none: return nil
+            case .tooFast: return .tooFastMessage
+            case .tooClose: return .tooCloseMessage
+            case .tooFar: return .tooFarMessage
+            case .trackingLost: return .trackingLostMessage
+            case .lowLight: return .lowLightMessage
+            case .sparseDepth: return .sparseDepthMessage
+            case .goodPace: return .goodPaceMessage
+            }
+        }
+    }
+
+    // MARK: - Scan Post Capture
+    enum ScanPostCapture {
+        enum Key: String, CaseIterable {
+            case title = "scan.post_capture.title"
+            case guidanceComplete = "scan.post_capture.guidance.complete"
+            case guidanceGood = "scan.post_capture.guidance.good"
+            case guidanceContinue = "scan.post_capture.guidance.continue"
+            case metricPointCloud = "scan.post_capture.metric.point_cloud"
+            case metricDuration = "scan.post_capture.metric.duration"
+            case metricStatus = "scan.post_capture.metric.status"
+            case statusComplete = "scan.post_capture.status.complete"
+            case statusGood = "scan.post_capture.status.good"
+            case statusContinue = "scan.post_capture.status.continue"
+            case statusInsufficient = "scan.post_capture.status.insufficient"
+            case coverage = "scan.post_capture.coverage"
+            case resumeAction = "scan.post_capture.action.resume"
+            case finishAction = "scan.post_capture.action.finish"
+            case resumeAccessibilityHint = "scan.post_capture.accessibility.resume_hint"
+            case finishAccessibilityHint = "scan.post_capture.accessibility.finish_hint"
+            case finishUnavailableAccessibilityHint = "scan.post_capture.accessibility.finish_unavailable_hint"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .title: return "粗预览已就绪"
+                case .guidanceComplete: return "覆盖充足，可直接完成并估算产量。"
+                case .guidanceGood: return "可完成分析；若树冠背面缺失，继续录制补一圈。"
+                case .guidanceContinue: return "建议继续录制，补齐树冠背面和主干遮挡区域。"
+                case .metricPointCloud: return "点云"
+                case .metricDuration: return "时长"
+                case .metricStatus: return "状态"
+                case .statusComplete: return "扫描完成"
+                case .statusGood: return "覆盖良好"
+                case .statusContinue: return "继续扫描"
+                case .statusInsufficient: return "覆盖率不足"
+                case .coverage: return "覆盖率"
+                case .resumeAction: return "继续补扫"
+                case .finishAction: return "完成估算"
+                case .resumeAccessibilityHint: return "继续本次扫描并保留已采集的点云。"
+                case .finishAccessibilityHint: return "保存本次扫描并开始估算产量。"
+                case .finishUnavailableAccessibilityHint: return "当前扫描达到可导出条件后才能完成估算。"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static var title: String { text(.title) }
+        static var metricPointCloud: String { text(.metricPointCloud) }
+        static var metricDuration: String { text(.metricDuration) }
+        static var metricStatus: String { text(.metricStatus) }
+        static var coverage: String { text(.coverage) }
+        static var resumeAction: String { text(.resumeAction) }
+        static var finishAction: String { text(.finishAction) }
+        static var resumeAccessibilityHint: String { text(.resumeAccessibilityHint) }
+
+        static func guidance(
+            for status: ScanCompletion.CoverageStatus,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch status {
+            case .complete:
+                return text(.guidanceComplete, in: bundle)
+            case .good:
+                return text(.guidanceGood, in: bundle)
+            case .continueScanning, .insufficient:
+                return text(.guidanceContinue, in: bundle)
+            }
+        }
+
+        static func statusTitle(
+            for status: ScanCompletion.CoverageStatus,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch status {
+            case .complete:
+                return text(.statusComplete, in: bundle)
+            case .good:
+                return text(.statusGood, in: bundle)
+            case .continueScanning:
+                return text(.statusContinue, in: bundle)
+            case .insufficient:
+                return text(.statusInsufficient, in: bundle)
+            }
+        }
+
+        static func finishAccessibilityHint(
+            canFinish: Bool,
+            in bundle: Bundle = .main
+        ) -> String {
+            text(
+                canFinish ? .finishAccessibilityHint : .finishUnavailableAccessibilityHint,
+                in: bundle
+            )
+        }
+    }
+
+    // MARK: - Scan Coverage
+    enum ScanCoverage {
+        enum Key: String, CaseIterable {
+            case coverage = "scan.coverage_map.coverage"
+            case coverageAccessibilityValueFormat = "scan.coverage_map.accessibility.coverage_value_format"
+            case scoreAccessibilityValueFormat = "scan.coverage_map.accessibility.score_value_format"
+            case statusComplete = "scan.coverage_map.status.complete"
+            case statusGood = "scan.coverage_map.status.good"
+            case statusContinue = "scan.coverage_map.status.continue"
+            case statusInsufficient = "scan.coverage_map.status.insufficient"
+            case hintOppositeSide = "scan.coverage_map.hint.opposite_side"
+            case hintBackSide = "scan.coverage_map.hint.back_side"
+            case hintVerticalCoverage = "scan.coverage_map.hint.vertical_coverage"
+            case hintAngleUniformity = "scan.coverage_map.hint.angle_uniformity"
+            case hintCollecting = "scan.coverage_map.hint.collecting"
+            case hintIncreasing = "scan.coverage_map.hint.increasing"
+            case hintDecreasing = "scan.coverage_map.hint.decreasing"
+            case hintStable = "scan.coverage_map.hint.stable"
+            case spatialSampleOne = "scan.coverage_map.spatial_samples.one"
+            case spatialSampleOther = "scan.coverage_map.spatial_samples.other"
+            case metricDuration = "scan.coverage_map.metric.duration"
+            case metricCanopy = "scan.coverage_map.metric.canopy"
+            case metricAngle = "scan.coverage_map.metric.angle"
+            case metricUniformity = "scan.coverage_map.metric.uniformity"
+            case metricStability = "scan.coverage_map.metric.stability"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .coverage: return "扫描覆盖率"
+                case .coverageAccessibilityValueFormat: return "%1$d%%，时长 %2$@"
+                case .scoreAccessibilityValueFormat: return "%d%%"
+                case .statusComplete: return "扫描完成"
+                case .statusGood: return "覆盖良好"
+                case .statusContinue: return "继续扫描"
+                case .statusInsufficient: return "覆盖率不足"
+                case .hintOppositeSide: return "补扫树冠另一侧"
+                case .hintBackSide: return "补扫树冠背面"
+                case .hintVerticalCoverage: return "放慢补扫树冠上下层"
+                case .hintAngleUniformity: return "补扫稀疏视角"
+                case .hintCollecting: return "从主干开始慢速环绕"
+                case .hintIncreasing: return "正在发现树冠新区域"
+                case .hintDecreasing: return "补树冠背面后可保存"
+                case .hintStable: return "覆盖完整，可保存分析"
+                case .spatialSampleOne: return "%d 个空间采样"
+                case .spatialSampleOther: return "%d 个空间采样"
+                case .metricDuration: return "时长"
+                case .metricCanopy: return "树冠"
+                case .metricAngle: return "视角"
+                case .metricUniformity: return "均衡"
+                case .metricStability: return "稳定"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static var coverage: String { text(.coverage) }
+        static var metricDuration: String { text(.metricDuration) }
+        static var metricCanopy: String { text(.metricCanopy) }
+        static var metricAngle: String { text(.metricAngle) }
+        static var metricUniformity: String { text(.metricUniformity) }
+        static var metricStability: String { text(.metricStability) }
+
+        static func statusTitle(
+            for status: ScanCompletion.CoverageStatus,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch status {
+            case .complete: return text(.statusComplete, in: bundle)
+            case .good: return text(.statusGood, in: bundle)
+            case .continueScanning: return text(.statusContinue, in: bundle)
+            case .insufficient: return text(.statusInsufficient, in: bundle)
+            }
+        }
+
+        static func statusHint(
+            for hint: ScanCompletion.CoverageHint,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch hint {
+            case .oppositeSide: return text(.hintOppositeSide, in: bundle)
+            case .backSide: return text(.hintBackSide, in: bundle)
+            case .verticalCoverage: return text(.hintVerticalCoverage, in: bundle)
+            case .angleUniformity: return text(.hintAngleUniformity, in: bundle)
+            case .collecting: return text(.hintCollecting, in: bundle)
+            case .increasing: return text(.hintIncreasing, in: bundle)
+            case .decreasing: return text(.hintDecreasing, in: bundle)
+            case .stable: return text(.hintStable, in: bundle)
+            }
+        }
+
+        static func spatialSamples(_ count: Int, in bundle: Bundle = .main) -> String {
+            let key: Key = count == 1 ? .spatialSampleOne : .spatialSampleOther
+            return String(format: text(key, in: bundle), count)
+        }
+
+        static func coverageAccessibilityValue(
+            percent: Int,
+            duration: String,
+            in bundle: Bundle = .main
+        ) -> String {
+            String(
+                format: text(.coverageAccessibilityValueFormat, in: bundle),
+                percent,
+                duration
+            )
+        }
+
+        static func scoreAccessibilityValue(
+            _ score: Float,
+            in bundle: Bundle = .main
+        ) -> String {
+            let clampedScore = min(max(score, 0), 1)
+            let percent = Int((clampedScore * 100).rounded())
+            return String(format: text(.scoreAccessibilityValueFormat, in: bundle), percent)
+        }
     }
 
     // MARK: - Scan Readiness

@@ -4,7 +4,9 @@
 "scan.recording" = "录制中";
 "scan.no_point_cloud" = "请先录制一段点云后再测量";
 "scan.export_failed" = "点云导出失败（文件写入错误），请检查存储空间后重试";
-"scan.coverage_complete" = "覆盖完成";
+"scan.coverage_complete" = "扫描覆盖充足";
+"scan.coverage_complete_hint" = "可以点击完成保存结果";
+"scan.transient_accessibility_announcement" = "%1$@。%2$@";
 "scan.scanning" = "扫描中";
 "scan.detecting" = "检测中...";
 "scan.interruption_title" = "扫描已中断";
@@ -13,6 +15,65 @@
 "scan.restart_after_interruption" = "重新开始";
 "scan.discard_after_interruption" = "放弃扫描";
 "scan.interruption_accessibility_hint" = "重新开始会清除本次扫描数据；放弃不会生成扫描结果。";
+
+/* 扫描引导 */
+"scan.guidance.too_fast.title" = "移动太快";
+"scan.guidance.too_fast.message" = "放慢脚步，让树冠和主枝有足够重叠";
+"scan.guidance.too_close.title" = "距离太近";
+"scan.guidance.too_close.message" = "后退一步，先保住整棵树轮廓";
+"scan.guidance.too_far.title" = "距离太远";
+"scan.guidance.too_far.message" = "靠近果树，优先补主干和果实密集区";
+"scan.guidance.tracking_lost.title" = "追踪丢失";
+"scan.guidance.tracking_lost.message" = "对准树干、地面或纹理清晰的枝条恢复追踪";
+"scan.guidance.low_light.title" = "光线不足";
+"scan.guidance.low_light.message" = "光线偏暗，果实检测和纹理质量会下降";
+"scan.guidance.sparse_depth.title" = "树冠深度稀疏";
+"scan.guidance.sparse_depth.message" = "减少天空占比，靠近树冠并放慢移动速度";
+"scan.guidance.good_pace.title" = "速度良好";
+"scan.guidance.good_pace.message" = "保持速度，继续绕树补齐背面盲区";
+
+/* 扫描暂停后的粗预览 */
+"scan.post_capture.title" = "粗预览已就绪";
+"scan.post_capture.guidance.complete" = "覆盖充足，可直接完成并估算产量。";
+"scan.post_capture.guidance.good" = "可完成分析；若树冠背面缺失，继续录制补一圈。";
+"scan.post_capture.guidance.continue" = "建议继续录制，补齐树冠背面和主干遮挡区域。";
+"scan.post_capture.metric.point_cloud" = "点云";
+"scan.post_capture.metric.duration" = "时长";
+"scan.post_capture.metric.status" = "状态";
+"scan.post_capture.status.complete" = "扫描完成";
+"scan.post_capture.status.good" = "覆盖良好";
+"scan.post_capture.status.continue" = "继续扫描";
+"scan.post_capture.status.insufficient" = "覆盖率不足";
+"scan.post_capture.coverage" = "覆盖率";
+"scan.post_capture.action.resume" = "继续补扫";
+"scan.post_capture.action.finish" = "完成估算";
+"scan.post_capture.accessibility.resume_hint" = "继续本次扫描并保留已采集的点云。";
+"scan.post_capture.accessibility.finish_hint" = "保存本次扫描并开始估算产量。";
+"scan.post_capture.accessibility.finish_unavailable_hint" = "当前扫描达到可导出条件后才能完成估算。";
+
+/* 扫描覆盖图 */
+"scan.coverage_map.coverage" = "扫描覆盖率";
+"scan.coverage_map.accessibility.coverage_value_format" = "%1$d%%，时长 %2$@";
+"scan.coverage_map.accessibility.score_value_format" = "%d%%";
+"scan.coverage_map.status.complete" = "扫描完成";
+"scan.coverage_map.status.good" = "覆盖良好";
+"scan.coverage_map.status.continue" = "继续扫描";
+"scan.coverage_map.status.insufficient" = "覆盖率不足";
+"scan.coverage_map.hint.opposite_side" = "补扫树冠另一侧";
+"scan.coverage_map.hint.back_side" = "补扫树冠背面";
+"scan.coverage_map.hint.vertical_coverage" = "放慢补扫树冠上下层";
+"scan.coverage_map.hint.angle_uniformity" = "补扫稀疏视角";
+"scan.coverage_map.hint.collecting" = "从主干开始慢速环绕";
+"scan.coverage_map.hint.increasing" = "正在发现树冠新区域";
+"scan.coverage_map.hint.decreasing" = "补树冠背面后可保存";
+"scan.coverage_map.hint.stable" = "覆盖完整，可保存分析";
+"scan.coverage_map.spatial_samples.one" = "%d 个空间采样";
+"scan.coverage_map.spatial_samples.other" = "%d 个空间采样";
+"scan.coverage_map.metric.duration" = "时长";
+"scan.coverage_map.metric.canopy" = "树冠";
+"scan.coverage_map.metric.angle" = "视角";
+"scan.coverage_map.metric.uniformity" = "均衡";
+"scan.coverage_map.metric.stability" = "稳定";
 
 /* 扫描就绪状态 */
 "scan.readiness.checking.title" = "正在检查设备能力";

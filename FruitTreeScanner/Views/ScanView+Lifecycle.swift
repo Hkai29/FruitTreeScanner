@@ -17,11 +17,13 @@ extension ScanView {
             case .systemInterrupted, .failed:
                 isRecording = false
                 isEstimating = false
+                pauseCoverageCompletion()
                 clearMeasurementState()
                 showLifecycleRecovery = true
             case .recovering:
                 isRecording = false
                 isEstimating = false
+                pauseCoverageCompletion()
                 clearMeasurementState()
                 refreshScanReadiness()
                 showLifecycleRecovery = true
@@ -42,6 +44,8 @@ extension ScanView {
     func handleDisappear() {
         isViewActive = false
         isEstimating = false
+        invalidateTemporaryNotice()
+        invalidateCoverageCompletion()
         clearMeasurementState()
         measurementController.renderer = nil
         coordinator.teardown()
@@ -73,6 +77,7 @@ extension ScanView {
                 scanReadiness = next
                 if next != .ready {
                     isRecording = false
+                    pauseCoverageCompletion()
                     clearMeasurementState()
                     measurementController.renderer = nil
                     coordinator.teardown()
