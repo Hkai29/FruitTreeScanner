@@ -1,4 +1,29 @@
 import SwiftUI
+import UIKit
+
+@MainActor
+enum ScanTransientAccessibility {
+    typealias AnnouncementPoster = (String) -> Void
+
+    static func announce(_ message: String) {
+        announce(
+            message,
+            isVoiceOverRunning: UIAccessibility.isVoiceOverRunning,
+            poster: { message in
+                UIAccessibility.post(notification: .announcement, argument: message)
+            }
+        )
+    }
+
+    static func announce(
+        _ message: String,
+        isVoiceOverRunning: Bool,
+        poster: AnnouncementPoster
+    ) {
+        guard isVoiceOverRunning, !message.isEmpty else { return }
+        poster(message)
+    }
+}
 
 struct ScanPostCapturePanel: View {
     let pointCount: Int
@@ -125,10 +150,10 @@ struct ScanCoverageCompleteToast: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 28))
                         .foregroundColor(Design.Colors.forest)
-                    Text("扫描覆盖充足")
+                    Text(L10n.Scan.coverageComplete)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("可以点击完成保存结果")
+                    Text(L10n.Scan.coverageCompleteHint)
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -141,6 +166,17 @@ struct ScanCoverageCompleteToast: View {
                     RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(L10n.Scan.coverageComplete)
+                .accessibilityValue(L10n.Scan.coverageCompleteHint)
+                .onAppear {
+                    ScanTransientAccessibility.announce(
+                        L10n.Scan.transientAnnouncement(
+                            title: L10n.Scan.coverageComplete,
+                            message: L10n.Scan.coverageCompleteHint
+                        )
+                    )
+                }
                 Spacer()
             }
             .padding(.bottom, 120)
@@ -228,6 +264,14 @@ struct ScanNoticeToast: View {
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
                 .padding(.bottom, 112)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(message)
+                .onAppear {
+                    ScanTransientAccessibility.announce(message)
+                }
+                .onChange(of: message) { newMessage in
+                    ScanTransientAccessibility.announce(newMessage)
+                }
         }
         .transition(.opacity)
     }

@@ -56,6 +56,15 @@ struct ScanGuidanceOverlay: View {
             )
             .padding(.horizontal, Design.Space.md)
             .padding(.top, 80)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(lastHint.title)
+            .accessibilityValue(lastHint.subtitle)
+            .onAppear {
+                ScanTransientAccessibility.announce(lastHint.accessibilityAnnouncement)
+            }
+            .onChange(of: lastHint) { newHint in
+                ScanTransientAccessibility.announce(newHint.accessibilityAnnouncement)
+            }
         }
     }
 
@@ -152,29 +161,15 @@ extension ScanGuidanceHint {
     }
 
     var title: String {
-        switch self {
-        case .none: return ""
-        case .tooFast: return "移动太快"
-        case .tooClose: return "距离太近"
-        case .tooFar: return "距离太远"
-        case .trackingLost: return "追踪丢失"
-        case .lowLight: return "光线不足"
-        case .sparseDepth: return "树冠深度稀疏"
-        case .goodPace: return "速度良好"
-        }
+        L10n.ScanGuidance.title(for: self)
     }
 
     var subtitle: String {
-        switch self {
-        case .none: return ""
-        case .tooFast: return "放慢脚步，让树冠和主枝有足够重叠"
-        case .tooClose: return "后退一步，先保住整棵树轮廓"
-        case .tooFar: return "靠近果树，优先补主干和果实密集区"
-        case .trackingLost: return "对准树干、地面或纹理清晰的枝条恢复追踪"
-        case .lowLight: return "光线偏暗，果实检测和纹理质量会下降"
-        case .sparseDepth: return "减少天空占比，靠近树冠并放慢移动速度"
-        case .goodPace: return "保持速度，继续绕树补齐背面盲区"
-        }
+        L10n.ScanGuidance.message(for: self)
+    }
+
+    var accessibilityAnnouncement: String {
+        L10n.ScanGuidance.announcement(for: self)
     }
 
     var backgroundColor: Color {
