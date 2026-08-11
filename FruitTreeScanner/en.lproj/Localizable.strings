@@ -425,6 +425,23 @@
 "batch_export.record.accessibility.selected" = "Selected, exportable";
 "batch_export.record.accessibility.not_selected" = "Not selected, exportable";
 "batch_export.record.accessibility.toggle_hint" = "Double-tap to toggle selection";
+/* Orchard Map Tree Detail */
+"orchard_map.detail.tree_title" = "Tree %@";
+"orchard_map.detail.close_accessibility" = "Close details for %@";
+"orchard_map.detail.estimated_yield" = "Estimated Yield";
+"orchard_map.detail.yield_format" = "%@ kg";
+"orchard_map.detail.fruit_count" = "Fruit Count";
+"orchard_map.detail.fruit_count_one" = "%d fruit";
+"orchard_map.detail.fruit_count_other" = "%d fruits";
+"orchard_map.detail.confidence" = "Confidence";
+"orchard_map.detail.confidence_high" = "High";
+"orchard_map.detail.confidence_medium" = "Medium";
+"orchard_map.detail.confidence_low" = "Low";
+"orchard_map.detail.scan_date" = "Scan Date";
+"orchard_map.detail.yield_level" = "Yield Level";
+"orchard_map.detail.yield_level_high" = "High Yield";
+"orchard_map.detail.yield_level_medium" = "Medium Yield";
+"orchard_map.detail.yield_level_low" = "Low Yield";
 
 /* Scan History */
 "history.title" = "Scan History";
