@@ -1078,3 +1078,15 @@
 "yield_report.unit.fruit_one" = "fruit";
 "yield_report.unit.fruit_other" = "fruits";
 "yield_report.unit.kilograms" = "kg";
+"trends.title" = "Trends";
+"trends.done" = "Done";
+"trends.done_hint" = "Closes the trends view.";
+"trends.empty_title" = "No Reliable Trend Data";
+"trends.empty_message" = "Complete and save at least one scan to chart yield changes over time.";
+"trends.start_scan" = "Start Scanning";
+"trends.header_subtitle" = "Review yield and fruit count over time to support harvest timing decisions.";
+"trends.chart_title" = "Yield Trend";
+"trends.records_title" = "Records";
+"trends.unit.fruit_one" = "fruit";
+"trends.unit.fruit_other" = "fruits";
+"trends.unit.kilograms" = "kg";

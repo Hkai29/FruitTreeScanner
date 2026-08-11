@@ -1078,3 +1078,15 @@
 "yield_report.unit.fruit_one" = "个";
 "yield_report.unit.fruit_other" = "个";
 "yield_report.unit.kilograms" = "kg";
+"trends.title" = "趋势";
+"trends.done" = "完成";
+"trends.done_hint" = "关闭趋势视图。";
+"trends.empty_title" = "暂无可靠趋势数据";
+"trends.empty_message" = "至少完成一次扫描并保存完整结果后，才能显示产量随时间变化。";
+"trends.start_scan" = "开始扫描";
+"trends.header_subtitle" = "按时间查看产量和果数变化，辅助判断采收节奏。";
+"trends.chart_title" = "产量趋势";
+"trends.records_title" = "记录";
+"trends.unit.fruit_one" = "个";
+"trends.unit.fruit_other" = "个";
+"trends.unit.kilograms" = "kg";

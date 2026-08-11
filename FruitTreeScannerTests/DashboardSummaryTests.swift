@@ -2177,6 +2177,81 @@ final class YieldReportPresentationTests: XCTestCase {
     }
 }
 
+final class TrendsPresentationTests: XCTestCase {
+    func testCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "trends.title": "Trends",
+                "trends.done": "Done",
+                "trends.done_hint": "Closes the trends view.",
+                "trends.empty_title": "No Reliable Trend Data",
+                "trends.empty_message": "Complete and save at least one scan to chart yield changes over time.",
+                "trends.start_scan": "Start Scanning",
+                "trends.header_subtitle": "Review yield and fruit count over time to support harvest timing decisions.",
+                "trends.chart_title": "Yield Trend",
+                "trends.records_title": "Records",
+                "trends.unit.fruit_one": "fruit",
+                "trends.unit.fruit_other": "fruits",
+                "trends.unit.kilograms": "kg"
+            ],
+            "zh": [
+                "trends.title": "趋势",
+                "trends.done": "完成",
+                "trends.done_hint": "关闭趋势视图。",
+                "trends.empty_title": "暂无可靠趋势数据",
+                "trends.empty_message": "至少完成一次扫描并保存完整结果后，才能显示产量随时间变化。",
+                "trends.start_scan": "开始扫描",
+                "trends.header_subtitle": "按时间查看产量和果数变化，辅助判断采收节奏。",
+                "trends.chart_title": "产量趋势",
+                "trends.records_title": "记录",
+                "trends.unit.fruit_one": "个",
+                "trends.unit.fruit_other": "个",
+                "trends.unit.kilograms": "kg"
+            ]
+        ]
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try localizedBundle(language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), expectedValue)
+            }
+        }
+    }
+
+    func testRecordPresentationUsesRegionalDatesGroupingAndPluralUnits() throws {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 6
+        components.day = 1
+        let date = try XCTUnwrap(components.date)
+        let record = ScanFileRecord(
+            id: "record-many",
+            treeID: "TREE-1234",
+            fileURL: URL(fileURLWithPath: "/tmp/record-many.ply"),
+            scanDate: date,
+            fruitCount: 1_234,
+            yieldKg: 9_876.5
+        )
+        let english = TrendsPresentation(bundle: try localizedBundle("en"))
+            .recordPresentation(for: record, locale: Locale(identifier: "en_US"))
+        XCTAssertEqual(english.chartDate, "06/01")
+        XCTAssertEqual(english.recordDate, "06/01/2026")
+        XCTAssertEqual(english.yieldText, "9,876.5 kg")
+        XCTAssertEqual(english.fruitText, "1,234 fruits")
+        let chinese = TrendsPresentation(bundle: try localizedBundle("zh"))
+            .recordPresentation(for: record, locale: Locale(identifier: "zh_CN"))
+        XCTAssertEqual(chinese.recordDate, "2026/06/01")
+        XCTAssertEqual(chinese.fruitText, "1,234 个")
+    }
+
+    private func localizedBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+    }
+}
+
 final class BatchExportHeaderLocalizationTests: XCTestCase {
     func testBatchExportHeaderCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
