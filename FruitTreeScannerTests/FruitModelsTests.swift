@@ -1,5 +1,7 @@
 import XCTest
 import Combine
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -1027,6 +1029,7 @@ final class FruitModelsTests: XCTestCase {
                 "import.status.error_title": "Import Failed",
                 "import.button.select": "Choose PLY File",
                 "import.button.continue": "Import Another PLY File",
+                "import.button.hint": "Opens Files to choose one PLY point-cloud file.",
                 "import.rule.history": "Imported files appear in Scan History",
                 "import.rule.metadata": "Readable scan metadata is preserved",
                 "import.rule.duplicate": "Duplicate names create a new copy",
@@ -1049,6 +1052,7 @@ final class FruitModelsTests: XCTestCase {
                 "import.status.error_title": "导入失败",
                 "import.button.select": "选择 PLY 文件",
                 "import.button.continue": "继续导入 PLY 文件",
+                "import.button.hint": "打开文件应用，选择一个 PLY 点云文件。",
                 "import.rule.history": "导入后会出现在扫描记录",
                 "import.rule.metadata": "保留可读取的扫描元数据",
                 "import.rule.duplicate": "同名文件会自动生成新副本",
@@ -1097,6 +1101,62 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(ImportStatus.processing("TREE-17.ply").afterImporterDismissal, .processing("TREE-17.ply"))
         XCTAssertEqual(ImportStatus.success("TREE-17.ply").afterImporterDismissal, .success("TREE-17.ply"))
         XCTAssertEqual(ImportStatus.error("broken").afterImporterDismissal, .error("broken"))
+    }
+
+    func testImportStatusAnnouncesOnlyActiveWorkAndResults() {
+        XCTAssertNil(ImportStatus.idle.accessibilityAnnouncement)
+        XCTAssertNil(ImportStatus.selecting.accessibilityAnnouncement)
+        XCTAssertEqual(
+            ImportStatus.processing("TREE-17.ply").accessibilityAnnouncement,
+            "\(L10n.Import.processingTitle). TREE-17.ply"
+        )
+        XCTAssertEqual(
+            ImportStatus.success("TREE-17.ply").accessibilityAnnouncement,
+            "\(L10n.Import.successTitle). \(L10n.Import.successMessage(fileName: "TREE-17.ply"))"
+        )
+        XCTAssertEqual(
+            ImportStatus.error("broken").accessibilityAnnouncement,
+            "\(L10n.Import.errorTitle). broken"
+        )
+    }
+
+    @MainActor
+    func testImportContentRendersAtAccessibilityTextSize() {
+        let content = ImportFileContentView(
+            status: .success("A very long imported orchard point cloud filename.ply"),
+            isProcessing: false,
+            onImportTap: {}
+        )
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .frame(width: 390, height: 844, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: content)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            didDraw = hostingController.view.drawHierarchy(
+                in: hostingController.view.bounds,
+                afterScreenUpdates: true
+            )
+        }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "ImportFile-Success-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
     }
 
     func testPointCloudPreviewCopyIsCompleteInEnglishAndChinese() throws {

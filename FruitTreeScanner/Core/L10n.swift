@@ -580,6 +580,7 @@ enum L10n {
         static let errorTitle = NSLocalizedString("import.status.error_title", value: "导入失败", comment: "PLY import failure title")
         static let selectButton = NSLocalizedString("import.button.select", value: "选择 PLY 文件", comment: "Select a PLY file action")
         static let continueButton = NSLocalizedString("import.button.continue", value: "继续导入 PLY 文件", comment: "Import another PLY file action")
+        static let selectButtonHint = NSLocalizedString("import.button.hint", value: "打开文件应用，选择一个 PLY 点云文件。", comment: "Accessibility hint for the PLY file picker action")
         static let historyRule = NSLocalizedString("import.rule.history", value: "导入后会出现在扫描记录", comment: "Imported file history rule")
         static let metadataRule = NSLocalizedString("import.rule.metadata", value: "保留可读取的扫描元数据", comment: "Imported metadata rule")
         static let duplicateRule = NSLocalizedString("import.rule.duplicate", value: "同名文件会自动生成新副本", comment: "Duplicate import rule")

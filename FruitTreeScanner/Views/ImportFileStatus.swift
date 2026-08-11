@@ -27,6 +27,19 @@ enum ImportStatus: Equatable {
         }
         return self
     }
+
+    var accessibilityAnnouncement: String? {
+        switch self {
+        case .idle, .selecting:
+            return nil
+        case .processing(let filename):
+            return "\(L10n.Import.processingTitle). \(filename)"
+        case .success(let filename):
+            return "\(L10n.Import.successTitle). \(L10n.Import.successMessage(fileName: filename))"
+        case .error(let message):
+            return "\(L10n.Import.errorTitle). \(message)"
+        }
+    }
 }
 
 enum ImportFileErrorClassifier {

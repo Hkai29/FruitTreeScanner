@@ -2,6 +2,7 @@
 // 外部文件导入分析
 
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct ImportFileView: View {
@@ -43,6 +44,10 @@ struct ImportFileView: View {
             .onChange(of: isImporting) { isPresented in
                 guard !isPresented else { return }
                 importStatus = importStatus.afterImporterDismissal
+            }
+            .onChange(of: importStatus) { status in
+                guard let announcement = status.accessibilityAnnouncement else { return }
+                UIAccessibility.post(notification: .announcement, argument: announcement)
             }
         }
         .preferredColorScheme(.dark)
