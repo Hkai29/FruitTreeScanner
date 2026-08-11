@@ -8,6 +8,7 @@ struct DashboardView: View {
     @State var destination: DashboardDestination?
     @State var pendingScanRequest: ScanLaunchRequest?
     @State var activeScanRequest: ScanLaunchRequest?
+    @State var isScanActivationPending = false
     @State var postScanNavigationState = PostScanNavigationState()
     @ObservedObject var historyStore = ScanHistoryStore.shared
 
@@ -30,10 +31,10 @@ struct DashboardView: View {
             onQuickAction: handleQuickAction,
             onScanTap: openPointCloud
         )
-        .sheet(item: sheetDestination) { destination in
+        .sheet(item: sheetDestination, onDismiss: presentPendingNavigationIfPossible) { destination in
             sheetView(for: destination)
         }
-        .fullScreenCover(item: fullScreenDestination, onDismiss: presentPendingScanIfNeeded) { destination in
+        .fullScreenCover(item: fullScreenDestination, onDismiss: handleDestinationDismissal) { destination in
             fullScreenView(for: destination)
         }
         .fullScreenCover(item: $activeScanRequest, onDismiss: handleActiveScanDismissal) { request in
@@ -45,18 +46,14 @@ struct DashboardView: View {
                 onScanNextTree: requestNextTreeScan
             )
         }
-        .onReceive(router.$pendingDestination) { nav in
-            guard let nav else { return }
-            applyNavigation(nav)
-            router.clear()
+        .onChange(of: router.pendingDestination) { nav in
+            guard nav != nil else { return }
+            presentPendingNavigationIfPossible()
         }
         .onAppear {
             historyStore.loadRecords()
             router.consumePendingUserDefaults()
-            if let nav = router.pendingDestination {
-                applyNavigation(nav)
-                router.clear()
-            }
+            presentPendingNavigationIfPossible()
         }
     }
 }

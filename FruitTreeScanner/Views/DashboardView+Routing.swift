@@ -29,6 +29,43 @@ struct PostScanNavigationState {
     }
 }
 
+enum DashboardExternalNavigationDisposition: Equatable {
+    case present
+    case deferUntilIdle
+    case alreadySatisfied
+}
+
+struct DashboardExternalNavigationPolicy {
+    static func disposition(
+        for navigation: AppNavigation,
+        destination currentDestination: DashboardDestination?,
+        hasPendingScanRequest: Bool,
+        hasActiveScanRequest: Bool,
+        isScanActivationPending: Bool
+    ) -> DashboardExternalNavigationDisposition {
+        if currentDestination == destination(for: navigation) {
+            return .alreadySatisfied
+        }
+        if navigation == .scanner,
+           hasPendingScanRequest || hasActiveScanRequest || isScanActivationPending {
+            return .alreadySatisfied
+        }
+        if currentDestination != nil || hasPendingScanRequest || hasActiveScanRequest || isScanActivationPending {
+            return .deferUntilIdle
+        }
+        return .present
+    }
+
+    static func destination(for navigation: AppNavigation) -> DashboardDestination {
+        switch navigation {
+        case .scanner: return .startScan
+        case .history: return .scanHistory
+        case .batchExport: return .batchExport
+        case .map: return .map
+        }
+    }
+}
+
 extension DashboardView {
     var sheetDestination: Binding<DashboardDestination?> {
         Binding(
@@ -78,10 +115,11 @@ extension DashboardView {
 
     func handleActiveScanDismissal() {
         refreshScanHistory()
-        guard let nextDestination = postScanNavigationState.transition(for: .activeScanDismissed) else {
+        if let nextDestination = postScanNavigationState.transition(for: .activeScanDismissed) {
+            destination = nextDestination
             return
         }
-        destination = nextDestination
+        presentPendingNavigationIfPossible()
     }
 
     func openPointCloud(_ record: ScanFileRecord) {
@@ -89,12 +127,28 @@ extension DashboardView {
     }
 
     func applyNavigation(_ nav: AppNavigation) {
-        switch nav {
-        case .scanner: destination = .startScan
-        case .history: destination = .scanHistory
-        case .batchExport: destination = .batchExport
-        case .map: destination = .map
+        destination = DashboardExternalNavigationPolicy.destination(for: nav)
+    }
+
+    func presentPendingNavigationIfPossible() {
+        guard let navigation = router.pendingDestination else { return }
+        let disposition = DashboardExternalNavigationPolicy.disposition(
+            for: navigation,
+            destination: destination,
+            hasPendingScanRequest: pendingScanRequest != nil,
+            hasActiveScanRequest: activeScanRequest != nil,
+            isScanActivationPending: isScanActivationPending
+        )
+        guard disposition != .deferUntilIdle else { return }
+        guard let consumedNavigation = router.takePendingDestination(if: true) else { return }
+        if disposition == .present {
+            applyNavigation(consumedNavigation)
         }
+    }
+
+    func handleDestinationDismissal() {
+        presentPendingScanIfNeeded()
+        presentPendingNavigationIfPossible()
     }
 
     func handleQuickAction(_ action: QuickAction) {
@@ -203,6 +257,7 @@ extension DashboardView {
     }
 
     private func launchScan(_ request: ScanLaunchRequest) {
+        isScanActivationPending = true
         let existing = TagStore.shared.getAssignment(treeId: request.treeID)
         TagStore.shared.createOrUpdateAssignment(
             treeId: request.treeID,
@@ -212,6 +267,7 @@ extension DashboardView {
         )
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             activeScanRequest = request
+            isScanActivationPending = false
         }
     }
 }

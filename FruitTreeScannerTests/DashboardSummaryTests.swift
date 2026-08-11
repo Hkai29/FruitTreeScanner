@@ -27,6 +27,132 @@ final class DashboardSummaryTests: XCTestCase {
         )
     }
 
+    func testExternalNavigationPresentsOnlyWhenDashboardIsIdle() {
+        XCTAssertEqual(
+            DashboardExternalNavigationPolicy.disposition(
+                for: .history,
+                destination: nil,
+                hasPendingScanRequest: false,
+                hasActiveScanRequest: false,
+                isScanActivationPending: false
+            ),
+            .present
+        )
+
+        let blockedStates: [(DashboardDestination?, Bool, Bool, Bool)] = [
+            (.settings, false, false, false),
+            (nil, true, false, false),
+            (nil, false, true, false),
+            (nil, false, false, true)
+        ]
+        for state in blockedStates {
+            XCTAssertEqual(
+                DashboardExternalNavigationPolicy.disposition(
+                    for: .history,
+                    destination: state.0,
+                    hasPendingScanRequest: state.1,
+                    hasActiveScanRequest: state.2,
+                    isScanActivationPending: state.3
+                ),
+                .deferUntilIdle
+            )
+        }
+    }
+
+    func testExternalNavigationRecognizesAlreadySatisfiedFlows() {
+        XCTAssertEqual(
+            DashboardExternalNavigationPolicy.disposition(
+                for: .history,
+                destination: .scanHistory,
+                hasPendingScanRequest: false,
+                hasActiveScanRequest: false,
+                isScanActivationPending: false
+            ),
+            .alreadySatisfied
+        )
+        XCTAssertEqual(
+            DashboardExternalNavigationPolicy.disposition(
+                for: .scanner,
+                destination: .startScan,
+                hasPendingScanRequest: false,
+                hasActiveScanRequest: false,
+                isScanActivationPending: false
+            ),
+            .alreadySatisfied
+        )
+
+        let scannerPhases: [(Bool, Bool, Bool)] = [
+            (true, false, false),
+            (false, true, false),
+            (false, false, true)
+        ]
+        for phase in scannerPhases {
+            XCTAssertEqual(
+                DashboardExternalNavigationPolicy.disposition(
+                    for: .scanner,
+                    destination: nil,
+                    hasPendingScanRequest: phase.0,
+                    hasActiveScanRequest: phase.1,
+                    isScanActivationPending: phase.2
+                ),
+                .alreadySatisfied
+            )
+        }
+    }
+
+    @MainActor
+    func testNavigationRouterKeepsLatestRequestUntilConsumptionIsAllowed() {
+        let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let router = NavigationRouter(
+            defaults: defaults,
+            notificationCenter: NotificationCenter()
+        )
+
+        router.handle(.history)
+        XCTAssertNil(router.takePendingDestination(if: false))
+        XCTAssertEqual(router.pendingDestination?.rawValue, AppNavigation.history.rawValue)
+        XCTAssertEqual(defaults.string(forKey: AppNavigation.defaultsKey), AppNavigation.history.rawValue)
+
+        router.handle(.map)
+        XCTAssertEqual(defaults.string(forKey: AppNavigation.defaultsKey), AppNavigation.map.rawValue)
+        XCTAssertEqual(
+            router.takePendingDestination(if: true)?.rawValue,
+            AppNavigation.map.rawValue
+        )
+        XCTAssertNil(router.pendingDestination)
+        XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
+    }
+
+    @MainActor
+    func testNavigationRouterPreservesANewerPersistedRequestWhenConsumingOlderMemoryState() {
+        let suiteName = "NavigationRouterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let router = NavigationRouter(
+            defaults: defaults,
+            notificationCenter: NotificationCenter()
+        )
+
+        router.handle(.history)
+        defaults.set(AppNavigation.map.rawValue, forKey: AppNavigation.defaultsKey)
+
+        XCTAssertEqual(
+            router.takePendingDestination(if: true)?.rawValue,
+            AppNavigation.history.rawValue
+        )
+        XCTAssertEqual(defaults.string(forKey: AppNavigation.defaultsKey), AppNavigation.map.rawValue)
+
+        router.consumePendingUserDefaults()
+        XCTAssertEqual(router.pendingDestination?.rawValue, AppNavigation.map.rawValue)
+        XCTAssertEqual(
+            router.takePendingDestination(if: true)?.rawValue,
+            AppNavigation.map.rawValue
+        )
+        XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
+    }
+
     @MainActor
     func testScanLaunchSubmissionGateDeliversSynchronously() {
         let gate = ScanLaunchSubmissionGate()
@@ -91,6 +217,14 @@ final class DashboardSummaryTests: XCTestCase {
         )
 
         XCTAssertEqual(router.pendingDestination?.rawValue, AppNavigation.history.rawValue)
+        XCTAssertEqual(
+            defaults.string(forKey: AppNavigation.defaultsKey),
+            AppNavigation.history.rawValue
+        )
+        XCTAssertEqual(
+            router.takePendingDestination(if: true)?.rawValue,
+            AppNavigation.history.rawValue
+        )
         XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
     }
 
@@ -108,6 +242,11 @@ final class DashboardSummaryTests: XCTestCase {
         )
 
         XCTAssertEqual(router.pendingDestination?.rawValue, AppNavigation.map.rawValue)
+        XCTAssertEqual(defaults.string(forKey: AppNavigation.defaultsKey), AppNavigation.map.rawValue)
+        XCTAssertEqual(
+            router.takePendingDestination(if: true)?.rawValue,
+            AppNavigation.map.rawValue
+        )
         XCTAssertNil(defaults.string(forKey: AppNavigation.defaultsKey))
     }
 
