@@ -1,4 +1,29 @@
 import SwiftUI
+import UIKit
+
+@MainActor
+enum ScanTransientAccessibility {
+    typealias AnnouncementPoster = (String) -> Void
+
+    static func announce(_ message: String) {
+        announce(
+            message,
+            isVoiceOverRunning: UIAccessibility.isVoiceOverRunning,
+            poster: { message in
+                UIAccessibility.post(notification: .announcement, argument: message)
+            }
+        )
+    }
+
+    static func announce(
+        _ message: String,
+        isVoiceOverRunning: Bool,
+        poster: AnnouncementPoster
+    ) {
+        guard isVoiceOverRunning, !message.isEmpty else { return }
+        poster(message)
+    }
+}
 
 struct ScanPostCapturePanel: View {
     let pointCount: Int
@@ -14,9 +39,10 @@ struct ScanPostCapturePanel: View {
                 Image(systemName: "cube.transparent")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Design.Colors.harvest)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L10n.ScanCompletion.text(.previewReady))
+                    Text(L10n.ScanPostCapture.title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                         .lineLimit(1)
@@ -27,46 +53,48 @@ struct ScanPostCapturePanel: View {
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .accessibilityElement(children: .combine)
 
                 Spacer()
 
                 Text("\(coveragePercent)%")
                     .font(.system(size: 16, weight: .bold, design: .monospaced))
                     .foregroundColor(statusColor)
+                    .accessibilityLabel(L10n.ScanPostCapture.coverage)
+                    .accessibilityValue("\(coveragePercent)%")
             }
 
             HStack(spacing: 8) {
                 ScanPostCaptureMetric(
-                    label: L10n.ScanCompletion.text(.metricPointCloud),
+                    label: L10n.ScanPostCapture.metricPointCloud,
                     value: ScanHUDValueFormatter.pointCount(pointCount)
                 )
                 ScanPostCaptureMetric(
-                    label: L10n.ScanCompletion.text(.metricDuration),
+                    label: L10n.ScanPostCapture.metricDuration,
                     value: completion.formattedDuration
                 )
                 ScanPostCaptureMetric(
-                    label: L10n.ScanCompletion.text(.metricStatus),
-                    value: completion.statusTitle
+                    label: L10n.ScanPostCapture.metricStatus,
+                    value: L10n.ScanPostCapture.statusTitle(for: completion.coverageStatus)
                 )
             }
 
             HStack(spacing: 8) {
                 Button(action: onResume) {
-                    Label(L10n.ScanCompletion.text(.resume), systemImage: "plus.viewfinder")
+                    Label(L10n.ScanPostCapture.resumeAction, systemImage: "plus.viewfinder")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity)
                         .frame(height: 38)
                         .background(Design.Colors.Dark.bgElevated.opacity(0.86))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint(L10n.ScanPostCapture.resumeAccessibilityHint)
 
                 Button(action: onFinish) {
                     Label(
-                        canFinish ? L10n.ScanCompletion.text(.finishEstimate) : L10n.ScanExport.requirementsAction,
+                        canFinish ? L10n.ScanPostCapture.finishAction : L10n.ScanExport.requirementsAction,
                         systemImage: canFinish ? "checkmark" : "info.circle"
                     )
                         .font(.system(size: 13, weight: .semibold))
@@ -79,7 +107,13 @@ struct ScanPostCapturePanel: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint(canFinish ? "" : L10n.ScanExport.requirementsHint)
+                .disabled(!canFinish)
+                .opacity(canFinish ? 1 : 0.55)
+                .accessibilityHint(
+                    canFinish
+                        ? L10n.ScanPostCapture.finishAccessibilityHint(canFinish: true)
+                        : L10n.ScanExport.requirementsHint
+                )
             }
         }
         .padding(.horizontal, 16)
@@ -96,19 +130,15 @@ struct ScanPostCapturePanel: View {
     }
 
     private var nextStepText: String {
-        if completion.overall >= 0.85 {
-            return L10n.ScanCompletion.text(.nextHigh)
-        }
-        if completion.overall >= 0.6 {
-            return L10n.ScanCompletion.text(.nextMedium)
-        }
-        return L10n.ScanCompletion.text(.nextLow)
+        L10n.ScanPostCapture.guidance(for: completion.coverageStatus)
     }
 
     private var statusColor: Color {
-        if completion.overall >= 0.85 { return Design.Colors.harvest }
-        if completion.overall >= 0.6 { return Design.Colors.success }
-        return Design.Colors.warning
+        switch completion.coverageStatus {
+        case .complete: return Design.Colors.harvest
+        case .good: return Design.Colors.success
+        case .continueScanning, .insufficient: return Design.Colors.warning
+        }
     }
 }
 
@@ -132,6 +162,9 @@ private struct ScanPostCaptureMetric: View {
         .padding(.vertical, 7)
         .background(Color.white.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
     }
 }
 
@@ -145,10 +178,10 @@ struct ScanCoverageCompleteToast: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 28))
                         .foregroundColor(Design.Colors.forest)
-                    Text(L10n.ScanCompletion.text(.toastTitle))
+                    Text(L10n.Scan.coverageComplete)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
-                    Text(L10n.ScanCompletion.text(.toastMessage))
+                    Text(L10n.Scan.coverageCompleteHint)
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -161,6 +194,17 @@ struct ScanCoverageCompleteToast: View {
                     RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(L10n.Scan.coverageComplete)
+                .accessibilityValue(L10n.Scan.coverageCompleteHint)
+                .onAppear {
+                    ScanTransientAccessibility.announce(
+                        L10n.Scan.transientAnnouncement(
+                            title: L10n.Scan.coverageComplete,
+                            message: L10n.Scan.coverageCompleteHint
+                        )
+                    )
+                }
                 Spacer()
             }
             .padding(.bottom, 120)
@@ -252,6 +296,14 @@ struct ScanNoticeToast: View {
                 )
                 .padding(.horizontal, 24)
                 .padding(.bottom, 112)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(message)
+                .onAppear {
+                    ScanTransientAccessibility.announce(message)
+                }
+                .onChange(of: message) { newMessage in
+                    ScanTransientAccessibility.announce(newMessage)
+                }
         }
         .transition(.opacity)
     }

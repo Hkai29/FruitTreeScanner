@@ -4,8 +4,7 @@ struct ScanGuidanceOverlay: View {
     @ObservedObject var hudState: ScanHUDState
     let isRecording: Bool
 
-    @State private var showHint = false
-    @State private var lastHint: ScanGuidanceHint = .none
+    @StateObject private var presentationController = ScanGuidancePresentationController()
 
     var body: some View {
         VStack {
@@ -16,42 +15,39 @@ struct ScanGuidanceOverlay: View {
             Spacer()
         }
         .onChange(of: hudState.guidanceHint) { newHint in
-            handleHintChange(newHint)
+            presentationController.update(hint: newHint, isRecording: isRecording)
+        }
+        .onChange(of: isRecording) { newValue in
+            presentationController.update(
+                hint: hudState.guidanceHint,
+                isRecording: newValue
+            )
+        }
+        .onAppear {
+            presentationController.update(
+                hint: hudState.guidanceHint,
+                isRecording: isRecording
+            )
+        }
+        .onDisappear {
+            presentationController.invalidate()
         }
     }
 
     @ViewBuilder
     private var guidanceBanner: some View {
-        if showHint, lastHint != .none {
-            ScanGuidanceBannerCard(hint: lastHint, speed: hudState.cameraSpeed)
+        if let visibleHint = presentationController.visibleHint {
+            ScanGuidanceBannerCard(hint: visibleHint, speed: hudState.cameraSpeed)
             .padding(.horizontal, Design.Space.md)
             .padding(.top, 80)
-        }
-    }
-
-    private func handleHintChange(_ newHint: ScanGuidanceHint) {
-        guard newHint != .none else {
-            withAnimation(.easeOut(duration: 0.3)) {
-                showHint = false
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(visibleHint.title)
+            .accessibilityValue(visibleHint.subtitle)
+            .onAppear {
+                ScanTransientAccessibility.announce(visibleHint.accessibilityAnnouncement)
             }
-            return
-        }
-        // 避免 goodPace 频繁闪烁
-        if newHint == .goodPace && lastHint == .goodPace && showHint { return }
-
-        lastHint = newHint
-        withAnimation(.easeOut(duration: 0.25)) {
-            showHint = true
-        }
-
-        // goodPace 自动消失
-        if newHint == .goodPace {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                if lastHint == .goodPace {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        showHint = false
-                    }
-                }
+            .onChange(of: visibleHint) { newHint in
+                ScanTransientAccessibility.announce(newHint.accessibilityAnnouncement)
             }
         }
     }
@@ -66,6 +62,7 @@ struct ScanGuidanceBannerCard: View {
             Image(systemName: hint.icon)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(hint.iconColor)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(hint.title)
@@ -96,6 +93,76 @@ struct ScanGuidanceBannerCard: View {
             RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
                 .stroke(hint.borderColor, lineWidth: 1)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(hint.title)
+        .accessibilityValue(hint.subtitle)
+    }
+}
+
+@MainActor
+final class ScanGuidancePresentationController: ObservableObject {
+    typealias DismissDelay = @Sendable () async -> Void
+
+    @Published private(set) var visibleHint: ScanGuidanceHint?
+
+    private let dismissDelay: DismissDelay
+    private var dismissTask: Task<Void, Never>?
+    private var generation: UInt64 = 0
+
+    init(
+        dismissDelay: @escaping DismissDelay = {
+            do {
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+            } catch {
+                return
+            }
+        }
+    ) {
+        self.dismissDelay = dismissDelay
+    }
+
+    @discardableResult
+    func update(
+        hint: ScanGuidanceHint,
+        isRecording: Bool
+    ) -> Task<Void, Never>? {
+        generation &+= 1
+        let operationGeneration = generation
+        dismissTask?.cancel()
+        dismissTask = nil
+
+        guard isRecording, hint != .none else {
+            setVisibleHint(nil)
+            return nil
+        }
+
+        setVisibleHint(hint)
+        guard hint == .goodPace else { return nil }
+
+        let dismissDelay = dismissDelay
+        let task = Task { [weak self] in
+            await dismissDelay()
+            guard !Task.isCancelled, let self else { return }
+            guard self.generation == operationGeneration else { return }
+            self.setVisibleHint(nil)
+            self.dismissTask = nil
+        }
+        dismissTask = task
+        return task
+    }
+
+    func invalidate() {
+        generation &+= 1
+        dismissTask?.cancel()
+        dismissTask = nil
+        setVisibleHint(nil)
+    }
+
+    private func setVisibleHint(_ hint: ScanGuidanceHint?) {
+        guard visibleHint != hint else { return }
+        withAnimation(.easeOut(duration: hint == nil ? 0.3 : 0.25)) {
+            visibleHint = hint
+        }
     }
 }
 
@@ -164,37 +231,15 @@ extension ScanGuidanceHint {
     }
 
     var title: String {
-        title(in: .main)
-    }
-
-    func title(in bundle: Bundle) -> String {
-        switch self {
-        case .none: return ""
-        case .tooFast: return L10n.ScanGuidance.text(.tooFastTitle, in: bundle)
-        case .tooClose: return L10n.ScanGuidance.text(.tooCloseTitle, in: bundle)
-        case .tooFar: return L10n.ScanGuidance.text(.tooFarTitle, in: bundle)
-        case .trackingLost: return L10n.ScanGuidance.text(.trackingLostTitle, in: bundle)
-        case .lowLight: return L10n.ScanGuidance.text(.lowLightTitle, in: bundle)
-        case .sparseDepth: return L10n.ScanGuidance.text(.sparseDepthTitle, in: bundle)
-        case .goodPace: return L10n.ScanGuidance.text(.goodPaceTitle, in: bundle)
-        }
+        L10n.ScanGuidance.title(for: self)
     }
 
     var subtitle: String {
-        subtitle(in: .main)
+        L10n.ScanGuidance.message(for: self)
     }
 
-    func subtitle(in bundle: Bundle) -> String {
-        switch self {
-        case .none: return ""
-        case .tooFast: return L10n.ScanGuidance.text(.tooFastSubtitle, in: bundle)
-        case .tooClose: return L10n.ScanGuidance.text(.tooCloseSubtitle, in: bundle)
-        case .tooFar: return L10n.ScanGuidance.text(.tooFarSubtitle, in: bundle)
-        case .trackingLost: return L10n.ScanGuidance.text(.trackingLostSubtitle, in: bundle)
-        case .lowLight: return L10n.ScanGuidance.text(.lowLightSubtitle, in: bundle)
-        case .sparseDepth: return L10n.ScanGuidance.text(.sparseDepthSubtitle, in: bundle)
-        case .goodPace: return L10n.ScanGuidance.text(.goodPaceSubtitle, in: bundle)
-        }
+    var accessibilityAnnouncement: String {
+        L10n.ScanGuidance.announcement(for: self)
     }
 
     var backgroundColor: Color {

@@ -52,56 +52,65 @@ struct CoverageMapView: View {
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.ScanCoverage.coverage)
+        .accessibilityValue(
+            L10n.ScanCoverage.coverageAccessibilityValue(
+                percent: completion.overallPercent,
+                duration: completion.formattedDuration
+            )
+        )
     }
 
     private var statusInfo: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(completion.statusTitle)
+            Text(L10n.ScanCoverage.statusTitle(for: completion.coverageStatus))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
-            Text(completion.statusHint)
+            Text(L10n.ScanCoverage.statusHint(for: completion.coverageHint))
                 .font(.system(size: 11))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if completion.voxelCount > 0 {
-                Text(L10n.ScanCompletion.spatialSamples(completion.voxelCount))
+                Text(L10n.ScanCoverage.spatialSamples(completion.voxelCount))
                     .font(.system(size: 10))
                     .foregroundColor(Design.Colors.Dark.textSecondary.opacity(0.7))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var scoreIndicators: some View {
         HStack(spacing: 8) {
             ScoreIndicator(
-                label: L10n.ScanCompletion.text(.metricDuration),
+                label: L10n.ScanCoverage.metricDuration,
                 value: completion.timeScore,
                 color: Design.Colors.Dark.info
             )
             ScoreIndicator(
-                label: L10n.ScanCompletion.text(.metricCanopy),
+                label: L10n.ScanCoverage.metricCanopy,
                 value: completion.voxelScore,
                 color: Design.Colors.harvest
             )
             ScoreIndicator(
-                label: L10n.ScanCompletion.text(.metricAngles),
+                label: L10n.ScanCoverage.metricAngle,
                 value: completion.angleCoverageScore,
                 color: Design.Colors.Dark.info
             )
             ScoreIndicator(
-                label: L10n.ScanCompletion.text(.metricBalance),
+                label: L10n.ScanCoverage.metricUniformity,
                 value: completion.angleUniformityScore,
                 color: Design.Colors.harvestDark
             )
             ScoreIndicator(
-                label: L10n.ScanCompletion.text(.metricStability),
+                label: L10n.ScanCoverage.metricStability,
                 value: completion.stabilityScore,
                 color: statusColor
             )
@@ -109,10 +118,12 @@ struct CoverageMapView: View {
     }
 
     private var statusColor: Color {
-        if completion.overall >= 0.85 { return Design.Colors.harvest }
-        if completion.overall >= 0.6 { return Design.Colors.success }
-        if completion.overall >= 0.3 { return Design.Colors.warning }
-        return Design.Colors.error
+        switch completion.coverageStatus {
+        case .complete: return Design.Colors.harvest
+        case .good: return Design.Colors.success
+        case .continueScanning: return Design.Colors.warning
+        case .insufficient: return Design.Colors.error
+        }
     }
 }
 
@@ -142,5 +153,8 @@ private struct ScoreIndicator: View {
                 .minimumScaleFactor(0.65)
         }
         .frame(width: 48)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(L10n.ScanCoverage.scoreAccessibilityValue(value))
     }
 }

@@ -198,6 +198,535 @@ final class ScanControlLocalizationTests: XCTestCase {
     }
 }
 
+final class ScanTransientFeedbackLocalizationTests: XCTestCase {
+    private typealias GuidanceExpectation = (
+        hint: ScanGuidanceHint,
+        englishTitle: String,
+        englishMessage: String,
+        chineseTitle: String,
+        chineseMessage: String
+    )
+
+    private let guidanceExpectations: [GuidanceExpectation] = [
+        (
+            .tooFast,
+            "Moving Too Fast",
+            "Slow down so the canopy and main branches overlap between passes.",
+            "移动太快",
+            "放慢脚步，让树冠和主枝有足够重叠"
+        ),
+        (
+            .tooClose,
+            "Too Close",
+            "Step back to keep the full tree outline in view.",
+            "距离太近",
+            "后退一步，先保住整棵树轮廓"
+        ),
+        (
+            .tooFar,
+            "Too Far",
+            "Move closer to the tree and prioritize the trunk and fruit-dense areas.",
+            "距离太远",
+            "靠近果树，优先补主干和果实密集区"
+        ),
+        (
+            .trackingLost,
+            "Tracking Lost",
+            "Aim at the trunk, ground, or a clearly textured branch to restore tracking.",
+            "追踪丢失",
+            "对准树干、地面或纹理清晰的枝条恢复追踪"
+        ),
+        (
+            .lowLight,
+            "Low Light",
+            "Low light reduces fruit detection and texture quality.",
+            "光线不足",
+            "光线偏暗，果实检测和纹理质量会下降"
+        ),
+        (
+            .sparseDepth,
+            "Sparse Canopy Depth",
+            "Keep less sky in view, move closer to the canopy, and slow down.",
+            "树冠深度稀疏",
+            "减少天空占比，靠近树冠并放慢移动速度"
+        ),
+        (
+            .goodPace,
+            "Good Pace",
+            "Maintain this speed and continue around the tree to cover the hidden side.",
+            "速度良好",
+            "保持速度，继续绕树补齐背面盲区"
+        ),
+    ]
+
+    func testEnglishTransientFeedbackCopyAndAnnouncements() throws {
+        let bundle = try localizedBundle(language: "en")
+
+        for expectation in guidanceExpectations {
+            assertGuidance(
+                expectation,
+                title: expectation.englishTitle,
+                message: expectation.englishMessage,
+                announcement: "\(expectation.englishTitle). \(expectation.englishMessage)",
+                in: bundle
+            )
+        }
+
+        XCTAssertEqual(L10n.Scan.coverageCompleteTitle(in: bundle), "Sufficient Scan Coverage")
+        XCTAssertEqual(L10n.Scan.coverageCompleteMessage(in: bundle), "Tap Finish to save the result.")
+        XCTAssertEqual(
+            L10n.Scan.transientAnnouncement(
+                title: L10n.Scan.coverageCompleteTitle(in: bundle),
+                message: L10n.Scan.coverageCompleteMessage(in: bundle),
+                in: bundle
+            ),
+            "Sufficient Scan Coverage. Tap Finish to save the result."
+        )
+    }
+
+    func testChineseTransientFeedbackCopyAndAnnouncements() throws {
+        let bundle = try localizedBundle(language: "zh")
+
+        for expectation in guidanceExpectations {
+            assertGuidance(
+                expectation,
+                title: expectation.chineseTitle,
+                message: expectation.chineseMessage,
+                announcement: "\(expectation.chineseTitle)。\(expectation.chineseMessage)",
+                in: bundle
+            )
+        }
+
+        XCTAssertEqual(L10n.Scan.coverageCompleteTitle(in: bundle), "扫描覆盖充足")
+        XCTAssertEqual(L10n.Scan.coverageCompleteMessage(in: bundle), "可以点击完成保存结果")
+        XCTAssertEqual(
+            L10n.Scan.transientAnnouncement(
+                title: L10n.Scan.coverageCompleteTitle(in: bundle),
+                message: L10n.Scan.coverageCompleteMessage(in: bundle),
+                in: bundle
+            ),
+            "扫描覆盖充足。可以点击完成保存结果"
+        )
+    }
+
+    func testNoGuidanceHasNoVisibleOrAnnouncedCopy() throws {
+        for language in ["en", "zh"] {
+            let bundle = try localizedBundle(language: language)
+            XCTAssertEqual(L10n.ScanGuidance.title(for: .none, in: bundle), "")
+            XCTAssertEqual(L10n.ScanGuidance.message(for: .none, in: bundle), "")
+            XCTAssertEqual(L10n.ScanGuidance.announcement(for: .none, in: bundle), "")
+        }
+    }
+
+    @MainActor
+    func testAnnouncementPostsOnlyForNonemptyCopyWhileVoiceOverIsRunning() {
+        var postedMessages: [String] = []
+        let poster: ScanTransientAccessibility.AnnouncementPoster = {
+            postedMessages.append($0)
+        }
+
+        ScanTransientAccessibility.announce(
+            "Tracking Lost",
+            isVoiceOverRunning: false,
+            poster: poster
+        )
+        ScanTransientAccessibility.announce(
+            "",
+            isVoiceOverRunning: true,
+            poster: poster
+        )
+        ScanTransientAccessibility.announce(
+            "Tracking Lost",
+            isVoiceOverRunning: true,
+            poster: poster
+        )
+
+        XCTAssertEqual(postedMessages, ["Tracking Lost"])
+    }
+
+    private func assertGuidance(
+        _ expectation: GuidanceExpectation,
+        title: String,
+        message: String,
+        announcement: String,
+        in bundle: Bundle,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            L10n.ScanGuidance.title(for: expectation.hint, in: bundle),
+            title,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            L10n.ScanGuidance.message(for: expectation.hint, in: bundle),
+            message,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            L10n.ScanGuidance.announcement(for: expectation.hint, in: bundle),
+            announcement,
+            file: file,
+            line: line
+        )
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
+    }
+}
+
+final class ScanPostCaptureLocalizationTests: XCTestCase {
+    private let englishCopy: [L10n.ScanPostCapture.Key: String] = [
+        .title: "Preview Ready",
+        .guidanceComplete: "Coverage is sufficient. You can finish and estimate yield.",
+        .guidanceGood: "You can finish now. If the back of the canopy is missing, resume and scan one more pass.",
+        .guidanceContinue: "Resume scanning to capture the back of the canopy and occluded trunk areas.",
+        .metricPointCloud: "Point Cloud",
+        .metricDuration: "Duration",
+        .metricStatus: "Status",
+        .statusComplete: "Scan Complete",
+        .statusGood: "Good Coverage",
+        .statusContinue: "Continue Scanning",
+        .statusInsufficient: "Insufficient Coverage",
+        .coverage: "Coverage",
+        .resumeAction: "Resume Scan",
+        .finishAction: "Finish & Estimate",
+        .resumeAccessibilityHint: "Resumes this scan and keeps the captured point cloud.",
+        .finishAccessibilityHint: "Saves this scan and starts yield estimation.",
+        .finishUnavailableAccessibilityHint: "Finishing is unavailable until the current scan is ready to export.",
+    ]
+
+    private let chineseCopy: [L10n.ScanPostCapture.Key: String] = [
+        .title: "粗预览已就绪",
+        .guidanceComplete: "覆盖充足，可直接完成并估算产量。",
+        .guidanceGood: "可完成分析；若树冠背面缺失，继续录制补一圈。",
+        .guidanceContinue: "建议继续录制，补齐树冠背面和主干遮挡区域。",
+        .metricPointCloud: "点云",
+        .metricDuration: "时长",
+        .metricStatus: "状态",
+        .statusComplete: "扫描完成",
+        .statusGood: "覆盖良好",
+        .statusContinue: "继续扫描",
+        .statusInsufficient: "覆盖率不足",
+        .coverage: "覆盖率",
+        .resumeAction: "继续补扫",
+        .finishAction: "完成估算",
+        .resumeAccessibilityHint: "继续本次扫描并保留已采集的点云。",
+        .finishAccessibilityHint: "保存本次扫描并开始估算产量。",
+        .finishUnavailableAccessibilityHint: "当前扫描达到可导出条件后才能完成估算。",
+    ]
+
+    func testEnglishPostCaptureCopyExistsInLocalizedResources() throws {
+        try assertCopy(in: localizedBundle(language: "en"), matches: englishCopy)
+    }
+
+    func testChinesePostCaptureCopyExistsInLocalizedResources() throws {
+        try assertCopy(in: localizedBundle(language: "zh"), matches: chineseCopy)
+    }
+
+    func testCoverageStatusPreservesExistingThresholdBoundariesAndTitles() {
+        let expectations: [
+            (overall: Float, status: ScanCompletion.CoverageStatus, title: String)
+        ] = [
+            (0.85, .complete, "扫描完成"),
+            (0.849, .good, "覆盖良好"),
+            (0.6, .good, "覆盖良好"),
+            (0.599, .continueScanning, "继续扫描"),
+            (0.3, .continueScanning, "继续扫描"),
+            (0.299, .insufficient, "覆盖率不足"),
+        ]
+
+        for expectation in expectations {
+            let completion = ScanCompletion(overall: expectation.overall)
+            XCTAssertEqual(completion.coverageStatus, expectation.status)
+            XCTAssertEqual(completion.statusTitle, expectation.title)
+        }
+    }
+
+    func testEnglishPresentationMapsEveryCoverageStatus() throws {
+        let bundle = try localizedBundle(language: "en")
+        let expectations: [
+            (status: ScanCompletion.CoverageStatus, title: String, guidance: String)
+        ] = [
+            (.complete, "Scan Complete", "Coverage is sufficient. You can finish and estimate yield."),
+            (.good, "Good Coverage", "You can finish now. If the back of the canopy is missing, resume and scan one more pass."),
+            (.continueScanning, "Continue Scanning", "Resume scanning to capture the back of the canopy and occluded trunk areas."),
+            (.insufficient, "Insufficient Coverage", "Resume scanning to capture the back of the canopy and occluded trunk areas."),
+        ]
+
+        for expectation in expectations {
+            XCTAssertEqual(
+                L10n.ScanPostCapture.statusTitle(for: expectation.status, in: bundle),
+                expectation.title
+            )
+            XCTAssertEqual(
+                L10n.ScanPostCapture.guidance(for: expectation.status, in: bundle),
+                expectation.guidance
+            )
+        }
+    }
+
+    func testFinishAccessibilityHintExplainsAvailability() throws {
+        let englishBundle = try localizedBundle(language: "en")
+        XCTAssertEqual(
+            L10n.ScanPostCapture.finishAccessibilityHint(canFinish: true, in: englishBundle),
+            "Saves this scan and starts yield estimation."
+        )
+        XCTAssertEqual(
+            L10n.ScanPostCapture.finishAccessibilityHint(canFinish: false, in: englishBundle),
+            "Finishing is unavailable until the current scan is ready to export."
+        )
+    }
+
+    private func assertCopy(
+        in bundle: Bundle,
+        matches expectedCopy: [L10n.ScanPostCapture.Key: String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        XCTAssertEqual(expectedCopy.count, L10n.ScanPostCapture.Key.allCases.count)
+        for key in L10n.ScanPostCapture.Key.allCases {
+            let expected = try XCTUnwrap(expectedCopy[key], file: file, line: line)
+            XCTAssertEqual(
+                bundle.localizedString(forKey: key.rawValue, value: nil, table: nil),
+                expected,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                L10n.ScanPostCapture.text(key, in: bundle),
+                expected,
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
+    }
+}
+
+final class CoverageMapLocalizationTests: XCTestCase {
+    private let englishCopy: [L10n.ScanCoverage.Key: String] = [
+        .coverage: "Scan coverage",
+        .coverageAccessibilityValueFormat: "%1$d%%, duration %2$@",
+        .scoreAccessibilityValueFormat: "%d%%",
+        .statusComplete: "Scan Complete",
+        .statusGood: "Good Coverage",
+        .statusContinue: "Continue Scanning",
+        .statusInsufficient: "Insufficient Coverage",
+        .hintOppositeSide: "Scan the other side of the canopy",
+        .hintBackSide: "Scan the back of the canopy",
+        .hintVerticalCoverage: "Slow down and scan the upper and lower canopy",
+        .hintAngleUniformity: "Scan the sparsely covered angles",
+        .hintCollecting: "Start at the trunk and circle the tree slowly",
+        .hintIncreasing: "Discovering new canopy areas",
+        .hintDecreasing: "Scan the back of the canopy, then save",
+        .hintStable: "Coverage is complete. You can save and analyze.",
+        .spatialSampleOne: "%d spatial sample",
+        .spatialSampleOther: "%d spatial samples",
+        .metricDuration: "Duration",
+        .metricCanopy: "Canopy",
+        .metricAngle: "Angles",
+        .metricUniformity: "Balance",
+        .metricStability: "Stability",
+    ]
+
+    private let chineseCopy: [L10n.ScanCoverage.Key: String] = [
+        .coverage: "扫描覆盖率",
+        .coverageAccessibilityValueFormat: "%1$d%%，时长 %2$@",
+        .scoreAccessibilityValueFormat: "%d%%",
+        .statusComplete: "扫描完成",
+        .statusGood: "覆盖良好",
+        .statusContinue: "继续扫描",
+        .statusInsufficient: "覆盖率不足",
+        .hintOppositeSide: "补扫树冠另一侧",
+        .hintBackSide: "补扫树冠背面",
+        .hintVerticalCoverage: "放慢补扫树冠上下层",
+        .hintAngleUniformity: "补扫稀疏视角",
+        .hintCollecting: "从主干开始慢速环绕",
+        .hintIncreasing: "正在发现树冠新区域",
+        .hintDecreasing: "补树冠背面后可保存",
+        .hintStable: "覆盖完整，可保存分析",
+        .spatialSampleOne: "%d 个空间采样",
+        .spatialSampleOther: "%d 个空间采样",
+        .metricDuration: "时长",
+        .metricCanopy: "树冠",
+        .metricAngle: "视角",
+        .metricUniformity: "均衡",
+        .metricStability: "稳定",
+    ]
+
+    func testEnglishCoverageMapCopyExistsInLocalizedResources() throws {
+        try assertCopy(in: localizedBundle(language: "en"), matches: englishCopy)
+    }
+
+    func testChineseCoverageMapCopyExistsInLocalizedResources() throws {
+        try assertCopy(in: localizedBundle(language: "zh"), matches: chineseCopy)
+    }
+
+    func testCoverageStatusPreservesExistingThresholdBoundariesAndTitles() {
+        let expectations: [
+            (overall: Float, status: ScanCompletion.CoverageStatus, title: String)
+        ] = [
+            (0.85, .complete, "扫描完成"),
+            (0.849, .good, "覆盖良好"),
+            (0.6, .good, "覆盖良好"),
+            (0.599, .continueScanning, "继续扫描"),
+            (0.3, .continueScanning, "继续扫描"),
+            (0.299, .insufficient, "覆盖率不足"),
+        ]
+
+        for expectation in expectations {
+            let completion = ScanCompletion(overall: expectation.overall)
+            XCTAssertEqual(completion.coverageStatus, expectation.status)
+            XCTAssertEqual(completion.statusTitle, expectation.title)
+        }
+    }
+
+    func testCoverageHintPreservesExistingPrecedenceAndChineseCopy() {
+        let expectations: [
+            (completion: ScanCompletion, hint: ScanCompletion.CoverageHint, text: String)
+        ] = [
+            (
+                ScanCompletion(angleCoverageScore: 0.2, voxelCount: 80),
+                .oppositeSide,
+                "补扫树冠另一侧"
+            ),
+            (
+                ScanCompletion(
+                    angleCoverageScore: 0.5,
+                    angleUniformityScore: 0.8,
+                    oppositeSideScore: 0.2,
+                    verticalCoverageScore: 0.8,
+                    voxelCount: 120
+                ),
+                .backSide,
+                "补扫树冠背面"
+            ),
+            (
+                ScanCompletion(
+                    angleCoverageScore: 0.6,
+                    angleUniformityScore: 0.8,
+                    oppositeSideScore: 0.8,
+                    verticalCoverageScore: 0.2,
+                    voxelCount: 140
+                ),
+                .verticalCoverage,
+                "放慢补扫树冠上下层"
+            ),
+            (
+                ScanCompletion(
+                    angleCoverageScore: 0.55,
+                    angleUniformityScore: 0.3,
+                    oppositeSideScore: 0.8,
+                    verticalCoverageScore: 0.8,
+                    voxelCount: 120
+                ),
+                .angleUniformity,
+                "补扫稀疏视角"
+            ),
+            (ScanCompletion(discoveryTrend: .collecting), .collecting, "从主干开始慢速环绕"),
+            (ScanCompletion(discoveryTrend: .increasing), .increasing, "正在发现树冠新区域"),
+            (ScanCompletion(discoveryTrend: .decreasing), .decreasing, "补树冠背面后可保存"),
+            (ScanCompletion(discoveryTrend: .stable), .stable, "覆盖完整，可保存分析"),
+        ]
+
+        for expectation in expectations {
+            XCTAssertEqual(expectation.completion.coverageHint, expectation.hint)
+            XCTAssertEqual(expectation.completion.statusHint, expectation.text)
+        }
+    }
+
+    func testEnglishPresentationMapsEveryStatusAndHint() throws {
+        let bundle = try localizedBundle(language: "en")
+        let statuses: [(ScanCompletion.CoverageStatus, String)] = [
+            (.complete, "Scan Complete"),
+            (.good, "Good Coverage"),
+            (.continueScanning, "Continue Scanning"),
+            (.insufficient, "Insufficient Coverage"),
+        ]
+        let hints: [(ScanCompletion.CoverageHint, String)] = [
+            (.oppositeSide, "Scan the other side of the canopy"),
+            (.backSide, "Scan the back of the canopy"),
+            (.verticalCoverage, "Slow down and scan the upper and lower canopy"),
+            (.angleUniformity, "Scan the sparsely covered angles"),
+            (.collecting, "Start at the trunk and circle the tree slowly"),
+            (.increasing, "Discovering new canopy areas"),
+            (.decreasing, "Scan the back of the canopy, then save"),
+            (.stable, "Coverage is complete. You can save and analyze."),
+        ]
+
+        for (status, expected) in statuses {
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: status, in: bundle), expected)
+        }
+        for (hint, expected) in hints {
+            XCTAssertEqual(L10n.ScanCoverage.statusHint(for: hint, in: bundle), expected)
+        }
+    }
+
+    func testLocalizedCountsAndAccessibilityValues() throws {
+        let englishBundle = try localizedBundle(language: "en")
+        XCTAssertEqual(L10n.ScanCoverage.spatialSamples(1, in: englishBundle), "1 spatial sample")
+        XCTAssertEqual(L10n.ScanCoverage.spatialSamples(2, in: englishBundle), "2 spatial samples")
+        XCTAssertEqual(
+            L10n.ScanCoverage.coverageAccessibilityValue(
+                percent: 85,
+                duration: "1:05",
+                in: englishBundle
+            ),
+            "85%, duration 1:05"
+        )
+        XCTAssertEqual(L10n.ScanCoverage.scoreAccessibilityValue(-0.2, in: englishBundle), "0%")
+        XCTAssertEqual(L10n.ScanCoverage.scoreAccessibilityValue(0.496, in: englishBundle), "50%")
+        XCTAssertEqual(L10n.ScanCoverage.scoreAccessibilityValue(1.2, in: englishBundle), "100%")
+    }
+
+    private func assertCopy(
+        in bundle: Bundle,
+        matches expectedCopy: [L10n.ScanCoverage.Key: String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        XCTAssertEqual(expectedCopy.count, L10n.ScanCoverage.Key.allCases.count)
+        for key in L10n.ScanCoverage.Key.allCases {
+            let expected = try XCTUnwrap(expectedCopy[key], file: file, line: line)
+            XCTAssertEqual(
+                bundle.localizedString(forKey: key.rawValue, value: nil, table: nil),
+                expected,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                L10n.ScanCoverage.text(key, in: bundle),
+                expected,
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
+    }
+}
+
 final class ScanLifecycleControllerTests: XCTestCase {
     func testRecordingToInactiveStopsReliableEvidenceAndDoesNotAutoResume() {
         let controller = ScanLifecycleController()

@@ -4,7 +4,9 @@
 "scan.recording" = "Recording";
 "scan.no_point_cloud" = "Please record a point cloud before measuring";
 "scan.export_failed" = "Point cloud export failed (file write error). Check storage and try again.";
-"scan.coverage_complete" = "Coverage Complete";
+"scan.coverage_complete" = "Sufficient Scan Coverage";
+"scan.coverage_complete_hint" = "Tap Finish to save the result.";
+"scan.transient_accessibility_announcement" = "%1$@. %2$@";
 "scan.scanning" = "Scanning";
 "scan.detecting" = "Detecting...";
 "scan.interruption_title" = "Scan Interrupted";
@@ -110,6 +112,65 @@
 "scan.cancel.continue" = "Keep Scanning";
 "scan.cancel.discard" = "Discard";
 "scan.cancel.message" = "Captured point cloud data won't be saved. Tap Finish if you want to keep this scan.";
+
+/* Scan Guidance */
+"scan.guidance.too_fast.title" = "Moving Too Fast";
+"scan.guidance.too_fast.message" = "Slow down so the canopy and main branches overlap between passes.";
+"scan.guidance.too_close.title" = "Too Close";
+"scan.guidance.too_close.message" = "Step back to keep the full tree outline in view.";
+"scan.guidance.too_far.title" = "Too Far";
+"scan.guidance.too_far.message" = "Move closer to the tree and prioritize the trunk and fruit-dense areas.";
+"scan.guidance.tracking_lost.title" = "Tracking Lost";
+"scan.guidance.tracking_lost.message" = "Aim at the trunk, ground, or a clearly textured branch to restore tracking.";
+"scan.guidance.low_light.title" = "Low Light";
+"scan.guidance.low_light.message" = "Low light reduces fruit detection and texture quality.";
+"scan.guidance.sparse_depth.title" = "Sparse Canopy Depth";
+"scan.guidance.sparse_depth.message" = "Keep less sky in view, move closer to the canopy, and slow down.";
+"scan.guidance.good_pace.title" = "Good Pace";
+"scan.guidance.good_pace.message" = "Maintain this speed and continue around the tree to cover the hidden side.";
+
+/* Scan Post Capture */
+"scan.post_capture.title" = "Preview Ready";
+"scan.post_capture.guidance.complete" = "Coverage is sufficient. You can finish and estimate yield.";
+"scan.post_capture.guidance.good" = "You can finish now. If the back of the canopy is missing, resume and scan one more pass.";
+"scan.post_capture.guidance.continue" = "Resume scanning to capture the back of the canopy and occluded trunk areas.";
+"scan.post_capture.metric.point_cloud" = "Point Cloud";
+"scan.post_capture.metric.duration" = "Duration";
+"scan.post_capture.metric.status" = "Status";
+"scan.post_capture.status.complete" = "Scan Complete";
+"scan.post_capture.status.good" = "Good Coverage";
+"scan.post_capture.status.continue" = "Continue Scanning";
+"scan.post_capture.status.insufficient" = "Insufficient Coverage";
+"scan.post_capture.coverage" = "Coverage";
+"scan.post_capture.action.resume" = "Resume Scan";
+"scan.post_capture.action.finish" = "Finish & Estimate";
+"scan.post_capture.accessibility.resume_hint" = "Resumes this scan and keeps the captured point cloud.";
+"scan.post_capture.accessibility.finish_hint" = "Saves this scan and starts yield estimation.";
+"scan.post_capture.accessibility.finish_unavailable_hint" = "Finishing is unavailable until the current scan is ready to export.";
+
+/* Scan Coverage Map */
+"scan.coverage_map.coverage" = "Scan coverage";
+"scan.coverage_map.accessibility.coverage_value_format" = "%1$d%%, duration %2$@";
+"scan.coverage_map.accessibility.score_value_format" = "%d%%";
+"scan.coverage_map.status.complete" = "Scan Complete";
+"scan.coverage_map.status.good" = "Good Coverage";
+"scan.coverage_map.status.continue" = "Continue Scanning";
+"scan.coverage_map.status.insufficient" = "Insufficient Coverage";
+"scan.coverage_map.hint.opposite_side" = "Scan the other side of the canopy";
+"scan.coverage_map.hint.back_side" = "Scan the back of the canopy";
+"scan.coverage_map.hint.vertical_coverage" = "Slow down and scan the upper and lower canopy";
+"scan.coverage_map.hint.angle_uniformity" = "Scan the sparsely covered angles";
+"scan.coverage_map.hint.collecting" = "Start at the trunk and circle the tree slowly";
+"scan.coverage_map.hint.increasing" = "Discovering new canopy areas";
+"scan.coverage_map.hint.decreasing" = "Scan the back of the canopy, then save";
+"scan.coverage_map.hint.stable" = "Coverage is complete. You can save and analyze.";
+"scan.coverage_map.spatial_samples.one" = "%d spatial sample";
+"scan.coverage_map.spatial_samples.other" = "%d spatial samples";
+"scan.coverage_map.metric.duration" = "Duration";
+"scan.coverage_map.metric.canopy" = "Canopy";
+"scan.coverage_map.metric.angle" = "Angles";
+"scan.coverage_map.metric.uniformity" = "Balance";
+"scan.coverage_map.metric.stability" = "Stability";
 
 /* Scan Readiness */
 "scan.readiness.checking.title" = "Checking Device Capabilities";

@@ -24,8 +24,7 @@ struct ScanView: View {
     @State var resultPersistenceState: ScanResultPersistenceState = .idle
     @State var showResult = false
     @State var isEstimating = false
-    @State var showCoverageComplete = false
-    @State var hasShownCoverageComplete = false
+    @StateObject private var coverageCompletionPresentation = ScanCoverageCompletionPresentationController()
     #if DEBUG
     @State var showDebugView = false
     @State var detectionDebugState = DetectionDebugState(
@@ -33,7 +32,7 @@ struct ScanView: View {
     )
     #endif
     @State var measuredDistance: Float?
-    @State var scanNotice: String?
+    @StateObject private var scanNoticePresentation = ScanNoticePresentationController()
     @State var isViewActive = false
     @State var scanReadiness: ScanReadiness = .checking
     @State var isCheckingScanReadiness = false
@@ -65,7 +64,7 @@ struct ScanView: View {
                 shouldShowPostCapturePanel: shouldShowPostCapturePanel,
                 showGuide: showGuide,
                 showResult: showResult,
-                showCoverageComplete: showCoverageComplete,
+                showCoverageComplete: coverageCompletionPresentation.isPresented,
                 yieldResult: yieldResult,
                 resultPersistenceState: resultPersistenceState,
                 detectionDebugState: currentDetectionDebugState,
@@ -82,7 +81,7 @@ struct ScanView: View {
                 onDismiss: requestCancelScan
             )
 
-            if let scanNotice {
+            if let scanNotice = scanNoticePresentation.visibleNotice {
                 ScanNoticeToast(message: scanNotice)
             }
         }
@@ -135,4 +134,161 @@ struct ScanView: View {
             }
     }
 
+    func showTemporaryNotice(_ message: String) {
+        scanNoticePresentation.present(message)
+    }
+
+    func invalidateTemporaryNotice() {
+        scanNoticePresentation.invalidate()
+    }
+
+    func beginCoverageCompletionForNewScan() {
+        coverageCompletionPresentation.beginNewScan()
+    }
+
+    func presentCoverageCompletionIfNeeded() {
+        coverageCompletionPresentation.presentIfNeeded()
+    }
+
+    func pauseCoverageCompletion() {
+        coverageCompletionPresentation.pauseCurrentScan()
+    }
+
+    func invalidateCoverageCompletion() {
+        coverageCompletionPresentation.invalidate()
+    }
+}
+
+@MainActor
+final class ScanNoticePresentationController: ObservableObject {
+    typealias DismissDelay = @Sendable () async -> Void
+
+    @Published private(set) var visibleNotice: String?
+
+    private let dismissDelay: DismissDelay
+    private var dismissTask: Task<Void, Never>?
+    private var generation: UInt64 = 0
+
+    init(
+        dismissDelay: @escaping DismissDelay = {
+            do {
+                try await Task.sleep(nanoseconds: 2_200_000_000)
+            } catch {
+                return
+            }
+        }
+    ) {
+        self.dismissDelay = dismissDelay
+    }
+
+    @discardableResult
+    func present(_ message: String) -> Task<Void, Never> {
+        generation &+= 1
+        let operationGeneration = generation
+        dismissTask?.cancel()
+
+        setVisibleNotice(message)
+
+        let dismissDelay = dismissDelay
+        let task = Task { [weak self] in
+            await dismissDelay()
+            guard !Task.isCancelled, let self else { return }
+            guard self.generation == operationGeneration else { return }
+            self.setVisibleNotice(nil)
+            self.dismissTask = nil
+        }
+        dismissTask = task
+        return task
+    }
+
+    func invalidate() {
+        generation &+= 1
+        dismissTask?.cancel()
+        dismissTask = nil
+        setVisibleNotice(nil)
+    }
+
+    private func setVisibleNotice(_ notice: String?) {
+        guard visibleNotice != notice else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            visibleNotice = notice
+        }
+    }
+}
+
+@MainActor
+final class ScanCoverageCompletionPresentationController: ObservableObject {
+    typealias DismissDelay = @Sendable () async -> Void
+
+    @Published private(set) var isPresented = false
+
+    private let dismissDelay: DismissDelay
+    private var hasPresentedForCurrentScan = false
+    private var dismissTask: Task<Void, Never>?
+    private var generation: UInt64 = 0
+
+    init(
+        dismissDelay: @escaping DismissDelay = {
+            do {
+                try await Task.sleep(nanoseconds: 3_000_000_000)
+            } catch {
+                return
+            }
+        }
+    ) {
+        self.dismissDelay = dismissDelay
+    }
+
+    func beginNewScan() {
+        hasPresentedForCurrentScan = false
+        cancelPendingDismissalAndHide()
+    }
+
+    @discardableResult
+    func presentIfNeeded() -> Task<Void, Never>? {
+        guard !hasPresentedForCurrentScan else { return nil }
+        hasPresentedForCurrentScan = true
+        generation &+= 1
+        let operationGeneration = generation
+        dismissTask?.cancel()
+
+        setPresented(true)
+
+        let dismissDelay = dismissDelay
+        let task = Task { [weak self] in
+            await dismissDelay()
+            guard !Task.isCancelled, let self else { return }
+            guard self.generation == operationGeneration else { return }
+            self.setPresented(false)
+            self.dismissTask = nil
+        }
+        dismissTask = task
+        return task
+    }
+
+    func pauseCurrentScan() {
+        cancelPendingDismissalAndHide()
+    }
+
+    func invalidate() {
+        cancelPendingDismissalAndHide()
+    }
+
+    private func cancelPendingDismissalAndHide() {
+        generation &+= 1
+        dismissTask?.cancel()
+        dismissTask = nil
+        setPresented(false)
+    }
+
+    private func setPresented(_ presented: Bool) {
+        guard isPresented != presented else { return }
+        if presented {
+            isPresented = true
+        } else {
+            withAnimation {
+                isPresented = false
+            }
+        }
+    }
 }
