@@ -14,6 +14,7 @@ struct BatchExportView: View {
     @State var exportedURL: URL?
     @State var isExporting = false
     @State var exportFailure: BatchExportFailurePresentation?
+    @State var showShareError = false
     @State var presentedSheet: BatchExportSheet?
     @State var exportTask: Task<Void, Never>?
     @State var exportGeneration = 0
@@ -70,10 +71,17 @@ struct BatchExportView: View {
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .share(let url):
-                ShareSheet(items: [url])
+                ShareSheet(items: [url]) { result in
+                    handleShareCompletion(result, for: url)
+                }
             }
         }
         .batchExportFailureAlert(failure: $exportFailure, onRetry: performExport)
+        .alert(L10n.Export.shareFailureTitle, isPresented: $showShareError) {
+            Button(L10n.Common.done, role: .cancel) {}
+        } message: {
+            Text(L10n.Export.shareFailureMessage)
+        }
         .onAppear(perform: handleAppear)
         .onChange(of: store.scanFiles, perform: handleRecordsChanged)
         .onChange(of: tagStore.plots) { _ in

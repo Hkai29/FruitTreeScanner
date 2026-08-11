@@ -659,6 +659,8 @@
 "export.by_date" = "按日期";
 "export.by_plot" = "按地块";
 "export.no_records" = "没有可导出的记录";
+"export.share_failure_title" = "分享失败";
+"export.share_failure_message" = "分享服务未能完成操作。请重试，或选择其他分享方式。";
 
 /* Import */
 "import.navigation_title" = "导入文件";

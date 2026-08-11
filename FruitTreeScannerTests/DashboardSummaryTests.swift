@@ -959,6 +959,139 @@ final class DashboardSummaryTests: XCTestCase {
     }
 }
 
+final class BatchExportShareLifecycleTests: XCTestCase {
+    @MainActor
+    func testShareSheetWithoutCompletionKeepsLegacyCallersUnchanged() {
+        let controller = ShareSheet(items: ["test-export"]).makeActivityViewController()
+
+        XCTAssertNil(controller.completionWithItemsHandler)
+    }
+
+    @MainActor
+    func testShareSheetForwardsActivityFailure() async {
+        let callback = expectation(description: "Share completion callback")
+        var receivedResult: ShareActivityResult?
+        let sheet = ShareSheet(items: ["test-export"]) { result in
+            receivedResult = result
+            callback.fulfill()
+        }
+        let controller = sheet.makeActivityViewController()
+        let error = NSError(
+            domain: "BatchExportShareLifecycleTests",
+            code: 42,
+            userInfo: [NSLocalizedDescriptionKey: "Mock sharing failure"]
+        )
+
+        controller.completionWithItemsHandler?(nil, false, nil, error)
+        await fulfillment(of: [callback], timeout: 1)
+
+        XCTAssertEqual(
+            receivedResult,
+            ShareActivityResult(completed: false, errorDescription: "Mock sharing failure")
+        )
+    }
+
+    @MainActor
+    func testShareSheetForwardsUserCancellationWithoutError() async {
+        let callback = expectation(description: "Share cancellation callback")
+        var receivedResult: ShareActivityResult?
+        let sheet = ShareSheet(items: ["test-export"]) { result in
+            receivedResult = result
+            callback.fulfill()
+        }
+        let controller = sheet.makeActivityViewController()
+
+        controller.completionWithItemsHandler?(nil, false, nil, nil)
+        await fulfillment(of: [callback], timeout: 1)
+
+        XCTAssertEqual(
+            receivedResult,
+            ShareActivityResult(completed: false, errorDescription: nil)
+        )
+    }
+
+    func testCurrentExportActivityErrorRequiresFailureFeedback() {
+        let url = URL(fileURLWithPath: "/tmp/current-export.csv")
+        let result = ShareActivityResult(completed: false, errorDescription: "failure")
+
+        XCTAssertTrue(
+            BatchExportShareCompletionPolicy.shouldPresentFailure(
+                for: result,
+                sharedURL: url,
+                currentExportURL: url
+            )
+        )
+    }
+
+    func testUserCancellationDoesNotRequireFailureFeedback() {
+        let url = URL(fileURLWithPath: "/tmp/current-export.csv")
+        let result = ShareActivityResult(completed: false, errorDescription: nil)
+
+        XCTAssertFalse(
+            BatchExportShareCompletionPolicy.shouldPresentFailure(
+                for: result,
+                sharedURL: url,
+                currentExportURL: url
+            )
+        )
+    }
+
+    func testLateActivityErrorForReplacedExportIsIgnored() {
+        let staleURL = URL(fileURLWithPath: "/tmp/stale-export.csv")
+        let currentURL = URL(fileURLWithPath: "/tmp/current-export.csv")
+        let result = ShareActivityResult(completed: false, errorDescription: "failure")
+
+        XCTAssertFalse(
+            BatchExportShareCompletionPolicy.shouldPresentFailure(
+                for: result,
+                sharedURL: staleURL,
+                currentExportURL: currentURL
+            )
+        )
+    }
+
+    func testLateActivityErrorAfterExportTeardownIsIgnored() {
+        let staleURL = URL(fileURLWithPath: "/tmp/stale-export.csv")
+        let result = ShareActivityResult(completed: false, errorDescription: "failure")
+
+        XCTAssertFalse(
+            BatchExportShareCompletionPolicy.shouldPresentFailure(
+                for: result,
+                sharedURL: staleURL,
+                currentExportURL: nil
+            )
+        )
+    }
+
+    func testShareFailureCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "export.share_failure_title": "Unable to Share",
+                "export.share_failure_message": "The sharing service could not complete the operation. Try again or choose another sharing option."
+            ],
+            "zh": [
+                "export.share_failure_title": "分享失败",
+                "export.share_failure_message": "分享服务未能完成操作。请重试，或选择其他分享方式。"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+}
+
 final class QuickScanLocalizationTests: XCTestCase {
 
     func testQuickScanCopyIsCompleteInEnglishAndChinese() throws {
