@@ -201,6 +201,100 @@ final class BatchExportServiceTests: XCTestCase {
         }
     }
 
+    func testTemporaryStorageRemovesAbandonedSessionsAndPreservesCurrentSession() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchExportStorage-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let storage = BatchExportTemporaryStorage(
+            baseTemporaryDirectory: baseDirectory,
+            sessionID: "current-session"
+        )
+        let currentDirectory = try storage.prepareDirectory()
+        let currentFile = currentDirectory.appendingPathComponent("active.csv")
+        try Data("active".utf8).write(to: currentFile)
+
+        let abandonedDirectory = storage.rootDirectory
+            .appendingPathComponent("abandoned-session", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: abandonedDirectory,
+            withIntermediateDirectories: true
+        )
+        try Data("stale".utf8).write(
+            to: abandonedDirectory.appendingPathComponent("stale.csv")
+        )
+        let unrelatedFile = baseDirectory.appendingPathComponent("unrelated.txt")
+        try Data("keep".utf8).write(to: unrelatedFile)
+
+        XCTAssertEqual(try storage.prepareDirectory(), currentDirectory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: currentFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: abandonedDirectory.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedFile.path))
+    }
+
+    func testTemporaryStorageRemovalRejectsFilesOutsideCurrentSession() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BatchExportStorage-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let storage = BatchExportTemporaryStorage(
+            baseTemporaryDirectory: baseDirectory,
+            sessionID: "current-session"
+        )
+        let currentDirectory = try storage.prepareDirectory()
+        let managedFile = currentDirectory.appendingPathComponent("managed.csv")
+        try Data("managed".utf8).write(to: managedFile)
+        let unrelatedFile = baseDirectory.appendingPathComponent("unrelated.csv")
+        try Data("unrelated".utf8).write(to: unrelatedFile)
+
+        XCTAssertTrue(storage.removeManagedFile(at: managedFile))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: managedFile.path))
+        XCTAssertFalse(storage.removeManagedFile(at: unrelatedFile))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedFile.path))
+    }
+
+    func testBatchExportUsesManagedSessionDirectoryAndCleanupAPI() async throws {
+        let result = try await BatchExportService.shared.export(
+            records: [makeRecord()],
+            format: .csv,
+            options: .init()
+        )
+        defer { BatchExportService.removeTemporaryExport(at: result.url) }
+
+        XCTAssertEqual(
+            result.url.deletingLastPathComponent().standardizedFileURL,
+            BatchExportService.temporaryStorage.sessionDirectory.standardizedFileURL
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.url.path))
+        XCTAssertTrue(BatchExportService.removeTemporaryExport(at: result.url))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: result.url.path))
+    }
+
+    func testConcurrentBatchExportsPreserveBothCurrentSessionFiles() async throws {
+        let records = [makeRecord()]
+        async let csvResult = BatchExportService.shared.export(
+            records: records,
+            format: .csv,
+            options: .init()
+        )
+        async let jsonResult = BatchExportService.shared.export(
+            records: records,
+            format: .json,
+            options: .init()
+        )
+        let results = try await [csvResult, jsonResult]
+        defer {
+            results.forEach { BatchExportService.removeTemporaryExport(at: $0.url) }
+        }
+
+        XCTAssertNotEqual(results[0].url, results[1].url)
+        XCTAssertTrue(results.allSatisfy { FileManager.default.fileExists(atPath: $0.url.path) })
+        XCTAssertTrue(results.allSatisfy {
+            $0.url.deletingLastPathComponent().standardizedFileURL
+                == BatchExportService.temporaryStorage.sessionDirectory.standardizedFileURL
+        })
+    }
+
     // MARK: - (2) CSV default options: UTF-8 BOM, Chinese headers, formatted yield/GPS/date, summary totals
 
     func testCSVStartsWithUTF8BOM() async throws {

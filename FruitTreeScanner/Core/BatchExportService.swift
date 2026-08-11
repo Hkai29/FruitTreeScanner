@@ -21,8 +21,90 @@ enum BatchExportSelectionPolicy {
     }
 }
 
+struct BatchExportTemporaryStorage {
+    static let directoryName = "FruitTreeScannerBatchExports"
+
+    let fileManager: FileManager
+    let baseTemporaryDirectory: URL
+    let sessionID: String
+
+    init(
+        fileManager: FileManager = .default,
+        baseTemporaryDirectory: URL? = nil,
+        sessionID: String
+    ) {
+        self.fileManager = fileManager
+        self.baseTemporaryDirectory = baseTemporaryDirectory ?? fileManager.temporaryDirectory
+        self.sessionID = sessionID
+    }
+
+    var rootDirectory: URL {
+        baseTemporaryDirectory.appendingPathComponent(Self.directoryName, isDirectory: true)
+    }
+
+    var sessionDirectory: URL {
+        rootDirectory.appendingPathComponent(sessionID, isDirectory: true)
+    }
+
+    func prepareDirectory() throws -> URL {
+        try fileManager.createDirectory(
+            at: sessionDirectory,
+            withIntermediateDirectories: true
+        )
+        removeAbandonedSessionDirectories()
+        return sessionDirectory
+    }
+
+    func isManagedFileURL(_ url: URL) -> Bool {
+        url.deletingLastPathComponent().standardizedFileURL
+            == sessionDirectory.standardizedFileURL
+    }
+
+    @discardableResult
+    func removeManagedFile(at url: URL) -> Bool {
+        guard isManagedFileURL(url) else { return false }
+        guard fileManager.fileExists(atPath: url.path) else { return true }
+
+        do {
+            try fileManager.removeItem(at: url)
+            return true
+        } catch {
+            Log.export.error("Unable to remove temporary batch export: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func removeAbandonedSessionDirectories() {
+        let entries: [URL]
+        do {
+            entries = try fileManager.contentsOfDirectory(
+                at: rootDirectory,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            Log.export.error("Unable to inspect temporary batch exports: \(error.localizedDescription)")
+            return
+        }
+
+        let currentDirectory = sessionDirectory.standardizedFileURL
+        for entry in entries where entry.standardizedFileURL != currentDirectory {
+            do {
+                try fileManager.removeItem(at: entry)
+            } catch {
+                let cocoaError = error as NSError
+                guard cocoaError.domain != NSCocoaErrorDomain
+                        || cocoaError.code != CocoaError.fileNoSuchFile.rawValue
+                else { continue }
+                Log.export.error("Unable to remove abandoned batch export session: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
 final class BatchExportService {
     static let shared = BatchExportService()
+    static let temporaryStorage = BatchExportTemporaryStorage(sessionID: UUID().uuidString)
     
     private init() {}
     
@@ -95,11 +177,12 @@ final class BatchExportService {
 
             let timestamp = Self.filenameDateFormatter.string(from: Date())
             let filename = "果园批次数据_\(timestamp)_\(UUID().uuidString.prefix(8)).\(format.fileExtension)"
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+            let tempDirectory = try Self.temporaryStorage.prepareDirectory()
+            let tempURL = tempDirectory.appendingPathComponent(filename)
             var shouldKeepFile = false
             defer {
-                if !shouldKeepFile, FileManager.default.fileExists(atPath: tempURL.path) {
-                    try? FileManager.default.removeItem(at: tempURL)
+                if !shouldKeepFile {
+                    Self.removeTemporaryExport(at: tempURL)
                 }
             }
 
@@ -135,6 +218,11 @@ final class BatchExportService {
 
     nonisolated static var filenameDateFormatter: DateFormatter {
         StableDataFormatting.dateFormatter(dateFormat: "yyyyMMdd_HHmmss")
+    }
+
+    @discardableResult
+    static func removeTemporaryExport(at url: URL) -> Bool {
+        temporaryStorage.removeManagedFile(at: url)
     }
 }
 
