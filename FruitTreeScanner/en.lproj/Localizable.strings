@@ -943,6 +943,12 @@
 "orchard_map.summary.level_high" = "High Yield";
 "orchard_map.summary.level_medium" = "Medium Yield";
 "orchard_map.summary.level_low" = "Low Yield";
+/* Orchard Map Tree Pins */
+"orchard_map.pin.tree_label" = "Tree %@";
+"orchard_map.pin.level_high" = "High yield";
+"orchard_map.pin.level_medium" = "Medium yield";
+"orchard_map.pin.level_low" = "Low yield";
+"orchard_map.pin.selected_value" = "%@, selected";
 
 /* Scan History Deletion */
 "history.delete.record.title" = "Delete Scan Record";

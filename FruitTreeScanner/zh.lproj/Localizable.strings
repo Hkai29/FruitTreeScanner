@@ -943,6 +943,12 @@
 "orchard_map.summary.level_high" = "高产";
 "orchard_map.summary.level_medium" = "中产";
 "orchard_map.summary.level_low" = "低产";
+/* Orchard Map Tree Pins */
+"orchard_map.pin.tree_label" = "果树 %@";
+"orchard_map.pin.level_high" = "高产";
+"orchard_map.pin.level_medium" = "中产";
+"orchard_map.pin.level_low" = "低产";
+"orchard_map.pin.selected_value" = "%@，已选中";
 
 /* 扫描历史删除 */
 "history.delete.record.title" = "删除扫描记录";
