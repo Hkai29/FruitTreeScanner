@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class DashboardSummaryTests: XCTestCase {
@@ -451,6 +453,167 @@ final class DashboardSummaryTests: XCTestCase {
             confidence: confidence,
             persistenceState: persistenceState
         )
+    }
+}
+
+final class DashboardSharedComponentsTests: XCTestCase {
+    @MainActor
+    func testSharedHeaderAndEmptyStateRenderAtLargestAccessibilityTextSize() {
+        let fixtures = [
+            (
+                language: "en",
+                headerTitle: "Historical Comparison and Orchard Analytics",
+                headerSubtitle: "Review complete LiDAR scans, compare reliable yield evidence, and choose the next field action without losing context.",
+                emptyTitle: "Two Complete Scans Are Required Before Comparison",
+                emptyMessage: "Complete and save another LiDAR scan. The comparison will then show yield, fruit count, confidence, and scan date for both records.",
+                primaryAction: "Start a New LiDAR Scan",
+                secondaryAction: "Import an Existing PLY File"
+            ),
+            (
+                language: "zh",
+                headerTitle: "历史扫描对比与果园分析",
+                headerSubtitle: "查看完整 LiDAR 扫描、比较可靠产量证据，并在不丢失当前上下文的情况下选择下一步现场操作。",
+                emptyTitle: "至少需要两条完整扫描才能进行对比",
+                emptyMessage: "请再完成并保存一次 LiDAR 扫描。之后可以并排查看两条记录的产量、果数、置信度和扫描日期。",
+                primaryAction: "开始新的 LiDAR 扫描",
+                secondaryAction: "导入已有 PLY 文件"
+            )
+        ]
+
+        for fixture in fixtures {
+            let view = sharedComponentsFixture(
+                headerTitle: fixture.headerTitle,
+                headerSubtitle: fixture.headerSubtitle,
+                emptyTitle: fixture.emptyTitle,
+                emptyMessage: fixture.emptyMessage,
+                primaryAction: fixture.primaryAction,
+                secondaryAction: fixture.secondaryAction
+            )
+            .environment(\.dynamicTypeSize, .accessibility5)
+
+            attachRender(
+                of: AnyView(view),
+                size: CGSize(width: 390, height: 3_600),
+                name: "DashboardSharedComponents-\(fixture.language)-AX5"
+            )
+        }
+    }
+
+    @MainActor
+    func testSharedHeaderAndEmptyStateKeepCompactStandardLayout() {
+        let view = sharedComponentsFixture(
+            headerTitle: "Historical Comparison",
+            headerSubtitle: "Compare complete scans side by side.",
+            emptyTitle: "No Complete Scans",
+            emptyMessage: "Complete a scan or import a PLY file to continue.",
+            primaryAction: "Start Scanning",
+            secondaryAction: "Import PLY"
+        )
+        .environment(\.dynamicTypeSize, .large)
+
+        attachRender(
+            of: AnyView(view),
+            size: CGSize(width: 390, height: 1_200),
+            name: "DashboardSharedComponents-en-Large"
+        )
+    }
+
+    private func sharedComponentsFixture(
+        headerTitle: String,
+        headerSubtitle: String,
+        emptyTitle: String,
+        emptyMessage: String,
+        primaryAction: String,
+        secondaryAction: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            DashboardToolHeader(
+                imageName: "FeatureCompare",
+                title: headerTitle,
+                subtitle: headerSubtitle,
+                icon: "arrow.left.arrow.right"
+            )
+
+            DashboardSheetEmptyState(
+                icon: "clock.arrow.circlepath",
+                imageName: "FeatureScanHistory",
+                title: emptyTitle,
+                message: emptyMessage,
+                primaryAction: DashboardSheetAction(
+                    title: primaryAction,
+                    icon: "viewfinder",
+                    action: {}
+                ),
+                secondaryAction: DashboardSheetAction(
+                    title: secondaryAction,
+                    icon: "square.and.arrow.down",
+                    action: {}
+                ),
+                outerPadding: false
+            )
+
+            DashboardSheetEmptyState(
+                icon: "tray",
+                title: emptyTitle,
+                message: emptyMessage,
+                primaryAction: DashboardSheetAction(
+                    title: primaryAction,
+                    icon: "plus",
+                    action: {}
+                ),
+                outerPadding: false
+            )
+
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.colorScheme, .dark)
+    }
+
+    @MainActor
+    private func attachRender(of view: AnyView, size: CGSize, name: String) {
+        let renderer = ImageRenderer(
+            content: view.frame(width: size.width, height: size.height, alignment: .top)
+        )
+        renderer.scale = 1
+        renderer.proposedSize = ProposedViewSize(size)
+        guard let renderedImage = renderer.uiImage else {
+            return XCTFail("Unable to render \(name)")
+        }
+
+        XCTAssertEqual(renderedImage.size, size)
+        assertImageHasVisibleContent(renderedImage, name: name)
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func assertImageHasVisibleContent(_ image: UIImage, name: String) {
+        let sampleSize = CGSize(width: 64, height: 64)
+        let sample = UIGraphicsImageRenderer(size: sampleSize).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: sampleSize))
+        }
+        guard let cgImage = sample.cgImage,
+              let data = cgImage.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return XCTFail("Unable to inspect rendered pixels for \(name)")
+        }
+
+        let byteCount = CFDataGetLength(data)
+        var colors = Set<UInt32>()
+        for offset in stride(from: 0, to: byteCount - 3, by: 4) {
+            let color = UInt32(bytes[offset])
+                | (UInt32(bytes[offset + 1]) << 8)
+                | (UInt32(bytes[offset + 2]) << 16)
+                | (UInt32(bytes[offset + 3]) << 24)
+            colors.insert(color)
+            if colors.count > 8 { break }
+        }
+
+        XCTAssertGreaterThan(colors.count, 8, "\(name) rendered without visible component content")
     }
 }
 

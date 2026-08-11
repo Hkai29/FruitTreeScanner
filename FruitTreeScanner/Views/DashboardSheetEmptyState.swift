@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DashboardSheetEmptyState: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let icon: String
     var imageName: String? = nil
     let title: String
@@ -12,42 +13,10 @@ struct DashboardSheetEmptyState: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                if let imageName {
-                    DashboardFeatureImage(name: imageName, accent: accent)
-                        .frame(width: 96, height: 76)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: icon)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(accent)
-                            .frame(width: 26, height: 26)
-                            .background(accent.opacity(0.14))
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-
-                        Text(title)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Design.Colors.Dark.textPrimary)
-                    }
-
-                    Text(message)
-                        .font(.system(size: 13))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            contentLayout
 
             if primaryAction != nil || secondaryAction != nil {
-                HStack(spacing: 10) {
-                    if let primaryAction {
-                        actionButton(primaryAction, isPrimary: true)
-                    }
-                    if let secondaryAction {
-                        actionButton(secondaryAction, isPrimary: false)
-                    }
-                }
+                actionLayout
                 .padding(.top, 14)
             }
         }
@@ -58,13 +27,106 @@ struct DashboardSheetEmptyState: View {
         .frame(maxWidth: .infinity, maxHeight: outerPadding ? .infinity : nil, alignment: .top)
     }
 
+    @ViewBuilder
+    private var contentLayout: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 12) {
+                featureImage(width: nil, height: 112)
+                textContent
+            }
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                featureImage(width: 96, height: 76)
+                textContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func featureImage(width: CGFloat?, height: CGFloat) -> some View {
+        if let imageName {
+            DashboardFeatureImage(name: imageName, accent: accent)
+                .frame(maxWidth: width == nil ? .infinity : nil)
+                .frame(width: width, height: height)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var textContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 26, height: 26)
+                    .background(accent.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .accessibilityHidden(true)
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(message)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(title))
+        .accessibilityValue(Text(message))
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private var actionLayout: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            verticalActions
+        } else {
+            ViewThatFits(in: .horizontal) {
+                horizontalActions
+                verticalActions
+            }
+        }
+    }
+
+    private var horizontalActions: some View {
+        HStack(spacing: 10) {
+            if let primaryAction {
+                actionButton(primaryAction, isPrimary: true)
+            }
+            if let secondaryAction {
+                actionButton(secondaryAction, isPrimary: false)
+            }
+        }
+    }
+
+    private var verticalActions: some View {
+        VStack(spacing: 10) {
+            if let primaryAction {
+                actionButton(primaryAction, isPrimary: true)
+            }
+            if let secondaryAction {
+                actionButton(secondaryAction, isPrimary: false)
+            }
+        }
+    }
+
     private func actionButton(_ action: DashboardSheetAction, isPrimary: Bool) -> some View {
         Button(action: action.action) {
             Label(action.title, systemImage: action.icon)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundColor(isPrimary ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
-                .frame(height: 38)
+                .frame(minHeight: 44)
                 .background(isPrimary ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 9))
                 .overlay(
@@ -73,5 +135,6 @@ struct DashboardSheetEmptyState: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(action.title))
     }
 }
