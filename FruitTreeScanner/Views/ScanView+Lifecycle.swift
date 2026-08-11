@@ -42,6 +42,7 @@ extension ScanView {
     func handleDisappear() {
         isViewActive = false
         isEstimating = false
+        invalidateTemporaryNotice()
         clearMeasurementState()
         measurementController.renderer = nil
         coordinator.teardown()

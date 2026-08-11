@@ -498,6 +498,93 @@ final class PointCloudProcessingTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testScanNoticePresentationDismissesCurrentMessageAfterDelay() async {
+        let delayDriver = ScanNoticeDismissDelayDriver()
+        let controller = ScanNoticePresentationController {
+            await delayDriver.wait()
+        }
+
+        let dismissTask = controller.present("请补充点云")
+        let request = await delayDriver.nextRequest()
+
+        XCTAssertEqual(controller.visibleNotice, "请补充点云")
+
+        await delayDriver.resume(request: request)
+        await dismissTask.value
+
+        XCTAssertNil(controller.visibleNotice)
+    }
+
+    @MainActor
+    func testScanNoticePresentationRejectsSupersededDismissalForRepeatedMessage() async {
+        let delayDriver = ScanNoticeDismissDelayDriver()
+        let controller = ScanNoticePresentationController {
+            await delayDriver.wait()
+        }
+
+        let firstTask = controller.present("扫描尚未就绪")
+        let firstRequest = await delayDriver.nextRequest()
+        let secondTask = controller.present("扫描尚未就绪")
+        let secondRequest = await delayDriver.nextRequest()
+
+        await delayDriver.resume(request: firstRequest)
+        await firstTask.value
+
+        XCTAssertEqual(
+            controller.visibleNotice,
+            "扫描尚未就绪",
+            "A canceled delay must not shorten a repeated notice presentation"
+        )
+
+        await delayDriver.resume(request: secondRequest)
+        await secondTask.value
+
+        XCTAssertNil(controller.visibleNotice)
+    }
+
+    @MainActor
+    func testScanNoticePresentationKeepsReplacementAfterPriorDismissal() async {
+        let delayDriver = ScanNoticeDismissDelayDriver()
+        let controller = ScanNoticePresentationController {
+            await delayDriver.wait()
+        }
+
+        let staleTask = controller.present("扫描尚未就绪")
+        let staleRequest = await delayDriver.nextRequest()
+        let currentTask = controller.present("结果文件保存失败")
+        let currentRequest = await delayDriver.nextRequest()
+
+        await delayDriver.resume(request: staleRequest)
+        await staleTask.value
+
+        XCTAssertEqual(controller.visibleNotice, "结果文件保存失败")
+
+        await delayDriver.resume(request: currentRequest)
+        await currentTask.value
+
+        XCTAssertNil(controller.visibleNotice)
+    }
+
+    @MainActor
+    func testScanNoticePresentationInvalidateRejectsLateDismissal() async {
+        let delayDriver = ScanNoticeDismissDelayDriver()
+        let controller = ScanNoticePresentationController {
+            await delayDriver.wait()
+        }
+
+        let staleTask = controller.present("请补充点云")
+        let staleRequest = await delayDriver.nextRequest()
+
+        controller.invalidate()
+        XCTAssertNil(controller.visibleNotice)
+
+        await delayDriver.resume(request: staleRequest)
+        await staleTask.value
+
+        XCTAssertNil(controller.visibleNotice)
+    }
+
     func testDepthTexturePairFailsClosedForUnsupportedPixelFormats() throws {
         let unsupportedDepth = try makePixelBuffer(
             width: 8,
@@ -2356,5 +2443,43 @@ final class PointCloudProcessingTests: XCTestCase {
             UInt8((bits >> 8) & 0xFF),
             UInt8(bits & 0xFF),
         ])
+    }
+}
+
+private actor ScanNoticeDismissDelayDriver {
+    private var nextRequestID = 0
+    private var queuedRequests: [Int] = []
+    private var requestWaiters: [CheckedContinuation<Int, Never>] = []
+    private var delayContinuations: [Int: CheckedContinuation<Void, Never>] = [:]
+
+    func wait() async {
+        let request = nextRequestID
+        nextRequestID += 1
+
+        if requestWaiters.isEmpty {
+            queuedRequests.append(request)
+        } else {
+            requestWaiters.removeFirst().resume(returning: request)
+        }
+
+        await withCheckedContinuation { continuation in
+            delayContinuations[request] = continuation
+        }
+    }
+
+    func nextRequest() async -> Int {
+        if !queuedRequests.isEmpty {
+            return queuedRequests.removeFirst()
+        }
+        return await withCheckedContinuation { continuation in
+            requestWaiters.append(continuation)
+        }
+    }
+
+    func resume(request: Int) {
+        guard let continuation = delayContinuations.removeValue(forKey: request) else {
+            preconditionFailure("No pending scan notice dismissal for request \(request)")
+        }
+        continuation.resume()
     }
 }

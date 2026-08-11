@@ -187,16 +187,4 @@ extension ScanView {
         dismiss()
     }
 
-    func showTemporaryNotice(_ message: String) {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scanNotice = message
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-            guard isViewActive else { return }
-            guard scanNotice == message else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                scanNotice = nil
-            }
-        }
-    }
 }
