@@ -22,6 +22,126 @@ enum L10n {
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
     }
 
+    // MARK: - Scan Coverage
+    enum ScanCoverage {
+        enum Key: String, CaseIterable {
+            case coverage = "scan.coverage_map.coverage"
+            case coverageAccessibilityValueFormat = "scan.coverage_map.accessibility.coverage_value_format"
+            case scoreAccessibilityValueFormat = "scan.coverage_map.accessibility.score_value_format"
+            case statusComplete = "scan.coverage_map.status.complete"
+            case statusGood = "scan.coverage_map.status.good"
+            case statusContinue = "scan.coverage_map.status.continue"
+            case statusInsufficient = "scan.coverage_map.status.insufficient"
+            case hintOppositeSide = "scan.coverage_map.hint.opposite_side"
+            case hintBackSide = "scan.coverage_map.hint.back_side"
+            case hintVerticalCoverage = "scan.coverage_map.hint.vertical_coverage"
+            case hintAngleUniformity = "scan.coverage_map.hint.angle_uniformity"
+            case hintCollecting = "scan.coverage_map.hint.collecting"
+            case hintIncreasing = "scan.coverage_map.hint.increasing"
+            case hintDecreasing = "scan.coverage_map.hint.decreasing"
+            case hintStable = "scan.coverage_map.hint.stable"
+            case spatialSampleOne = "scan.coverage_map.spatial_samples.one"
+            case spatialSampleOther = "scan.coverage_map.spatial_samples.other"
+            case metricDuration = "scan.coverage_map.metric.duration"
+            case metricCanopy = "scan.coverage_map.metric.canopy"
+            case metricAngle = "scan.coverage_map.metric.angle"
+            case metricUniformity = "scan.coverage_map.metric.uniformity"
+            case metricStability = "scan.coverage_map.metric.stability"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .coverage: return "扫描覆盖率"
+                case .coverageAccessibilityValueFormat: return "%1$d%%，时长 %2$@"
+                case .scoreAccessibilityValueFormat: return "%d%%"
+                case .statusComplete: return "扫描完成"
+                case .statusGood: return "覆盖良好"
+                case .statusContinue: return "继续扫描"
+                case .statusInsufficient: return "覆盖率不足"
+                case .hintOppositeSide: return "补扫树冠另一侧"
+                case .hintBackSide: return "补扫树冠背面"
+                case .hintVerticalCoverage: return "放慢补扫树冠上下层"
+                case .hintAngleUniformity: return "补扫稀疏视角"
+                case .hintCollecting: return "从主干开始慢速环绕"
+                case .hintIncreasing: return "正在发现树冠新区域"
+                case .hintDecreasing: return "补树冠背面后可保存"
+                case .hintStable: return "覆盖完整，可保存分析"
+                case .spatialSampleOne: return "%d 个空间采样"
+                case .spatialSampleOther: return "%d 个空间采样"
+                case .metricDuration: return "时长"
+                case .metricCanopy: return "树冠"
+                case .metricAngle: return "视角"
+                case .metricUniformity: return "均衡"
+                case .metricStability: return "稳定"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static var coverage: String { text(.coverage) }
+        static var metricDuration: String { text(.metricDuration) }
+        static var metricCanopy: String { text(.metricCanopy) }
+        static var metricAngle: String { text(.metricAngle) }
+        static var metricUniformity: String { text(.metricUniformity) }
+        static var metricStability: String { text(.metricStability) }
+
+        static func statusTitle(
+            for status: ScanCompletion.CoverageStatus,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch status {
+            case .complete: return text(.statusComplete, in: bundle)
+            case .good: return text(.statusGood, in: bundle)
+            case .continueScanning: return text(.statusContinue, in: bundle)
+            case .insufficient: return text(.statusInsufficient, in: bundle)
+            }
+        }
+
+        static func statusHint(
+            for hint: ScanCompletion.CoverageHint,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch hint {
+            case .oppositeSide: return text(.hintOppositeSide, in: bundle)
+            case .backSide: return text(.hintBackSide, in: bundle)
+            case .verticalCoverage: return text(.hintVerticalCoverage, in: bundle)
+            case .angleUniformity: return text(.hintAngleUniformity, in: bundle)
+            case .collecting: return text(.hintCollecting, in: bundle)
+            case .increasing: return text(.hintIncreasing, in: bundle)
+            case .decreasing: return text(.hintDecreasing, in: bundle)
+            case .stable: return text(.hintStable, in: bundle)
+            }
+        }
+
+        static func spatialSamples(_ count: Int, in bundle: Bundle = .main) -> String {
+            let key: Key = count == 1 ? .spatialSampleOne : .spatialSampleOther
+            return String(format: text(key, in: bundle), count)
+        }
+
+        static func coverageAccessibilityValue(
+            percent: Int,
+            duration: String,
+            in bundle: Bundle = .main
+        ) -> String {
+            String(
+                format: text(.coverageAccessibilityValueFormat, in: bundle),
+                percent,
+                duration
+            )
+        }
+
+        static func scoreAccessibilityValue(
+            _ score: Float,
+            in bundle: Bundle = .main
+        ) -> String {
+            let clampedScore = min(max(score, 0), 1)
+            let percent = Int((clampedScore * 100).rounded())
+            return String(format: text(.scoreAccessibilityValueFormat, in: bundle), percent)
+        }
+    }
+
     // MARK: - Scan Readiness
     enum ScanReadiness {
         enum Key: String {

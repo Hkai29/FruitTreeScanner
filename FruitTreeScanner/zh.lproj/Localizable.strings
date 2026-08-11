@@ -14,6 +14,30 @@
 "scan.discard_after_interruption" = "放弃扫描";
 "scan.interruption_accessibility_hint" = "重新开始会清除本次扫描数据；放弃不会生成扫描结果。";
 
+/* 扫描覆盖图 */
+"scan.coverage_map.coverage" = "扫描覆盖率";
+"scan.coverage_map.accessibility.coverage_value_format" = "%1$d%%，时长 %2$@";
+"scan.coverage_map.accessibility.score_value_format" = "%d%%";
+"scan.coverage_map.status.complete" = "扫描完成";
+"scan.coverage_map.status.good" = "覆盖良好";
+"scan.coverage_map.status.continue" = "继续扫描";
+"scan.coverage_map.status.insufficient" = "覆盖率不足";
+"scan.coverage_map.hint.opposite_side" = "补扫树冠另一侧";
+"scan.coverage_map.hint.back_side" = "补扫树冠背面";
+"scan.coverage_map.hint.vertical_coverage" = "放慢补扫树冠上下层";
+"scan.coverage_map.hint.angle_uniformity" = "补扫稀疏视角";
+"scan.coverage_map.hint.collecting" = "从主干开始慢速环绕";
+"scan.coverage_map.hint.increasing" = "正在发现树冠新区域";
+"scan.coverage_map.hint.decreasing" = "补树冠背面后可保存";
+"scan.coverage_map.hint.stable" = "覆盖完整，可保存分析";
+"scan.coverage_map.spatial_samples.one" = "%d 个空间采样";
+"scan.coverage_map.spatial_samples.other" = "%d 个空间采样";
+"scan.coverage_map.metric.duration" = "时长";
+"scan.coverage_map.metric.canopy" = "树冠";
+"scan.coverage_map.metric.angle" = "视角";
+"scan.coverage_map.metric.uniformity" = "均衡";
+"scan.coverage_map.metric.stability" = "稳定";
+
 /* 扫描就绪状态 */
 "scan.readiness.checking.title" = "正在检查设备能力";
 "scan.readiness.checking.message" = "正在确认相机、ARKit 和深度扫描链路。";

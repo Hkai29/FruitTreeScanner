@@ -14,6 +14,30 @@
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
 
+/* Scan Coverage Map */
+"scan.coverage_map.coverage" = "Scan coverage";
+"scan.coverage_map.accessibility.coverage_value_format" = "%1$d%%, duration %2$@";
+"scan.coverage_map.accessibility.score_value_format" = "%d%%";
+"scan.coverage_map.status.complete" = "Scan Complete";
+"scan.coverage_map.status.good" = "Good Coverage";
+"scan.coverage_map.status.continue" = "Continue Scanning";
+"scan.coverage_map.status.insufficient" = "Insufficient Coverage";
+"scan.coverage_map.hint.opposite_side" = "Scan the other side of the canopy";
+"scan.coverage_map.hint.back_side" = "Scan the back of the canopy";
+"scan.coverage_map.hint.vertical_coverage" = "Slow down and scan the upper and lower canopy";
+"scan.coverage_map.hint.angle_uniformity" = "Scan the sparsely covered angles";
+"scan.coverage_map.hint.collecting" = "Start at the trunk and circle the tree slowly";
+"scan.coverage_map.hint.increasing" = "Discovering new canopy areas";
+"scan.coverage_map.hint.decreasing" = "Scan the back of the canopy, then save";
+"scan.coverage_map.hint.stable" = "Coverage is complete. You can save and analyze.";
+"scan.coverage_map.spatial_samples.one" = "%d spatial sample";
+"scan.coverage_map.spatial_samples.other" = "%d spatial samples";
+"scan.coverage_map.metric.duration" = "Duration";
+"scan.coverage_map.metric.canopy" = "Canopy";
+"scan.coverage_map.metric.angle" = "Angles";
+"scan.coverage_map.metric.uniformity" = "Balance";
+"scan.coverage_map.metric.stability" = "Stability";
+
 /* Scan Readiness */
 "scan.readiness.checking.title" = "Checking Device Capabilities";
 "scan.readiness.checking.message" = "Checking the camera, ARKit, and depth scanning capabilities.";
