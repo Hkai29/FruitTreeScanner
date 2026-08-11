@@ -44,7 +44,7 @@ struct AddCalibrationRecentScanImportSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("从扫描记录带入")
+            Text(L10n.Calibration.importSection)
                 .font(Design.Typography.subheadlineMedium)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
@@ -53,25 +53,32 @@ struct AddCalibrationRecentScanImportSection: View {
                     Button {
                         onSelect(record)
                     } label: {
-                        Text("\(record.treeID) · \(record.fruitCount) 个 · \(String(format: "%.1f kg", record.yieldKg))")
+                        Text(L10n.Calibration.recentScanSummary(
+                            treeID: record.treeID,
+                            fruitCount: record.fruitCount,
+                            yieldKg: record.yieldKg
+                        ))
                     }
                 }
             } label: {
                 HStack {
                     Image(systemName: "clock.arrow.circlepath")
-                    Text("选择最近扫描")
+                    Text(L10n.Calibration.selectRecentScan)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(.horizontal, Design.Space.md)
-                .frame(height: 46)
+                .padding(.vertical, Design.Space.sm)
+                .frame(minHeight: 46)
                 .background(Design.Colors.Dark.bgElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
-            Text("会自动填入树编号、估算果数、估算产量和扫描日期。")
+            Text(L10n.Calibration.importHint)
                 .font(Design.Typography.caption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
@@ -86,18 +93,18 @@ struct AddCalibrationBasicInfoSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("基本信息")
+            Text(L10n.Calibration.basicInformation)
                 .font(Design.Typography.subheadlineMedium)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
-            TextField("树木编号 (如 T001)", text: $treeID)
+            TextField(L10n.Calibration.treeIDPlaceholder, text: $treeID)
                 .calibrationTextField()
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled(true)
 
-            Picker("水果类型", selection: $selectedFruitCategory) {
+            Picker(L10n.Calibration.fruitType, selection: $selectedFruitCategory) {
                 ForEach(FruitCategory.allCases, id: \.self) { category in
-                    Text(category.displayName).tag(category)
+                    Text(L10n.Fruit.name(for: category)).tag(category)
                 }
             }
             .pickerStyle(.menu)
@@ -114,25 +121,25 @@ struct AddCalibrationEstimateSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("算法估算结果")
+            Text(L10n.Calibration.estimatedSection)
                 .font(Design.Typography.subheadlineMedium)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             HStack {
-                TextField("果实数量", text: $estimatedFruitCount)
+                TextField(L10n.Calibration.estimatedFruitCount, text: $estimatedFruitCount)
                     .calibrationTextField()
                     .keyboardType(.numberPad)
 
-                Text("个")
+                Text(L10n.Calibration.countUnit)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             HStack {
-                TextField("估算产量", text: $estimatedYieldKg)
+                TextField(L10n.Calibration.estimatedYield, text: $estimatedYieldKg)
                     .calibrationTextField()
                     .keyboardType(.decimalPad)
 
-                Text("kg")
+                Text(L10n.Calibration.kilogramUnit)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
         }
@@ -147,29 +154,29 @@ struct AddCalibrationActualDataSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text("实际数据（可选）")
+            Text(L10n.Calibration.actualSection)
                 .font(Design.Typography.subheadlineMedium)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
-            Text("录入实际数据后，系统会自动计算误差")
+            Text(L10n.Calibration.actualHint)
                 .font(Design.Typography.caption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             HStack {
-                TextField("人工计数", text: $manualFruitCount)
+                TextField(L10n.Calibration.manualFruitCount, text: $manualFruitCount)
                     .calibrationTextField()
                     .keyboardType(.numberPad)
 
-                Text("个")
+                Text(L10n.Calibration.countUnit)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
 
             HStack {
-                TextField("实际产量", text: $actualYieldKg)
+                TextField(L10n.Calibration.actualYield, text: $actualYieldKg)
                     .calibrationTextField()
                     .keyboardType(.decimalPad)
 
-                Text("kg")
+                Text(L10n.Calibration.kilogramUnit)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
         }

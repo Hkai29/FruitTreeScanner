@@ -115,6 +115,25 @@
 "dashboard.mode.analytics" = "Analytics";
 "dashboard.action.calibration.title" = "Calibration";
 "dashboard.action.calibration.description" = "Fruit size and clustering";
+
+/* Add Calibration Record */
+"calibration.add.navigation_title" = "Add Calibration Record";
+"calibration.add.import_section" = "Import from a Scan";
+"calibration.add.select_recent_scan" = "Select Recent Scan";
+"calibration.add.import_hint" = "Automatically fills the tree ID, estimated fruit count, estimated yield, and scan date.";
+"calibration.add.recent_scan_format" = "%@ · Fruit count %d · %.1f kg";
+"calibration.add.basic_information" = "Basic Information";
+"calibration.add.tree_id_placeholder" = "Tree ID (e.g. T001)";
+"calibration.add.fruit_type" = "Fruit Type";
+"calibration.add.estimated_section" = "Algorithm Estimates";
+"calibration.add.estimated_fruit_count" = "Estimated Fruit Count";
+"calibration.add.estimated_yield" = "Estimated Yield";
+"calibration.add.actual_section" = "Ground Truth (Optional)";
+"calibration.add.actual_hint" = "Enter ground-truth data to calculate estimation errors automatically.";
+"calibration.add.manual_fruit_count" = "Manual Fruit Count";
+"calibration.add.actual_yield" = "Actual Yield";
+"calibration.add.count_unit" = "fruit";
+"calibration.add.kilogram_unit" = "kg";
 "dashboard.action.import_file.title" = "Import PLY";
 "dashboard.action.import_file.description" = "Add an existing scan";
 "dashboard.action.scan_history.title" = "Scan History";

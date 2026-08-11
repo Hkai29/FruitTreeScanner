@@ -1,5 +1,7 @@
 import XCTest
 import Combine
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -1978,6 +1980,143 @@ final class FruitModelsTests: XCTestCase {
 
     // MARK: - Calibration input parsing
 
+    func testAddCalibrationRecordCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "calibration.add.navigation_title": "Add Calibration Record",
+                "calibration.add.import_section": "Import from a Scan",
+                "calibration.add.select_recent_scan": "Select Recent Scan",
+                "calibration.add.import_hint": "Automatically fills the tree ID, estimated fruit count, estimated yield, and scan date.",
+                "calibration.add.recent_scan_format": "%@ · Fruit count %d · %.1f kg",
+                "calibration.add.basic_information": "Basic Information",
+                "calibration.add.tree_id_placeholder": "Tree ID (e.g. T001)",
+                "calibration.add.fruit_type": "Fruit Type",
+                "calibration.add.estimated_section": "Algorithm Estimates",
+                "calibration.add.estimated_fruit_count": "Estimated Fruit Count",
+                "calibration.add.estimated_yield": "Estimated Yield",
+                "calibration.add.actual_section": "Ground Truth (Optional)",
+                "calibration.add.actual_hint": "Enter ground-truth data to calculate estimation errors automatically.",
+                "calibration.add.manual_fruit_count": "Manual Fruit Count",
+                "calibration.add.actual_yield": "Actual Yield",
+                "calibration.add.count_unit": "fruit",
+                "calibration.add.kilogram_unit": "kg"
+            ],
+            "zh": [
+                "calibration.add.navigation_title": "添加校准记录",
+                "calibration.add.import_section": "从扫描记录带入",
+                "calibration.add.select_recent_scan": "选择最近扫描",
+                "calibration.add.import_hint": "会自动填入树编号、估算果数、估算产量和扫描日期。",
+                "calibration.add.recent_scan_format": "%@ · %d 个 · %.1f kg",
+                "calibration.add.basic_information": "基本信息",
+                "calibration.add.tree_id_placeholder": "树木编号 (如 T001)",
+                "calibration.add.fruit_type": "水果类型",
+                "calibration.add.estimated_section": "算法估算结果",
+                "calibration.add.estimated_fruit_count": "果实数量",
+                "calibration.add.estimated_yield": "估算产量",
+                "calibration.add.actual_section": "实际数据（可选）",
+                "calibration.add.actual_hint": "录入实际数据后，系统会自动计算误差",
+                "calibration.add.manual_fruit_count": "人工计数",
+                "calibration.add.actual_yield": "实际产量",
+                "calibration.add.count_unit": "个",
+                "calibration.add.kilogram_unit": "kg"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testRecentCalibrationScanSummaryPreservesDynamicValuesInEachLanguage() throws {
+        let englishBundle = try localizedBundle(language: "en")
+        let chineseBundle = try localizedBundle(language: "zh")
+
+        XCTAssertEqual(
+            L10n.Calibration.recentScanSummary(
+                treeID: "TREE-17",
+                fruitCount: 24,
+                yieldKg: 3.5,
+                in: englishBundle
+            ),
+            "TREE-17 · Fruit count 24 · 3.5 kg"
+        )
+        XCTAssertEqual(
+            L10n.Calibration.recentScanSummary(
+                treeID: "TREE-17",
+                fruitCount: 24,
+                yieldKg: 3.5,
+                in: chineseBundle
+            ),
+            "TREE-17 · 24 个 · 3.5 kg"
+        )
+    }
+
+    @MainActor
+    func testAddCalibrationRecordFormRendersAtAccessibilityTextSize() {
+        let recentRecord = ScanFileRecord(
+            id: "TREE-17.ply",
+            treeID: "TREE-17",
+            fileURL: URL(fileURLWithPath: "/tmp/TREE-17.ply"),
+            scanDate: Date(timeIntervalSince1970: 1_700_000_000),
+            fruitCount: 24,
+            yieldKg: 3.5,
+            fruitType: FruitCategory.apple.rawValue,
+            persistenceState: .complete
+        )
+        let rootView = AddCalibrationRecordForm(
+            recentRecords: [recentRecord],
+            treeID: .constant("TREE-17"),
+            estimatedFruitCount: .constant("24"),
+            estimatedYieldKg: .constant("3.50"),
+            manualFruitCount: .constant("22"),
+            actualYieldKg: .constant("3.25"),
+            selectedFruitCategory: .constant(.apple),
+            onSelectRecentScan: { _ in }
+        )
+        .frame(width: 390, height: 844, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.dynamicTypeSize, .accessibility3)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            didDraw = hostingController.view.drawHierarchy(
+                in: hostingController.view.bounds,
+                afterScreenUpdates: true
+            )
+        }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "AddCalibrationRecordForm-Accessibility3"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
+    }
+
     func testCalibrationInputParserRequiresNonNegativeEstimatedFruitCount() {
         XCTAssertEqual(CalibrationRecordInputParser.requiredNonNegativeInt(" 12 "), 12)
         XCTAssertEqual(CalibrationRecordInputParser.requiredNonNegativeInt("0"), 0)
@@ -2039,6 +2178,14 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(parsedActualYield, 1.25, accuracy: 0.001)
         XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("-1.25"))
         XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("inf"))
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
     }
 
     // MARK: - Historical comparison data integrity

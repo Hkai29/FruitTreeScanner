@@ -344,6 +344,40 @@ enum L10n {
         }
     }
 
+    // MARK: - Calibration
+    enum Calibration {
+        static let addRecordTitle = NSLocalizedString("calibration.add.navigation_title", value: "添加校准记录", comment: "Add calibration record navigation title")
+        static let importSection = NSLocalizedString("calibration.add.import_section", value: "从扫描记录带入", comment: "Import calibration values from a recent scan section")
+        static let selectRecentScan = NSLocalizedString("calibration.add.select_recent_scan", value: "选择最近扫描", comment: "Select a recent scan action")
+        static let importHint = NSLocalizedString("calibration.add.import_hint", value: "会自动填入树编号、估算果数、估算产量和扫描日期。", comment: "Recent scan import explanation")
+        static let basicInformation = NSLocalizedString("calibration.add.basic_information", value: "基本信息", comment: "Calibration basic information section")
+        static let treeIDPlaceholder = NSLocalizedString("calibration.add.tree_id_placeholder", value: "树木编号 (如 T001)", comment: "Calibration tree identifier field placeholder")
+        static let fruitType = NSLocalizedString("calibration.add.fruit_type", value: "水果类型", comment: "Calibration fruit type picker")
+        static let estimatedSection = NSLocalizedString("calibration.add.estimated_section", value: "算法估算结果", comment: "Algorithm estimates section")
+        static let estimatedFruitCount = NSLocalizedString("calibration.add.estimated_fruit_count", value: "果实数量", comment: "Estimated fruit count field")
+        static let estimatedYield = NSLocalizedString("calibration.add.estimated_yield", value: "估算产量", comment: "Estimated yield field")
+        static let actualSection = NSLocalizedString("calibration.add.actual_section", value: "实际数据（可选）", comment: "Optional ground truth section")
+        static let actualHint = NSLocalizedString("calibration.add.actual_hint", value: "录入实际数据后，系统会自动计算误差", comment: "Ground truth explanation")
+        static let manualFruitCount = NSLocalizedString("calibration.add.manual_fruit_count", value: "人工计数", comment: "Manual fruit count field")
+        static let actualYield = NSLocalizedString("calibration.add.actual_yield", value: "实际产量", comment: "Actual yield field")
+        static let countUnit = NSLocalizedString("calibration.add.count_unit", value: "个", comment: "Calibration fruit count unit")
+        static let kilogramUnit = NSLocalizedString("calibration.add.kilogram_unit", value: "kg", comment: "Calibration kilogram unit")
+
+        static func recentScanSummary(
+            treeID: String,
+            fruitCount: Int,
+            yieldKg: Float,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "calibration.add.recent_scan_format",
+                value: "%@ · %d 个 · %.1f kg",
+                table: nil
+            )
+            return String(format: format, treeID, fruitCount, Double(yieldKg))
+        }
+    }
+
     // MARK: - Quick Scan
     enum QuickScan {
         static let navigationTitle = NSLocalizedString("quick_scan.navigation_title", value: "快速扫描", comment: "Quick scan navigation title")

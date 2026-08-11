@@ -115,6 +115,25 @@
 "dashboard.mode.analytics" = "分析";
 "dashboard.action.calibration.title" = "校准参数";
 "dashboard.action.calibration.description" = "水果尺寸、聚类与误差记录";
+
+/* 新增校准记录 */
+"calibration.add.navigation_title" = "添加校准记录";
+"calibration.add.import_section" = "从扫描记录带入";
+"calibration.add.select_recent_scan" = "选择最近扫描";
+"calibration.add.import_hint" = "会自动填入树编号、估算果数、估算产量和扫描日期。";
+"calibration.add.recent_scan_format" = "%@ · %d 个 · %.1f kg";
+"calibration.add.basic_information" = "基本信息";
+"calibration.add.tree_id_placeholder" = "树木编号 (如 T001)";
+"calibration.add.fruit_type" = "水果类型";
+"calibration.add.estimated_section" = "算法估算结果";
+"calibration.add.estimated_fruit_count" = "果实数量";
+"calibration.add.estimated_yield" = "估算产量";
+"calibration.add.actual_section" = "实际数据（可选）";
+"calibration.add.actual_hint" = "录入实际数据后，系统会自动计算误差";
+"calibration.add.manual_fruit_count" = "人工计数";
+"calibration.add.actual_yield" = "实际产量";
+"calibration.add.count_unit" = "个";
+"calibration.add.kilogram_unit" = "kg";
 "dashboard.action.import_file.title" = "导入点云";
 "dashboard.action.import_file.description" = "加入已有 PLY 扫描文件";
 "dashboard.action.scan_history.title" = "扫描记录";
