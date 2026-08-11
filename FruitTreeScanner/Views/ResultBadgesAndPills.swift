@@ -4,13 +4,15 @@ struct ConfidenceBadge: View {
     let label: String
     let color: Color
 
+    @ScaledMetric(relativeTo: .caption) private var labelFontSize: CGFloat = 12
+
     var body: some View {
         HStack(spacing: 6) {
             Circle()
                 .fill(color)
                 .frame(width: 7, height: 7)
             Text(label)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: labelFontSize, weight: .semibold))
                 .foregroundColor(color)
         }
         .padding(.horizontal, 10)
@@ -23,17 +25,22 @@ struct ConfidenceBadge: View {
 struct ResultSummaryPill: View {
     let label: String
     let value: String
+    var allowsValueWrapping = false
+
+    @ScaledMetric(relativeTo: .caption2) private var labelFontSize: CGFloat = 10
+    @ScaledMetric(relativeTo: .caption) private var valueFontSize: CGFloat = 12
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: labelFontSize, weight: .medium))
                 .foregroundColor(Design.Colors.Dark.textMuted)
             Text(value)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .font(.system(size: valueFontSize, weight: .semibold, design: .monospaced))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .lineLimit(allowsValueWrapping ? nil : 1)
+                .minimumScaleFactor(allowsValueWrapping ? 1 : 0.7)
+                .fixedSize(horizontal: false, vertical: allowsValueWrapping)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
