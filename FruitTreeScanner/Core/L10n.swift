@@ -21,6 +21,18 @@ enum L10n {
         static let restartAfterInterruption = NSLocalizedString("scan.restart_after_interruption", value: "重新开始", comment: "Restart interrupted scan action")
         static let discardAfterInterruption = NSLocalizedString("scan.discard_after_interruption", value: "放弃扫描", comment: "Discard interrupted scan action")
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
+        static let guideControl = NSLocalizedString("scan.control.guide", value: "引导", comment: "Scan guide control")
+        static let measureControl = NSLocalizedString("scan.control.measure", value: "测量", comment: "Scan measurement control")
+        static let cancelControl = NSLocalizedString("scan.control.cancel", value: "取消", comment: "Cancel scan control")
+        static let finishControl = NSLocalizedString("scan.control.finish", value: "完成", comment: "Finish scan control")
+        static let startRecording = NSLocalizedString("scan.control.start_recording", value: "开始录制", comment: "Start scan recording control")
+        static let stopRecording = NSLocalizedString("scan.control.stop_recording", value: "停止录制", comment: "Stop scan recording control")
+        static let recordAgain = NSLocalizedString("scan.control.record_again", value: "重新录制", comment: "Record scan again control")
+        static let processing = NSLocalizedString("scan.control.processing", value: "处理中", comment: "Scan control processing state")
+        static let cancelConfirmationTitle = NSLocalizedString("scan.cancel_confirmation.title", value: "取消本次扫描？", comment: "Cancel scan confirmation title")
+        static let continueScanning = NSLocalizedString("scan.cancel_confirmation.continue", value: "继续扫描", comment: "Continue scan confirmation action")
+        static let discardScan = NSLocalizedString("scan.cancel_confirmation.discard", value: "放弃", comment: "Discard scan confirmation action")
+        static let cancelConfirmationMessage = NSLocalizedString("scan.cancel_confirmation.message", value: "已采集的点云不会保存。若要保留本次采集，请点击完成。", comment: "Cancel scan data loss warning")
     }
 
     // MARK: - Scan Completion

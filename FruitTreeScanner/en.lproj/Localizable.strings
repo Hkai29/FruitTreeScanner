@@ -21,6 +21,18 @@
 "scan.result_persistence.success_notice" = "Result files saved.";
 "scan.result_persistence.failure_notice" = "Result files still could not be saved. Check storage space and retry.";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
+"scan.control.guide" = "Guide";
+"scan.control.measure" = "Measure";
+"scan.control.cancel" = "Cancel";
+"scan.control.finish" = "Finish";
+"scan.control.start_recording" = "Start Recording";
+"scan.control.stop_recording" = "Stop Recording";
+"scan.control.record_again" = "Record Again";
+"scan.control.processing" = "Processing";
+"scan.cancel_confirmation.title" = "Cancel This Scan?";
+"scan.cancel_confirmation.continue" = "Continue Scanning";
+"scan.cancel_confirmation.discard" = "Discard";
+"scan.cancel_confirmation.message" = "The captured point cloud won't be saved. To keep this scan, tap Finish.";
 
 /* Scan Completion */
 "scan.completion.status.complete" = "Scan Complete";
