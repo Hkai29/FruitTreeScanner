@@ -146,6 +146,190 @@ final class ScanReadinessTests: XCTestCase {
     }
 }
 
+final class ScanTransientFeedbackLocalizationTests: XCTestCase {
+    private typealias GuidanceExpectation = (
+        hint: ScanGuidanceHint,
+        englishTitle: String,
+        englishMessage: String,
+        chineseTitle: String,
+        chineseMessage: String
+    )
+
+    private let guidanceExpectations: [GuidanceExpectation] = [
+        (
+            .tooFast,
+            "Moving Too Fast",
+            "Slow down so the canopy and main branches overlap between passes.",
+            "移动太快",
+            "放慢脚步，让树冠和主枝有足够重叠"
+        ),
+        (
+            .tooClose,
+            "Too Close",
+            "Step back to keep the full tree outline in view.",
+            "距离太近",
+            "后退一步，先保住整棵树轮廓"
+        ),
+        (
+            .tooFar,
+            "Too Far",
+            "Move closer to the tree and prioritize the trunk and fruit-dense areas.",
+            "距离太远",
+            "靠近果树，优先补主干和果实密集区"
+        ),
+        (
+            .trackingLost,
+            "Tracking Lost",
+            "Aim at the trunk, ground, or a clearly textured branch to restore tracking.",
+            "追踪丢失",
+            "对准树干、地面或纹理清晰的枝条恢复追踪"
+        ),
+        (
+            .lowLight,
+            "Low Light",
+            "Low light reduces fruit detection and texture quality.",
+            "光线不足",
+            "光线偏暗，果实检测和纹理质量会下降"
+        ),
+        (
+            .sparseDepth,
+            "Sparse Canopy Depth",
+            "Keep less sky in view, move closer to the canopy, and slow down.",
+            "树冠深度稀疏",
+            "减少天空占比，靠近树冠并放慢移动速度"
+        ),
+        (
+            .goodPace,
+            "Good Pace",
+            "Maintain this speed and continue around the tree to cover the hidden side.",
+            "速度良好",
+            "保持速度，继续绕树补齐背面盲区"
+        ),
+    ]
+
+    func testEnglishTransientFeedbackCopyAndAnnouncements() throws {
+        let bundle = try localizedBundle(language: "en")
+
+        for expectation in guidanceExpectations {
+            assertGuidance(
+                expectation,
+                title: expectation.englishTitle,
+                message: expectation.englishMessage,
+                announcement: "\(expectation.englishTitle). \(expectation.englishMessage)",
+                in: bundle
+            )
+        }
+
+        XCTAssertEqual(L10n.Scan.coverageCompleteTitle(in: bundle), "Sufficient Scan Coverage")
+        XCTAssertEqual(L10n.Scan.coverageCompleteMessage(in: bundle), "Tap Finish to save the result.")
+        XCTAssertEqual(
+            L10n.Scan.transientAnnouncement(
+                title: L10n.Scan.coverageCompleteTitle(in: bundle),
+                message: L10n.Scan.coverageCompleteMessage(in: bundle),
+                in: bundle
+            ),
+            "Sufficient Scan Coverage. Tap Finish to save the result."
+        )
+    }
+
+    func testChineseTransientFeedbackCopyAndAnnouncements() throws {
+        let bundle = try localizedBundle(language: "zh")
+
+        for expectation in guidanceExpectations {
+            assertGuidance(
+                expectation,
+                title: expectation.chineseTitle,
+                message: expectation.chineseMessage,
+                announcement: "\(expectation.chineseTitle)。\(expectation.chineseMessage)",
+                in: bundle
+            )
+        }
+
+        XCTAssertEqual(L10n.Scan.coverageCompleteTitle(in: bundle), "扫描覆盖充足")
+        XCTAssertEqual(L10n.Scan.coverageCompleteMessage(in: bundle), "可以点击完成保存结果")
+        XCTAssertEqual(
+            L10n.Scan.transientAnnouncement(
+                title: L10n.Scan.coverageCompleteTitle(in: bundle),
+                message: L10n.Scan.coverageCompleteMessage(in: bundle),
+                in: bundle
+            ),
+            "扫描覆盖充足。可以点击完成保存结果"
+        )
+    }
+
+    func testNoGuidanceHasNoVisibleOrAnnouncedCopy() throws {
+        for language in ["en", "zh"] {
+            let bundle = try localizedBundle(language: language)
+            XCTAssertEqual(L10n.ScanGuidance.title(for: .none, in: bundle), "")
+            XCTAssertEqual(L10n.ScanGuidance.message(for: .none, in: bundle), "")
+            XCTAssertEqual(L10n.ScanGuidance.announcement(for: .none, in: bundle), "")
+        }
+    }
+
+    @MainActor
+    func testAnnouncementPostsOnlyForNonemptyCopyWhileVoiceOverIsRunning() {
+        var postedMessages: [String] = []
+        let poster: ScanTransientAccessibility.AnnouncementPoster = {
+            postedMessages.append($0)
+        }
+
+        ScanTransientAccessibility.announce(
+            "Tracking Lost",
+            isVoiceOverRunning: false,
+            poster: poster
+        )
+        ScanTransientAccessibility.announce(
+            "",
+            isVoiceOverRunning: true,
+            poster: poster
+        )
+        ScanTransientAccessibility.announce(
+            "Tracking Lost",
+            isVoiceOverRunning: true,
+            poster: poster
+        )
+
+        XCTAssertEqual(postedMessages, ["Tracking Lost"])
+    }
+
+    private func assertGuidance(
+        _ expectation: GuidanceExpectation,
+        title: String,
+        message: String,
+        announcement: String,
+        in bundle: Bundle,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            L10n.ScanGuidance.title(for: expectation.hint, in: bundle),
+            title,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            L10n.ScanGuidance.message(for: expectation.hint, in: bundle),
+            message,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            L10n.ScanGuidance.announcement(for: expectation.hint, in: bundle),
+            announcement,
+            file: file,
+            line: line
+        )
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
+    }
+}
+
 final class ScanLifecycleControllerTests: XCTestCase {
     func testRecordingToInactiveStopsReliableEvidenceAndDoesNotAutoResume() {
         let controller = ScanLifecycleController()

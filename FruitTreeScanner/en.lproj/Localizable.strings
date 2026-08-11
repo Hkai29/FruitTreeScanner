@@ -4,7 +4,9 @@
 "scan.recording" = "Recording";
 "scan.no_point_cloud" = "Please record a point cloud before measuring";
 "scan.export_failed" = "Point cloud export failed (file write error). Check storage and try again.";
-"scan.coverage_complete" = "Coverage Complete";
+"scan.coverage_complete" = "Sufficient Scan Coverage";
+"scan.coverage_complete_hint" = "Tap Finish to save the result.";
+"scan.transient_accessibility_announcement" = "%1$@. %2$@";
 "scan.scanning" = "Scanning";
 "scan.detecting" = "Detecting...";
 "scan.interruption_title" = "Scan Interrupted";
@@ -13,6 +15,22 @@
 "scan.restart_after_interruption" = "Restart Scan";
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
+
+/* Scan Guidance */
+"scan.guidance.too_fast.title" = "Moving Too Fast";
+"scan.guidance.too_fast.message" = "Slow down so the canopy and main branches overlap between passes.";
+"scan.guidance.too_close.title" = "Too Close";
+"scan.guidance.too_close.message" = "Step back to keep the full tree outline in view.";
+"scan.guidance.too_far.title" = "Too Far";
+"scan.guidance.too_far.message" = "Move closer to the tree and prioritize the trunk and fruit-dense areas.";
+"scan.guidance.tracking_lost.title" = "Tracking Lost";
+"scan.guidance.tracking_lost.message" = "Aim at the trunk, ground, or a clearly textured branch to restore tracking.";
+"scan.guidance.low_light.title" = "Low Light";
+"scan.guidance.low_light.message" = "Low light reduces fruit detection and texture quality.";
+"scan.guidance.sparse_depth.title" = "Sparse Canopy Depth";
+"scan.guidance.sparse_depth.message" = "Keep less sky in view, move closer to the canopy, and slow down.";
+"scan.guidance.good_pace.title" = "Good Pace";
+"scan.guidance.good_pace.message" = "Maintain this speed and continue around the tree to cover the hidden side.";
 
 /* Scan Readiness */
 "scan.readiness.checking.title" = "Checking Device Capabilities";

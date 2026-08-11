@@ -52,14 +52,8 @@ extension ScanView {
     }
 
     func handleCoveragePercentChange(_ newValue: Int) {
-        if newValue >= 85 && !hasShownCoverageComplete && isRecording {
-            showCoverageComplete = true
-            hasShownCoverageComplete = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                guard isViewActive else { return }
-                withAnimation { showCoverageComplete = false }
-            }
-        }
+        guard newValue >= 85, isRecording else { return }
+        presentCoverageCompletionIfNeeded()
     }
 
     func toggleMeasurement() {
@@ -104,6 +98,7 @@ extension ScanView {
         }
         clearMeasurementState()
         createDirectory(folder: "scans")
+        beginCoverageCompletionForNewScan()
         coordinator.startRecording(selectedCategory: selectedFruitCategory)
         lifecycleSnapshot = coordinator.lifecycleSnapshot()
         isRecording = true
@@ -136,6 +131,7 @@ extension ScanView {
         coordinator.stopRecording()
         lifecycleSnapshot = coordinator.lifecycleSnapshot()
         isRecording = false
+        pauseCoverageCompletion()
     }
 
     func requestCancelScan() {
@@ -174,6 +170,7 @@ extension ScanView {
             showTemporaryNotice(L10n.Scan.sessionFailureTitle)
             return
         }
+        beginCoverageCompletionForNewScan()
         isRecording = true
         showGuide = false
         showLifecycleRecovery = false
@@ -187,16 +184,4 @@ extension ScanView {
         dismiss()
     }
 
-    func showTemporaryNotice(_ message: String) {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scanNotice = message
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-            guard isViewActive else { return }
-            guard scanNotice == message else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                scanNotice = nil
-            }
-        }
-    }
 }

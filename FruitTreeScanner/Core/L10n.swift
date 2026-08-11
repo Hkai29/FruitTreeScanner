@@ -11,7 +11,8 @@ enum L10n {
         static let recording = NSLocalizedString("scan.recording", value: "录制中", comment: "Recording status")
         static let noPointCloud = NSLocalizedString("scan.no_point_cloud", value: "请先录制一段点云后再测量", comment: "No point cloud notice")
         static let exportFailed = NSLocalizedString("scan.export_failed", value: "点云导出失败（文件写入错误），请检查存储空间后重试", comment: "PLY export failure")
-        static let coverageComplete = NSLocalizedString("scan.coverage_complete", value: "覆盖完成", comment: "Scan coverage complete toast")
+        static var coverageComplete: String { coverageCompleteTitle() }
+        static var coverageCompleteHint: String { coverageCompleteMessage() }
         static let scanning = NSLocalizedString("scan.scanning", value: "扫描中", comment: "Scanning status")
         static let detecting = NSLocalizedString("scan.detecting", value: "检测中...", comment: "Detecting camera resolution")
         static let interruptionTitle = NSLocalizedString("scan.interruption_title", value: "扫描已中断", comment: "Scan interruption alert title")
@@ -20,6 +21,123 @@ enum L10n {
         static let restartAfterInterruption = NSLocalizedString("scan.restart_after_interruption", value: "重新开始", comment: "Restart interrupted scan action")
         static let discardAfterInterruption = NSLocalizedString("scan.discard_after_interruption", value: "放弃扫描", comment: "Discard interrupted scan action")
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
+
+        static func coverageCompleteTitle(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "scan.coverage_complete",
+                value: "扫描覆盖充足",
+                table: nil
+            )
+        }
+
+        static func coverageCompleteMessage(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "scan.coverage_complete_hint",
+                value: "可以点击完成保存结果",
+                table: nil
+            )
+        }
+
+        static func transientAnnouncement(
+            title: String,
+            message: String,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "scan.transient_accessibility_announcement",
+                value: "%1$@。%2$@",
+                table: nil
+            )
+            return String(format: format, title, message)
+        }
+    }
+
+    // MARK: - Scan Guidance
+    enum ScanGuidance {
+        enum Key: String {
+            case tooFastTitle = "scan.guidance.too_fast.title"
+            case tooFastMessage = "scan.guidance.too_fast.message"
+            case tooCloseTitle = "scan.guidance.too_close.title"
+            case tooCloseMessage = "scan.guidance.too_close.message"
+            case tooFarTitle = "scan.guidance.too_far.title"
+            case tooFarMessage = "scan.guidance.too_far.message"
+            case trackingLostTitle = "scan.guidance.tracking_lost.title"
+            case trackingLostMessage = "scan.guidance.tracking_lost.message"
+            case lowLightTitle = "scan.guidance.low_light.title"
+            case lowLightMessage = "scan.guidance.low_light.message"
+            case sparseDepthTitle = "scan.guidance.sparse_depth.title"
+            case sparseDepthMessage = "scan.guidance.sparse_depth.message"
+            case goodPaceTitle = "scan.guidance.good_pace.title"
+            case goodPaceMessage = "scan.guidance.good_pace.message"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .tooFastTitle: return "移动太快"
+                case .tooFastMessage: return "放慢脚步，让树冠和主枝有足够重叠"
+                case .tooCloseTitle: return "距离太近"
+                case .tooCloseMessage: return "后退一步，先保住整棵树轮廓"
+                case .tooFarTitle: return "距离太远"
+                case .tooFarMessage: return "靠近果树，优先补主干和果实密集区"
+                case .trackingLostTitle: return "追踪丢失"
+                case .trackingLostMessage: return "对准树干、地面或纹理清晰的枝条恢复追踪"
+                case .lowLightTitle: return "光线不足"
+                case .lowLightMessage: return "光线偏暗，果实检测和纹理质量会下降"
+                case .sparseDepthTitle: return "树冠深度稀疏"
+                case .sparseDepthMessage: return "减少天空占比，靠近树冠并放慢移动速度"
+                case .goodPaceTitle: return "速度良好"
+                case .goodPaceMessage: return "保持速度，继续绕树补齐背面盲区"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static func title(for hint: ScanGuidanceHint, in bundle: Bundle = .main) -> String {
+            guard let key = titleKey(for: hint) else { return "" }
+            return text(key, in: bundle)
+        }
+
+        static func message(for hint: ScanGuidanceHint, in bundle: Bundle = .main) -> String {
+            guard let key = messageKey(for: hint) else { return "" }
+            return text(key, in: bundle)
+        }
+
+        static func announcement(for hint: ScanGuidanceHint, in bundle: Bundle = .main) -> String {
+            guard hint != .none else { return "" }
+            return Scan.transientAnnouncement(
+                title: title(for: hint, in: bundle),
+                message: message(for: hint, in: bundle),
+                in: bundle
+            )
+        }
+
+        private static func titleKey(for hint: ScanGuidanceHint) -> Key? {
+            switch hint {
+            case .none: return nil
+            case .tooFast: return .tooFastTitle
+            case .tooClose: return .tooCloseTitle
+            case .tooFar: return .tooFarTitle
+            case .trackingLost: return .trackingLostTitle
+            case .lowLight: return .lowLightTitle
+            case .sparseDepth: return .sparseDepthTitle
+            case .goodPace: return .goodPaceTitle
+            }
+        }
+
+        private static func messageKey(for hint: ScanGuidanceHint) -> Key? {
+            switch hint {
+            case .none: return nil
+            case .tooFast: return .tooFastMessage
+            case .tooClose: return .tooCloseMessage
+            case .tooFar: return .tooFarMessage
+            case .trackingLost: return .trackingLostMessage
+            case .lowLight: return .lowLightMessage
+            case .sparseDepth: return .sparseDepthMessage
+            case .goodPace: return .goodPaceMessage
+            }
+        }
     }
 
     // MARK: - Scan Readiness
