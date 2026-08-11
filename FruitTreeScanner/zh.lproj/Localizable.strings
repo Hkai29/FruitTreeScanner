@@ -828,6 +828,7 @@
 "import.status.error_title" = "导入失败";
 "import.button.select" = "选择 PLY 文件";
 "import.button.continue" = "继续导入 PLY 文件";
+"import.button.hint" = "打开文件应用，选择一个 PLY 点云文件。";
 "import.rule.history" = "导入后会出现在扫描记录";
 "import.rule.metadata" = "保留可读取的扫描元数据";
 "import.rule.duplicate" = "同名文件会自动生成新副本";

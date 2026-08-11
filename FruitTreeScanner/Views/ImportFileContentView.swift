@@ -21,13 +21,16 @@ struct ImportFileContentView: View {
     }
 
     private var importButton: some View {
-        Button(action: onImportTap) {
+        let title = status.isSuccess ? L10n.Import.continueButton : L10n.Import.selectButton
+
+        return Button(action: onImportTap) {
             HStack(spacing: 10) {
                 Image(systemName: "square.and.arrow.down")
                     .font(.headline.weight(.semibold))
                     .accessibilityHidden(true)
-                Text(status.isSuccess ? L10n.Import.continueButton : L10n.Import.selectButton)
+                Text(title)
                     .font(.headline.weight(.semibold))
+                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
                 Spacer(minLength: 0)
@@ -48,6 +51,8 @@ struct ImportFileContentView: View {
         .buttonStyle(.plain)
         .disabled(isProcessing)
         .opacity(isProcessing ? 0.6 : 1)
-        .accessibilityLabel(status.isSuccess ? L10n.Import.continueButton : L10n.Import.selectButton)
+        .accessibilityLabel(title)
+        .accessibilityHint(L10n.Import.selectButtonHint)
+        .accessibilityIdentifier("import.selectFile")
     }
 }

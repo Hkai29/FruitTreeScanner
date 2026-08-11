@@ -828,6 +828,7 @@
 "import.status.error_title" = "Import Failed";
 "import.button.select" = "Choose PLY File";
 "import.button.continue" = "Import Another PLY File";
+"import.button.hint" = "Opens Files to choose one PLY point-cloud file.";
 "import.rule.history" = "Imported files appear in Scan History";
 "import.rule.metadata" = "Readable scan metadata is preserved";
 "import.rule.duplicate" = "Duplicate names create a new copy";

@@ -9,6 +9,10 @@ struct ImportHeader: View {
             icon: "square.and.arrow.down",
             accent: Design.Colors.Dark.info
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.Import.headerTitle)
+        .accessibilityValue(L10n.Import.headerSubtitle)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -32,10 +36,12 @@ struct ImportStatusPanel: View {
                         ProgressView()
                             .scaleEffect(0.75)
                             .tint(tint)
+                            .accessibilityHidden(true)
                     } else {
                         Image(systemName: icon)
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(tint)
+                            .accessibilityHidden(true)
                     }
                 }
                 .accessibilityHidden(true)
@@ -58,6 +64,10 @@ struct ImportStatusPanel: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .darkSurface(cornerRadius: 10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(message)
+        .accessibilityIdentifier("import.status")
     }
 }
 
