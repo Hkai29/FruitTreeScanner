@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class CalibrationRecordPersistenceTests: XCTestCase {
@@ -206,6 +208,207 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
         XCTAssertEqual(metrics.yieldSampleCount, 1)
         XCTAssertEqual(try XCTUnwrap(metrics.countMAE), 1, accuracy: 0.000_1)
         XCTAssertEqual(try XCTUnwrap(metrics.yieldMAE), 1, accuracy: 0.000_1)
+    }
+
+    func testCalibrationWorkspaceCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "calibration.workspace.title": "Algorithm Calibration",
+                "calibration.workspace.subtitle": "Tune yield estimates using measured fruit size, clustering thresholds, and error records.",
+                "calibration.workspace.close": "Close",
+                "calibration.workspace.add_record_accessibility": "Add Calibration Record",
+                "calibration.workspace.delete_title": "Delete Calibration Record",
+                "calibration.workspace.delete_message": "This calibration record will be removed from this device. The original scan record will not be deleted.",
+                "calibration.workspace.parameters_title": "Algorithm Parameters",
+                "calibration.workspace.minimum_cluster_points": "Minimum Cluster Points",
+                "calibration.workspace.maximum_cluster_diameter": "Maximum Cluster Diameter (m)",
+                "calibration.workspace.minimum_sphericity": "Minimum Sphericity",
+                "calibration.workspace.hue_range": "HSV Hue Range",
+                "calibration.workspace.statistics_title": "Error Statistics",
+                "calibration.workspace.statistics_empty": "No calibration data yet",
+                "calibration.workspace.count_mape": "Fruit Count MAPE",
+                "calibration.workspace.yield_mape": "Yield MAPE",
+                "calibration.workspace.record_count": "Calibrations",
+                "calibration.workspace.records_title": "Calibration Records",
+                "calibration.workspace.records_empty_title": "No Calibration Records",
+                "calibration.workspace.records_empty_message": "Add a manual fruit count or actual weight to compare estimation errors here.",
+                "calibration.workspace.add_record": "Add Record",
+                "calibration.workspace.tree_format": "Tree #%@",
+                "calibration.workspace.estimated": "Estimated",
+                "calibration.workspace.actual": "Actual",
+                "calibration.workspace.delete_record_accessibility": "Delete Calibration Record",
+                "calibration.workspace.count_error": "Count",
+                "calibration.workspace.yield_error": "Yield",
+                "calibration.workspace.fruit_count.one": "%d fruit",
+                "calibration.workspace.fruit_count.other": "%d fruits",
+                "calibration.workspace.yield_format": "%.1f kg",
+                "calibration.workspace.count_yield_format": "%@ / %@"
+            ],
+            "zh": [
+                "calibration.workspace.title": "算法校准",
+                "calibration.workspace.subtitle": "用实测果径、聚类阈值和误差记录调准产量估算。",
+                "calibration.workspace.close": "关闭",
+                "calibration.workspace.add_record_accessibility": "添加校准记录",
+                "calibration.workspace.delete_title": "删除校准记录",
+                "calibration.workspace.delete_message": "这条校准记录会从本机移除，扫描原始记录不会被删除。",
+                "calibration.workspace.parameters_title": "算法参数",
+                "calibration.workspace.minimum_cluster_points": "最小聚类点数",
+                "calibration.workspace.maximum_cluster_diameter": "最大聚类直径 (m)",
+                "calibration.workspace.minimum_sphericity": "最小球形度",
+                "calibration.workspace.hue_range": "HSV 色调范围",
+                "calibration.workspace.statistics_title": "误差统计",
+                "calibration.workspace.statistics_empty": "暂无校准数据",
+                "calibration.workspace.count_mape": "果数 MAPE",
+                "calibration.workspace.yield_mape": "产量 MAPE",
+                "calibration.workspace.record_count": "校准次数",
+                "calibration.workspace.records_title": "校准记录",
+                "calibration.workspace.records_empty_title": "暂无校准记录",
+                "calibration.workspace.records_empty_message": "添加人工计数或实际重量后，这里会显示误差对比。",
+                "calibration.workspace.add_record": "添加记录",
+                "calibration.workspace.tree_format": "树 #%@",
+                "calibration.workspace.estimated": "估算",
+                "calibration.workspace.actual": "实际",
+                "calibration.workspace.delete_record_accessibility": "删除校准记录",
+                "calibration.workspace.count_error": "计数",
+                "calibration.workspace.yield_error": "产量",
+                "calibration.workspace.fruit_count.one": "%d 个",
+                "calibration.workspace.fruit_count.other": "%d 个",
+                "calibration.workspace.yield_format": "%.1f kg",
+                "calibration.workspace.count_yield_format": "%@ / %@"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try localizedBundle(language: language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    bundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testCalibrationWorkspaceFormatsDynamicRecordValuesInEachLanguage() throws {
+        let englishBundle = try localizedBundle(language: "en")
+        let chineseBundle = try localizedBundle(language: "zh")
+
+        XCTAssertEqual(
+            L10n.CalibrationWorkspace.treeTitle("TREE-17", in: englishBundle),
+            "Tree #TREE-17"
+        )
+        XCTAssertEqual(L10n.CalibrationWorkspace.fruitCount(1, in: englishBundle), "1 fruit")
+        XCTAssertEqual(L10n.CalibrationWorkspace.fruitCount(24, in: englishBundle), "24 fruits")
+        XCTAssertEqual(
+            L10n.CalibrationWorkspace.countAndYield(
+                count: 24,
+                yieldKilograms: 3.5,
+                locale: Locale(identifier: "en_US"),
+                in: englishBundle
+            ),
+            "24 fruits / 3.5 kg"
+        )
+
+        XCTAssertEqual(
+            L10n.CalibrationWorkspace.treeTitle("TREE-17", in: chineseBundle),
+            "树 #TREE-17"
+        )
+        XCTAssertEqual(L10n.CalibrationWorkspace.fruitCount(1, in: chineseBundle), "1 个")
+        XCTAssertEqual(L10n.CalibrationWorkspace.fruitCount(24, in: chineseBundle), "24 个")
+        XCTAssertEqual(
+            L10n.CalibrationWorkspace.countAndYield(
+                count: 24,
+                yieldKilograms: 3.5,
+                locale: Locale(identifier: "zh_CN"),
+                in: chineseBundle
+            ),
+            "24 个 / 3.5 kg"
+        )
+    }
+
+    @MainActor
+    func testCalibrationWorkspaceComponentsRenderAtAccessibilityTextSize() {
+        let record = CalibrationRecord(
+            id: UUID(uuidString: "B4B4B4B4-B4B4-4B4B-8B4B-B4B4B4B4B4B4")!,
+            treeID: "TREE-17",
+            scanDate: Date(timeIntervalSince1970: 1_780_000_000),
+            estimatedFruitCount: 24,
+            manualFruitCount: 22,
+            estimatedYieldKg: 3.5,
+            actualYieldKg: 3.25,
+            fruitType: FruitCategory.apple.rawValue
+        )
+
+        assertAccessibleRender(
+            CalibrationParametersCard(
+                maxDiameter: .constant(0.12),
+                minClusterPoints: .constant(24),
+                sphericity: .constant(0.5),
+                onCommitMinClusterPoints: {},
+                onCommitMaxDiameter: {},
+                onCommitSphericity: {}
+            ),
+            name: "CalibrationParameters-Accessibility3"
+        )
+        assertAccessibleRender(
+            CalibrationStatisticsCard(records: [record]),
+            name: "CalibrationStatistics-Accessibility3"
+        )
+        assertAccessibleRender(
+            CalibrationRecordsSection(records: [record], onAdd: {}, onDelete: { _ in }),
+            name: "CalibrationRecords-Accessibility3"
+        )
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
+    }
+
+    @MainActor
+    private func assertAccessibleRender<Content: View>(
+        _ content: Content,
+        name: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let rootView = content
+            .padding(16)
+            .frame(width: 390, height: 844, alignment: .top)
+            .background(Design.Colors.Dark.bgDeep)
+            .environment(\.dynamicTypeSize, .accessibility3)
+            .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            didDraw = hostingController.view.drawHierarchy(
+                in: hostingController.view.bounds,
+                afterScreenUpdates: true
+            )
+        }
+
+        XCTAssertTrue(didDraw, file: file, line: line)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844), file: file, line: line)
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
     }
 
     private func temporaryDirectory() -> URL {

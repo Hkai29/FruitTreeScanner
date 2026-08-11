@@ -31,16 +31,16 @@ struct AddCalibrationRecordView: View {
                     onSelectRecentScan: applyScanRecord
                 )
             }
-            .navigationTitle("添加校准记录")
+            .navigationTitle(L10n.Calibration.addRecordTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button(L10n.Common.cancel) {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button(L10n.Common.save) {
                         saveRecord()
                     }
                     .disabled(!canSave)

@@ -344,6 +344,117 @@ enum L10n {
         }
     }
 
+    // MARK: - Calibration
+    enum Calibration {
+        static let addRecordTitle = NSLocalizedString("calibration.add.navigation_title", value: "添加校准记录", comment: "Add calibration record navigation title")
+        static let importSection = NSLocalizedString("calibration.add.import_section", value: "从扫描记录带入", comment: "Import calibration values from a recent scan section")
+        static let selectRecentScan = NSLocalizedString("calibration.add.select_recent_scan", value: "选择最近扫描", comment: "Select a recent scan action")
+        static let importHint = NSLocalizedString("calibration.add.import_hint", value: "会自动填入树编号、估算果数、估算产量和扫描日期。", comment: "Recent scan import explanation")
+        static let basicInformation = NSLocalizedString("calibration.add.basic_information", value: "基本信息", comment: "Calibration basic information section")
+        static let treeIDPlaceholder = NSLocalizedString("calibration.add.tree_id_placeholder", value: "树木编号 (如 T001)", comment: "Calibration tree identifier field placeholder")
+        static let fruitType = NSLocalizedString("calibration.add.fruit_type", value: "水果类型", comment: "Calibration fruit type picker")
+        static let estimatedSection = NSLocalizedString("calibration.add.estimated_section", value: "算法估算结果", comment: "Algorithm estimates section")
+        static let estimatedFruitCount = NSLocalizedString("calibration.add.estimated_fruit_count", value: "果实数量", comment: "Estimated fruit count field")
+        static let estimatedYield = NSLocalizedString("calibration.add.estimated_yield", value: "估算产量", comment: "Estimated yield field")
+        static let actualSection = NSLocalizedString("calibration.add.actual_section", value: "实际数据（可选）", comment: "Optional ground truth section")
+        static let actualHint = NSLocalizedString("calibration.add.actual_hint", value: "录入实际数据后，系统会自动计算误差", comment: "Ground truth explanation")
+        static let manualFruitCount = NSLocalizedString("calibration.add.manual_fruit_count", value: "人工计数", comment: "Manual fruit count field")
+        static let actualYield = NSLocalizedString("calibration.add.actual_yield", value: "实际产量", comment: "Actual yield field")
+        static let countUnit = NSLocalizedString("calibration.add.count_unit", value: "个", comment: "Calibration fruit count unit")
+        static let kilogramUnit = NSLocalizedString("calibration.add.kilogram_unit", value: "kg", comment: "Calibration kilogram unit")
+
+        static func recentScanSummary(
+            treeID: String,
+            fruitCount: Int,
+            yieldKg: Float,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "calibration.add.recent_scan_format",
+                value: "%@ · %d 个 · %.1f kg",
+                table: nil
+            )
+            return String(format: format, treeID, fruitCount, Double(yieldKg))
+        }
+    }
+
+    // MARK: - Calibration Workspace
+    enum CalibrationWorkspace {
+        static let title = NSLocalizedString("calibration.workspace.title", value: "算法校准", comment: "Calibration workspace title")
+        static let subtitle = NSLocalizedString("calibration.workspace.subtitle", value: "用实测果径、聚类阈值和误差记录调准产量估算。", comment: "Calibration workspace subtitle")
+        static let close = NSLocalizedString("calibration.workspace.close", value: "关闭", comment: "Close calibration workspace")
+        static let addRecordAccessibility = NSLocalizedString("calibration.workspace.add_record_accessibility", value: "添加校准记录", comment: "Add calibration record accessibility label")
+        static let deleteTitle = NSLocalizedString("calibration.workspace.delete_title", value: "删除校准记录", comment: "Delete calibration record alert title")
+        static let deleteMessage = NSLocalizedString("calibration.workspace.delete_message", value: "这条校准记录会从本机移除，扫描原始记录不会被删除。", comment: "Delete calibration record alert message")
+        static let parametersTitle = NSLocalizedString("calibration.workspace.parameters_title", value: "算法参数", comment: "Calibration algorithm parameters section")
+        static let minimumClusterPoints = NSLocalizedString("calibration.workspace.minimum_cluster_points", value: "最小聚类点数", comment: "Minimum cluster point count setting")
+        static let maximumClusterDiameter = NSLocalizedString("calibration.workspace.maximum_cluster_diameter", value: "最大聚类直径 (m)", comment: "Maximum cluster diameter setting in meters")
+        static let minimumSphericity = NSLocalizedString("calibration.workspace.minimum_sphericity", value: "最小球形度", comment: "Minimum fruit cluster sphericity setting")
+        static let hueRange = NSLocalizedString("calibration.workspace.hue_range", value: "HSV 色调范围", comment: "HSV hue range summary")
+        static let statisticsTitle = NSLocalizedString("calibration.workspace.statistics_title", value: "误差统计", comment: "Calibration validation statistics section")
+        static let statisticsEmpty = NSLocalizedString("calibration.workspace.statistics_empty", value: "暂无校准数据", comment: "Empty calibration statistics message")
+        static let countMAPE = NSLocalizedString("calibration.workspace.count_mape", value: "果数 MAPE", comment: "Fruit count mean absolute percentage error label")
+        static let yieldMAPE = NSLocalizedString("calibration.workspace.yield_mape", value: "产量 MAPE", comment: "Yield mean absolute percentage error label")
+        static let recordCount = NSLocalizedString("calibration.workspace.record_count", value: "校准次数", comment: "Calibration validation record count label")
+        static let recordsTitle = NSLocalizedString("calibration.workspace.records_title", value: "校准记录", comment: "Calibration records section")
+        static let recordsEmptyTitle = NSLocalizedString("calibration.workspace.records_empty_title", value: "暂无校准记录", comment: "Empty calibration records title")
+        static let recordsEmptyMessage = NSLocalizedString("calibration.workspace.records_empty_message", value: "添加人工计数或实际重量后，这里会显示误差对比。", comment: "Empty calibration records explanation")
+        static let addRecord = NSLocalizedString("calibration.workspace.add_record", value: "添加记录", comment: "Add calibration record action")
+        static let estimated = NSLocalizedString("calibration.workspace.estimated", value: "估算", comment: "Estimated calibration values label")
+        static let actual = NSLocalizedString("calibration.workspace.actual", value: "实际", comment: "Actual calibration values label")
+        static let deleteRecordAccessibility = NSLocalizedString("calibration.workspace.delete_record_accessibility", value: "删除校准记录", comment: "Delete calibration record accessibility label")
+        static let countError = NSLocalizedString("calibration.workspace.count_error", value: "计数", comment: "Fruit count error badge")
+        static let yieldError = NSLocalizedString("calibration.workspace.yield_error", value: "产量", comment: "Yield error badge")
+
+        static func treeTitle(_ treeID: String, in bundle: Bundle = .main) -> String {
+            let format = bundle.localizedString(
+                forKey: "calibration.workspace.tree_format",
+                value: "树 #%@",
+                table: nil
+            )
+            return String(format: format, treeID)
+        }
+
+        static func fruitCount(_ count: Int, in bundle: Bundle = .main) -> String {
+            let key = count == 1
+                ? "calibration.workspace.fruit_count.one"
+                : "calibration.workspace.fruit_count.other"
+            let format = bundle.localizedString(forKey: key, value: "%d 个", table: nil)
+            return String(format: format, count)
+        }
+
+        static func yieldKilograms(
+            _ kilograms: Double,
+            locale: Locale = .current,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "calibration.workspace.yield_format",
+                value: "%.1f kg",
+                table: nil
+            )
+            return String(format: format, locale: locale, kilograms)
+        }
+
+        static func countAndYield(
+            count: Int,
+            yieldKilograms: Double,
+            locale: Locale = .current,
+            in bundle: Bundle = .main
+        ) -> String {
+            let format = bundle.localizedString(
+                forKey: "calibration.workspace.count_yield_format",
+                value: "%@ / %@",
+                table: nil
+            )
+            return String(
+                format: format,
+                fruitCount(count, in: bundle),
+                self.yieldKilograms(yieldKilograms, locale: locale, in: bundle)
+            )
+        }
+    }
+
     // MARK: - Quick Scan
     enum QuickScan {
         static let navigationTitle = NSLocalizedString("quick_scan.navigation_title", value: "快速扫描", comment: "Quick scan navigation title")
