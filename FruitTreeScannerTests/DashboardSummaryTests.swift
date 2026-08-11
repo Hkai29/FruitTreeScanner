@@ -931,6 +931,97 @@ final class DashboardSummaryTests: XCTestCase {
         ])
 
         XCTAssertEqual(mapData.trees.map(\.id), ["equator", "prime-meridian"])
+    func testAnalyticsRecordPresentationLocalizesEnglishAndChineseCopy() throws {
+        let record = makeRecord(
+            id: "localized-record",
+            treeID: "TREE-17",
+            scanDate: Date(timeIntervalSince1970: 1_786_397_400),
+            fruitCount: 12,
+            yieldKg: 3.5
+        )
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let english = DashboardAnalyticsRecordPresentation(
+            record: record,
+            bundle: try localizationBundle(language: "en"),
+            locale: Locale(identifier: "en_US"),
+            timeZone: timeZone
+        )
+        let chinese = DashboardAnalyticsRecordPresentation(
+            record: record,
+            bundle: try localizationBundle(language: "zh"),
+            locale: Locale(identifier: "zh_CN"),
+            timeZone: timeZone
+        )
+
+        XCTAssertEqual(english.treeID, "TREE-17")
+        XCTAssertEqual(english.yieldValueText, "3.5")
+        XCTAssertEqual(english.yieldText, "3.5 kg")
+        XCTAssertEqual(english.fruitCountText, "12 fruits")
+        XCTAssertFalse(english.rowAccessibilityLabel.contains("个"))
+        XCTAssertTrue(english.rowAccessibilityLabel.contains("Tree TREE-17"))
+        XCTAssertTrue(english.trendAccessibilityLabel.contains("yield 3.5 kg"))
+
+        XCTAssertEqual(chinese.yieldText, "3.5 kg")
+        XCTAssertEqual(chinese.fruitCountText, "12 个果实")
+        XCTAssertTrue(chinese.rowAccessibilityLabel.contains("树体 TREE-17"))
+        XCTAssertTrue(chinese.trendAccessibilityLabel.contains("产量3.5 kg"))
+        XCTAssertNotEqual(english.dateText, chinese.dateText)
+
+        XCTAssertEqual(record.fruitCount, 12)
+        XCTAssertEqual(record.yieldKg, 3.5, accuracy: 0.001)
+        XCTAssertEqual(record.scanDate, Date(timeIntervalSince1970: 1_786_397_400))
+    }
+
+    func testAnalyticsRecordPresentationUsesLocalizedFruitPluralization() throws {
+        let bundle = try localizationBundle(language: "en")
+        let oneFruit = DashboardAnalyticsRecordPresentation(
+            record: makeRecord(
+                id: "one-fruit",
+                treeID: "T-1",
+                scanDate: Date(timeIntervalSince1970: 0),
+                fruitCount: 1,
+                yieldKg: 0
+            ),
+            bundle: bundle,
+            locale: Locale(identifier: "en_US")
+        )
+        let multipleFruit = DashboardAnalyticsRecordPresentation(
+            record: makeRecord(
+                id: "two-fruit",
+                treeID: "T-2",
+                scanDate: Date(timeIntervalSince1970: 0),
+                fruitCount: 2,
+                yieldKg: 0
+            ),
+            bundle: bundle,
+            locale: Locale(identifier: "en_US")
+        )
+
+        XCTAssertEqual(oneFruit.fruitCountText, "1 fruit")
+        XCTAssertEqual(multipleFruit.fruitCountText, "2 fruits")
+    }
+
+    func testAnalyticsRecordPresentationUsesRegionalNumberFormatting() throws {
+        let presentation = DashboardAnalyticsRecordPresentation(
+            record: makeRecord(
+                id: "regional-number",
+                treeID: "T-3",
+                scanDate: Date(timeIntervalSince1970: 0),
+                yieldKg: 12.5
+            ),
+            bundle: try localizationBundle(language: "en"),
+            locale: Locale(identifier: "de_DE")
+        )
+
+        XCTAssertEqual(presentation.yieldValueText, "12,5")
+        XCTAssertEqual(presentation.yieldText, "12,5 kg")
+    }
+
+    func testAnalyticsRecordLayoutStacksOnlyAtAccessibilitySizes() {
+        XCTAssertEqual(DashboardAnalyticsRecordLayout(dynamicTypeSize: .large), .horizontal)
+        XCTAssertEqual(DashboardAnalyticsRecordLayout(dynamicTypeSize: .xxxLarge), .horizontal)
+        XCTAssertEqual(DashboardAnalyticsRecordLayout(dynamicTypeSize: .accessibility1), .stacked)
+        XCTAssertEqual(DashboardAnalyticsRecordLayout(dynamicTypeSize: .accessibility5), .stacked)
     }
 
     private func makeRecord(
@@ -955,6 +1046,13 @@ final class DashboardSummaryTests: XCTestCase {
             gpsLon: gpsLon,
             confidence: confidence,
             persistenceState: persistenceState
+        )
+    }
+
+    private func localizationBundle(language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
         )
     }
 }
@@ -1484,6 +1582,9 @@ final class DashboardHomeLocalizationTests: XCTestCase {
                 "dashboard.start_first_scan": "Start First Scan",
                 "dashboard.fruit_count_one": "%d fruit",
                 "dashboard.fruit_count_other": "%d fruits",
+                "dashboard.analytics.yield_format": "%@ kg",
+                "dashboard.analytics.record_accessibility": "Tree %@, %@, %@, %@",
+                "dashboard.analytics.trend_accessibility": "%@, yield %@",
                 "dashboard.today_overview": "Today’s Overview",
                 "dashboard.tree_ids": "Tree IDs"
             ],
@@ -1539,6 +1640,9 @@ final class DashboardHomeLocalizationTests: XCTestCase {
                 "dashboard.start_first_scan": "开始第一次扫描",
                 "dashboard.fruit_count_one": "%d 个果实",
                 "dashboard.fruit_count_other": "%d 个果实",
+                "dashboard.analytics.yield_format": "%@ kg",
+                "dashboard.analytics.record_accessibility": "树体 %@，%@，%@，%@",
+                "dashboard.analytics.trend_accessibility": "%@，产量%@",
                 "dashboard.today_overview": "今日概览",
                 "dashboard.tree_ids": "树编号"
             ]

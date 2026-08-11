@@ -409,6 +409,9 @@
 "dashboard.start_first_scan" = "Start First Scan";
 "dashboard.fruit_count_one" = "%d fruit";
 "dashboard.fruit_count_other" = "%d fruits";
+"dashboard.analytics.yield_format" = "%@ kg";
+"dashboard.analytics.record_accessibility" = "Tree %@, %@, %@, %@";
+"dashboard.analytics.trend_accessibility" = "%@, yield %@";
 "dashboard.today_overview" = "Today’s Overview";
 "dashboard.tree_ids" = "Tree IDs";
 
