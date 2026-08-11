@@ -1,5 +1,19 @@
 import Foundation
 
+enum BatchExportShareCompletionPolicy {
+    static func shouldPresentFailure(
+        for result: ShareActivityResult,
+        sharedURL: URL,
+        currentExportURL: URL?
+    ) -> Bool {
+        guard result.errorDescription != nil,
+              let currentExportURL
+        else { return false }
+
+        return sharedURL.standardizedFileURL == currentExportURL.standardizedFileURL
+    }
+}
+
 extension BatchExportView {
     func handleAppear() {
         store.loadRecords()
@@ -27,6 +41,19 @@ extension BatchExportView {
     func showExportShareSheet() {
         guard let exportedURL else { return }
         presentedSheet = .share(exportedURL)
+    }
+
+    func handleShareCompletion(_ result: ShareActivityResult, for sharedURL: URL) {
+        guard BatchExportShareCompletionPolicy.shouldPresentFailure(
+            for: result,
+            sharedURL: sharedURL,
+            currentExportURL: exportedURL
+        ) else { return }
+
+        Log.export.error(
+            "Batch export sharing failed: \(result.errorDescription ?? "Unknown activity error")"
+        )
+        showShareError = true
     }
 
     func toggleSelection(_ id: String) {

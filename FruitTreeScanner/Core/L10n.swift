@@ -564,6 +564,8 @@ enum L10n {
         static let byDate = NSLocalizedString("export.by_date", value: "按日期", comment: "Group by date")
         static let byPlot = NSLocalizedString("export.by_plot", value: "按地块", comment: "Group by plot")
         static let noRecords = NSLocalizedString("export.no_records", value: "没有可导出的记录", comment: "No exportable records")
+        static let shareFailureTitle = NSLocalizedString("export.share_failure_title", value: "分享失败", comment: "Batch export share failure alert title")
+        static let shareFailureMessage = NSLocalizedString("export.share_failure_message", value: "分享服务未能完成操作。请重试，或选择其他分享方式。", comment: "Batch export share failure recovery message")
     }
 
     // MARK: - Import

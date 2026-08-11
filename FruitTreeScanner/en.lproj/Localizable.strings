@@ -310,6 +310,8 @@
 "export.by_date" = "By Date";
 "export.by_plot" = "By Plot";
 "export.no_records" = "No records to export";
+"export.share_failure_title" = "Unable to Share";
+"export.share_failure_message" = "The sharing service could not complete the operation. Try again or choose another sharing option.";
 
 /* Import */
 "import.navigation_title" = "Import File";
