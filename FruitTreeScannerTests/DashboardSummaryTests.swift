@@ -931,6 +931,8 @@ final class DashboardSummaryTests: XCTestCase {
         ])
 
         XCTAssertEqual(mapData.trees.map(\.id), ["equator", "prime-meridian"])
+    }
+
     func testAnalyticsRecordPresentationLocalizesEnglishAndChineseCopy() throws {
         let record = makeRecord(
             id: "localized-record",
@@ -1024,6 +1026,78 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(DashboardAnalyticsRecordLayout(dynamicTypeSize: .accessibility5), .stacked)
     }
 
+    func testOrchardMapChromeCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "orchard_map.chrome.close_accessibility": "Close Orchard Map",
+                "orchard_map.chrome.clear_filter_accessibility": "Clear yield filter",
+                "orchard_map.chrome.tree_count_one": "%d tree",
+                "orchard_map.chrome.tree_count_other": "%d trees",
+                "orchard_map.chrome.filter_high": "High Yield",
+                "orchard_map.chrome.filter_medium": "Medium Yield",
+                "orchard_map.chrome.filter_low": "Low Yield"
+            ],
+            "zh": [
+                "orchard_map.chrome.close_accessibility": "关闭果园地图",
+                "orchard_map.chrome.clear_filter_accessibility": "清除产量筛选",
+                "orchard_map.chrome.tree_count_one": "%d 棵果树",
+                "orchard_map.chrome.tree_count_other": "%d 棵果树",
+                "orchard_map.chrome.filter_high": "高产",
+                "orchard_map.chrome.filter_medium": "中产",
+                "orchard_map.chrome.filter_low": "低产"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try mapChromeLocalizationBundle(language: language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    bundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testOrchardMapChromePresentationLocalizesCountsAndFilterLabels() throws {
+        let englishBundle = try mapChromeLocalizationBundle(language: "en")
+        let chineseBundle = try mapChromeLocalizationBundle(language: "zh")
+        let oneTree = OrchardMapChromePresentation(treeCount: 1, bundle: englishBundle)
+        let manyTrees = OrchardMapChromePresentation(treeCount: 12, bundle: englishBundle)
+        let chinese = OrchardMapChromePresentation(treeCount: 12, bundle: chineseBundle)
+
+        XCTAssertEqual(oneTree.treeCountText, "1 tree")
+        XCTAssertEqual(manyTrees.treeCountText, "12 trees")
+        XCTAssertEqual(manyTrees.closeAccessibilityLabel, "Close Orchard Map")
+        XCTAssertEqual(manyTrees.clearFilterAccessibilityLabel, "Clear yield filter")
+        XCTAssertEqual(manyTrees.filterLabel(for: .high), "High Yield")
+        XCTAssertEqual(manyTrees.filterLabel(for: .medium), "Medium Yield")
+        XCTAssertEqual(manyTrees.filterLabel(for: .low), "Low Yield")
+
+        XCTAssertEqual(chinese.treeCountText, "12 棵果树")
+        XCTAssertEqual(chinese.filterLabel(for: .high), "高产")
+        XCTAssertEqual(chinese.filterLabel(for: .medium), "中产")
+        XCTAssertEqual(chinese.filterLabel(for: .low), "低产")
+    }
+
+    func testOrchardMapYieldFilterSelectionSupportsSelectSwitchAndRepeatedClear() {
+        let selected = OrchardMapYieldFilterSelection.next(current: nil, tapping: .high)
+        let switched = OrchardMapYieldFilterSelection.next(current: selected, tapping: .medium)
+        let cleared = OrchardMapYieldFilterSelection.next(current: switched, tapping: .medium)
+
+        XCTAssertEqual(selected, .high)
+        XCTAssertEqual(switched, .medium)
+        XCTAssertNil(cleared)
+    }
+
+    func testOrchardMapLegendLayoutStacksOnlyAtAccessibilitySizes() {
+        XCTAssertEqual(OrchardMapLegendLayout(dynamicTypeSize: .large), .horizontal)
+        XCTAssertEqual(OrchardMapLegendLayout(dynamicTypeSize: .xxxLarge), .horizontal)
+        XCTAssertEqual(OrchardMapLegendLayout(dynamicTypeSize: .accessibility1), .stacked)
+        XCTAssertEqual(OrchardMapLegendLayout(dynamicTypeSize: .accessibility5), .stacked)
+    }
+
     private func makeRecord(
         id: String,
         treeID: String,
@@ -1050,6 +1124,13 @@ final class DashboardSummaryTests: XCTestCase {
     }
 
     private func localizationBundle(language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
+    }
+
+    private func mapChromeLocalizationBundle(language: String) throws -> Bundle {
         try XCTUnwrap(
             Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
             "Missing \(language) localization bundle"

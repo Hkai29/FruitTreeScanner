@@ -280,30 +280,9 @@ struct TrendsSheet: View {
 
 @available(iOS 17, *)
 struct MapSheet: View {
-    @Environment(\.dismiss) private var dismiss
     var onStartScan: (() -> Void)? = nil
 
     var body: some View {
-        ZStack {
-            OrchardMapView(onStartScan: onStartScan)
-
-            VStack {
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(Design.Colors.Dark.textPrimary)
-                            .frame(width: 34, height: 34)
-                            .background(Design.Colors.Dark.hudBackground)
-                            .clipShape(Circle())
-                    }
-                    .accessibilityLabel("关闭果园地图")
-                    .padding(16)
-
-                    Spacer()
-                }
-                Spacer()
-            }
-        }
+        OrchardMapView(onStartScan: onStartScan)
     }
 }
