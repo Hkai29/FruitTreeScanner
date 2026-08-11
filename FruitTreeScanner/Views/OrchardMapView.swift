@@ -8,10 +8,16 @@ import MapKit
 struct OrchardMapView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var historyStore = ScanHistoryStore.shared
-    var onStartScan: (() -> Void)? = nil
+    private let onStartScan: (() -> Void)?
+    private let bundle: Bundle
     @State private var selectedTree: TreeAnnotation?
     @State private var mapCameraPosition: MapCameraPosition = .automatic
     @State private var filterYieldLevel: YieldLevel?
+
+    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+        self.onStartScan = onStartScan
+        self.bundle = bundle
+    }
 
     private var trees: [TreeAnnotation] {
         OrchardMapData(records: historyStore.scanFiles).trees
@@ -34,9 +40,21 @@ struct OrchardMapView: View {
             } else {
                 mapView
             }
+
+            VStack {
+                OrchardMapTopBar(
+                    treeCount: trees.count,
+                    onDismiss: { dismiss() }
+                )
+                .padding(.top, Design.Space.md)
+
+                Spacer()
+            }
+            .padding(Design.Space.lg)
         }
         .preferredColorScheme(.dark)
         .navigationBarHidden(true)
+        .environment(\.orchardMapPresentation, OrchardMapPresentation(bundle: bundle))
         .onAppear(perform: loadAndFrameMap)
         .onChange(of: historyStore.scanFiles) { _ in
             updateMapRegion()
@@ -61,21 +79,18 @@ struct OrchardMapView: View {
     }
 
     private var mapOverlay: some View {
-        VStack {
-            OrchardMapTopBar(
-                treeCount: trees.count,
-                onDismiss: { dismiss() }
-            )
-                .padding(.top, Design.Space.md)
+        GeometryReader { geometry in
+            VStack {
+                Spacer()
 
-            Spacer()
-
-            OrchardMapBottomPanel(
-                selectedTree: selectedTree,
-                filteredTrees: filteredTrees,
-                filterYieldLevel: $filterYieldLevel,
-                onClearSelection: { selectedTree = nil }
-            )
+                OrchardMapBottomPanel(
+                    selectedTree: selectedTree,
+                    filteredTrees: filteredTrees,
+                    filterYieldLevel: $filterYieldLevel,
+                    maximumHeight: max(240, geometry.size.height - 160),
+                    onClearSelection: { selectedTree = nil }
+                )
+            }
         }
         .padding(Design.Space.lg)
     }
