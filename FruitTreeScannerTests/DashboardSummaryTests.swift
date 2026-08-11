@@ -1943,6 +1943,68 @@ final class DashboardHomeLocalizationTests: XCTestCase {
     }
 }
 
+final class DashboardMetricGridTests: XCTestCase {
+    func testGridUsesOneColumnOnlyForAccessibilityTextSizes() {
+        XCTAssertEqual(DashboardSheetMetricGridLayout(dynamicTypeSize: .large), .twoColumns)
+        XCTAssertEqual(DashboardSheetMetricGridLayout(dynamicTypeSize: .xxxLarge), .twoColumns)
+        XCTAssertEqual(DashboardSheetMetricGridLayout(dynamicTypeSize: .accessibility1), .singleColumn)
+        XCTAssertEqual(DashboardSheetMetricGridLayout(dynamicTypeSize: .accessibility5), .singleColumn)
+    }
+
+    @MainActor
+    func testGridRendersEnglishAndChineseAtLargestAccessibilityTextSize() {
+        let localizedItems: [(language: String, items: [DashboardSheetMetric])] = [
+            ("en", [
+                .init(title: "Completed Scans", value: "1,234", unit: "scans"),
+                .init(title: "Total Yield", value: "9,876.5", unit: "kg"),
+                .init(title: "Average Yield", value: "8.0", unit: "kg"),
+                .init(title: "Detected Fruit", value: "12,345", unit: "fruits")
+            ]),
+            ("zh", [
+                .init(title: "完成扫描", value: "1,234", unit: "次"),
+                .init(title: "总产量", value: "9,876.5", unit: "kg"),
+                .init(title: "平均产量", value: "8.0", unit: "kg"),
+                .init(title: "检测果实", value: "12,345", unit: "个")
+            ])
+        ]
+        for localizedGrid in localizedItems {
+            let rootView = ScrollView {
+                DashboardSheetMetricGrid(items: localizedGrid.items)
+                    .padding(Design.Space.lg)
+            }
+            .frame(width: 390, height: 844)
+            .background(Design.Colors.Dark.bgDeep)
+            .environment(\.dynamicTypeSize, .accessibility5)
+            .environment(\.locale, Locale(identifier: localizedGrid.language))
+            .environment(\.colorScheme, .dark)
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            var didDraw = false
+            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(image.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "DashboardMetricGrid-\(localizedGrid.language)-AX5"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
+    }
+}
+
 final class OrchardMapEmptyStateTests: XCTestCase {
     func testCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
