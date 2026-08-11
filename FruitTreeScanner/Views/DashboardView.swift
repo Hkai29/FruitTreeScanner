@@ -6,7 +6,7 @@ import SwiftUI
 struct DashboardView: View {
     @ObservedObject var router: NavigationRouter
     @State var destination: DashboardDestination?
-    @State var pendingScanRequest: ScanLaunchRequest?
+    @State var scanLaunchPresentationState = ScanLaunchPresentationState<ScanLaunchRequest>()
     @State var activeScanRequest: ScanLaunchRequest?
     @State var postScanNavigationState = PostScanNavigationState()
     @ObservedObject var historyStore = ScanHistoryStore.shared
@@ -30,7 +30,7 @@ struct DashboardView: View {
             onQuickAction: handleQuickAction,
             onScanTap: openPointCloud
         )
-        .sheet(item: sheetDestination) { destination in
+        .sheet(item: sheetDestination, onDismiss: presentPendingScanIfNeeded) { destination in
             sheetView(for: destination)
         }
         .fullScreenCover(item: fullScreenDestination, onDismiss: presentPendingScanIfNeeded) { destination in

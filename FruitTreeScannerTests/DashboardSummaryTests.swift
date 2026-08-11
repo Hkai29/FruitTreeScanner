@@ -27,6 +27,39 @@ final class DashboardSummaryTests: XCTestCase {
         )
     }
 
+    func testScanLaunchPresentationWaitsForSourceDismissal() {
+        var state = ScanLaunchPresentationState<String>()
+
+        XCTAssertNil(state.transition(for: .requestQueued("scan-a")))
+        XCTAssertEqual(state.transition(for: .sourceDismissed), "scan-a")
+    }
+
+    func testScanLaunchPresentationIgnoresEmptyAndRepeatedDismissals() {
+        var state = ScanLaunchPresentationState<String>()
+
+        XCTAssertNil(state.transition(for: .sourceDismissed))
+        XCTAssertNil(state.transition(for: .requestQueued("scan-a")))
+        XCTAssertEqual(state.transition(for: .sourceDismissed), "scan-a")
+        XCTAssertNil(
+            state.transition(for: .sourceDismissed),
+            "A repeated dismissal must not present the consumed scan request again"
+        )
+    }
+
+    func testScanLaunchPresentationUsesLatestRapidRequest() {
+        var state = ScanLaunchPresentationState<String>()
+
+        XCTAssertNil(state.transition(for: .requestQueued("scan-a")))
+        XCTAssertNil(state.transition(for: .requestQueued("scan-b")))
+
+        XCTAssertEqual(
+            state.transition(for: .sourceDismissed),
+            "scan-b",
+            "The latest explicit launch request must replace an unpresented request"
+        )
+        XCTAssertNil(state.transition(for: .sourceDismissed))
+    }
+
     @MainActor
     func testScanLaunchSubmissionGateDeliversSynchronously() {
         let gate = ScanLaunchSubmissionGate()

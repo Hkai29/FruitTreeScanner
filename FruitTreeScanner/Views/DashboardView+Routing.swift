@@ -29,6 +29,26 @@ struct PostScanNavigationState {
     }
 }
 
+enum ScanLaunchPresentationEvent<Request> {
+    case requestQueued(Request)
+    case sourceDismissed
+}
+
+struct ScanLaunchPresentationState<Request> {
+    private var pendingRequest: Request?
+
+    mutating func transition(for event: ScanLaunchPresentationEvent<Request>) -> Request? {
+        switch event {
+        case .requestQueued(let request):
+            pendingRequest = request
+            return nil
+        case .sourceDismissed:
+            defer { pendingRequest = nil }
+            return pendingRequest
+        }
+    }
+}
+
 extension DashboardView {
     var sheetDestination: Binding<DashboardDestination?> {
         Binding(
@@ -115,9 +135,15 @@ extension DashboardView {
     }
 
     func presentPendingScanIfNeeded() {
-        guard let request = pendingScanRequest else { return }
-        pendingScanRequest = nil
-        launchScan(request)
+        guard let request = scanLaunchPresentationState.transition(for: .sourceDismissed) else {
+            return
+        }
+        activateScan(request)
+    }
+
+    func queueScanAfterSourceDismissal(_ request: ScanLaunchRequest) {
+        _ = scanLaunchPresentationState.transition(for: .requestQueued(request))
+        destination = nil
     }
 
     @ViewBuilder
@@ -125,13 +151,11 @@ extension DashboardView {
         switch destination {
         case .startScan:
             StartView { request in
-                pendingScanRequest = request
-                self.destination = nil
+                queueScanAfterSourceDismissal(request)
             }
         case .quickScan:
             QuickScanView { request in
-                pendingScanRequest = request
-                self.destination = nil
+                queueScanAfterSourceDismissal(request)
             }
         default:
             EmptyView()
@@ -189,7 +213,6 @@ extension DashboardView {
             destination = .startScan
             return
         }
-        destination = nil
         let existing = TagStore.shared.getAssignment(treeId: normalizedTreeID)
         let request = ScanLaunchRequest(
             treeID: normalizedTreeID,
@@ -199,10 +222,10 @@ extension DashboardView {
             plotId: existing?.plotId,
             tagIds: existing?.tagIds ?? []
         )
-        launchScan(request)
+        queueScanAfterSourceDismissal(request)
     }
 
-    private func launchScan(_ request: ScanLaunchRequest) {
+    private func activateScan(_ request: ScanLaunchRequest) {
         let existing = TagStore.shared.getAssignment(treeId: request.treeID)
         TagStore.shared.createOrUpdateAssignment(
             treeId: request.treeID,
@@ -210,8 +233,6 @@ extension DashboardView {
             tagIds: request.tagIds,
             status: existing?.status ?? .notScanned
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            activeScanRequest = request
-        }
+        activeScanRequest = request
     }
 }
