@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import FruitTreeScanner
 
 final class CalibrationRecordPersistenceTests: XCTestCase {
@@ -37,6 +39,15 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
         let actualYieldKg = try XCTUnwrap(loaded[0].actualYieldKg)
         XCTAssertEqual(actualYieldKg, 8.0, accuracy: 0.000_1)
         XCTAssertEqual(loaded[0].fruitType, "apple")
+    }
+
+    func testCorruptCalibrationRecordFileThrowsWithoutChangingBytes() throws {
+        let url = temporaryDirectory().appendingPathComponent("corrupt.json")
+        let corruptData = Data("{not valid json".utf8)
+        try corruptData.write(to: url)
+
+        XCTAssertThrowsError(try CalibrationRecordPersistence.load(from: url))
+        XCTAssertEqual(try Data(contentsOf: url), corruptData)
     }
 
     func testStaleCalibrationGenerationCannotOverwriteNewerRecords() async throws {
@@ -122,173 +133,392 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
         XCTAssertEqual(try CalibrationRecordPersistence.load(from: url).map(\.id), [existing.id])
     }
 
-    @MainActor
-    func testCalibrationLoadFailurePreservesSnapshotAndBlocksMutationUntilRetry() async {
-        let initial = makeRecord(
-            fruitType: "apple",
-            estimatedCount: 10,
-            manualCount: 9,
-            estimatedYield: 4,
-            actualYield: 3.8
-        )
-        let repaired = makeRecord(
-            fruitType: "pear",
-            estimatedCount: 12,
-            manualCount: 11,
-            estimatedYield: 5,
-            actualYield: 4.7
-        )
-        let rejected = makeRecord(
-            fruitType: "orange",
-            estimatedCount: 20,
-            manualCount: 18,
-            estimatedYield: 8,
-            actualYield: 7.5
-        )
-        let driver = CalibrationRecordLoadSequenceDriver(results: [
-            .success([initial]),
-            .failure(.unavailable),
-            .success([repaired])
-        ])
-        let store = CalibrationRecordStore(recordsLoader: { await driver.next() })
-
-        await store.reloadRecords()
-        XCTAssertEqual(store.records.map(\.id), [initial.id])
-        XCTAssertTrue(store.canMutate)
-
-        await store.reloadRecords()
-        XCTAssertEqual(
-            store.records.map(\.id),
-            [initial.id],
-            "A failed refresh must retain the last verified calibration snapshot"
-        )
-        XCTAssertEqual(store.loadFailure, .unavailable)
-        XCTAssertFalse(store.canMutate)
-        XCTAssertNil(store.prepend(rejected))
-        XCTAssertNil(store.remove(id: initial.id))
-        XCTAssertEqual(store.records.map(\.id), [initial.id])
-
-        await store.reloadRecords()
-        XCTAssertEqual(store.records.map(\.id), [repaired.id])
-        XCTAssertNil(store.loadFailure)
-        XCTAssertTrue(store.canMutate)
-    }
-
-    @MainActor
-    func testCalibrationSuccessfulEmptyLoadAllowsFirstMutation() async {
+    func testCalibrationSaveResultDistinguishesSupersededAndWriteFailure() async {
         let record = makeRecord(
             fruitType: "apple",
-            estimatedCount: 10,
-            manualCount: 9,
-            estimatedYield: 4,
-            actualYield: 3.8
+            estimatedCount: 1,
+            manualCount: 1,
+            estimatedYield: 1,
+            actualYield: 1
         )
-        let store = CalibrationRecordStore(recordsLoader: { .success([]) })
+        let controller = CalibrationRecordPersistenceController(
+            url: temporaryDirectory().appendingPathComponent("records.json")
+        ) { _, _ in
+            throw CocoaError(.fileWriteNoPermission)
+        }
 
-        await store.reloadRecords()
+        let failure = await controller.saveResult([record], generation: 2)
+        let superseded = await controller.saveResult([record], generation: 1)
 
-        XCTAssertTrue(store.hasLoaded)
-        XCTAssertTrue(store.canMutate)
-        XCTAssertEqual(store.prepend(record)?.map(\.id), [record.id])
-        XCTAssertEqual(store.records.map(\.id), [record.id])
+        guard case .failed = failure else {
+            return XCTFail("Expected a write failure, got \(failure)")
+        }
+        XCTAssertEqual(superseded, .superseded)
     }
 
     @MainActor
-    func testSupersededCalibrationLoadCannotOverwriteNewerSnapshot() async {
-        let older = makeRecord(
+    func testCalibrationControllerLoadFailurePreservesRecordsAndBlocksMutation() async {
+        let existing = makeRecord(
             fruitType: "apple",
-            estimatedCount: 10,
-            manualCount: 9,
-            estimatedYield: 4,
-            actualYield: 3.8
+            estimatedCount: 1,
+            manualCount: 1,
+            estimatedYield: 1,
+            actualYield: 1
         )
-        let newer = makeRecord(
+        let added = makeRecord(
             fruitType: "pear",
+            estimatedCount: 2,
+            manualCount: 2,
+            estimatedYield: 2,
+            actualYield: 2
+        )
+        let controller = CalibrationRecordsController(
+            records: [existing],
+            state: .ready,
+            loader: { .failure("unreadable") },
+            saver: { _, _ in .saved },
+            revisionProvider: { 1 }
+        )
+
+        controller.load()
+        await controller.waitForLoading()
+        controller.add(added)
+
+        XCTAssertEqual(controller.state, .loadFailed)
+        XCTAssertFalse(controller.state.canModify)
+        XCTAssertEqual(controller.records.map(\.id), [existing.id])
+    }
+
+    @MainActor
+    func testCalibrationControllerAddFailureRestoresPreviousSnapshot() async {
+        let existing = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 1,
+            manualCount: 1,
+            estimatedYield: 1,
+            actualYield: 1
+        )
+        let added = makeRecord(
+            fruitType: "pear",
+            estimatedCount: 2,
+            manualCount: 2,
+            estimatedYield: 2,
+            actualYield: 2
+        )
+        let controller = CalibrationRecordsController(
+            records: [existing],
+            state: .ready,
+            loader: { .success([]) },
+            saver: { _, _ in .failed("disk full") },
+            revisionProvider: { 1 }
+        )
+
+        controller.add(added)
+        XCTAssertEqual(controller.state, .saving(.add))
+        await controller.waitForSaving()
+
+        XCTAssertEqual(controller.state, .saveFailed(.add))
+        XCTAssertEqual(controller.records.map(\.id), [existing.id])
+    }
+
+    @MainActor
+    func testCalibrationControllerSuccessfulAddKeepsPersistedSnapshot() async {
+        let added = makeRecord(
+            fruitType: "apple",
             estimatedCount: 12,
-            manualCount: 11,
-            estimatedYield: 5,
-            actualYield: 4.7
+            manualCount: 10,
+            estimatedYield: 6,
+            actualYield: 5
         )
-        let driver = CalibrationRecordControlledLoadDriver()
-        let store = CalibrationRecordStore(recordsLoader: { await driver.load() })
-
-        let olderTask = store.loadRecords()
-        await driver.waitForPendingCount(1)
-        let newerTask = store.loadRecords()
-        await driver.waitForPendingCount(2)
-
-        await driver.resume(request: 1, with: .success([newer]))
-        await newerTask.value
-        XCTAssertEqual(store.records.map(\.id), [newer.id])
-
-        await driver.resume(request: 0, with: .success([older]))
-        await olderTask.value
-        XCTAssertEqual(store.records.map(\.id), [newer.id])
-        XCTAssertFalse(store.isLoading)
-    }
-
-    @MainActor
-    func testCancelledCalibrationLoadCannotApplyAfterViewTeardown() async {
-        let late = makeRecord(
-            fruitType: "apple",
-            estimatedCount: 10,
-            manualCount: 9,
-            estimatedYield: 4,
-            actualYield: 3.8
-        )
-        let driver = CalibrationRecordControlledLoadDriver()
-        let store = CalibrationRecordStore(recordsLoader: { await driver.load() })
-
-        let task = store.loadRecords()
-        await driver.waitForPendingCount(1)
-        store.invalidateLoad()
-        await driver.resume(request: 0, with: .success([late]))
-        await task.value
-
-        XCTAssertTrue(store.records.isEmpty)
-        XCTAssertFalse(store.hasLoaded)
-        XCTAssertFalse(store.isLoading)
-        XCTAssertFalse(store.canMutate)
-    }
-
-    func testCalibrationLoadPresentationNeverTreatsFailureAsEmptyRecords() {
-        let presentation = CalibrationRecordLoadPresentation(
+        let controller = CalibrationRecordsController(
             records: [],
-            isLoading: false,
-            hasLoaded: false,
-            loadFailure: .unavailable
+            state: .ready,
+            loader: { .success([]) },
+            saver: { records, revision in
+                records.map(\.id) == [added.id] && revision == 7 ? .saved : .failed("wrong snapshot")
+            },
+            revisionProvider: { 7 }
         )
 
-        XCTAssertEqual(presentation.primaryContent, .loadFailure)
-        XCTAssertFalse(presentation.allowsMutation)
-        XCTAssertFalse(presentation.showsStatistics)
+        controller.add(added)
+        await controller.waitForSaving()
+
+        XCTAssertEqual(controller.state, .ready)
+        XCTAssertEqual(controller.records.map(\.id), [added.id])
     }
 
     @MainActor
-    func testMalformedCalibrationRecordFileFailsClosedAndCannotBeOverwritten() async throws {
-        let url = temporaryDirectory().appendingPathComponent("malformed.json")
-        try Data("not-json".utf8).write(to: url)
-        let replacement = makeRecord(
+    func testCalibrationControllerDeleteFailureRestoresOriginalOrder() async {
+        let first = makeRecord(
             fruitType: "apple",
-            estimatedCount: 10,
-            manualCount: 9,
-            estimatedYield: 4,
-            actualYield: 3.8
+            estimatedCount: 1,
+            manualCount: 1,
+            estimatedYield: 1,
+            actualYield: 1
         )
-        let store = CalibrationRecordStore(recordsLoader: {
-            do {
-                return .success(try CalibrationRecordPersistence.load(from: url))
-            } catch {
-                return .failure(.unavailable)
+        let second = makeRecord(
+            fruitType: "pear",
+            estimatedCount: 2,
+            manualCount: 2,
+            estimatedYield: 2,
+            actualYield: 2
+        )
+        let controller = CalibrationRecordsController(
+            records: [first, second],
+            state: .ready,
+            loader: { .success([]) },
+            saver: { _, _ in .failed("read only") },
+            revisionProvider: { 1 }
+        )
+
+        controller.delete(first)
+        XCTAssertEqual(controller.records.map(\.id), [second.id])
+        await controller.waitForSaving()
+
+        XCTAssertEqual(controller.state, .saveFailed(.delete))
+        XCTAssertEqual(controller.records.map(\.id), [first.id, second.id])
+    }
+
+    @MainActor
+    func testCalibrationControllerSupersededSaveReloadsAuthoritativeDiskState() async {
+        let stale = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 1,
+            manualCount: 1,
+            estimatedYield: 1,
+            actualYield: 1
+        )
+        let added = makeRecord(
+            fruitType: "pear",
+            estimatedCount: 2,
+            manualCount: 2,
+            estimatedYield: 2,
+            actualYield: 2
+        )
+        let authoritative = makeRecord(
+            fruitType: "orange",
+            estimatedCount: 3,
+            manualCount: 3,
+            estimatedYield: 3,
+            actualYield: 3
+        )
+        let controller = CalibrationRecordsController(
+            records: [stale],
+            state: .ready,
+            loader: { .success([authoritative]) },
+            saver: { _, _ in .superseded },
+            revisionProvider: { 1 }
+        )
+
+        controller.add(added)
+        await controller.waitForSaving()
+        await controller.waitForLoading()
+
+        XCTAssertEqual(controller.state, .ready)
+        XCTAssertEqual(controller.records.map(\.id), [authoritative.id])
+    }
+
+    func testCalibrationPersistenceStatesProvideActionableAnnouncements() {
+        XCTAssertNil(CalibrationRecordsState.ready.accessibilityAnnouncement)
+        XCTAssertEqual(
+            CalibrationRecordsState.loading.accessibilityAnnouncement,
+            L10n.Calibration.loadingRecords
+        )
+        XCTAssertTrue(
+            CalibrationRecordsState.loadFailed.accessibilityAnnouncement?.contains(
+                L10n.Calibration.loadFailedMessage
+            ) == true
+        )
+        XCTAssertTrue(
+            CalibrationRecordsState.saveFailed(.delete).accessibilityAnnouncement?.contains(
+                L10n.Calibration.deleteSaveFailedMessage
+            ) == true
+        )
+    }
+
+    func testCalibrationLocalizationKeysExistInEnglishAndChinese() throws {
+        let requiredKeys = [
+            "calibration.navigation_title",
+            "calibration.header_title",
+            "calibration.header_subtitle",
+            "calibration.action.close",
+            "calibration.action.add_record",
+            "calibration.action.retry",
+            "calibration.action.dismiss",
+            "calibration.accessibility.add_record",
+            "calibration.accessibility.delete_record_format",
+            "calibration.delete.title",
+            "calibration.delete.message",
+            "calibration.parameters.title",
+            "calibration.parameters.minimum_cluster_points",
+            "calibration.parameters.maximum_cluster_diameter",
+            "calibration.parameters.minimum_sphericity",
+            "calibration.parameters.hsv_range",
+            "calibration.statistics.title",
+            "calibration.statistics.empty",
+            "calibration.statistics.count_mape",
+            "calibration.statistics.yield_mape",
+            "calibration.statistics.record_count",
+            "calibration.records.title",
+            "calibration.records.empty_title",
+            "calibration.records.empty_message",
+            "calibration.records.loading",
+            "calibration.records.saving_add",
+            "calibration.records.saving_delete",
+            "calibration.records.load_failed_title",
+            "calibration.records.load_failed_message",
+            "calibration.records.retry_hint",
+            "calibration.records.save_failed_title",
+            "calibration.records.add_save_failed_message",
+            "calibration.records.delete_save_failed_message",
+            "calibration.record.title_format",
+            "calibration.record.estimated",
+            "calibration.record.actual",
+            "calibration.record.count_error",
+            "calibration.record.yield_error",
+            "calibration.record.count_yield_format",
+            "calibration.record.count_only_format",
+            "calibration.record.yield_only_format",
+            "calibration.add.navigation_title",
+            "calibration.add.recent_section",
+            "calibration.add.recent_picker",
+            "calibration.add.recent_hint",
+            "calibration.add.recent_summary_format",
+            "calibration.add.basic_section",
+            "calibration.add.tree_id_placeholder",
+            "calibration.add.fruit_type",
+            "calibration.add.estimate_section",
+            "calibration.add.estimated_count_placeholder",
+            "calibration.add.estimated_yield_placeholder",
+            "calibration.add.actual_section",
+            "calibration.add.actual_hint",
+            "calibration.add.manual_count_placeholder",
+            "calibration.add.actual_yield_placeholder",
+            "calibration.add.input_hint",
+            "calibration.unit.fruit",
+            "calibration.unit.kilogram"
+        ]
+
+        for language in ["en", "zh"] {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+            )
+            for key in requiredKeys {
+                let value = localizedBundle.localizedString(forKey: key, value: nil, table: nil)
+                XCTAssertFalse(value.isEmpty, "\(language) localization is empty for \(key)")
+                XCTAssertNotEqual(value, key, "\(language) localization is missing for \(key)")
             }
-        })
+        }
 
-        await store.reloadRecords()
+        let englishBundle = try XCTUnwrap(
+            Bundle.main.path(forResource: "en", ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+        let chineseBundle = try XCTUnwrap(
+            Bundle.main.path(forResource: "zh", ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+        XCTAssertEqual(
+            englishBundle.localizedString(forKey: "calibration.records.load_failed_message", value: nil, table: nil),
+            "The local calibration file couldn’t be read. The existing file wasn’t modified. Try again."
+        )
+        XCTAssertEqual(
+            chineseBundle.localizedString(forKey: "calibration.records.delete_save_failed_message", value: nil, table: nil),
+            "无法保存删除操作，原记录已恢复。请检查存储空间后重试。"
+        )
+    }
 
-        XCTAssertThrowsError(try CalibrationRecordPersistence.load(from: url))
-        XCTAssertEqual(store.loadFailure, .unavailable)
-        XCTAssertNil(store.prepend(replacement))
-        XCTAssertEqual(try Data(contentsOf: url), Data("not-json".utf8))
+    @MainActor
+    func testCalibrationRecordsRenderAtAccessibilityTextSize() {
+        let record = makeRecord(
+            fruitType: "apple",
+            estimatedCount: 128,
+            manualCount: 120,
+            estimatedYield: 24.5,
+            actualYield: 23.0
+        )
+        let rootView = ScrollView {
+            VStack(spacing: Design.Space.lg) {
+                CalibrationStatisticsCard(records: [record])
+                CalibrationRecordsSection(
+                    records: [record],
+                    state: .saveFailed(.delete),
+                    onAdd: {},
+                    onRetry: {},
+                    onDismissSaveFailure: {},
+                    onDelete: { _ in }
+                )
+            }
+            .padding(Design.Space.lg)
+        }
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .frame(width: 390, height: 844, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            didDraw = hostingController.view.drawHierarchy(
+                in: hostingController.view.bounds,
+                afterScreenUpdates: true
+            )
+        }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "Calibration-DeleteFailure-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
+
+        let form = AddCalibrationRecordForm(
+            recentRecords: [],
+            treeID: .constant("TREE-LONG-IDENTIFIER-17"),
+            estimatedFruitCount: .constant("128"),
+            estimatedYieldKg: .constant("24.5"),
+            manualFruitCount: .constant("120"),
+            actualYieldKg: .constant("23.0"),
+            selectedFruitCategory: .constant(.apple),
+            onSelectRecentScan: { _ in }
+        )
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .frame(width: 390, height: 844, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.colorScheme, .dark)
+
+        let formController = UIHostingController(rootView: form)
+        formController.overrideUserInterfaceStyle = .dark
+        let formWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        formWindow.rootViewController = formController
+        formWindow.makeKeyAndVisible()
+        formController.view.frame = formWindow.bounds
+        formController.view.setNeedsLayout()
+        formController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDrawForm = false
+        let formImage = UIGraphicsImageRenderer(bounds: formWindow.bounds).image { _ in
+            didDrawForm = formController.view.drawHierarchy(
+                in: formController.view.bounds,
+                afterScreenUpdates: true
+            )
+        }
+
+        XCTAssertTrue(didDrawForm)
+        let formAttachment = XCTAttachment(image: formImage)
+        formAttachment.name = "Calibration-AddForm-AX5"
+        formAttachment.lifetime = .keepAlways
+        add(formAttachment)
+        formWindow.resignKey()
     }
 
     func testYieldCalibrationCorrectionUsesMatchingFruitTypeMedianRatios() {
@@ -401,44 +631,5 @@ final class CalibrationRecordPersistenceTests: XCTestCase {
             actualYieldKg: actualYield,
             fruitType: fruitType
         )
-    }
-}
-
-private actor CalibrationRecordLoadSequenceDriver {
-    private var results: [CalibrationRecordLoadResult]
-
-    init(results: [CalibrationRecordLoadResult]) {
-        self.results = results
-    }
-
-    func next() -> CalibrationRecordLoadResult {
-        precondition(!results.isEmpty, "Test requested more calibration loads than configured")
-        return results.removeFirst()
-    }
-}
-
-private actor CalibrationRecordControlledLoadDriver {
-    private var continuations: [Int: CheckedContinuation<CalibrationRecordLoadResult, Never>] = [:]
-    private var nextRequest = 0
-
-    func load() async -> CalibrationRecordLoadResult {
-        let request = nextRequest
-        nextRequest += 1
-        return await withCheckedContinuation { continuation in
-            continuations[request] = continuation
-        }
-    }
-
-    func waitForPendingCount(_ expectedCount: Int) async {
-        while continuations.count < expectedCount {
-            await Task.yield()
-        }
-    }
-
-    func resume(request: Int, with result: CalibrationRecordLoadResult) {
-        guard let continuation = continuations.removeValue(forKey: request) else {
-            preconditionFailure("No pending calibration load for request \(request)")
-        }
-        continuation.resume(returning: result)
     }
 }

@@ -1600,6 +1600,84 @@ enum L10n {
         static let tooBright = NSLocalizedString("quality.too_bright", value: "过曝", comment: "Too bright/overexposed lighting")
     }
 
+    // MARK: - Calibration
+    enum Calibration {
+        static let navigationTitle = NSLocalizedString("calibration.navigation_title", value: "算法校准", comment: "Calibration navigation title")
+        static let headerTitle = NSLocalizedString("calibration.header_title", value: "算法校准", comment: "Calibration header title")
+        static let headerSubtitle = NSLocalizedString("calibration.header_subtitle", value: "用实测果径、聚类阈值和误差记录调准产量估算。", comment: "Calibration header subtitle")
+        static let close = NSLocalizedString("calibration.action.close", value: "关闭", comment: "Close calibration action")
+        static let addRecord = NSLocalizedString("calibration.action.add_record", value: "添加记录", comment: "Add calibration record action")
+        static let retry = NSLocalizedString("calibration.action.retry", value: "重试", comment: "Retry calibration record loading")
+        static let dismiss = NSLocalizedString("calibration.action.dismiss", value: "知道了", comment: "Dismiss calibration persistence failure")
+        static let addRecordAccessibility = NSLocalizedString("calibration.accessibility.add_record", value: "添加校准记录", comment: "Add calibration record accessibility label")
+        static let deleteConfirmationTitle = NSLocalizedString("calibration.delete.title", value: "删除校准记录", comment: "Calibration record delete confirmation title")
+        static let deleteConfirmationMessage = NSLocalizedString("calibration.delete.message", value: "这条校准记录会从本机移除，扫描原始记录不会被删除。", comment: "Calibration record delete confirmation message")
+
+        static let parametersTitle = NSLocalizedString("calibration.parameters.title", value: "算法参数", comment: "Calibration parameters section title")
+        static let minimumClusterPoints = NSLocalizedString("calibration.parameters.minimum_cluster_points", value: "最小聚类点数", comment: "Minimum cluster point count")
+        static let maximumClusterDiameter = NSLocalizedString("calibration.parameters.maximum_cluster_diameter", value: "最大聚类直径 (m)", comment: "Maximum cluster diameter")
+        static let minimumSphericity = NSLocalizedString("calibration.parameters.minimum_sphericity", value: "最小球形度", comment: "Minimum sphericity")
+        static let hsvRange = NSLocalizedString("calibration.parameters.hsv_range", value: "HSV 色调范围", comment: "HSV range label")
+
+        static let statisticsTitle = NSLocalizedString("calibration.statistics.title", value: "误差统计", comment: "Calibration statistics section title")
+        static let noStatistics = NSLocalizedString("calibration.statistics.empty", value: "暂无校准数据", comment: "No calibration statistics message")
+        static let countMAPE = NSLocalizedString("calibration.statistics.count_mape", value: "果数 MAPE", comment: "Fruit count MAPE label")
+        static let yieldMAPE = NSLocalizedString("calibration.statistics.yield_mape", value: "产量 MAPE", comment: "Yield MAPE label")
+        static let calibrationCount = NSLocalizedString("calibration.statistics.record_count", value: "校准次数", comment: "Calibration record count label")
+
+        static let recordsTitle = NSLocalizedString("calibration.records.title", value: "校准记录", comment: "Calibration records section title")
+        static let emptyRecordsTitle = NSLocalizedString("calibration.records.empty_title", value: "暂无校准记录", comment: "No calibration records title")
+        static let emptyRecordsMessage = NSLocalizedString("calibration.records.empty_message", value: "添加人工计数或实际重量后，这里会显示误差对比。", comment: "No calibration records message")
+        static let loadingRecords = NSLocalizedString("calibration.records.loading", value: "正在读取校准记录…", comment: "Calibration records loading status")
+        static let savingAddedRecord = NSLocalizedString("calibration.records.saving_add", value: "正在保存新增的校准记录…", comment: "Saving an added calibration record")
+        static let savingDeletedRecord = NSLocalizedString("calibration.records.saving_delete", value: "正在保存删除操作…", comment: "Saving a calibration record deletion")
+        static let loadFailedTitle = NSLocalizedString("calibration.records.load_failed_title", value: "校准记录未加载", comment: "Calibration records load failure title")
+        static let loadFailedMessage = NSLocalizedString("calibration.records.load_failed_message", value: "无法读取本机校准文件。现有文件没有被修改，请重试。", comment: "Calibration records load failure message")
+        static let retryHint = NSLocalizedString("calibration.records.retry_hint", value: "重新读取本机校准文件。", comment: "Calibration records retry accessibility hint")
+        static let saveFailedTitle = NSLocalizedString("calibration.records.save_failed_title", value: "更改未保存", comment: "Calibration record save failure title")
+        static let addSaveFailedMessage = NSLocalizedString("calibration.records.add_save_failed_message", value: "无法写入新增记录，列表已恢复到更改前。请检查存储空间后重试。", comment: "Calibration record add save failure message")
+        static let deleteSaveFailedMessage = NSLocalizedString("calibration.records.delete_save_failed_message", value: "无法保存删除操作，原记录已恢复。请检查存储空间后重试。", comment: "Calibration record delete save failure message")
+
+        static let estimated = NSLocalizedString("calibration.record.estimated", value: "估算", comment: "Estimated calibration values label")
+        static let actual = NSLocalizedString("calibration.record.actual", value: "实际", comment: "Actual calibration values label")
+        static let countError = NSLocalizedString("calibration.record.count_error", value: "计数", comment: "Count error badge label")
+        static let yieldError = NSLocalizedString("calibration.record.yield_error", value: "产量", comment: "Yield error badge label")
+
+        static let addNavigationTitle = NSLocalizedString("calibration.add.navigation_title", value: "添加校准记录", comment: "Add calibration record navigation title")
+        static let recentScanSection = NSLocalizedString("calibration.add.recent_section", value: "从扫描记录带入", comment: "Recent scan import section title")
+        static let recentScanPicker = NSLocalizedString("calibration.add.recent_picker", value: "选择最近扫描", comment: "Recent scan picker label")
+        static let recentScanHint = NSLocalizedString("calibration.add.recent_hint", value: "会自动填入树编号、估算果数、估算产量和扫描日期。", comment: "Recent scan picker explanation")
+        static let basicInformation = NSLocalizedString("calibration.add.basic_section", value: "基本信息", comment: "Calibration record basic information section")
+        static let treeIDPlaceholder = NSLocalizedString("calibration.add.tree_id_placeholder", value: "树木编号（如 T001）", comment: "Calibration tree ID placeholder")
+        static let fruitType = NSLocalizedString("calibration.add.fruit_type", value: "水果类型", comment: "Calibration fruit type picker label")
+        static let estimateSection = NSLocalizedString("calibration.add.estimate_section", value: "算法估算结果", comment: "Calibration estimate section title")
+        static let estimatedFruitCountPlaceholder = NSLocalizedString("calibration.add.estimated_count_placeholder", value: "果实数量", comment: "Estimated fruit count placeholder")
+        static let estimatedYieldPlaceholder = NSLocalizedString("calibration.add.estimated_yield_placeholder", value: "估算产量", comment: "Estimated yield placeholder")
+        static let actualSection = NSLocalizedString("calibration.add.actual_section", value: "实际数据（可选）", comment: "Actual calibration data section title")
+        static let actualDataHint = NSLocalizedString("calibration.add.actual_hint", value: "录入实际数据后，系统会自动计算误差。", comment: "Actual data explanation")
+        static let manualFruitCountPlaceholder = NSLocalizedString("calibration.add.manual_count_placeholder", value: "人工计数", comment: "Manual fruit count placeholder")
+        static let actualYieldPlaceholder = NSLocalizedString("calibration.add.actual_yield_placeholder", value: "实际产量", comment: "Actual yield placeholder")
+        static let inputHint = NSLocalizedString("calibration.add.input_hint", value: "树木编号和估算果数为必填项；所有数值必须大于或等于零。", comment: "Calibration form validation hint")
+        static let fruitUnit = NSLocalizedString("calibration.unit.fruit", value: "个", comment: "Fruit count unit")
+        static let kilogramUnit = NSLocalizedString("calibration.unit.kilogram", value: "kg", comment: "Kilogram unit")
+
+        private static let recordTitleFormat = NSLocalizedString("calibration.record.title_format", value: "树 #%@", comment: "Calibration record tree title")
+        private static let deleteRecordAccessibilityFormat = NSLocalizedString("calibration.accessibility.delete_record_format", value: "删除 %@ 的校准记录", comment: "Delete a calibration record accessibility label")
+        private static let countYieldFormat = NSLocalizedString("calibration.record.count_yield_format", value: "%d 个 / %.1f kg", comment: "Calibration count and yield value")
+        private static let countOnlyFormat = NSLocalizedString("calibration.record.count_only_format", value: "%d 个", comment: "Calibration fruit count value")
+        private static let yieldOnlyFormat = NSLocalizedString("calibration.record.yield_only_format", value: "%.1f kg", comment: "Calibration yield value")
+        private static let recentScanSummaryFormat = NSLocalizedString("calibration.add.recent_summary_format", value: "%@ · %d 个 · %.1f kg", comment: "Recent scan summary in calibration picker")
+
+        static func recordTitle(treeID: String) -> String { String(format: recordTitleFormat, treeID) }
+        static func deleteRecordAccessibility(treeID: String) -> String { String(format: deleteRecordAccessibilityFormat, treeID) }
+        static func countAndYield(count: Int, yieldKg: Double) -> String { String(format: countYieldFormat, count, yieldKg) }
+        static func countOnly(_ count: Int) -> String { String(format: countOnlyFormat, count) }
+        static func yieldOnly(_ yieldKg: Double) -> String { String(format: yieldOnlyFormat, yieldKg) }
+        static func recentScanSummary(treeID: String, count: Int, yieldKg: Float) -> String {
+            String(format: recentScanSummaryFormat, treeID, count, yieldKg)
+        }
+    }
+
     // MARK: - Scan HUD
     enum ScanHUD {
         static let wholeTree = NSLocalizedString("scan.hud.whole_tree", value: "果树全株", comment: "Whole-tree scan badge")
