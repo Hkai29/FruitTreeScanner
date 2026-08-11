@@ -936,6 +936,14 @@
 "common.save" = "Save";
 "common.share" = "Share";
 
+/* Orchard Map Summary */
+"orchard_map.summary.title" = "Orchard Trees";
+"orchard_map.summary.tree_count_one" = "%d tree";
+"orchard_map.summary.tree_count_other" = "%d trees";
+"orchard_map.summary.level_high" = "High Yield";
+"orchard_map.summary.level_medium" = "Medium Yield";
+"orchard_map.summary.level_low" = "Low Yield";
+
 /* Scan History Deletion */
 "history.delete.record.title" = "Delete Scan Record";
 "history.delete.record.message" = "This deletes the record's PLY point cloud, CSV, result JSON, and completion manifest.";

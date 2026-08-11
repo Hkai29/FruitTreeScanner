@@ -1098,6 +1098,73 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(OrchardMapLegendLayout(dynamicTypeSize: .accessibility5), .stacked)
     }
 
+    func testOrchardTreeCountCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "orchard_map.summary.title": "Orchard Trees",
+                "orchard_map.summary.tree_count_one": "%d tree",
+                "orchard_map.summary.tree_count_other": "%d trees",
+                "orchard_map.summary.level_high": "High Yield",
+                "orchard_map.summary.level_medium": "Medium Yield",
+                "orchard_map.summary.level_low": "Low Yield"
+            ],
+            "zh": [
+                "orchard_map.summary.title": "园区树木",
+                "orchard_map.summary.tree_count_one": "%d 棵果树",
+                "orchard_map.summary.tree_count_other": "%d 棵果树",
+                "orchard_map.summary.level_high": "高产",
+                "orchard_map.summary.level_medium": "中产",
+                "orchard_map.summary.level_low": "低产"
+            ]
+        ]
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try localizationBundle(language: language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), expectedValue)
+            }
+        }
+    }
+
+    func testOrchardTreeCountPresentationPreservesYieldLevelCounts() throws {
+        let records = [
+            makeRecord(id: "high", treeID: "H", scanDate: Date(), yieldKg: 50, gpsLat: 1, gpsLon: 1),
+            makeRecord(id: "medium", treeID: "M", scanDate: Date(), yieldKg: 40, gpsLat: 2, gpsLon: 2),
+            makeRecord(id: "low-a", treeID: "L1", scanDate: Date(), yieldKg: 20, gpsLat: 3, gpsLon: 3),
+            makeRecord(id: "low-b", treeID: "L2", scanDate: Date(), yieldKg: 0, gpsLat: 4, gpsLon: 4)
+        ]
+        let summary = TreeYieldSummary(trees: OrchardMapData(records: records).trees)
+        let presentation = OrchardTreeCountPresentation(
+            summary: summary,
+            bundle: try localizationBundle(language: "en")
+        )
+        XCTAssertEqual(summary.totalCount, 4)
+        XCTAssertEqual(summary.count(for: .high), 1)
+        XCTAssertEqual(summary.count(for: .medium), 1)
+        XCTAssertEqual(summary.count(for: .low), 2)
+        XCTAssertEqual(presentation.title, "Orchard Trees")
+        XCTAssertEqual(presentation.totalCountText, "4 trees")
+        XCTAssertEqual(presentation.high, .init(label: "High Yield", countText: "1 tree"))
+        XCTAssertEqual(presentation.medium, .init(label: "Medium Yield", countText: "1 tree"))
+        XCTAssertEqual(presentation.low, .init(label: "Low Yield", countText: "2 trees"))
+    }
+
+    func testOrchardTreeCountPresentationKeepsZeroCountsVisible() throws {
+        let presentation = OrchardTreeCountPresentation(
+            summary: TreeYieldSummary(trees: []),
+            bundle: try localizationBundle(language: "zh")
+        )
+        XCTAssertEqual(presentation.totalCountText, "0 棵果树")
+        XCTAssertEqual(presentation.high, .init(label: "高产", countText: "0 棵果树"))
+        XCTAssertEqual(presentation.medium, .init(label: "中产", countText: "0 棵果树"))
+        XCTAssertEqual(presentation.low, .init(label: "低产", countText: "0 棵果树"))
+    }
+
+    func testOrchardTreeCountLayoutStacksAtAccessibilitySizes() {
+        XCTAssertEqual(OrchardTreeCountLayout(dynamicTypeSize: .large), .horizontal)
+        XCTAssertEqual(OrchardTreeCountLayout(dynamicTypeSize: .accessibility1), .stacked)
+        XCTAssertEqual(OrchardTreeCountLayout(dynamicTypeSize: .accessibility5), .stacked)
+    }
+
     private func makeRecord(
         id: String,
         treeID: String,
