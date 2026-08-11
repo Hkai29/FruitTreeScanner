@@ -212,6 +212,114 @@ final class ResultConfidencePresentationTests: XCTestCase {
         XCTAssertEqual(presentation.methodDisplayName, "多帧视觉估计")
     }
 
+    func testResultDetailCopyIsCompleteInEnglishAndChinese() throws {
+        for language in ["en", "zh"] {
+            let localizedBundle = try localizationBundle(for: language)
+
+            for key in L10n.Result.DetailKey.allCases {
+                let value = localizedBundle.localizedString(
+                    forKey: key.rawValue,
+                    value: nil,
+                    table: nil
+                )
+                XCTAssertFalse(value.isEmpty, "\(language) localization is empty for \(key.rawValue)")
+                XCTAssertNotEqual(value, key.rawValue, "\(language) localization is missing for \(key.rawValue)")
+            }
+        }
+    }
+
+    func testReliabilityPresentationLocalizesKnownReasonWithoutMutatingDiagnostics() throws {
+        var result = makeReliabilityResult(confidence: "high", fusedCount: 1)
+        result.diagnostics.zeroYieldReasons = ["点云数量不足"]
+        let rawReasons = result.diagnostics.zeroYieldReasons
+
+        let english = ResultReliabilityPresentation(
+            result: result,
+            bundle: try localizationBundle(for: "en")
+        )
+        let chinese = ResultReliabilityPresentation(
+            result: result,
+            bundle: try localizationBundle(for: "zh")
+        )
+
+        XCTAssertEqual(english.title, "Unreliable Result — Rescan Recommended")
+        XCTAssertEqual(english.summary, "Insufficient point-cloud points")
+        XCTAssertEqual(english.diagnosticHint, "Primary reason: Insufficient point-cloud points")
+        XCTAssertEqual(chinese.title, "结果不可靠，建议复扫")
+        XCTAssertEqual(chinese.summary, "点云数量不足")
+        XCTAssertEqual(result.diagnostics.zeroYieldReasons, rawReasons)
+    }
+
+    func testPostScanWorkflowAdviceSupportsExplicitLanguageBundles() throws {
+        var result = YieldResult()
+        result.confidence = "high"
+        result.yieldFinalKg = 12.3
+        result.nLidar = 8
+
+        let english = ResultPostScanWorkflowAdvice(
+            result: result,
+            bundle: try localizationBundle(for: "en")
+        )
+        let chinese = ResultPostScanWorkflowAdvice(
+            result: result,
+            bundle: try localizationBundle(for: "zh")
+        )
+
+        XCTAssertEqual(english.confidenceText, "High Confidence")
+        XCTAssertEqual(english.nextStepText, "Save and continue")
+        XCTAssertTrue(english.primaryAdvice.contains("plot and status tags"))
+        XCTAssertEqual(chinese.confidenceText, "高置信度")
+        XCTAssertEqual(chinese.nextStepText, "保存并继续")
+    }
+
+    func testAlgorithmPresentationSupportsExplicitLanguageBundles() throws {
+        var result = YieldResult()
+        result.clusterEps = 0.03
+        result.colorFilterDesc = "HSV"
+        result.occlusionK = 1.234
+        result.methodUsed = "flagged"
+
+        let english = ResultAlgorithmParametersPresentation(
+            result: result,
+            bundle: try localizationBundle(for: "en")
+        )
+        let chinese = ResultAlgorithmParametersPresentation(
+            result: result,
+            bundle: try localizationBundle(for: "zh")
+        )
+
+        XCTAssertEqual(english.clusterSensitivityLabel, "Standard")
+        XCTAssertEqual(english.colorFilterDisplay, "Enabled")
+        XCTAssertTrue(english.colorFilterDetail.contains("HSV"))
+        XCTAssertEqual(english.occlusionDisplay, "Compensation ×1.23")
+        XCTAssertEqual(english.methodDisplayName, "Manual Review")
+        XCTAssertEqual(chinese.methodDisplayName, "人工复核")
+        XCTAssertEqual(chinese.occlusionDisplay, "补偿 ×1.23")
+    }
+
+    func testDiagnosticRecommendationsAndRawReasonsUseDisplayLanguage() throws {
+        let englishBundle = try localizationBundle(for: "en")
+        let chineseBundle = try localizationBundle(for: "zh")
+        let rawReason = "深度不可用"
+
+        XCTAssertEqual(
+            DiagnosticRecommendation.localizedReason(rawReason, in: englishBundle),
+            "Depth unavailable"
+        )
+        XCTAssertEqual(
+            DiagnosticRecommendation.localizedReason(rawReason, in: chineseBundle),
+            rawReason
+        )
+        XCTAssertTrue(
+            DiagnosticRecommendation.recommendations(for: [rawReason], bundle: englishBundle)
+                .contains(where: { $0.contains("LiDAR") })
+        )
+        XCTAssertEqual(
+            DiagnosticRecommendation.localizedReason("设备现场备注", in: englishBundle),
+            "设备现场备注"
+        )
+    }
+
     private func makeReliabilityResult(
         confidence: String,
         yieldKg: Float = 3.4,
@@ -241,6 +349,13 @@ final class ResultConfidencePresentationTests: XCTestCase {
             )
         }
         return result
+    }
+
+    private func localizationBundle(for language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
     }
 }
 

@@ -2,18 +2,15 @@ import SwiftUI
 
 struct ResultConfidencePresentation {
     let rawValue: String
+    private let bundle: Bundle
 
-    init(_ rawValue: String) {
+    init(_ rawValue: String, bundle: Bundle = .main) {
         self.rawValue = rawValue
+        self.bundle = bundle
     }
 
     var label: String {
-        switch rawValue {
-        case "high": return L10n.Result.confidenceHigh
-        case "medium": return L10n.Result.confidenceMedium
-        case "manual_review": return L10n.Result.confidenceManualReview
-        default: return L10n.Result.confidenceLow
-        }
+        L10n.Result.confidenceLabel(rawValue, in: bundle)
     }
 
     var color: Color {
@@ -89,7 +86,7 @@ struct ResultReliabilityPresentation {
     let recommendedAction: String
     let diagnosticHint: String?
 
-    init(result: YieldResult) {
+    init(result: YieldResult, bundle: Bundle = .main) {
         let diagnostics = result.diagnostics
         let fusedCount = max(
             diagnostics.fusedValidationCount,
@@ -110,19 +107,23 @@ struct ResultReliabilityPresentation {
             diagnostics: diagnostics,
             hasSelectedFruitFiltering: hasSelectedFruitFiltering,
             hasUnmappedLabels: hasUnmappedLabels,
-            hasWeakFusionEvidence: hasWeakFusionEvidence
+            hasWeakFusionEvidence: hasWeakFusionEvidence,
+            bundle: bundle
         )
         let hint = Self.diagnosticHint(
             primaryZeroYieldReason: primaryZeroYieldReason,
             hasUnmappedLabels: hasUnmappedLabels,
             hasSelectedFruitFiltering: hasSelectedFruitFiltering,
-            hasWeakFusionEvidence: hasWeakFusionEvidence
+            hasWeakFusionEvidence: hasWeakFusionEvidence,
+            bundle: bundle
         )
 
         if fusedCount == 0 {
             self.level = .noReliableEstimate
-            self.title = "无可靠估产"
-            self.summary = primaryZeroYieldReason ?? "当前没有足够 RGB+LiDAR 融合证据形成可靠估产。"
+            self.title = L10n.Result.detail(.reliabilityNoEstimateTitle, in: bundle)
+            self.summary = primaryZeroYieldReason.map {
+                DiagnosticRecommendation.localizedReason($0, in: bundle)
+            } ?? L10n.Result.detail(.reliabilityNoEstimateSummary, in: bundle)
             self.recommendedAction = action
             self.diagnosticHint = hint
             return
@@ -130,8 +131,8 @@ struct ResultReliabilityPresentation {
 
         if let primaryZeroYieldReason {
             self.level = .unreliable
-            self.title = "结果不可靠，建议复扫"
-            self.summary = primaryZeroYieldReason
+            self.title = L10n.Result.detail(.reliabilityUnreliableTitle, in: bundle)
+            self.summary = DiagnosticRecommendation.localizedReason(primaryZeroYieldReason, in: bundle)
             self.recommendedAction = action
             self.diagnosticHint = hint
             return
@@ -139,17 +140,17 @@ struct ResultReliabilityPresentation {
 
         if confidenceNeedsReview || lowSourceReliability || hasSelectedFruitFiltering || hasUnmappedLabels {
             self.level = .review
-            self.title = "结果一般，建议结合诊断复核"
-            self.summary = "已形成 RGB+LiDAR 融合证据，但仍建议查看下方诊断。"
+            self.title = L10n.Result.detail(.reliabilityReviewTitle, in: bundle)
+            self.summary = L10n.Result.detail(.reliabilityReviewSummary, in: bundle)
             self.recommendedAction = action
             self.diagnosticHint = hint
             return
         }
 
         self.level = .reliable
-        self.title = "结果可靠，可用于估产"
-        self.summary = "已形成 RGB+LiDAR 融合证据，当前结果可作为本次估产记录。"
-        self.recommendedAction = "可以保存并导出"
+        self.title = L10n.Result.detail(.reliabilityReliableTitle, in: bundle)
+        self.summary = L10n.Result.detail(.reliabilityReliableSummary, in: bundle)
+        self.recommendedAction = L10n.Result.detail(.actionSaveAndExport, in: bundle)
         self.diagnosticHint = nil
     }
 
@@ -181,211 +182,261 @@ struct ResultReliabilityPresentation {
         diagnostics: ScanYieldDiagnostics,
         hasSelectedFruitFiltering: Bool,
         hasUnmappedLabels: Bool,
-        hasWeakFusionEvidence: Bool
+        hasWeakFusionEvidence: Bool,
+        bundle: Bundle = .main
     ) -> String {
         if hasSelectedFruitFiltering {
-            return "请确认选择的果类是否正确"
+            return L10n.Result.detail(.actionConfirmFruit, in: bundle)
         }
         if hasUnmappedLabels {
-            return "请检查识别类别映射并结合诊断复核"
+            return L10n.Result.detail(.actionCheckMapping, in: bundle)
         }
         if hasWeakFusionEvidence {
-            return "当前没有足够 RGB+LiDAR 融合证据"
+            return L10n.Result.detail(.actionInsufficientFusion, in: bundle)
         }
         if !diagnostics.depthAvailable && diagnostics.pointCloudPointCount == 0 {
-            return "建议放慢移动并复扫"
+            return L10n.Result.detail(.actionRescanSlowly, in: bundle)
         }
         if diagnostics.scanAngleCoverage > 0 && diagnostics.scanAngleCoverage < 0.45 {
-            return "建议补扫树冠背面"
+            return L10n.Result.detail(.actionScanCanopyBack, in: bundle)
         }
         if !diagnostics.zeroYieldReasons.isEmpty {
-            return "建议放慢移动并复扫"
+            return L10n.Result.detail(.actionRescanSlowly, in: bundle)
         }
-        return "可以保存并导出"
+        return L10n.Result.detail(.actionSaveAndExport, in: bundle)
     }
 
     private static func diagnosticHint(
         primaryZeroYieldReason: String?,
         hasUnmappedLabels: Bool,
         hasSelectedFruitFiltering: Bool,
-        hasWeakFusionEvidence: Bool
+        hasWeakFusionEvidence: Bool,
+        bundle: Bundle
     ) -> String? {
         if let primaryZeroYieldReason {
-            return "主要原因：\(primaryZeroYieldReason)"
+            return L10n.Result.detailFormat(
+                .hintPrimaryReasonFormat,
+                arguments: [DiagnosticRecommendation.localizedReason(primaryZeroYieldReason, in: bundle)],
+                in: bundle
+            )
         }
         if hasSelectedFruitFiltering {
-            return "部分识别结果与当前果类选择不匹配。"
+            return L10n.Result.detail(.hintFruitMismatch, in: bundle)
         }
         if hasUnmappedLabels {
-            return "检测到未映射识别类别，详细标签见诊断区域。"
+            return L10n.Result.detail(.hintUnmappedLabels, in: bundle)
         }
         if hasWeakFusionEvidence {
-            return "存在视觉或点云候选，但可靠融合证据不足。"
+            return L10n.Result.detail(.hintWeakFusion, in: bundle)
         }
         return nil
     }
 }
 
 enum DiagnosticRecommendation {
-    private static let reasonToRecommendation: [String: [String]] = [
+    private static let reasonToRecommendation: [String: [L10n.Result.DetailKey]] = [
         "模型未加载": [
-            "请重启应用以重新初始化本机 CoreML 识别模型",
-            "检查 CoreML 模型文件 FruitsDetector.mlmodelc 是否完整"
+            .recommendationModelRestart,
+            .recommendationModelCheck
         ],
         "深度不可用": [
-            "当前设备可能不支持 LiDAR，建议使用 iPhone/iPad Pro",
-            "如设备支持 LiDAR 但提示不可用，请重启应用"
+            .recommendationDepthDevice,
+            .recommendationDepthRestart
         ],
         "点云数量不足": [
-            "建议放慢扫描速度，从多个角度充分覆盖树冠",
-            "确保 LiDAR 传感器清洁无障碍，采集更多点云数据"
+            .recommendationPointsSlow,
+            .recommendationPointsClean
         ],
         "未处理图像检测帧": [
-            "请确保摄像头朝向果树，保持设备稳定 2-3 秒",
-            "避免快速移动，给图像检测留出稳定画面"
+            .recommendationFramesStable,
+            .recommendationFramesSlow
         ],
         "图像检测无结果": [
-            "建议在白天光线充足的条件下扫描",
-            "确保果实清晰可见，避免逆光和强烈阴影"
+            .recommendationDetectionsLight,
+            .recommendationDetectionsVisible
         ],
         "候选被置信度过滤": [
-            "图像检测发现疑似果实，但置信度过低被过滤",
-            "建议调整拍摄距离和角度，确保果实清晰可见"
+            .recommendationConfidenceExplanation,
+            .recommendationConfidenceAdjust
         ],
         "模型标签未映射到水果类别": [
-            "检测到的类别未能匹配目标水果，请检查 fruit_mapping.json",
-            "确认当前水果品类与扫描的水果一致"
+            .recommendationMappingCheck,
+            .recommendationFruitCheck
         ],
         "点云聚类无候选": [
-            "点云稀疏导致 DBSCAN 无法形成有效聚类",
-            "建议扫描更长时间，从更多角度覆盖以增加点云密度"
+            .recommendationCandidatesDensity,
+            .recommendationCandidatesCoverage
         ],
         "融合验证失败": [
-            "图像检测与点云位置未能匹配，可能因扫描抖动过大",
-            "建议保持平稳的扫描速度和角度，避免剧烈移动"
+            .recommendationFusionMismatch,
+            .recommendationFusionStable
         ],
         "cloudOnly 保守模式未接受候选": [
-            "图像检测置信度过低，系统进入纯点云保守模式",
-            "建议改善光照条件，确保果实清晰可见后重新扫描"
+            .recommendationCloudOnlyMode,
+            .recommendationCloudOnlyLight
         ]
     ]
 
-    static func recommendations(for reasons: [String]) -> [String] {
+    private static let reasonLocalizationKeys: [String: L10n.Result.DetailKey] = [
+        "模型未加载": .reasonModelNotLoaded,
+        "深度不可用": .reasonDepthUnavailable,
+        "点云数量不足": .reasonInsufficientPoints,
+        "未处理图像检测帧": .reasonNoImageFrames,
+        "图像检测无结果": .reasonNoDetections,
+        "候选被置信度过滤": .reasonConfidenceFiltered,
+        "模型标签未映射到水果类别": .reasonUnmappedLabels,
+        "点云聚类无候选": .reasonNoCandidates,
+        "融合验证失败": .reasonFusionFailed,
+        "cloudOnly 保守模式未接受候选": .reasonCloudOnlyRejected,
+        "非成熟期冠层回归模型尚未标定，本次未生成产量估算": .reasonCrownUntrained
+    ]
+
+    static func recommendations(for reasons: [String], bundle: Bundle = .main) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
         for reason in reasons {
-            guard let recs = reasonToRecommendation[reason] else { continue }
-            for rec in recs {
+            guard let keys = reasonToRecommendation[reason] else { continue }
+            for key in keys {
+                let rec = L10n.Result.detail(key, in: bundle)
                 if seen.insert(rec).inserted {
                     result.append(rec)
                 }
             }
         }
         if result.isEmpty {
-            result.append("建议检查本机 CoreML 识别模型、LiDAR 深度和点云质量后重新扫描")
+            result.append(L10n.Result.detail(.recommendationFallback, in: bundle))
         }
         return result
+    }
+
+    static func localizedReason(_ reason: String, in bundle: Bundle = .main) -> String {
+        guard let key = reasonLocalizationKeys[reason] else { return reason }
+        return L10n.Result.detail(key, in: bundle)
     }
 }
 
 struct ResultPostScanWorkflowAdvice {
     let result: YieldResult
+    private let bundle: Bundle
+
+    init(result: YieldResult, bundle: Bundle = .main) {
+        self.result = result
+        self.bundle = bundle
+    }
 
     var confidenceText: String {
-        ResultConfidencePresentation(result.confidence).label
+        ResultConfidencePresentation(result.confidence, bundle: bundle).label
     }
 
     var nextStepText: String {
-        ResultReviewPolicy.needsReview(result.confidence) ? "复扫或人工复核" : "保存并继续"
+        L10n.Result.detail(
+            ResultReviewPolicy.needsReview(result.confidence) ? .workflowNextReview : .workflowNextSave,
+            in: bundle
+        )
     }
 
     var primaryAdvice: String {
         switch result.confidence {
         case "high":
-            return "结果可直接入库；建议补充地块和状态标签后继续下一棵。"
+            return L10n.Result.detail(.workflowPrimaryHigh, in: bundle)
         case "medium":
-            return "结果可用但建议抽查点云预览，确认树冠背面和果实密集区没有明显缺口。"
+            return L10n.Result.detail(.workflowPrimaryMedium, in: bundle)
         default:
-            return "建议保留本次记录作为原始点云，并从主干到树冠背面补扫一次。"
+            return L10n.Result.detail(.workflowPrimaryLow, in: bundle)
         }
     }
 
     var reviewFocus: String {
         if result.yieldFinalKg == 0 || ResultReviewPolicy.needsReview(result.confidence) {
-            return "优先检查 LiDAR 深度、点云数量、图像帧和果实是否清晰可见。"
+            return L10n.Result.detail(.workflowReviewLow, in: bundle)
         }
         if result.nLidar == 0 {
-            return "点云已生成但果实候选不足，建议查看果实密集区是否进入画面。"
+            return L10n.Result.detail(.workflowReviewNoFruit, in: bundle)
         }
-        return "抽查树冠轮廓、果实密集区和冠幅估算，确认符合田间记录。"
+        return L10n.Result.detail(.workflowReviewNormal, in: bundle)
     }
 }
 
 struct ResultAlgorithmParametersPresentation {
     let result: YieldResult
+    private let bundle: Bundle
+
+    init(result: YieldResult, bundle: Bundle = .main) {
+        self.result = result
+        self.bundle = bundle
+    }
 
     var clusterSensitivityLabel: String {
         switch result.clusterEps {
         case ..<0.018:
-            return "精细"
+            return L10n.Result.detail(.algorithmClusterFine, in: bundle)
         case ..<0.05:
-            return "标准"
+            return L10n.Result.detail(.algorithmClusterStandard, in: bundle)
         default:
-            return "宽松"
+            return L10n.Result.detail(.algorithmClusterRelaxed, in: bundle)
         }
     }
 
     var colorFilterDisplay: String {
         if result.colorFilterDesc == "N/A" {
-            return "未启用"
+            return L10n.Result.detail(.algorithmFilterDisabled, in: bundle)
         }
-        return "已启用"
+        return L10n.Result.detail(.algorithmFilterEnabled, in: bundle)
     }
 
     var colorFilterDetail: String {
         guard !result.colorFilterDesc.isEmpty, result.colorFilterDesc != "N/A" else {
-            return "本次未使用颜色范围过滤，主要依赖模型和几何特征。"
+            return L10n.Result.detail(.algorithmFilterDisabledDetail, in: bundle)
         }
-        return "结合当前果类成熟色范围筛选候选点；技术范围：\(result.colorFilterDesc)。"
+        return L10n.Result.detailFormat(
+            .algorithmFilterDetailFormat,
+            arguments: [result.colorFilterDesc],
+            in: bundle
+        )
     }
 
     var occlusionDisplay: String {
-        result.occlusionK > 1.01
-            ? "补偿 ×\(ResultValueFormatter.occlusionK(result.occlusionK))"
-            : "未放大"
+        if result.occlusionK > 1.01 {
+            return L10n.Result.detailFormat(
+                .algorithmOcclusionFormat,
+                arguments: [ResultValueFormatter.occlusionK(result.occlusionK)],
+                in: bundle
+            )
+        }
+        return L10n.Result.detail(.algorithmOcclusionNone, in: bundle)
     }
 
     var methodDisplayName: String {
         if result.methodUsed.hasSuffix("_coverage_review") {
-            return "覆盖不足复核"
+            return L10n.Result.detail(.algorithmMethodCoverageReview, in: bundle)
         }
         if result.methodUsed.hasSuffix("_coverage_limited") {
-            return "有限覆盖估算"
+            return L10n.Result.detail(.algorithmMethodCoverageLimited, in: bundle)
         }
 
         switch result.methodUsed {
         case "weighted_AB":
-            return "双路线加权"
+            return L10n.Result.detail(.algorithmMethodWeighted, in: bundle)
         case "average_AB":
-            return "双路线均值"
+            return L10n.Result.detail(.algorithmMethodAverage, in: bundle)
         case "A_only":
-            return "冠层回归"
+            return L10n.Result.detail(.algorithmMethodCrown, in: bundle)
         case "B_only":
-            return "果实体积"
+            return L10n.Result.detail(.algorithmMethodFruitVolume, in: bundle)
         case "fusion_only", "fusion_visual_calibrated":
-            return "RGB + LiDAR 融合"
+            return L10n.Result.detail(.algorithmMethodFusion, in: bundle)
         case "tracked_image_visual_calibrated":
-            return "多帧视觉估计"
+            return L10n.Result.detail(.algorithmMethodTrackedImage, in: bundle)
         case "image_visual_calibrated":
-            return "视觉检测估计"
+            return L10n.Result.detail(.algorithmMethodImage, in: bundle)
         case "cloud_only_calibrated":
-            return "点云候选估计"
+            return L10n.Result.detail(.algorithmMethodCloud, in: bundle)
         case "flagged":
-            return "人工复核"
+            return L10n.Result.detail(.algorithmMethodManualReview, in: bundle)
         case "crown_untrained":
-            return "冠层模型待标定"
+            return L10n.Result.detail(.algorithmMethodCrownUntrained, in: bundle)
         case "none", "":
-            return "未形成估算"
+            return L10n.Result.detail(.algorithmMethodNone, in: bundle)
         default:
             return result.methodUsed
         }
@@ -393,33 +444,33 @@ struct ResultAlgorithmParametersPresentation {
 
     var methodDetail: String {
         if result.methodUsed.hasSuffix("_coverage_review") {
-            return "遮挡校正依赖有限扫描角度，结果已标记为需要复扫或人工复核。"
+            return L10n.Result.detail(.algorithmDetailCoverageReview, in: bundle)
         }
         if result.methodUsed.hasSuffix("_coverage_limited") {
-            return "本次扫描覆盖有限，估产仍可参考，但建议抽查树冠背面和果实密集区。"
+            return L10n.Result.detail(.algorithmDetailCoverageLimited, in: bundle)
         }
 
         switch result.methodUsed {
         case "weighted_AB", "average_AB":
-            return "综合冠层结构和可见果实体积，两条路线一致性越高置信度越高。"
+            return L10n.Result.detail(.algorithmDetailCombined, in: bundle)
         case "A_only":
-            return "当前仅使用冠层结构回归，适合非成熟期或果实不可见场景。"
+            return L10n.Result.detail(.algorithmDetailCrown, in: bundle)
         case "B_only":
-            return "当前以可见果实体积为主，结合遮挡补偿得到最终产量。"
+            return L10n.Result.detail(.algorithmDetailFruitVolume, in: bundle)
         case "fusion_only", "fusion_visual_calibrated":
-            return "当前结果来自图像识别、LiDAR 点云聚类和遮挡补偿的融合。"
+            return L10n.Result.detail(.algorithmDetailFusion, in: bundle)
         case "tracked_image_visual_calibrated":
-            return "当前主要依赖多帧视觉轨迹和深度候选，适合点云较稀疏但画面稳定的扫描。"
+            return L10n.Result.detail(.algorithmDetailTrackedImage, in: bundle)
         case "image_visual_calibrated":
-            return "当前主要依赖视觉检测和品类平均参数，建议结合点云预览复核。"
+            return L10n.Result.detail(.algorithmDetailImage, in: bundle)
         case "cloud_only_calibrated":
-            return "当前主要依赖点云几何候选，建议确认果实颜色和图像检测条件。"
+            return L10n.Result.detail(.algorithmDetailCloud, in: bundle)
         case "flagged":
-            return "两条估算路线差异较大，建议结合现场抽样复核。"
+            return L10n.Result.detail(.algorithmDetailManualReview, in: bundle)
         case "crown_untrained":
-            return "冠层回归尚未使用真实收获数据标定，本次不提供产量结论。"
+            return L10n.Result.detail(.algorithmDetailCrownUntrained, in: bundle)
         default:
-            return "显示本次最终产量采用的证据组合和估算策略。"
+            return L10n.Result.detail(.algorithmDetailDefault, in: bundle)
         }
     }
 }

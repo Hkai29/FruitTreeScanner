@@ -415,6 +415,170 @@ enum L10n {
         static let occlusionK = NSLocalizedString("result.occlusion_k", value: "遮挡校正 K", comment: "Occlusion correction K")
         static let unit = NSLocalizedString("result.unit_count", value: "个", comment: "Count unit")
         static let unitPoints = NSLocalizedString("result.unit_points", value: "点", comment: "Points unit")
+
+        enum DetailKey: String, CaseIterable {
+            case reliabilityNoEstimateTitle = "result.detail.reliability.no_estimate.title"
+            case reliabilityNoEstimateSummary = "result.detail.reliability.no_estimate.summary"
+            case reliabilityUnreliableTitle = "result.detail.reliability.unreliable.title"
+            case reliabilityReviewTitle = "result.detail.reliability.review.title"
+            case reliabilityReviewSummary = "result.detail.reliability.review.summary"
+            case reliabilityReliableTitle = "result.detail.reliability.reliable.title"
+            case reliabilityReliableSummary = "result.detail.reliability.reliable.summary"
+            case actionSaveAndExport = "result.detail.action.save_and_export"
+            case actionConfirmFruit = "result.detail.action.confirm_fruit"
+            case actionCheckMapping = "result.detail.action.check_mapping"
+            case actionInsufficientFusion = "result.detail.action.insufficient_fusion"
+            case actionRescanSlowly = "result.detail.action.rescan_slowly"
+            case actionScanCanopyBack = "result.detail.action.scan_canopy_back"
+            case hintPrimaryReasonFormat = "result.detail.hint.primary_reason_format"
+            case hintFruitMismatch = "result.detail.hint.fruit_mismatch"
+            case hintUnmappedLabels = "result.detail.hint.unmapped_labels"
+            case hintWeakFusion = "result.detail.hint.weak_fusion"
+
+            case reasonModelNotLoaded = "result.detail.reason.model_not_loaded"
+            case reasonDepthUnavailable = "result.detail.reason.depth_unavailable"
+            case reasonInsufficientPoints = "result.detail.reason.insufficient_points"
+            case reasonNoImageFrames = "result.detail.reason.no_image_frames"
+            case reasonNoDetections = "result.detail.reason.no_detections"
+            case reasonConfidenceFiltered = "result.detail.reason.confidence_filtered"
+            case reasonUnmappedLabels = "result.detail.reason.unmapped_labels"
+            case reasonNoCandidates = "result.detail.reason.no_candidates"
+            case reasonFusionFailed = "result.detail.reason.fusion_failed"
+            case reasonCloudOnlyRejected = "result.detail.reason.cloud_only_rejected"
+            case reasonCrownUntrained = "result.detail.reason.crown_untrained"
+
+            case recommendationModelRestart = "result.detail.recommendation.model_restart"
+            case recommendationModelCheck = "result.detail.recommendation.model_check"
+            case recommendationDepthDevice = "result.detail.recommendation.depth_device"
+            case recommendationDepthRestart = "result.detail.recommendation.depth_restart"
+            case recommendationPointsSlow = "result.detail.recommendation.points_slow"
+            case recommendationPointsClean = "result.detail.recommendation.points_clean"
+            case recommendationFramesStable = "result.detail.recommendation.frames_stable"
+            case recommendationFramesSlow = "result.detail.recommendation.frames_slow"
+            case recommendationDetectionsLight = "result.detail.recommendation.detections_light"
+            case recommendationDetectionsVisible = "result.detail.recommendation.detections_visible"
+            case recommendationConfidenceExplanation = "result.detail.recommendation.confidence_explanation"
+            case recommendationConfidenceAdjust = "result.detail.recommendation.confidence_adjust"
+            case recommendationMappingCheck = "result.detail.recommendation.mapping_check"
+            case recommendationFruitCheck = "result.detail.recommendation.fruit_check"
+            case recommendationCandidatesDensity = "result.detail.recommendation.candidates_density"
+            case recommendationCandidatesCoverage = "result.detail.recommendation.candidates_coverage"
+            case recommendationFusionMismatch = "result.detail.recommendation.fusion_mismatch"
+            case recommendationFusionStable = "result.detail.recommendation.fusion_stable"
+            case recommendationCloudOnlyMode = "result.detail.recommendation.cloud_only_mode"
+            case recommendationCloudOnlyLight = "result.detail.recommendation.cloud_only_light"
+            case recommendationFallback = "result.detail.recommendation.fallback"
+
+            case workflowNextReview = "result.detail.workflow.next_review"
+            case workflowNextSave = "result.detail.workflow.next_save"
+            case workflowPrimaryHigh = "result.detail.workflow.primary.high"
+            case workflowPrimaryMedium = "result.detail.workflow.primary.medium"
+            case workflowPrimaryLow = "result.detail.workflow.primary.low"
+            case workflowReviewLow = "result.detail.workflow.review.low"
+            case workflowReviewNoFruit = "result.detail.workflow.review.no_fruit"
+            case workflowReviewNormal = "result.detail.workflow.review.normal"
+            case workflowTitle = "result.detail.workflow.title"
+            case workflowConfidenceLabel = "result.detail.workflow.confidence_label"
+            case workflowNextStepLabel = "result.detail.workflow.next_step_label"
+            case workflowTaggingAdvice = "result.detail.workflow.tagging_advice"
+
+            case algorithmClusterFine = "result.detail.algorithm.cluster.fine"
+            case algorithmClusterStandard = "result.detail.algorithm.cluster.standard"
+            case algorithmClusterRelaxed = "result.detail.algorithm.cluster.relaxed"
+            case algorithmFilterDisabled = "result.detail.algorithm.filter.disabled"
+            case algorithmFilterEnabled = "result.detail.algorithm.filter.enabled"
+            case algorithmFilterDisabledDetail = "result.detail.algorithm.filter.disabled_detail"
+            case algorithmFilterDetailFormat = "result.detail.algorithm.filter.detail_format"
+            case algorithmOcclusionFormat = "result.detail.algorithm.occlusion.format"
+            case algorithmOcclusionNone = "result.detail.algorithm.occlusion.none"
+            case algorithmMethodCoverageReview = "result.detail.algorithm.method.coverage_review"
+            case algorithmMethodCoverageLimited = "result.detail.algorithm.method.coverage_limited"
+            case algorithmMethodWeighted = "result.detail.algorithm.method.weighted"
+            case algorithmMethodAverage = "result.detail.algorithm.method.average"
+            case algorithmMethodCrown = "result.detail.algorithm.method.crown"
+            case algorithmMethodFruitVolume = "result.detail.algorithm.method.fruit_volume"
+            case algorithmMethodFusion = "result.detail.algorithm.method.fusion"
+            case algorithmMethodTrackedImage = "result.detail.algorithm.method.tracked_image"
+            case algorithmMethodImage = "result.detail.algorithm.method.image"
+            case algorithmMethodCloud = "result.detail.algorithm.method.cloud"
+            case algorithmMethodManualReview = "result.detail.algorithm.method.manual_review"
+            case algorithmMethodCrownUntrained = "result.detail.algorithm.method.crown_untrained"
+            case algorithmMethodNone = "result.detail.algorithm.method.none"
+            case algorithmDetailCoverageReview = "result.detail.algorithm.detail.coverage_review"
+            case algorithmDetailCoverageLimited = "result.detail.algorithm.detail.coverage_limited"
+            case algorithmDetailCombined = "result.detail.algorithm.detail.combined"
+            case algorithmDetailCrown = "result.detail.algorithm.detail.crown"
+            case algorithmDetailFruitVolume = "result.detail.algorithm.detail.fruit_volume"
+            case algorithmDetailFusion = "result.detail.algorithm.detail.fusion"
+            case algorithmDetailTrackedImage = "result.detail.algorithm.detail.tracked_image"
+            case algorithmDetailImage = "result.detail.algorithm.detail.image"
+            case algorithmDetailCloud = "result.detail.algorithm.detail.cloud"
+            case algorithmDetailManualReview = "result.detail.algorithm.detail.manual_review"
+            case algorithmDetailCrownUntrained = "result.detail.algorithm.detail.crown_untrained"
+            case algorithmDetailDefault = "result.detail.algorithm.detail.default"
+            case algorithmSummaryTitle = "result.detail.algorithm.summary_title"
+            case algorithmTargetLabel = "result.detail.algorithm.target_label"
+            case algorithmTargetDetail = "result.detail.algorithm.target_detail"
+            case algorithmQualityLabel = "result.detail.algorithm.quality_label"
+            case algorithmQualityDetailFormat = "result.detail.algorithm.quality_detail_format"
+            case algorithmPathLabel = "result.detail.algorithm.path_label"
+            case algorithmOcclusionLabel = "result.detail.algorithm.occlusion_label"
+            case algorithmOcclusionDetail = "result.detail.algorithm.occlusion_detail"
+            case depthAvailableShort = "result.detail.depth.available_short"
+            case depthUnavailableShort = "result.detail.depth.unavailable_short"
+
+            case diagnosticsDepthAvailable = "result.detail.diagnostics.depth_available"
+            case diagnosticsDepthUnavailable = "result.detail.diagnostics.depth_unavailable"
+            case diagnosticsPointDepthFormat = "result.detail.diagnostics.point_depth_format"
+            case diagnosticsFramesFormat = "result.detail.diagnostics.frames_format"
+            case diagnosticsFramesUnprocessed = "result.detail.diagnostics.frames_unprocessed"
+            case diagnosticsFusedFormat = "result.detail.diagnostics.fused_format"
+            case diagnosticsTrackedFormat = "result.detail.diagnostics.tracked_format"
+            case diagnosticsDepthCandidateFormat = "result.detail.diagnostics.depth_candidate_format"
+            case diagnosticsCloudCandidateFormat = "result.detail.diagnostics.cloud_candidate_format"
+            case diagnosticsInsufficient = "result.detail.diagnostics.insufficient"
+            case diagnosticsTitle = "result.detail.diagnostics.title"
+            case diagnosticsFallbackReason = "result.detail.diagnostics.fallback_reason"
+            case diagnosticsRecommendations = "result.detail.diagnostics.recommendations"
+            case diagnosticsKeyQuality = "result.detail.diagnostics.key_quality"
+            case diagnosticsValidatedFruit = "result.detail.diagnostics.validated_fruit"
+            case diagnosticsPointDepth = "result.detail.diagnostics.point_depth"
+            case diagnosticsImageFrames = "result.detail.diagnostics.image_frames"
+            case diagnosticsFusionEvidence = "result.detail.diagnostics.fusion_evidence"
+            case diagnosticsScanCoverage = "result.detail.diagnostics.scan_coverage"
+        }
+
+        static func detail(_ key: DetailKey, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.rawValue, table: nil)
+        }
+
+        static func detailFormat(
+            _ key: DetailKey,
+            arguments: [CVarArg],
+            in bundle: Bundle = .main
+        ) -> String {
+            String(format: detail(key, in: bundle), arguments: arguments)
+        }
+
+        static func confidenceLabel(_ rawValue: String, in bundle: Bundle = .main) -> String {
+            let key: String
+            let fallback: String
+            switch rawValue {
+            case "high":
+                key = "result.confidence_high"
+                fallback = "高置信度"
+            case "medium":
+                key = "result.confidence_medium"
+                fallback = "中等置信度"
+            case "manual_review":
+                key = "result.confidence_manual_review"
+                fallback = "需人工复核"
+            default:
+                key = "result.confidence_low"
+                fallback = "低置信度"
+            }
+            return bundle.localizedString(forKey: key, value: fallback, table: nil)
+        }
     }
 
     // MARK: - Quick Tagging
