@@ -526,3 +526,15 @@
 "history.integrity.invalid.csv" = "The result CSV can't be read. Count and yield are unavailable.";
 "history.integrity.invalid.revision" = "The result files don't match. Count and yield are unavailable.";
 "history.integrity.invalid.unknown" = "The result files can't be verified. Count and yield are unavailable.";
+"trends.title" = "Trends";
+"trends.done" = "Done";
+"trends.done_hint" = "Closes the trends view.";
+"trends.empty_title" = "No Reliable Trend Data";
+"trends.empty_message" = "Complete and save at least one scan to chart yield changes over time.";
+"trends.start_scan" = "Start Scanning";
+"trends.header_subtitle" = "Review yield and fruit count over time to support harvest timing decisions.";
+"trends.chart_title" = "Yield Trend";
+"trends.records_title" = "Records";
+"trends.unit.fruit_one" = "fruit";
+"trends.unit.fruit_other" = "fruits";
+"trends.unit.kilograms" = "kg";

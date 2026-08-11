@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -695,5 +697,303 @@ final class DashboardHomeLocalizationTests: XCTestCase {
         XCTAssertEqual(AppMode.scan.title, L10n.Dashboard.scanMode)
         XCTAssertEqual(AppMode.history.title, L10n.Dashboard.historyMode)
         XCTAssertEqual(AppMode.analytics.title, L10n.Dashboard.analyticsMode)
+    }
+}
+
+final class TrendsPresentationTests: XCTestCase {
+    func testCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "trends.title": "Trends",
+                "trends.done": "Done",
+                "trends.done_hint": "Closes the trends view.",
+                "trends.empty_title": "No Reliable Trend Data",
+                "trends.empty_message": "Complete and save at least one scan to chart yield changes over time.",
+                "trends.start_scan": "Start Scanning",
+                "trends.header_subtitle": "Review yield and fruit count over time to support harvest timing decisions.",
+                "trends.chart_title": "Yield Trend",
+                "trends.records_title": "Records",
+                "trends.unit.fruit_one": "fruit",
+                "trends.unit.fruit_other": "fruits",
+                "trends.unit.kilograms": "kg"
+            ],
+            "zh": [
+                "trends.title": "趋势",
+                "trends.done": "完成",
+                "trends.done_hint": "关闭趋势视图。",
+                "trends.empty_title": "暂无可靠趋势数据",
+                "trends.empty_message": "至少完成一次扫描并保存完整结果后，才能显示产量随时间变化。",
+                "trends.start_scan": "开始扫描",
+                "trends.header_subtitle": "按时间查看产量和果数变化，辅助判断采收节奏。",
+                "trends.chart_title": "产量趋势",
+                "trends.records_title": "记录",
+                "trends.unit.fruit_one": "个",
+                "trends.unit.fruit_other": "个",
+                "trends.unit.kilograms": "kg"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try localizedBundle(language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testPresentationMapsEnglishAndChineseCopy() throws {
+        let english = TrendsPresentation(bundle: try localizedBundle("en"))
+        let chinese = TrendsPresentation(bundle: try localizedBundle("zh"))
+
+        XCTAssertEqual(
+            [
+                english.title,
+                english.done,
+                english.doneHint,
+                english.emptyTitle,
+                english.emptyMessage,
+                english.startScan,
+                english.headerSubtitle,
+                english.chartTitle,
+                english.recordsTitle
+            ],
+            [
+                "Trends",
+                "Done",
+                "Closes the trends view.",
+                "No Reliable Trend Data",
+                "Complete and save at least one scan to chart yield changes over time.",
+                "Start Scanning",
+                "Review yield and fruit count over time to support harvest timing decisions.",
+                "Yield Trend",
+                "Records"
+            ]
+        )
+        XCTAssertEqual(
+            [
+                chinese.title,
+                chinese.done,
+                chinese.doneHint,
+                chinese.emptyTitle,
+                chinese.emptyMessage,
+                chinese.startScan,
+                chinese.headerSubtitle,
+                chinese.chartTitle,
+                chinese.recordsTitle
+            ],
+            [
+                "趋势",
+                "完成",
+                "关闭趋势视图。",
+                "暂无可靠趋势数据",
+                "至少完成一次扫描并保存完整结果后，才能显示产量随时间变化。",
+                "开始扫描",
+                "按时间查看产量和果数变化，辅助判断采收节奏。",
+                "产量趋势",
+                "记录"
+            ]
+        )
+    }
+
+    func testRecordPresentationUsesRegionalDatesGroupingAndPluralUnits() throws {
+        let scanDate = try scanDate()
+        let record = makeRecord(
+            id: "record-many",
+            treeID: "TREE-1234",
+            scanDate: scanDate,
+            fruitCount: 1_234,
+            yieldKg: 9_876.5
+        )
+
+        let englishUS = TrendsPresentation(bundle: try localizedBundle("en"))
+            .recordPresentation(for: record, locale: Locale(identifier: "en_US"))
+        XCTAssertEqual(
+            englishUS,
+            TrendsRecordPresentation(
+                treeID: "TREE-1234",
+                chartDate: "06/01",
+                recordDate: "06/01/2026",
+                yieldValue: "9,876.5",
+                yieldText: "9,876.5 kg",
+                fruitText: "1,234 fruits"
+            )
+        )
+        XCTAssertEqual(englishUS.chartAccessibilityValue, "06/01, 9,876.5 kg")
+
+        let englishGB = TrendsPresentation(bundle: try localizedBundle("en"))
+            .recordPresentation(for: record, locale: Locale(identifier: "en_GB"))
+        XCTAssertEqual(englishGB.chartDate, "01/06")
+        XCTAssertEqual(englishGB.recordDate, "01/06/2026")
+
+        let chinese = TrendsPresentation(bundle: try localizedBundle("zh"))
+            .recordPresentation(for: record, locale: Locale(identifier: "zh_CN"))
+        XCTAssertEqual(
+            chinese,
+            TrendsRecordPresentation(
+                treeID: "TREE-1234",
+                chartDate: "06/01",
+                recordDate: "2026/06/01",
+                yieldValue: "9,876.5",
+                yieldText: "9,876.5 kg",
+                fruitText: "1,234 个"
+            )
+        )
+
+        let singularRecord = makeRecord(
+            id: "record-one",
+            treeID: "TREE-1",
+            scanDate: scanDate,
+            fruitCount: 1,
+            yieldKg: 1
+        )
+        XCTAssertEqual(
+            TrendsPresentation(bundle: try localizedBundle("en"))
+                .recordPresentation(for: singularRecord, locale: Locale(identifier: "en_US"))
+                .fruitText,
+            "1 fruit"
+        )
+    }
+
+    @MainActor
+    func testSheetAndTrendComponentsRenderInEnglishAndChineseAtLargestAccessibilityTextSize() throws {
+        for language in ["en", "zh"] {
+            let locale = Locale(identifier: language == "en" ? "en_US" : "zh_CN")
+            let bundle = try localizedBundle(language)
+            let presentation = TrendsPresentation(bundle: bundle).recordPresentation(
+                for: makeRecord(
+                    id: "render-\(language)",
+                    treeID: "TREE-1234",
+                    scanDate: try scanDate(),
+                    fruitCount: 12_345,
+                    yieldKg: 9_876.5
+                ),
+                locale: locale
+            )
+
+            let sheet = AnyView(
+                TrendsSheet(onStartScan: {}, bundle: bundle)
+                    .environment(\.dynamicTypeSize, .accessibility5)
+                    .environment(\.locale, locale)
+                    .environment(\.colorScheme, .dark)
+            )
+            attachWindowRender(
+                of: sheet,
+                size: CGSize(width: 390, height: 844),
+                name: "TrendsSheet-\(language)-AX5"
+            )
+
+            let components = AnyView(
+                VStack(spacing: 18) {
+                    HStack(alignment: .bottom) {
+                        TrendsChartPoint(
+                            presentation: presentation,
+                            yieldRatio: 0.75,
+                            color: Design.Colors.Dark.info
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    TrendsRecordRow(presentation: presentation)
+                        .darkSurface(cornerRadius: 10)
+                }
+                .padding(16)
+                .background(Design.Colors.Dark.bgDeep)
+                .environment(\.dynamicTypeSize, .accessibility5)
+                .environment(\.locale, locale)
+                .environment(\.colorScheme, .dark)
+            )
+            attachImageRender(
+                of: components,
+                size: CGSize(width: 390, height: 620),
+                name: "TrendsComponents-\(language)-AX5"
+            )
+        }
+    }
+
+    private func localizedBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
+    }
+
+    private func scanDate() throws -> Date {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 6
+        components.day = 1
+        return try XCTUnwrap(components.date)
+    }
+
+    private func makeRecord(
+        id: String,
+        treeID: String,
+        scanDate: Date,
+        fruitCount: Int,
+        yieldKg: Float
+    ) -> ScanFileRecord {
+        ScanFileRecord(
+            id: id,
+            treeID: treeID,
+            fileURL: URL(fileURLWithPath: "/tmp/\(id).ply"),
+            scanDate: scanDate,
+            fruitCount: fruitCount,
+            yieldKg: yieldKg
+        )
+    }
+
+    @MainActor
+    private func attachImageRender(of view: AnyView, size: CGSize, name: String) {
+        let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height))
+        renderer.scale = 1
+        renderer.proposedSize = ProposedViewSize(size)
+        guard let renderedImage = renderer.uiImage else {
+            return XCTFail("Unable to render \(name)")
+        }
+
+        XCTAssertEqual(renderedImage.size, size)
+        XCTAssertNotNil(renderedImage.cgImage)
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    private func attachWindowRender(of view: AnyView, size: CGSize, name: String) {
+        let hostingController = UIHostingController(
+            rootView: view.frame(width: size.width, height: size.height)
+        )
+        let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let renderedImage = renderer.image { _ in
+            hostingController.view.drawHierarchy(
+                in: CGRect(origin: .zero, size: size),
+                afterScreenUpdates: true
+            )
+        }
+
+        XCTAssertEqual(renderedImage.size, size)
+        XCTAssertNotNil(renderedImage.cgImage)
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        window.isHidden = true
+        window.rootViewController = nil
     }
 }
