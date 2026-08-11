@@ -58,11 +58,13 @@ struct TreeStatItem: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(Design.Typography.caption)
+                .font(.caption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
             Text(value)
-                .font(Design.Typography.subheadlineMedium)
+                .font(.subheadline.weight(.medium))
                 .foregroundColor(color)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }

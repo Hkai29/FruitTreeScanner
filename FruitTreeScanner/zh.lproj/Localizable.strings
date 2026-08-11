@@ -143,6 +143,24 @@
 "dashboard.today_overview" = "今日概览";
 "dashboard.tree_ids" = "树编号";
 
+/* 果园地图树体详情 */
+"orchard_map.detail.tree_title" = "树体 %@";
+"orchard_map.detail.close_accessibility" = "关闭 %@ 的详情";
+"orchard_map.detail.estimated_yield" = "预估产量";
+"orchard_map.detail.yield_format" = "%@ kg";
+"orchard_map.detail.fruit_count" = "果实数";
+"orchard_map.detail.fruit_count_one" = "%d 个果实";
+"orchard_map.detail.fruit_count_other" = "%d 个果实";
+"orchard_map.detail.confidence" = "置信度";
+"orchard_map.detail.confidence_high" = "高";
+"orchard_map.detail.confidence_medium" = "中";
+"orchard_map.detail.confidence_low" = "低";
+"orchard_map.detail.scan_date" = "扫描日期";
+"orchard_map.detail.yield_level" = "产量等级";
+"orchard_map.detail.yield_level_high" = "高产";
+"orchard_map.detail.yield_level_medium" = "中产";
+"orchard_map.detail.yield_level_low" = "低产";
+
 /* 扫描历史 */
 "history.title" = "扫描历史";
 "history.filter.plot" = "地块";

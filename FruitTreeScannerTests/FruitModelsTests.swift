@@ -1,5 +1,6 @@
 import XCTest
 import Combine
+import CoreLocation
 @testable import FruitTreeScanner
 
 final class FruitModelsTests: XCTestCase {
@@ -2041,6 +2042,130 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(CalibrationRecordInputParser.isOptionalNonNegativeDoubleValid("inf"))
     }
 
+    // MARK: - Orchard map tree detail presentation
+
+    func testOrchardTreeDetailCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "orchard_map.detail.tree_title": "Tree %@",
+                "orchard_map.detail.close_accessibility": "Close details for %@",
+                "orchard_map.detail.estimated_yield": "Estimated Yield",
+                "orchard_map.detail.yield_format": "%@ kg",
+                "orchard_map.detail.fruit_count": "Fruit Count",
+                "orchard_map.detail.fruit_count_one": "%d fruit",
+                "orchard_map.detail.fruit_count_other": "%d fruits",
+                "orchard_map.detail.confidence": "Confidence",
+                "orchard_map.detail.confidence_high": "High",
+                "orchard_map.detail.confidence_medium": "Medium",
+                "orchard_map.detail.confidence_low": "Low",
+                "orchard_map.detail.scan_date": "Scan Date",
+                "orchard_map.detail.yield_level": "Yield Level",
+                "orchard_map.detail.yield_level_high": "High Yield",
+                "orchard_map.detail.yield_level_medium": "Medium Yield",
+                "orchard_map.detail.yield_level_low": "Low Yield"
+            ],
+            "zh": [
+                "orchard_map.detail.tree_title": "树体 %@",
+                "orchard_map.detail.close_accessibility": "关闭 %@ 的详情",
+                "orchard_map.detail.estimated_yield": "预估产量",
+                "orchard_map.detail.yield_format": "%@ kg",
+                "orchard_map.detail.fruit_count": "果实数",
+                "orchard_map.detail.fruit_count_one": "%d 个果实",
+                "orchard_map.detail.fruit_count_other": "%d 个果实",
+                "orchard_map.detail.confidence": "置信度",
+                "orchard_map.detail.confidence_high": "高",
+                "orchard_map.detail.confidence_medium": "中",
+                "orchard_map.detail.confidence_low": "低",
+                "orchard_map.detail.scan_date": "扫描日期",
+                "orchard_map.detail.yield_level": "产量等级",
+                "orchard_map.detail.yield_level_high": "高产",
+                "orchard_map.detail.yield_level_medium": "中产",
+                "orchard_map.detail.yield_level_low": "低产"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try orchardLocalizationBundle(language: language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    bundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testOrchardTreeDetailPresentationLocalizesEnglishAndChineseWithoutChangingTree() throws {
+        let scanDate = Date(timeIntervalSince1970: 1_786_397_400)
+        let tree = orchardTree(
+            treeID: "TREE-17",
+            weight: 50.5,
+            confidence: "high",
+            scanDate: scanDate,
+            fruitCount: 1
+        )
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let english = OrchardTreeDetailPresentation(
+            tree: tree,
+            bundle: try orchardLocalizationBundle(language: "en"),
+            locale: Locale(identifier: "en_US"),
+            timeZone: timeZone
+        )
+        let chinese = OrchardTreeDetailPresentation(
+            tree: tree,
+            bundle: try orchardLocalizationBundle(language: "zh"),
+            locale: Locale(identifier: "zh_CN"),
+            timeZone: timeZone
+        )
+
+        XCTAssertEqual(english.treeTitle, "Tree TREE-17")
+        XCTAssertEqual(english.closeAccessibilityLabel, "Close details for TREE-17")
+        XCTAssertEqual(english.estimatedYieldValue, "50.5 kg")
+        XCTAssertEqual(english.fruitCountValue, "1 fruit")
+        XCTAssertEqual(english.confidenceValue, "High")
+        XCTAssertEqual(english.yieldLevelValue, "High Yield")
+        XCTAssertFalse(english.treeTitle.contains("树"))
+
+        XCTAssertEqual(chinese.treeTitle, "树体 TREE-17")
+        XCTAssertEqual(chinese.estimatedYieldValue, "50.5 kg")
+        XCTAssertEqual(chinese.fruitCountValue, "1 个果实")
+        XCTAssertEqual(chinese.confidenceValue, "高")
+        XCTAssertEqual(chinese.yieldLevelValue, "高产")
+        XCTAssertNotEqual(english.scanDateValue, chinese.scanDateValue)
+
+        XCTAssertEqual(tree.treeID, "TREE-17")
+        XCTAssertEqual(tree.weight, 50.5, accuracy: 0.001)
+        XCTAssertEqual(tree.scanDate, scanDate)
+        XCTAssertEqual(tree.fruitCount, 1)
+    }
+
+    func testOrchardTreeDetailPresentationUsesRegionalNumbersPluralAndConservativeConfidence() throws {
+        let presentation = OrchardTreeDetailPresentation(
+            tree: orchardTree(
+                treeID: "TREE-18",
+                weight: 37.5,
+                confidence: "unknown",
+                scanDate: Date(timeIntervalSince1970: 0),
+                fruitCount: 12
+            ),
+            bundle: try orchardLocalizationBundle(language: "en"),
+            locale: Locale(identifier: "de_DE")
+        )
+
+        XCTAssertEqual(presentation.estimatedYieldValue, "37,5 kg")
+        XCTAssertEqual(presentation.fruitCountValue, "12 fruits")
+        XCTAssertEqual(presentation.confidenceValue, "Low")
+        XCTAssertEqual(presentation.yieldLevelValue, "Medium Yield")
+    }
+
+    func testOrchardTreeDetailLayoutStacksOnlyAtAccessibilitySizes() {
+        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .large), .horizontal)
+        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .xxxLarge), .horizontal)
+        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .accessibility1), .stacked)
+        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .accessibility5), .stacked)
+    }
+
     // MARK: - Historical comparison data integrity
 
     func testHistoricalCompareItemsIncludeOnlyCompleteRecordsAndPreserveEvidence() throws {
@@ -2112,6 +2237,31 @@ final class FruitModelsTests: XCTestCase {
             yieldKg: yieldKg,
             confidence: confidence,
             persistenceState: persistenceState
+        )
+    }
+
+    private func orchardLocalizationBundle(language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
+    }
+
+    private func orchardTree(
+        treeID: String,
+        weight: Double,
+        confidence: String,
+        scanDate: Date,
+        fruitCount: Int
+    ) -> TreeAnnotation {
+        TreeAnnotation(
+            id: "\(treeID)-scan",
+            treeID: treeID,
+            coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737),
+            weight: weight,
+            confidence: confidence,
+            scanDate: scanDate,
+            fruitCount: fruitCount
         )
     }
 }
