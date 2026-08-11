@@ -11,36 +11,44 @@ struct AlgorithmParametersResultSection: View {
     var body: some View {
         if result.clusterEps > 0 || result.pointCloudSize > 0 {
             ResultSectionCard(
-                title: "采集摘要",
+                title: L10n.Result.detail(.algorithmSummaryTitle),
                 icon: "checklist",
                 color: Color(hex: "8E8E93")
             ) {
                 if !result.fruitCategory.isEmpty {
                     ResultParameterRow(
-                        title: "识别对象",
+                        title: L10n.Result.detail(.algorithmTargetLabel),
                         value: result.fruitCategory,
-                        detail: "按当前果类参数完成本次估算。"
+                        detail: L10n.Result.detail(.algorithmTargetDetail)
                     )
                 }
                 if result.pointCloudSize > 0 {
                     ResultParameterRow(
-                        title: "采集质量",
+                        title: L10n.Result.detail(.algorithmQualityLabel),
                         value: "\(ResultValueFormatter.integer(result.pointCloudSize)) \(L10n.Result.unitPoints)",
-                        detail: "深度\(result.diagnostics.depthAvailable ? "可用" : "不可用")，置信度为 \(ResultConfidencePresentation(result.confidence).label)。",
+                        detail: L10n.Result.detailFormat(
+                            .algorithmQualityDetailFormat,
+                            arguments: [
+                                L10n.Result.detail(
+                                    result.diagnostics.depthAvailable ? .depthAvailableShort : .depthUnavailableShort
+                                ),
+                                ResultConfidencePresentation(result.confidence).label
+                            ]
+                        ),
                         tint: Design.Colors.forest
                     )
                 }
                 ResultParameterRow(
-                    title: "估算路径",
+                    title: L10n.Result.detail(.algorithmPathLabel),
                     value: presentation.methodDisplayName,
                     detail: presentation.methodDetail,
                     tint: Design.Colors.harvest
                 )
                 if result.occlusionK > 1.01 {
                     ResultParameterRow(
-                        title: "遮挡补偿",
+                        title: L10n.Result.detail(.algorithmOcclusionLabel),
                         value: presentation.occlusionDisplay,
-                        detail: "扫描覆盖不足时才放大可见果实估计。"
+                        detail: L10n.Result.detail(.algorithmOcclusionDetail)
                     )
                 }
             }

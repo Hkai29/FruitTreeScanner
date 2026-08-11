@@ -9,17 +9,17 @@ struct ResultPostScanWorkflowSection: View {
 
     var body: some View {
         ResultSectionCard(
-            title: "扫描后处理建议",
+            title: L10n.Result.detail(.workflowTitle),
             icon: "checklist",
             color: Design.Colors.harvest
         ) {
-            ResultInfoRow(label: "当前置信度", value: advice.confidenceText, highlight: result.confidence == "high")
-            ResultInfoRow(label: "下一步", value: advice.nextStepText)
+            ResultInfoRow(label: L10n.Result.detail(.workflowConfidenceLabel), value: advice.confidenceText, highlight: result.confidence == "high")
+            ResultInfoRow(label: L10n.Result.detail(.workflowNextStepLabel), value: advice.nextStepText)
 
             VStack(alignment: .leading, spacing: 8) {
                 ResultWorkflowAdviceRow(icon: "archivebox", text: advice.primaryAdvice)
                 ResultWorkflowAdviceRow(icon: "cube.transparent", text: advice.reviewFocus)
-                ResultWorkflowAdviceRow(icon: "tag", text: "完成后给记录补地块、品种和扫描状态，便于历史比较和批量导出。")
+                ResultWorkflowAdviceRow(icon: "tag", text: L10n.Result.detail(.workflowTaggingAdvice))
             }
         }
     }
