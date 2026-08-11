@@ -1,7 +1,78 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
 final class ResultConfidencePresentationTests: XCTestCase {
+    func testResultDetailRowsKeepHorizontalLayoutAtStandardTextSizes() {
+        let policy = ResultDetailRowLayoutPolicy(isAccessibilitySize: false)
+
+        XCTAssertEqual(policy.arrangement, .horizontal)
+    }
+
+    func testResultDetailRowsStackAtAccessibilityTextSizes() {
+        let policy = ResultDetailRowLayoutPolicy(isAccessibilitySize: true)
+
+        XCTAssertEqual(policy.arrangement, .vertical)
+    }
+
+    @MainActor
+    func testResultDetailRowsRenderAtLargestAccessibilityTextSize() {
+        let rootView = ScrollView {
+            ResultSectionCard(
+                title: "扫描结果详细复核与采集参数",
+                icon: "stethoscope",
+                color: Design.Colors.warning
+            ) {
+                ResultInfoRow(
+                    label: "融合证据与扫描覆盖质量",
+                    value: "12 个 RGB+LiDAR 高置信度融合候选",
+                    highlight: true
+                )
+                ResultParameterRow(
+                    title: "估算路径与识别对象",
+                    value: "融合视觉校准与覆盖受限复核",
+                    detail: "保留完整的参数解释与失败诊断，供田间复核和后续导出使用。"
+                )
+                DiagnosticRecommendationRow(
+                    recommendation: "从主干移动到树冠背面补扫，并确认深度、点云和图像帧均持续可用。"
+                )
+            }
+        }
+        .frame(width: 390, height: 844, alignment: .top)
+        .background(Design.Colors.Dark.bgDeep)
+        .environment(\.dynamicTypeSize, .accessibility5)
+        .environment(\.colorScheme, .dark)
+
+        let hostingController = UIHostingController(rootView: rootView)
+        hostingController.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        hostingController.view.frame = window.bounds
+        hostingController.view.backgroundColor = .black
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var didDraw = false
+        let renderedImage = UIGraphicsImageRenderer(bounds: window.bounds)
+            .image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+
+        XCTAssertTrue(didDraw)
+        XCTAssertEqual(renderedImage.size, CGSize(width: 390, height: 844))
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "ResultDetailRows-AX5"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        window.resignKey()
+    }
+
     func testKnownConfidenceLabelsStayStable() {
         XCTAssertEqual(ResultConfidencePresentation("high").label, "高置信度")
         XCTAssertEqual(ResultConfidencePresentation("medium").label, "中等置信度")
