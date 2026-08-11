@@ -576,6 +576,7 @@
 "voxel.complete" = "覆盖完成";
 
 /* Export */
+"export.filename_prefix" = "果园批次数据";
 "export.options.format_title" = "导出格式";
 "export.options.fields_title" = "包含字段";
 "export.options.grouping_title" = "分组方式";

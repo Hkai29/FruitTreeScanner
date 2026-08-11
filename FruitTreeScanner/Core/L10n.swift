@@ -1501,6 +1501,14 @@ enum L10n {
 
     // MARK: - Export
     enum Export {
+        static func filenamePrefix(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "export.filename_prefix",
+                value: "果园批次数据",
+                table: nil
+            )
+        }
+
         static let formatTitle = NSLocalizedString("export.options.format_title", value: "导出格式", comment: "Batch export format section title")
         static let fieldsTitle = NSLocalizedString("export.options.fields_title", value: "包含字段", comment: "Batch export included fields section title")
         static let groupingTitle = NSLocalizedString("export.options.grouping_title", value: "分组方式", comment: "Batch export grouping section title")

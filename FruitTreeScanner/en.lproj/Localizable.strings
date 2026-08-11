@@ -576,6 +576,7 @@
 "voxel.complete" = "Coverage Complete";
 
 /* Export */
+"export.filename_prefix" = "Orchard_Batch_Data";
 "export.options.format_title" = "Export Format";
 "export.options.fields_title" = "Included Fields";
 "export.options.grouping_title" = "Grouping";

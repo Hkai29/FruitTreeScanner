@@ -296,6 +296,66 @@ final class BatchExportServiceTests: XCTestCase {
         }
     }
 
+    func testBatchExportFilenameIsLocalizedAndPreservesStableStructure() throws {
+        let expectedPrefixes = ["en": "Orchard_Batch_Data", "zh": "果园批次数据"]
+        let formats: [(BatchExportService.ExportFormat, String)] = [
+            (.csv, "csv"), (.excel, "xls"), (.json, "json")
+        ]
+
+        for (language, expectedPrefix) in expectedPrefixes {
+            let bundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+            XCTAssertEqual(L10n.Export.filenamePrefix(in: bundle), expectedPrefix)
+            for (format, fileExtension) in formats {
+                let filename = BatchExportService.makeFilename(
+                    format: format,
+                    date: Date(timeIntervalSince1970: 1_717_200_000),
+                    uniqueSuffix: "A1B2C3D4",
+                    bundle: bundle
+                )
+                XCTAssertTrue(filename.hasPrefix("\(expectedPrefix)_"))
+                XCTAssertTrue(filename.hasSuffix("_A1B2C3D4.\(fileExtension)"))
+                XCTAssertNotNil(
+                    filename.range(
+                        of: #"_\d{8}_\d{6}_A1B2C3D4\.\#(fileExtension)$"#,
+                        options: .regularExpression
+                    )
+                )
+                XCTAssertFalse(filename.contains("/"))
+                XCTAssertEqual((filename as NSString).pathExtension, fileExtension)
+            }
+        }
+    }
+
+    func testBatchExportUsesLocalizedFilenameWithoutChangingResultMetadata() async throws {
+        let result = try await BatchExportService.shared.export(
+            records: [makeRecord(fruitCount: 12, yieldKg: 3.4)],
+            format: .csv,
+            options: .init()
+        )
+        defer { try? FileManager.default.removeItem(at: result.url) }
+        XCTAssertTrue(result.url.lastPathComponent.hasPrefix("\(L10n.Export.filenamePrefix())_"))
+        XCTAssertEqual(result.url.pathExtension, "csv")
+        XCTAssertEqual(result.recordCount, 1)
+        XCTAssertEqual(result.totalFruitCount, 12)
+        XCTAssertEqual(result.totalYield, 3.4, accuracy: 0.001)
+    }
+
+    func testRapidBatchExportsUseUniqueLocalizedFilenames() async throws {
+        let records = [makeRecord()]
+        async let first = BatchExportService.shared.export(records: records, format: .json, options: .init())
+        async let second = BatchExportService.shared.export(records: records, format: .json, options: .init())
+        let results = try await [first, second]
+        defer { results.forEach { try? FileManager.default.removeItem(at: $0.url) } }
+        XCTAssertNotEqual(results[0].url, results[1].url)
+        for result in results {
+            XCTAssertTrue(result.url.lastPathComponent.hasPrefix("\(L10n.Export.filenamePrefix())_"))
+            XCTAssertEqual(result.url.pathExtension, "json")
+        }
+    }
+
     // MARK: - (2) CSV default options: UTF-8 BOM, Chinese headers, formatted yield/GPS/date, summary totals
 
     func testCSVStartsWithUTF8BOM() async throws {
