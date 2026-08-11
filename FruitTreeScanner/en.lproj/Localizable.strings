@@ -143,6 +143,15 @@
 "dashboard.today_overview" = "Today’s Overview";
 "dashboard.tree_ids" = "Tree IDs";
 
+/* Orchard Map Chrome */
+"orchard_map.chrome.close_accessibility" = "Close Orchard Map";
+"orchard_map.chrome.clear_filter_accessibility" = "Clear yield filter";
+"orchard_map.chrome.tree_count_one" = "%d tree";
+"orchard_map.chrome.tree_count_other" = "%d trees";
+"orchard_map.chrome.filter_high" = "High Yield";
+"orchard_map.chrome.filter_medium" = "Medium Yield";
+"orchard_map.chrome.filter_low" = "Low Yield";
+
 /* Scan History */
 "history.title" = "Scan History";
 "history.filter.plot" = "Plot";

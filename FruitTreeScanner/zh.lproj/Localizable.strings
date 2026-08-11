@@ -143,6 +143,15 @@
 "dashboard.today_overview" = "今日概览";
 "dashboard.tree_ids" = "树编号";
 
+/* 果园地图控件 */
+"orchard_map.chrome.close_accessibility" = "关闭果园地图";
+"orchard_map.chrome.clear_filter_accessibility" = "清除产量筛选";
+"orchard_map.chrome.tree_count_one" = "%d 棵果树";
+"orchard_map.chrome.tree_count_other" = "%d 棵果树";
+"orchard_map.chrome.filter_high" = "高产";
+"orchard_map.chrome.filter_medium" = "中产";
+"orchard_map.chrome.filter_low" = "低产";
+
 /* 扫描历史 */
 "history.title" = "扫描历史";
 "history.filter.plot" = "地块";
