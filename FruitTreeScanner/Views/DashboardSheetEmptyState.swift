@@ -1,5 +1,16 @@
 import SwiftUI
 
+enum DashboardSheetEmptyStateLayout: Equatable {
+    case horizontal
+    case stacked
+
+    init(dynamicTypeSize: DynamicTypeSize, adaptsForAccessibility: Bool) {
+        self = adaptsForAccessibility && dynamicTypeSize.isAccessibilitySize
+            ? .stacked
+            : .horizontal
+    }
+}
+
 struct DashboardSheetEmptyState: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -11,50 +22,21 @@ struct DashboardSheetEmptyState: View {
     var primaryAction: DashboardSheetAction? = nil
     var secondaryAction: DashboardSheetAction? = nil
     var outerPadding: Bool = true
+    var adaptsForAccessibility: Bool = false
+
+    private var layout: DashboardSheetEmptyStateLayout {
+        DashboardSheetEmptyStateLayout(
+            dynamicTypeSize: dynamicTypeSize,
+            adaptsForAccessibility: adaptsForAccessibility
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                if let imageName, !dynamicTypeSize.isAccessibilitySize {
-                    DashboardFeatureImage(name: imageName, accent: accent)
-                        .frame(width: 96, height: 76)
-                        .accessibilityHidden(true)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: icon)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(accent)
-                            .padding(6)
-                            .background(accent.opacity(0.14))
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-                            .accessibilityHidden(true)
-
-                        Text(title)
-                            .font(.headline)
-                            .foregroundColor(Design.Colors.Dark.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .layoutPriority(1)
-                    }
-
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .accessibilityElement(children: .combine)
-            }
+            header
 
             if primaryAction != nil || secondaryAction != nil {
-                actionLayout {
-                    if let primaryAction {
-                        actionButton(primaryAction, isPrimary: true)
-                    }
-                    if let secondaryAction {
-                        actionButton(secondaryAction, isPrimary: false)
-                    }
-                }
+                actionSection
                 .padding(.top, 14)
             }
         }
@@ -65,21 +47,98 @@ struct DashboardSheetEmptyState: View {
         .frame(maxWidth: .infinity, maxHeight: outerPadding ? .infinity : nil, alignment: .top)
     }
 
-    private var actionLayout: AnyLayout {
-        if dynamicTypeSize.isAccessibilitySize {
-            return AnyLayout(VStackLayout(spacing: 10))
+    @ViewBuilder
+    private var header: some View {
+        if layout == .stacked {
+            VStack(alignment: .leading, spacing: 12) {
+                featureImage
+                textContent
+            }
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                featureImage
+                textContent
+            }
         }
-        return AnyLayout(HStackLayout(spacing: 10))
+    }
+
+    @ViewBuilder
+    private var featureImage: some View {
+        if let imageName {
+            if layout == .stacked {
+                DashboardFeatureImage(name: imageName, accent: accent)
+                    .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 120)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                    .accessibilityHidden(adaptsForAccessibility)
+            } else {
+                DashboardFeatureImage(name: imageName, accent: accent)
+                    .frame(width: 96, height: 76)
+                    .accessibilityHidden(adaptsForAccessibility)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var textContent: some View {
+        if adaptsForAccessibility {
+            textContentBody
+                .accessibilityElement(children: .combine)
+        } else {
+            textContentBody
+        }
+    }
+
+    private var textContentBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 26, height: 26)
+                    .background(accent.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .accessibilityHidden(adaptsForAccessibility)
+
+                Text(title)
+                    .font(adaptsForAccessibility ? .headline : .system(size: 16, weight: .semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+            }
+
+            Text(message)
+                .font(adaptsForAccessibility ? .body : .system(size: 13))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var actionSection: some View {
+        if layout == .stacked {
+            VStack(spacing: 10) {
+                actionButtons
+            }
+        } else {
+            HStack(spacing: 10) {
+                actionButtons
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        if let primaryAction {
+            actionButton(primaryAction, isPrimary: true)
+        }
+        if let secondaryAction {
+            actionButton(secondaryAction, isPrimary: false)
+        }
     }
 
     private func actionButton(_ action: DashboardSheetAction, isPrimary: Bool) -> some View {
         Button(action: action.action) {
             actionLabel(action)
                 .foregroundColor(isPrimary ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 4 : 8)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
                 .background(isPrimary ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 9))
                 .overlay(
@@ -88,20 +147,20 @@ struct DashboardSheetEmptyState: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(action.title)
     }
 
     @ViewBuilder
     private func actionLabel(_ action: DashboardSheetAction) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            Text(action.title)
-                .font(.caption.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
+        if adaptsForAccessibility {
+            Label(action.title, systemImage: action.icon)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: Design.Touch.minimumHeight)
         } else {
             Label(action.title, systemImage: action.icon)
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 13, weight: .semibold))
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
         }
     }
 }

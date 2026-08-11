@@ -1058,3 +1058,6 @@
 "history.integrity.invalid.csv" = "The result CSV can't be read. Count and yield are unavailable.";
 "history.integrity.invalid.revision" = "The result files don't match. Count and yield are unavailable.";
 "history.integrity.invalid.unknown" = "The result files can't be verified. Count and yield are unavailable.";
+"orchard_map.empty.title" = "No Located Scans";
+"orchard_map.empty.message" = "Complete scans with GPS appear on the orchard map so you can view reliable yield distribution.";
+"orchard_map.empty.start_scan" = "Start Scanning";

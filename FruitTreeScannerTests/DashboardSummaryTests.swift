@@ -1943,6 +1943,86 @@ final class DashboardHomeLocalizationTests: XCTestCase {
     }
 }
 
+final class OrchardMapEmptyStateTests: XCTestCase {
+    func testCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "title": "No Located Scans",
+                "message": "Complete scans with GPS appear on the orchard map so you can view reliable yield distribution.",
+                "startScanTitle": "Start Scanning"
+            ],
+            "zh": [
+                "title": "暂无定位扫描",
+                "message": "带 GPS 的完整扫描记录会显示在果园地图中，用于查看可靠产量分布。",
+                "startScanTitle": "开始扫描"
+            ]
+        ]
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+            )
+            let presentation = OrchardMapEmptyStatePresentation(bundle: bundle)
+            XCTAssertEqual(presentation.title, expectedValues["title"])
+            XCTAssertEqual(presentation.message, expectedValues["message"])
+            XCTAssertEqual(presentation.startScanTitle, expectedValues["startScanTitle"])
+        }
+    }
+
+    func testAdaptiveLayoutStacksOnlyAtAccessibilitySizes() {
+        XCTAssertEqual(
+            DashboardSheetEmptyStateLayout(dynamicTypeSize: .large, adaptsForAccessibility: true),
+            .horizontal
+        )
+        XCTAssertEqual(
+            DashboardSheetEmptyStateLayout(dynamicTypeSize: .accessibility1, adaptsForAccessibility: true),
+            .stacked
+        )
+        XCTAssertEqual(
+            DashboardSheetEmptyStateLayout(dynamicTypeSize: .accessibility5, adaptsForAccessibility: false),
+            .horizontal
+        )
+    }
+
+    @MainActor
+    func testEmptyStateRendersEnglishAndChineseAtLargestAccessibilityTextSize() throws {
+        for language in ["en", "zh"] {
+            let bundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+            )
+            let emptyState = OrchardMapEmptyState(onStartScan: {}, bundle: bundle)
+                .environment(\.dynamicTypeSize, .accessibility5)
+                .environment(\.locale, Locale(identifier: language))
+            let rootView = emptyState
+                .frame(width: 390, height: 844)
+                .environment(\.colorScheme, .dark)
+            let hostingController = UIHostingController(rootView: rootView)
+            hostingController.overrideUserInterfaceStyle = .dark
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+            window.rootViewController = hostingController
+            window.makeKeyAndVisible()
+            hostingController.view.frame = window.bounds
+            hostingController.view.backgroundColor = .black
+            hostingController.view.setNeedsLayout()
+            hostingController.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            var didDraw = false
+            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                didDraw = hostingController.view.drawHierarchy(
+                    in: hostingController.view.bounds,
+                    afterScreenUpdates: true
+                )
+            }
+            XCTAssertTrue(didDraw)
+            XCTAssertEqual(image.size, CGSize(width: 390, height: 844))
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "OrchardMapEmptyState-\(language)-AX5"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.resignKey()
+        }
+    }
+}
+
 final class BatchExportHeaderLocalizationTests: XCTestCase {
     func testBatchExportHeaderCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
