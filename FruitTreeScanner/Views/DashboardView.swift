@@ -9,6 +9,7 @@ struct DashboardView: View {
     @State var pendingScanRequest: ScanLaunchRequest?
     @State var activeScanRequest: ScanLaunchRequest?
     @State var postScanNavigationState = PostScanNavigationState()
+    @State var sheetScanHandoffState = DashboardSheetScanHandoffState()
     @ObservedObject var historyStore = ScanHistoryStore.shared
 
     init(router: NavigationRouter) {
@@ -30,7 +31,7 @@ struct DashboardView: View {
             onQuickAction: handleQuickAction,
             onScanTap: openPointCloud
         )
-        .sheet(item: sheetDestination) { destination in
+        .sheet(item: sheetDestination, onDismiss: handleSheetDismissal) { destination in
             sheetView(for: destination)
         }
         .fullScreenCover(item: fullScreenDestination, onDismiss: presentPendingScanIfNeeded) { destination in

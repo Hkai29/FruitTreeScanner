@@ -27,6 +27,31 @@ final class DashboardSummaryTests: XCTestCase {
         )
     }
 
+    func testSheetStartScanHandoffWaitsForSheetDismissal() {
+        var state = DashboardSheetScanHandoffState()
+
+        XCTAssertNil(state.transition(for: .startScanRequested))
+        XCTAssertEqual(state.transition(for: .sheetDismissed), .startScan)
+    }
+
+    func testSheetStartScanHandoffIgnoresDismissalWithoutRequest() {
+        var state = DashboardSheetScanHandoffState()
+
+        XCTAssertNil(state.transition(for: .sheetDismissed))
+    }
+
+    func testSheetStartScanHandoffConsumesRapidRequestsOnce() {
+        var state = DashboardSheetScanHandoffState()
+
+        XCTAssertNil(state.transition(for: .startScanRequested))
+        XCTAssertNil(state.transition(for: .startScanRequested))
+        XCTAssertEqual(state.transition(for: .sheetDismissed), .startScan)
+        XCTAssertNil(
+            state.transition(for: .sheetDismissed),
+            "A repeated or late dismissal must not reopen the scan setup"
+        )
+    }
+
     @MainActor
     func testScanLaunchSubmissionGateDeliversSynchronously() {
         let gate = ScanLaunchSubmissionGate()

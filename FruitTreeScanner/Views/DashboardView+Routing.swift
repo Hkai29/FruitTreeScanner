@@ -29,6 +29,27 @@ struct PostScanNavigationState {
     }
 }
 
+enum DashboardSheetScanHandoffEvent {
+    case startScanRequested
+    case sheetDismissed
+}
+
+struct DashboardSheetScanHandoffState {
+    private var hasPendingStartScan = false
+
+    mutating func transition(for event: DashboardSheetScanHandoffEvent) -> DashboardDestination? {
+        switch event {
+        case .startScanRequested:
+            hasPendingStartScan = true
+            return nil
+        case .sheetDismissed:
+            guard hasPendingStartScan else { return nil }
+            hasPendingStartScan = false
+            return .startScan
+        }
+    }
+}
+
 extension DashboardView {
     var sheetDestination: Binding<DashboardDestination?> {
         Binding(
@@ -60,6 +81,18 @@ extension DashboardView {
 
     func showStartScan() {
         destination = .startScan
+    }
+
+    func showStartScanAfterDismissingSheet() {
+        _ = sheetScanHandoffState.transition(for: .startScanRequested)
+        destination = nil
+    }
+
+    func handleSheetDismissal() {
+        guard let nextDestination = sheetScanHandoffState.transition(for: .sheetDismissed) else {
+            return
+        }
+        destination = nextDestination
     }
 
     func showQuickScan() {
@@ -147,27 +180,27 @@ extension DashboardView {
             CalibrationView()
         case .scanHistory:
             HistorySheetView(
-                onStartScan: showStartScan,
+                onStartScan: showStartScanAfterDismissingSheet,
                 onRescanTree: launchRescan,
                 onImportFile: { self.destination = .importFile }
             )
         case .pointCloud(let initialFileURL):
             PointCloudSheet(
                 initialFileURL: initialFileURL,
-                onStartScan: showStartScan,
+                onStartScan: showStartScanAfterDismissingSheet,
                 onImportFile: { self.destination = .importFile }
             )
         case .tagManagement:
-            TagManagementView(onStartScan: showStartScan)
+            TagManagementView(onStartScan: showStartScanAfterDismissingSheet)
         case .yieldReport:
-            YieldReportSheet(onStartScan: showStartScan)
+            YieldReportSheet(onStartScan: showStartScanAfterDismissingSheet)
         case .compare:
-            HistoricalCompareView(onStartScan: showStartScan)
+            HistoricalCompareView(onStartScan: showStartScanAfterDismissingSheet)
         case .trends:
-            TrendsSheet(onStartScan: showStartScan)
+            TrendsSheet(onStartScan: showStartScanAfterDismissingSheet)
         case .map:
             if #available(iOS 17, *) {
-                MapSheet(onStartScan: showStartScan)
+                MapSheet(onStartScan: showStartScanAfterDismissingSheet)
             } else {
                 Text("地图功能需要 iOS 17")
             }
@@ -175,7 +208,7 @@ extension DashboardView {
             ImportFileView()
         case .batchExport:
             BatchExportView(
-                onStartScan: showStartScan,
+                onStartScan: showStartScanAfterDismissingSheet,
                 onImportFile: { self.destination = .importFile }
             )
         case .startScan, .quickScan:
@@ -186,7 +219,7 @@ extension DashboardView {
     func launchRescan(treeID: String) {
         let normalizedTreeID = TreeIdentifierPolicy.normalized(treeID)
         guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
-            destination = .startScan
+            showStartScanAfterDismissingSheet()
             return
         }
         destination = nil
