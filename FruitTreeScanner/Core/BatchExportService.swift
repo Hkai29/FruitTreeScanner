@@ -93,8 +93,11 @@ final class BatchExportService {
                 throw BatchExportError.noRecords
             }
 
-            let timestamp = Self.filenameDateFormatter.string(from: Date())
-            let filename = "果园批次数据_\(timestamp)_\(UUID().uuidString.prefix(8)).\(format.fileExtension)"
+            let filename = Self.makeFilename(
+                format: format,
+                date: Date(),
+                uniqueSuffix: String(UUID().uuidString.prefix(8))
+            )
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
             var shouldKeepFile = false
             defer {
@@ -135,6 +138,17 @@ final class BatchExportService {
 
     nonisolated static var filenameDateFormatter: DateFormatter {
         StableDataFormatting.dateFormatter(dateFormat: "yyyyMMdd_HHmmss")
+    }
+
+    static func makeFilename(
+        format: ExportFormat,
+        date: Date,
+        uniqueSuffix: String,
+        bundle: Bundle = .main
+    ) -> String {
+        let prefix = L10n.Export.filenamePrefix(in: bundle)
+        let timestamp = filenameDateFormatter.string(from: date)
+        return "\(prefix)_\(timestamp)_\(uniqueSuffix).\(format.fileExtension)"
     }
 }
 

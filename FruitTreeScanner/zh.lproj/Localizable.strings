@@ -303,6 +303,7 @@
 "voxel.complete" = "覆盖完成";
 
 /* Export */
+"export.filename_prefix" = "果园批次数据";
 "export.csv_desc" = "通用数据格式，兼容所有表格软件";
 "export.excel_desc" = "Microsoft Excel 兼容格式";
 "export.no_grouping" = "不分组";

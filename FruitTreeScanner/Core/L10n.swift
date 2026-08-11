@@ -557,6 +557,14 @@ enum L10n {
 
     // MARK: - Export
     enum Export {
+        static func filenamePrefix(in bundle: Bundle = .main) -> String {
+            bundle.localizedString(
+                forKey: "export.filename_prefix",
+                value: "果园批次数据",
+                table: nil
+            )
+        }
+
         static let csvDescription = NSLocalizedString("export.csv_desc", value: "通用数据格式，兼容所有表格软件", comment: "CSV format description")
         static let excelDescription = NSLocalizedString("export.excel_desc", value: "Microsoft Excel 兼容格式", comment: "Excel format description")
         static let noGrouping = NSLocalizedString("export.no_grouping", value: "不分组", comment: "No grouping option")

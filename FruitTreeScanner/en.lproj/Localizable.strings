@@ -303,6 +303,7 @@
 "voxel.complete" = "Coverage Complete";
 
 /* Export */
+"export.filename_prefix" = "Orchard_Batch_Data";
 "export.csv_desc" = "Universal format, compatible with all spreadsheet software";
 "export.excel_desc" = "Microsoft Excel compatible format";
 "export.no_grouping" = "No Grouping";
