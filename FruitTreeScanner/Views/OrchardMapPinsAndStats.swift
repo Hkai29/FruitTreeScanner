@@ -38,15 +38,28 @@ struct Triangle: Shape {
 
 struct YieldStatMini: View {
     let level: YieldLevel
-    let count: Int
+    let presentation: OrchardYieldLevelCountPresentation
 
     var body: some View {
         HStack(spacing: Design.Space.xs) {
-            Circle().fill(level.color).frame(width: 8, height: 8)
-            Text("\(count)")
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+            Circle()
+                .fill(level.color)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(presentation.label)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+
+                Text(presentation.countText)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+            }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(presentation.label)
+        .accessibilityValue(presentation.countText)
     }
 }
 
