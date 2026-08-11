@@ -84,11 +84,11 @@ extension BatchExportView {
                 guard !Task.isCancelled,
                       exportGeneration == generation
                 else {
-                    try? FileManager.default.removeItem(at: exportResult.url)
+                    BatchExportService.removeTemporaryExport(at: exportResult.url)
                     return
                 }
                 guard makeExportRequestSnapshot() == requestSnapshot else {
-                    try? FileManager.default.removeItem(at: exportResult.url)
+                    BatchExportService.removeTemporaryExport(at: exportResult.url)
                     return
                 }
                 exportedURL = exportResult.url
@@ -131,7 +131,7 @@ extension BatchExportView {
 
         let tempDirectory = FileManager.default.temporaryDirectory.standardizedFileURL
         guard url.deletingLastPathComponent().standardizedFileURL == tempDirectory else { return }
-        try? FileManager.default.removeItem(at: url)
+        BatchExportService.removeTemporaryExport(at: url)
     }
 
     func pruneSelection(to files: [ScanFileRecord]) {
