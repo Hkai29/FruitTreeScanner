@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct CalibrationStatisticsCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let records: [CalibrationRecord]
 
     private var metrics: CalibrationValidationMetrics {
@@ -13,10 +15,12 @@ struct CalibrationStatisticsCard: View {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(Design.Colors.Dark.glow)
+                    .accessibilityHidden(true)
 
-                Text("误差统计")
+                Text(L10n.Calibration.statisticsTitle)
                     .font(Design.Typography.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
 
                 Spacer()
             }
@@ -24,7 +28,7 @@ struct CalibrationStatisticsCard: View {
             Divider()
 
             if !metrics.hasEvidence {
-                Text("暂无校准数据")
+                Text(L10n.Calibration.noStatistics)
                     .font(Design.Typography.subheadline)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -42,25 +46,30 @@ struct CalibrationStatisticsCard: View {
     }
 
     private var statisticsRow: some View {
-        return HStack(spacing: Design.Space.xl) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Design.Space.md))
+            : AnyLayout(HStackLayout(spacing: Design.Space.xl))
+
+        return layout {
             CalibrationStatBox(
-                title: "果数 MAPE",
+                title: L10n.Calibration.countMAPE,
                 value: percentageValue(metrics.countMAPE),
                 color: metricColor(metrics.countMAPE)
             )
 
             CalibrationStatBox(
-                title: "产量 MAPE",
+                title: L10n.Calibration.yieldMAPE,
                 value: percentageValue(metrics.yieldMAPE),
                 color: metricColor(metrics.yieldMAPE)
             )
 
             CalibrationStatBox(
-                title: "校准次数",
+                title: L10n.Calibration.calibrationCount,
                 value: "\(metrics.recordCount)",
                 color: Design.Colors.Dark.glow
             )
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func percentageValue(_ value: Double?) -> String {
@@ -99,5 +108,8 @@ private struct CalibrationStatBox: View {
                 .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
     }
 }

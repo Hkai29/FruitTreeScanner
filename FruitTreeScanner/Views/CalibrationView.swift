@@ -8,21 +8,31 @@
 // 4. 系统计算误差，帮用户判断算法是否需要调整
 
 import SwiftUI
+import UIKit
 
 // MARK: - 校准视图
 
 struct CalibrationView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var calibrationRecords: [CalibrationRecord] = []
+    @StateObject private var recordsController: CalibrationRecordsController
     @State private var showAddRecord = false
     @State private var recordPendingDeletion: CalibrationRecord?
-    @State private var recordsTask: Task<Void, Never>?
     @State private var maxDiameter: Double = SettingsStore.shared.clusterMaxDiameter
     @State private var minClusterPoints: Double = Double(SettingsStore.shared.clusterMinPoints)
     @State private var sphericity: Double = SettingsStore.shared.sphericityThreshold
 
     private var activeFruitCategory: FruitCategory {
         FruitCategory(rawValue: SettingsStore.shared.fruitType) ?? .apple
+    }
+
+    @MainActor
+    init() {
+        _recordsController = StateObject(wrappedValue: CalibrationRecordsController())
+    }
+
+    @MainActor
+    init(recordsController: CalibrationRecordsController) {
+        _recordsController = StateObject(wrappedValue: recordsController)
     }
 
     var body: some View {
@@ -35,11 +45,15 @@ struct CalibrationView: View {
                     VStack(spacing: Design.Space.lg) {
                         DashboardToolHeader(
                             imageName: "FeatureCalibration",
-                            title: "算法校准",
-                            subtitle: "用实测果径、聚类阈值和误差记录调准产量估算。",
+                            title: L10n.Calibration.headerTitle,
+                            subtitle: L10n.Calibration.headerSubtitle,
                             icon: "slider.horizontal.3",
                             accent: Design.Colors.Dark.info
                         )
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(L10n.Calibration.headerTitle)
+                        .accessibilityValue(L10n.Calibration.headerSubtitle)
+                        .accessibilityAddTraits(.isHeader)
 
                         CalibrationParametersCard(
                             maxDiameter: $maxDiameter,
@@ -50,8 +64,9 @@ struct CalibrationView: View {
                             onCommitSphericity: commitSphericityDraft
                         )
 
-                        // 误差统计
-                        statisticsCard
+                        if recordsController.state.showsDerivedStatistics {
+                            statisticsCard
+                        }
 
                         // 校准记录列表
                         recordsSection
@@ -60,16 +75,17 @@ struct CalibrationView: View {
                 }
             }
             .preferredColorScheme(.dark)
-            .navigationTitle("算法校准")
+            .navigationTitle(L10n.Calibration.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") {
+                    Button(L10n.Calibration.close) {
                         dismiss()
                     }
+                    .disabled(recordsController.state.isSaving)
                 }
 
                 ToolbarItem(placement: .primaryAction) {
@@ -80,28 +96,29 @@ struct CalibrationView: View {
                             .font(.system(size: 22))
                             .foregroundColor(Design.Colors.Dark.glow)
                     }
-                    .accessibilityLabel("添加校准记录")
+                    .disabled(!recordsController.state.canModify)
+                    .accessibilityLabel(L10n.Calibration.addRecordAccessibility)
                 }
             }
         }
+        .interactiveDismissDisabled(recordsController.state.isSaving)
         .sheet(isPresented: $showAddRecord) {
             AddCalibrationRecordView { record in
-                calibrationRecords.insert(record, at: 0)
-                saveRecords()
+                recordsController.add(record)
             }
         }
-        .alert("删除校准记录", isPresented: deleteAlertBinding) {
-            Button("取消", role: .cancel) {
+        .alert(L10n.Calibration.deleteConfirmationTitle, isPresented: deleteAlertBinding) {
+            Button(L10n.Common.cancel, role: .cancel) {
                 recordPendingDeletion = nil
             }
-            Button("删除", role: .destructive) {
+            Button(L10n.Common.delete, role: .destructive) {
                 deletePendingRecord()
             }
         } message: {
-            Text("这条校准记录会从本机移除，扫描原始记录不会被删除。")
+            Text(L10n.Calibration.deleteConfirmationMessage)
         }
         .onAppear {
-            loadRecords()
+            recordsController.load()
             let params = FruitParametersStore.shared.param(for: activeFruitCategory)
             maxDiameter = Double(params.diamMax)
             minClusterPoints = Double(SettingsStore.shared.clusterMinPoints)
@@ -109,23 +126,29 @@ struct CalibrationView: View {
         }
         .onDisappear {
             commitParameterDrafts()
-            recordsTask?.cancel()
-            recordsTask = nil
+            recordsController.cancelLoading()
+        }
+        .onChange(of: recordsController.state) { state in
+            guard let announcement = state.accessibilityAnnouncement else { return }
+            UIAccessibility.post(notification: .announcement, argument: announcement)
         }
     }
 
     // MARK: - 误差统计卡片
 
     private var statisticsCard: some View {
-        CalibrationStatisticsCard(records: calibrationRecords)
+        CalibrationStatisticsCard(records: recordsController.records)
     }
 
     // MARK: - 校准记录列表
 
     private var recordsSection: some View {
         CalibrationRecordsSection(
-            records: calibrationRecords,
+            records: recordsController.records,
+            state: recordsController.state,
             onAdd: { showAddRecord = true },
+            onRetry: recordsController.load,
+            onDismissSaveFailure: recordsController.dismissSaveFailure,
             onDelete: { record in
                 recordPendingDeletion = record
             }
@@ -133,35 +156,6 @@ struct CalibrationView: View {
     }
 
     // MARK: - Helpers
-
-    private func loadRecords() {
-        recordsTask?.cancel()
-        recordsTask = Task.detached(priority: .utility) {
-            do {
-                let records = try CalibrationRecordPersistence.load()
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    self.calibrationRecords = records
-                }
-            } catch {
-            }
-        }
-    }
-
-    private func saveRecords() {
-        let records = calibrationRecords
-        let generation = CalibrationSaveRevisionSource.shared.nextRevision()
-        Task(priority: .utility) {
-            let saved = await CalibrationRecordPersistenceController.shared.save(
-                records,
-                generation: generation
-            )
-            if !saved,
-               let error = await CalibrationRecordPersistenceController.shared.lastErrorDescription {
-                Log.general.error("Calibration save failed: \(error)")
-            }
-        }
-    }
 
     private func commitParameterDrafts() {
         commitMinClusterPointsDraft()
@@ -236,8 +230,7 @@ struct CalibrationView: View {
 
     private func deletePendingRecord() {
         guard let record = recordPendingDeletion else { return }
-        calibrationRecords.removeAll { $0.id == record.id }
+        recordsController.delete(record)
         recordPendingDeletion = nil
-        saveRecords()
     }
 }

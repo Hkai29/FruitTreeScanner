@@ -72,19 +72,33 @@ actor CalibrationRecordPersistenceController {
     /// replaced by the atomic writer after encoding succeeds.
     @discardableResult
     func save(_ records: [CalibrationRecord], generation: Int) -> Bool {
-        guard generation >= latestGeneration else { return false }
+        saveResult(records, generation: generation) == .saved
+    }
+
+    func saveResult(
+        _ records: [CalibrationRecord],
+        generation: Int
+    ) -> CalibrationRecordSaveResult {
+        guard generation >= latestGeneration else { return .superseded }
         latestGeneration = generation
 
         do {
             try writer(records, url)
-            guard generation == latestGeneration else { return false }
+            guard generation == latestGeneration else { return .superseded }
             lastErrorDescription = nil
-            return true
+            return .saved
         } catch {
+            let description = error.localizedDescription
             if generation == latestGeneration {
-                lastErrorDescription = error.localizedDescription
+                lastErrorDescription = description
             }
-            return false
+            return .failed(description)
         }
     }
+}
+
+enum CalibrationRecordSaveResult: Equatable, Sendable {
+    case saved
+    case superseded
+    case failed(String)
 }
