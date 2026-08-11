@@ -3,7 +3,9 @@ import SwiftUI
 struct ScanPickerView: View {
     let scans: [ScanItem]
     @Binding var selectedScan: ScanItem?
-    @Environment(\.dismiss) var dismiss
+    let slot: String
+    let presentation: HistoricalComparePresentation
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationView {
@@ -17,21 +19,27 @@ struct ScanPickerView: View {
                             Button {
                                 select(scan)
                             } label: {
-                                ScanPickerRow(scan: scan, isSelected: selectedScan?.id == scan.id)
+                                ScanPickerRow(
+                                    scan: scan,
+                                    isSelected: selectedScan?.id == scan.id,
+                                    slot: slot
+                                )
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(Design.Space.lg)
                 }
             }
-            .navigationTitle("选择扫描")
+            .navigationTitle(presentation.pickerTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消", action: dismiss.callAsFunction)
+                    Button(presentation.cancel, action: dismiss.callAsFunction)
                 }
             }
         }
+        .environment(\.historicalComparePresentation, presentation)
     }
 
     private func select(_ scan: ScanItem) {
@@ -41,21 +49,49 @@ struct ScanPickerView: View {
 }
 
 struct ScanPickerRow: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.historicalComparePresentation) private var presentation
     let scan: ScanItem
     let isSelected: Bool
+    let slot: String
 
     var body: some View {
-        HStack(spacing: Design.Space.md) {
-            icon
-            scanInfo
-            Spacer()
-            selectedIndicator
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                    HStack(alignment: .top, spacing: Design.Space.sm) {
+                        icon
+                        scanInfo
+                    }
+                    selectedIndicator
+                }
+            } else {
+                HStack(spacing: Design.Space.md) {
+                    icon
+                    scanInfo
+                    Spacer()
+                    selectedIndicator
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Design.Space.md)
         .background(Design.Colors.Dark.bgSurface)
         .cornerRadius(Design.Radius.large)
         .overlay(border)
-        .shadow(color: Design.Shadow.subtle.color, radius: Design.Shadow.subtle.radius, y: Design.Shadow.subtle.y)
+        .shadow(
+            color: Design.Shadow.subtle.color,
+            radius: Design.Shadow.subtle.radius,
+            y: Design.Shadow.subtle.y
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(presentation.treeTitle(scan.treeID)))
+        .accessibilityValue(
+            Text(presentation.pickerValue(scan: scan, isSelected: isSelected, locale: locale))
+        )
+        .accessibilityHint(Text(presentation.pickerSelectionHint(slot: slot)))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var icon: some View {
@@ -65,34 +101,34 @@ struct ScanPickerRow: View {
                 .frame(width: 44, height: 44)
 
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 18, weight: .medium))
+                .font(.title3.weight(.medium))
                 .foregroundColor(isSelected ? Design.Colors.Dark.glow : Design.Colors.Dark.textSecondary)
         }
+        .accessibilityHidden(true)
     }
 
     private var scanInfo: some View {
         VStack(alignment: .leading, spacing: Design.Space.xs) {
-            Text("树 #\(scan.treeID)")
-                .font(Design.Typography.subheadlineMedium)
+            Text(presentation.treeTitle(scan.treeID))
+                .font(.subheadline.weight(.medium))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: Design.Space.md) {
-                Text(scan.dateFormatted)
-                    .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+            Text(presentation.dateText(scan.scanDate, locale: locale))
+                .font(.caption)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
 
-                Text(scan.yieldFormatted)
-                    .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.Dark.glow)
-            }
+            Text(presentation.yieldText(scan.yieldKg, locale: locale))
+                .font(.caption)
+                .foregroundColor(Design.Colors.Dark.glow)
         }
     }
 
     @ViewBuilder
     private var selectedIndicator: some View {
         if isSelected {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 22))
+            Label(presentation.pickerState(isSelected: true), systemImage: "checkmark.circle.fill")
+                .font(.subheadline)
                 .foregroundColor(Design.Colors.Dark.glow)
         }
     }

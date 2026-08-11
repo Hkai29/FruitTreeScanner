@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -451,6 +453,289 @@ final class DashboardSummaryTests: XCTestCase {
             confidence: confidence,
             persistenceState: persistenceState
         )
+    }
+}
+
+final class HistoricalComparePresentationTests: XCTestCase {
+    func testCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "historical_compare.title": "Compare Trees",
+                "historical_compare.subtitle": "Select two complete scans to compare yield, fruit count, and scan date side by side.",
+                "historical_compare.navigation_title": "Historical Comparison",
+                "historical_compare.empty_title": "Two Complete Scans Required",
+                "historical_compare.empty_message_one": "Only 1 complete scan is currently available. Complete and save another scan to compare yield, fruit count, and scan date.",
+                "historical_compare.empty_message_other_format": "Only %@ complete scans are currently available. Complete and save two scans to compare yield, fruit count, and scan date.",
+                "historical_compare.start_scan": "Start Scanning",
+                "historical_compare.prompt": "Select two scan records to compare yield, fruit count, and scan date side by side.",
+                "historical_compare.scan_a": "Scan A",
+                "historical_compare.scan_b": "Scan B",
+                "historical_compare.versus": "versus",
+                "historical_compare.select_scan": "Select Scan",
+                "historical_compare.no_scan_selected": "No scan selected",
+                "historical_compare.selection_hint_format": "Selects a complete scan record for %@.",
+                "historical_compare.picker_title": "Select Scan",
+                "historical_compare.picker.selection_hint_format": "Uses this record for %@.",
+                "historical_compare.picker.value_format": "%@; %@",
+                "historical_compare.yield_change": "Yield Change",
+                "historical_compare.lidar_detections": "LiDAR Detections",
+                "historical_compare.average_diameter": "Average Diameter",
+                "historical_compare.confidence": "Confidence",
+                "historical_compare.scan_date": "Scan Date",
+                "historical_compare.tree_title_format": "Tree %@",
+                "historical_compare.scan_summary_format": "%@, %@, %@",
+                "historical_compare.comparison_values_format": "%@: %@; %@: %@.",
+                "historical_compare.comparison_value_format": "%@: %@; %@: %@; %@.",
+                "historical_compare.yield_accessibility_value_format": "%@ %@: %@; %@ %@: %@; change %@, %@.",
+                "historical_compare.unit.fruit_one": "fruit",
+                "historical_compare.unit.fruit_other": "fruits",
+                "historical_compare.unit.kilograms": "kg",
+                "historical_compare.unit.centimeters": "cm",
+                "historical_compare.unavailable": "Unavailable",
+                "historical_compare.confidence.high": "High",
+                "historical_compare.confidence.medium": "Medium",
+                "historical_compare.confidence.low": "Low",
+                "historical_compare.confidence.manual_review": "Manual review",
+                "historical_compare.confidence.unknown": "Unknown",
+                "historical_compare.trend.increased": "Increased",
+                "historical_compare.trend.decreased": "Decreased",
+                "historical_compare.trend.unchanged": "No change",
+                "historical_compare.trend.unavailable": "Change unavailable",
+                "historical_compare.picker.selected": "Selected",
+                "historical_compare.picker.not_selected": "Not selected"
+            ],
+            "zh": [
+                "historical_compare.title": "树体对比",
+                "historical_compare.subtitle": "选择两条完整扫描，并排比较产量、果数和扫描日期。",
+                "historical_compare.navigation_title": "历史对比",
+                "historical_compare.empty_title": "至少需要两条完整扫描",
+                "historical_compare.empty_message_one": "当前只有 1 条完整扫描。完成并保存另一次扫描后，就可以比较产量、果数和扫描日期。",
+                "historical_compare.empty_message_other_format": "当前只有 %@ 条完整扫描。完成并保存两次扫描后，就可以比较产量、果数和扫描日期。",
+                "historical_compare.start_scan": "开始扫描",
+                "historical_compare.prompt": "选择两条扫描记录后，会显示产量、果数和扫描日期的并排对比。",
+                "historical_compare.scan_a": "扫描 A",
+                "historical_compare.scan_b": "扫描 B",
+                "historical_compare.versus": "对比",
+                "historical_compare.select_scan": "选择扫描",
+                "historical_compare.no_scan_selected": "尚未选择扫描",
+                "historical_compare.selection_hint_format": "为%@选择一条完整扫描记录。",
+                "historical_compare.picker_title": "选择扫描",
+                "historical_compare.picker.selection_hint_format": "将这条记录用于%@。",
+                "historical_compare.picker.value_format": "%@；%@",
+                "historical_compare.yield_change": "产量变化",
+                "historical_compare.lidar_detections": "LiDAR 检测",
+                "historical_compare.average_diameter": "平均直径",
+                "historical_compare.confidence": "置信度",
+                "historical_compare.scan_date": "扫描日期",
+                "historical_compare.tree_title_format": "树 %@",
+                "historical_compare.scan_summary_format": "%@，%@，%@",
+                "historical_compare.comparison_values_format": "%@：%@；%@：%@。",
+                "historical_compare.comparison_value_format": "%@：%@；%@：%@；%@。",
+                "historical_compare.yield_accessibility_value_format": "%@ %@：%@；%@ %@：%@；变化%@，%@。",
+                "historical_compare.unit.fruit_one": "个果实",
+                "historical_compare.unit.fruit_other": "个果实",
+                "historical_compare.unit.kilograms": "kg",
+                "historical_compare.unit.centimeters": "cm",
+                "historical_compare.unavailable": "不可用",
+                "historical_compare.confidence.high": "高",
+                "historical_compare.confidence.medium": "中",
+                "historical_compare.confidence.low": "低",
+                "historical_compare.confidence.manual_review": "需人工复核",
+                "historical_compare.confidence.unknown": "未知",
+                "historical_compare.trend.increased": "上升",
+                "historical_compare.trend.decreased": "下降",
+                "historical_compare.trend.unchanged": "无变化",
+                "historical_compare.trend.unavailable": "变化不可用",
+                "historical_compare.picker.selected": "已选择",
+                "historical_compare.picker.not_selected": "未选择"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let actualValues = try localizedTable(language)
+                .filter { $0.key.hasPrefix("historical_compare.") }
+            XCTAssertEqual(actualValues, expectedValues)
+        }
+    }
+
+    func testPresentationUsesRegionalDatesNumbersUnitsAndConservativeUnknownStates() throws {
+        let scanDate = try makeDate()
+        let english = HistoricalComparePresentation(bundle: try localizedBundle("en"))
+        let chinese = HistoricalComparePresentation(bundle: try localizedBundle("zh"))
+        let enUS = Locale(identifier: "en_US")
+        let enGB = Locale(identifier: "en_GB")
+        let zhCN = Locale(identifier: "zh_CN")
+
+        XCTAssertEqual(english.dateText(scanDate, locale: enUS), "06/01/2026")
+        XCTAssertEqual(english.dateText(scanDate, locale: enGB), "01/06/2026")
+        XCTAssertEqual(chinese.dateText(scanDate, locale: zhCN), "2026/06/01")
+        XCTAssertEqual(english.yieldText(9_876.5, locale: enUS), "9,876.5 kg")
+        XCTAssertEqual(english.fruitCountText(1, locale: enUS), "1 fruit")
+        XCTAssertEqual(english.fruitCountText(12_345, locale: enUS), "12,345 fruits")
+        XCTAssertEqual(chinese.fruitCountText(12_345, locale: zhCN), "12,345 个果实")
+        XCTAssertEqual(english.percentageText(0.25, locale: enUS), "+25.0%")
+        XCTAssertEqual(english.percentageText(nil, locale: enUS), "Unavailable")
+        XCTAssertEqual(english.confidenceText("unexpected"), "Unknown")
+        XCTAssertEqual(chinese.confidenceText(""), "不可用")
+        XCTAssertEqual(english.trendText(.unavailable), "Change unavailable")
+        XCTAssertEqual(
+            english.comparisonValue(value1: "High", value2: "Low", trend: nil),
+            "Scan A: High; Scan B: Low."
+        )
+    }
+
+    @MainActor
+    func testComponentsRenderInEnglishAndChineseAtLargestAccessibilityTextSize() throws {
+        let scanDate = try makeDate()
+        let first = ScanItem(
+            id: "first",
+            treeID: "TREE-123456789",
+            scanDate: scanDate,
+            yieldKg: 9_876.5,
+            nLidar: 1,
+            meanDiameterCm: nil,
+            confidence: "unexpected"
+        )
+        let second = ScanItem(
+            id: "second",
+            treeID: "TREE-SECOND-LONG-ID",
+            scanDate: scanDate,
+            yieldKg: 12_345.6,
+            nLidar: 12_345,
+            meanDiameterCm: 8.4,
+            confidence: "high"
+        )
+
+        for language in ["en", "zh"] {
+            let locale = Locale(identifier: language == "en" ? "en_US" : "zh_CN")
+            let presentation = HistoricalComparePresentation(bundle: try localizedBundle(language))
+            let empty = AnyView(
+                HistoricalCompareEmptyState(scanCount: 1, onStartScan: {})
+                    .padding(16)
+                    .environment(\.historicalComparePresentation, presentation)
+                    .environment(\.locale, locale)
+                    .environment(\.dynamicTypeSize, .accessibility5)
+                    .environment(\.colorScheme, .dark)
+                    .background(Design.Colors.Dark.bgDeep)
+            )
+            attachRender(
+                of: empty,
+                size: CGSize(width: 390, height: 844),
+                name: "HistoricalCompareEmpty-\(language)-AX5"
+            )
+
+            let components = AnyView(
+                VStack(alignment: .leading, spacing: 16) {
+                    ScanSelectionCard(scan: first, label: presentation.scanA, onTap: {})
+                    ScanSelectionCard(scan: nil, label: presentation.scanB, onTap: {})
+                    HistoricalComparePrompt()
+                    HistoricalYieldComparisonCard(scan1: first, scan2: second, proportionalChange: 0.25)
+                    StatCompareCard(
+                        title: presentation.lidarDetections,
+                        value1: presentation.fruitCountText(first.nLidar, locale: locale),
+                        value2: presentation.fruitCountText(second.nLidar, locale: locale),
+                        icon: "cube.fill",
+                        trend: .up
+                    )
+                    StatCompareCard(
+                        title: presentation.averageDiameter,
+                        value1: presentation.diameterText(first.meanDiameterCm, locale: locale),
+                        value2: presentation.diameterText(second.meanDiameterCm, locale: locale),
+                        icon: "circle.dotted",
+                        trend: .unavailable
+                    )
+                    StatCompareCard(
+                        title: presentation.confidence,
+                        value1: presentation.confidenceText(first.confidence),
+                        value2: presentation.confidenceText(second.confidence),
+                        icon: "checkmark.seal.fill",
+                        trend: nil
+                    )
+                    ScanPickerRow(scan: second, isSelected: true, slot: presentation.scanB)
+                    Spacer(minLength: 0)
+                }
+                .padding(16)
+                .environment(\.historicalComparePresentation, presentation)
+                .environment(\.locale, locale)
+                .environment(\.dynamicTypeSize, .accessibility5)
+                .environment(\.colorScheme, .dark)
+                .background(Design.Colors.Dark.bgDeep)
+            )
+            attachRender(
+                of: components,
+                size: CGSize(width: 390, height: 4_200),
+                name: "HistoricalCompareComponents-\(language)-AX5"
+            )
+        }
+    }
+
+    private func localizedBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
+    }
+
+    private func localizedTable(_ language: String) throws -> [String: String] {
+        let bundle = try localizedBundle(language)
+        let url = try XCTUnwrap(bundle.url(forResource: "Localizable", withExtension: "strings"))
+        let propertyList = try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil)
+        return try XCTUnwrap(propertyList as? [String: String])
+    }
+
+    private func makeDate() throws -> Date {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 6
+        components.day = 1
+        components.hour = 12
+        return try XCTUnwrap(components.date)
+    }
+
+    @MainActor
+    private func attachRender(of view: AnyView, size: CGSize, name: String) {
+        let renderer = ImageRenderer(
+            content: view.frame(width: size.width, height: size.height, alignment: .top)
+        )
+        renderer.scale = 1
+        renderer.proposedSize = ProposedViewSize(size)
+        guard let renderedImage = renderer.uiImage else {
+            return XCTFail("Unable to render \(name)")
+        }
+
+        XCTAssertEqual(renderedImage.size, size)
+        assertImageHasVisibleContent(renderedImage, name: name)
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func assertImageHasVisibleContent(_ image: UIImage, name: String) {
+        let sampleSize = CGSize(width: 64, height: 64)
+        let sample = UIGraphicsImageRenderer(size: sampleSize).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: sampleSize))
+        }
+        guard let cgImage = sample.cgImage,
+              let data = cgImage.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return XCTFail("Unable to inspect rendered pixels for \(name)")
+        }
+
+        let byteCount = CFDataGetLength(data)
+        var colors = Set<UInt32>()
+        for offset in stride(from: 0, to: byteCount - 3, by: 4) {
+            let color = UInt32(bytes[offset])
+                | (UInt32(bytes[offset + 1]) << 8)
+                | (UInt32(bytes[offset + 2]) << 16)
+                | (UInt32(bytes[offset + 3]) << 24)
+            colors.insert(color)
+            if colors.count > 8 { break }
+        }
+
+        XCTAssertGreaterThan(colors.count, 8, "\(name) rendered without visible component content")
     }
 }
 

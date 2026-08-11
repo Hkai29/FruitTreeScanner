@@ -5,13 +5,20 @@ import SwiftUI
 
 // MARK: - HistoricalCompareView
 struct HistoricalCompareView: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var historyStore = ScanHistoryStore.shared
-    var onStartScan: (() -> Void)? = nil
+    private let onStartScan: (() -> Void)?
+    private let presentation: HistoricalComparePresentation
     @State private var selectedScan1: ScanItem?
     @State private var selectedScan2: ScanItem?
     @State private var activePicker: HistoricalComparePicker?
 
-    // Use real data from historyStore
+    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+        self.onStartScan = onStartScan
+        self.presentation = HistoricalComparePresentation(bundle: bundle)
+    }
+
     private var availableScans: [ScanItem] {
         HistoricalCompareDataSource.items(from: historyStore.scanFiles)
     }
@@ -25,8 +32,8 @@ struct HistoricalCompareView: View {
                 VStack(spacing: Design.Space.md) {
                     DashboardToolHeader(
                         imageName: "FeatureCompare",
-                        title: "树体对比",
-                        subtitle: "选择两条扫描，并排比较产量、果数和日期变化。",
+                        title: presentation.title,
+                        subtitle: presentation.subtitle,
                         icon: "arrow.left.arrow.right",
                         accent: Design.Colors.harvest
                     )
@@ -38,8 +45,8 @@ struct HistoricalCompareView: View {
                         )
                     } else {
                         scanSelectionSection
-                        if selectedScan1 != nil && selectedScan2 != nil {
-                            comparisonSection
+                        if let selectedScan1, let selectedScan2 {
+                            comparisonSection(scan1: selectedScan1, scan2: selectedScan2)
                         } else {
                             HistoricalComparePrompt()
                         }
@@ -51,167 +58,139 @@ struct HistoricalCompareView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .navigationTitle("历史对比")
+        .navigationTitle(presentation.navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .environment(\.historicalComparePresentation, presentation)
         .sheet(item: $activePicker) { picker in
             switch picker {
             case .first:
-                ScanPickerView(scans: availableScans, selectedScan: $selectedScan1)
+                ScanPickerView(
+                    scans: availableScans,
+                    selectedScan: $selectedScan1,
+                    slot: presentation.scanA,
+                    presentation: presentation
+                )
             case .second:
-                ScanPickerView(scans: availableScans, selectedScan: $selectedScan2)
+                ScanPickerView(
+                    scans: availableScans,
+                    selectedScan: $selectedScan2,
+                    slot: presentation.scanB,
+                    presentation: presentation
+                )
             }
         }
+        .onChange(of: availableScans, perform: reconcileSelections)
     }
 
     // MARK: - Scan Selection Section
+    @ViewBuilder
     private var scanSelectionSection: some View {
-        HStack(spacing: Design.Space.md) {
-            ScanSelectionCard(scan: selectedScan1, label: "扫描 A") {
-                activePicker = .first
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: Design.Space.sm) {
+                selectionCard(scan: selectedScan1, label: presentation.scanA, picker: .first)
+                versusLabel
+                selectionCard(scan: selectedScan2, label: presentation.scanB, picker: .second)
             }
-
-            Text("VS")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .frame(width: 28)
-
-            ScanSelectionCard(scan: selectedScan2, label: "扫描 B") {
-                activePicker = .second
+        } else {
+            HStack(spacing: Design.Space.md) {
+                selectionCard(scan: selectedScan1, label: presentation.scanA, picker: .first)
+                versusLabel
+                selectionCard(scan: selectedScan2, label: presentation.scanB, picker: .second)
             }
         }
+    }
+
+    private func selectionCard(
+        scan: ScanItem?,
+        label: String,
+        picker: HistoricalComparePicker
+    ) -> some View {
+        ScanSelectionCard(scan: scan, label: label) {
+            activePicker = picker
+        }
+    }
+
+    private var versusLabel: some View {
+        Text(presentation.versus)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(Design.Colors.Dark.textSecondary)
+            .frame(minWidth: 28)
+            .accessibilityHidden(true)
     }
 
     // MARK: - Comparison Section
-    private var comparisonSection: some View {
+    private func comparisonSection(scan1: ScanItem, scan2: ScanItem) -> some View {
         VStack(spacing: Design.Space.lg) {
-            yieldComparisonCard
-            statComparisonGrid
+            HistoricalYieldComparisonCard(
+                scan1: scan1,
+                scan2: scan2,
+                proportionalChange: HistoricalCompareMetrics.proportionalYieldChange(
+                    from: scan1.yieldKg,
+                    to: scan2.yieldKg
+                )
+            )
+            statComparisonGrid(scan1: scan1, scan2: scan2)
         }
-    }
-
-    // MARK: - Yield Comparison Card
-    private var yieldComparisonCard: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
-            Text("产量变化")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            HStack(alignment: .center, spacing: Design.Space.sm) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(selectedScan1?.yieldFormatted ?? "--")
-                        .font(Design.Typography.title2)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                    Text("扫描 #\(selectedScan1?.treeID ?? "--")")
-                        .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
-
-                Spacer()
-
-                VStack(spacing: 2) {
-                    Image(systemName: yieldChangeIcon)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(yieldChangeColor)
-
-                    Text(yieldChangePercent)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(yieldChangeColor)
-                }
-                .frame(minWidth: 64)
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(selectedScan2?.yieldFormatted ?? "--")
-                        .font(Design.Typography.title2)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                    Text("扫描 #\(selectedScan2?.treeID ?? "--")")
-                        .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(Design.Space.md)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-    }
-
-    private var yieldChange: Double {
-        guard let s1 = selectedScan1, let s2 = selectedScan2, s1.yieldKg > 0 else { return 0 }
-        return ((s2.yieldKg - s1.yieldKg) / s1.yieldKg) * 100
-    }
-
-    private var yieldChangeIcon: String {
-        yieldChange > 0 ? "arrow.up.right" : (yieldChange < 0 ? "arrow.down.right" : "arrow.right")
-    }
-
-    private var yieldChangeColor: Color {
-        yieldChange > 0 ? Design.Colors.Dark.success : (yieldChange < 0 ? Design.Colors.Dark.error : Design.Colors.Dark.textSecondary)
-    }
-
-    private var yieldChangePercent: String {
-        String(format: "%+.1f%%", yieldChange)
     }
 
     // MARK: - Stat Comparison Grid
-    private var statComparisonGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Design.Space.md) {
-            // LiDAR Count
+    private func statComparisonGrid(scan1: ScanItem, scan2: ScanItem) -> some View {
+        LazyVGrid(columns: statColumns, spacing: Design.Space.md) {
             StatCompareCard(
-                title: "LiDAR 检测",
-                value1: selectedScan1.map { "\($0.nLidar)" } ?? "--",
-                value2: selectedScan2.map { "\($0.nLidar)" } ?? "--",
-                unit: "个果实",
+                title: presentation.lidarDetections,
+                value1: presentation.fruitCountText(scan1.nLidar, locale: locale),
+                value2: presentation.fruitCountText(scan2.nLidar, locale: locale),
                 icon: "cube.fill",
-                trend: compareTrend(selectedScan1?.nLidar ?? 0, selectedScan2?.nLidar ?? 0)
+                trend: HistoricalCompareMetrics.trend(from: scan1.nLidar, to: scan2.nLidar)
             )
 
-            // Mean Diameter
             StatCompareCard(
-                title: "平均直径",
-                value1: selectedScan1?.diameterFormatted ?? "--",
-                value2: selectedScan2?.diameterFormatted ?? "--",
-                unit: "cm",
+                title: presentation.averageDiameter,
+                value1: presentation.diameterText(scan1.meanDiameterCm, locale: locale),
+                value2: presentation.diameterText(scan2.meanDiameterCm, locale: locale),
                 icon: "circle.dotted",
-                trend: compareTrend(selectedScan1?.meanDiameterCm, selectedScan2?.meanDiameterCm)
+                trend: HistoricalCompareMetrics.trend(from: scan1.meanDiameterCm, to: scan2.meanDiameterCm)
             )
 
-            // Confidence
             StatCompareCard(
-                title: "置信度",
-                value1: selectedScan1?.confidenceFormatted ?? "--",
-                value2: selectedScan2?.confidenceFormatted ?? "--",
-                unit: "",
+                title: presentation.confidence,
+                value1: presentation.confidenceText(scan1.confidence),
+                value2: presentation.confidenceText(scan2.confidence),
                 icon: "checkmark.seal.fill",
-                trend: .neutral
+                trend: nil
             )
 
-            // Scan Date
             StatCompareCard(
-                title: "扫描日期",
-                value1: selectedScan1?.dateFormatted ?? "--",
-                value2: selectedScan2?.dateFormatted ?? "--",
-                unit: "",
+                title: presentation.scanDate,
+                value1: presentation.dateText(scan1.scanDate, locale: locale),
+                value2: presentation.dateText(scan2.scanDate, locale: locale),
                 icon: "calendar",
-                trend: .neutral
+                trend: nil
             )
         }
     }
 
-    private func compareTrend<T: Comparable>(_ v1: T, _ v2: T) -> TrendDirection {
-        if v1 < v2 { return .up }
-        if v1 > v2 { return .down }
-        return .neutral
+    private var statColumns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.flexible()), GridItem(.flexible())]
     }
 
-    private func compareTrend<T: Comparable>(_ v1: T?, _ v2: T?) -> TrendDirection {
-        guard let v1, let v2 else { return .neutral }
-        return compareTrend(v1, v2)
+    private func reconcileSelections(with scans: [ScanItem]) {
+        let reconciledScan1 = HistoricalCompareSelectionPolicy.reconciledSelection(
+            selectedScan1,
+            availableScans: scans
+        )
+        let reconciledScan2 = HistoricalCompareSelectionPolicy.reconciledSelection(
+            selectedScan2,
+            availableScans: scans
+        )
+        if reconciledScan1 != selectedScan1 { selectedScan1 = reconciledScan1 }
+        if reconciledScan2 != selectedScan2 { selectedScan2 = reconciledScan2 }
     }
 }
 
