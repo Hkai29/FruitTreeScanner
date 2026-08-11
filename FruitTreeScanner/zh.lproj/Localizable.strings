@@ -13,6 +13,18 @@
 "scan.restart_after_interruption" = "重新开始";
 "scan.discard_after_interruption" = "放弃扫描";
 "scan.interruption_accessibility_hint" = "重新开始会清除本次扫描数据；放弃不会生成扫描结果。";
+"scan.control.guide" = "引导";
+"scan.control.measure" = "测量";
+"scan.control.cancel" = "取消";
+"scan.control.finish" = "完成";
+"scan.control.start_recording" = "开始录制";
+"scan.control.stop_recording" = "停止录制";
+"scan.control.record_again" = "重新录制";
+"scan.control.processing" = "处理中";
+"scan.cancel_confirmation.title" = "取消本次扫描？";
+"scan.cancel_confirmation.continue" = "继续扫描";
+"scan.cancel_confirmation.discard" = "放弃";
+"scan.cancel_confirmation.message" = "已采集的点云不会保存。若要保留本次采集，请点击完成。";
 
 /* 扫描就绪状态 */
 "scan.readiness.checking.title" = "正在检查设备能力";

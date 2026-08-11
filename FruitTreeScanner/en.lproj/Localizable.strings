@@ -13,6 +13,18 @@
 "scan.restart_after_interruption" = "Restart Scan";
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
+"scan.control.guide" = "Guide";
+"scan.control.measure" = "Measure";
+"scan.control.cancel" = "Cancel";
+"scan.control.finish" = "Finish";
+"scan.control.start_recording" = "Start Recording";
+"scan.control.stop_recording" = "Stop Recording";
+"scan.control.record_again" = "Record Again";
+"scan.control.processing" = "Processing";
+"scan.cancel_confirmation.title" = "Cancel This Scan?";
+"scan.cancel_confirmation.continue" = "Continue Scanning";
+"scan.cancel_confirmation.discard" = "Discard";
+"scan.cancel_confirmation.message" = "The captured point cloud won't be saved. To keep this scan, tap Finish.";
 
 /* Scan Readiness */
 "scan.readiness.checking.title" = "Checking Device Capabilities";

@@ -40,7 +40,7 @@ struct ScanBottomControlBar: View {
             if !isRecording {
                 HStack(spacing: Design.Space.sm) {
                     ScanUtilityControlButton(
-                        title: "引导",
+                        title: L10n.Scan.guideControl,
                         icon: "questionmark.circle",
                         isActive: false,
                         action: onToggleGuide,
@@ -50,7 +50,7 @@ struct ScanBottomControlBar: View {
                     )
 
                     ScanUtilityControlButton(
-                        title: "测量",
+                        title: L10n.Scan.measureControl,
                         icon: "ruler",
                         isActive: measurementController.isActive,
                         action: onToggleMeasurement,
@@ -63,7 +63,7 @@ struct ScanBottomControlBar: View {
 
             HStack(spacing: Design.Space.sm) {
                 ScanPrimaryControlButton(
-                    title: "取消",
+                    title: L10n.Scan.cancelControl,
                     icon: "xmark",
                     role: .secondary,
                     isLoading: false,
@@ -87,7 +87,7 @@ struct ScanBottomControlBar: View {
                 )
 
                 ScanPrimaryControlButton(
-                    title: "完成",
+                    title: L10n.Scan.finishControl,
                     icon: "checkmark",
                     role: .finish,
                     isLoading: isEstimating,
@@ -120,9 +120,9 @@ struct ScanBottomControlBar: View {
     }
 
     private var recordingButtonTitle: String {
-        if isRecording { return "停止录制" }
-        if hudState.pointCount > 0 { return "重新录制" }
-        return "开始录制"
+        if isRecording { return L10n.Scan.stopRecording }
+        if hudState.pointCount > 0 { return L10n.Scan.recordAgain }
+        return L10n.Scan.startRecording
     }
 }
 
@@ -188,7 +188,7 @@ private struct ScanPrimaryControlButton: View {
                         .font(.system(size: iconSize, weight: .bold))
                 }
 
-                Text(isLoading ? "处理中" : title)
+                Text(isLoading ? L10n.Scan.processing : title)
                     .font(.system(size: fontSize, weight: .semibold))
             }
             .foregroundColor(foregroundColor)

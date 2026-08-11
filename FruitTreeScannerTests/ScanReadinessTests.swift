@@ -146,6 +146,56 @@ final class ScanReadinessTests: XCTestCase {
     }
 }
 
+final class ScanControlLocalizationTests: XCTestCase {
+    func testScanControlCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "scan.control.guide": "Guide",
+                "scan.control.measure": "Measure",
+                "scan.control.cancel": "Cancel",
+                "scan.control.finish": "Finish",
+                "scan.control.start_recording": "Start Recording",
+                "scan.control.stop_recording": "Stop Recording",
+                "scan.control.record_again": "Record Again",
+                "scan.control.processing": "Processing",
+                "scan.cancel_confirmation.title": "Cancel This Scan?",
+                "scan.cancel_confirmation.continue": "Continue Scanning",
+                "scan.cancel_confirmation.discard": "Discard",
+                "scan.cancel_confirmation.message": "The captured point cloud won't be saved. To keep this scan, tap Finish."
+            ],
+            "zh": [
+                "scan.control.guide": "引导",
+                "scan.control.measure": "测量",
+                "scan.control.cancel": "取消",
+                "scan.control.finish": "完成",
+                "scan.control.start_recording": "开始录制",
+                "scan.control.stop_recording": "停止录制",
+                "scan.control.record_again": "重新录制",
+                "scan.control.processing": "处理中",
+                "scan.cancel_confirmation.title": "取消本次扫描？",
+                "scan.cancel_confirmation.continue": "继续扫描",
+                "scan.cancel_confirmation.discard": "放弃",
+                "scan.cancel_confirmation.message": "已采集的点云不会保存。若要保留本次采集，请点击完成。"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try XCTUnwrap(
+                Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+                "Missing \(language) localization bundle"
+            )
+
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+}
+
 final class ScanLifecycleControllerTests: XCTestCase {
     func testRecordingToInactiveStopsReliableEvidenceAndDoesNotAutoResume() {
         let controller = ScanLifecycleController()
