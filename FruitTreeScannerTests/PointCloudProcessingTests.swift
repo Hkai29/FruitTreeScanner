@@ -498,6 +498,100 @@ final class PointCloudProcessingTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testGuidancePresentationDismissesCurrentGoodPaceAfterDelay() async throws {
+        let delayDriver = ScanGuidanceDismissDelayDriver()
+        let controller = ScanGuidancePresentationController {
+            await delayDriver.wait()
+        }
+
+        let dismissTask = try XCTUnwrap(
+            controller.update(hint: .goodPace, isRecording: true)
+        )
+        let request = await delayDriver.nextRequest()
+
+        XCTAssertEqual(controller.visibleHint, .goodPace)
+
+        await delayDriver.resume(request: request)
+        await dismissTask.value
+
+        XCTAssertNil(controller.visibleHint)
+    }
+
+    @MainActor
+    func testGuidancePresentationRejectsSupersededDismissalForRepeatedGoodPace() async throws {
+        let delayDriver = ScanGuidanceDismissDelayDriver()
+        let controller = ScanGuidancePresentationController {
+            await delayDriver.wait()
+        }
+
+        let firstTask = try XCTUnwrap(
+            controller.update(hint: .goodPace, isRecording: true)
+        )
+        let firstRequest = await delayDriver.nextRequest()
+
+        XCTAssertNil(controller.update(hint: .none, isRecording: true))
+
+        let secondTask = try XCTUnwrap(
+            controller.update(hint: .goodPace, isRecording: true)
+        )
+        let secondRequest = await delayDriver.nextRequest()
+
+        await delayDriver.resume(request: firstRequest)
+        await firstTask.value
+
+        XCTAssertEqual(
+            controller.visibleHint,
+            .goodPace,
+            "A canceled delay from an earlier hint must not hide a newer presentation"
+        )
+
+        await delayDriver.resume(request: secondRequest)
+        await secondTask.value
+
+        XCTAssertNil(controller.visibleHint)
+    }
+
+    @MainActor
+    func testGuidancePresentationKeepsWarningAfterGoodPaceCancellation() async throws {
+        let delayDriver = ScanGuidanceDismissDelayDriver()
+        let controller = ScanGuidancePresentationController {
+            await delayDriver.wait()
+        }
+
+        let staleTask = try XCTUnwrap(
+            controller.update(hint: .goodPace, isRecording: true)
+        )
+        let staleRequest = await delayDriver.nextRequest()
+
+        XCTAssertNil(controller.update(hint: .tooFast, isRecording: true))
+        await delayDriver.resume(request: staleRequest)
+        await staleTask.value
+
+        XCTAssertEqual(controller.visibleHint, .tooFast)
+    }
+
+    @MainActor
+    func testGuidancePresentationInvalidateRejectsLateDismissal() async throws {
+        let delayDriver = ScanGuidanceDismissDelayDriver()
+        let controller = ScanGuidancePresentationController {
+            await delayDriver.wait()
+        }
+
+        let staleTask = try XCTUnwrap(
+            controller.update(hint: .goodPace, isRecording: true)
+        )
+        let staleRequest = await delayDriver.nextRequest()
+
+        controller.invalidate()
+        await delayDriver.resume(request: staleRequest)
+        await staleTask.value
+
+        XCTAssertNil(controller.visibleHint)
+        XCTAssertNil(controller.update(hint: .tooClose, isRecording: false))
+        XCTAssertNil(controller.visibleHint)
+    }
+
     func testDepthTexturePairFailsClosedForUnsupportedPixelFormats() throws {
         let unsupportedDepth = try makePixelBuffer(
             width: 8,
@@ -2356,5 +2450,43 @@ final class PointCloudProcessingTests: XCTestCase {
             UInt8((bits >> 8) & 0xFF),
             UInt8(bits & 0xFF),
         ])
+    }
+}
+
+private actor ScanGuidanceDismissDelayDriver {
+    private var nextRequestID = 0
+    private var queuedRequests: [Int] = []
+    private var requestWaiters: [CheckedContinuation<Int, Never>] = []
+    private var delayContinuations: [Int: CheckedContinuation<Void, Never>] = [:]
+
+    func wait() async {
+        let request = nextRequestID
+        nextRequestID += 1
+
+        if requestWaiters.isEmpty {
+            queuedRequests.append(request)
+        } else {
+            requestWaiters.removeFirst().resume(returning: request)
+        }
+
+        await withCheckedContinuation { continuation in
+            delayContinuations[request] = continuation
+        }
+    }
+
+    func nextRequest() async -> Int {
+        if !queuedRequests.isEmpty {
+            return queuedRequests.removeFirst()
+        }
+        return await withCheckedContinuation { continuation in
+            requestWaiters.append(continuation)
+        }
+    }
+
+    func resume(request: Int) {
+        guard let continuation = delayContinuations.removeValue(forKey: request) else {
+            preconditionFailure("No pending guidance dismissal for request \(request)")
+        }
+        continuation.resume()
     }
 }
