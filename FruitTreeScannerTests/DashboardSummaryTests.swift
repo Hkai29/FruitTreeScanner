@@ -2085,6 +2085,98 @@ final class OrchardMapEmptyStateTests: XCTestCase {
     }
 }
 
+final class YieldReportPresentationTests: XCTestCase {
+    func testCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "yield_report.title": "Yield Report",
+                "yield_report.done": "Done",
+                "yield_report.done_hint": "Closes the yield report.",
+                "yield_report.empty_title": "No Reliable Yield Data",
+                "yield_report.empty_message": "Complete and save a scan to summarize yield, fruit count, and averages by tree.",
+                "yield_report.start_scan": "Start Scanning",
+                "yield_report.header_subtitle": "Summarize fruit count, weight, and each tree's scan result for post-harvest review.",
+                "yield_report.tree_details": "Tree Details",
+                "yield_report.metric.scans": "Scans",
+                "yield_report.metric.total_yield": "Total Yield",
+                "yield_report.metric.average_yield": "Average",
+                "yield_report.metric.fruit": "Fruit",
+                "yield_report.unit.scan_one": "scan",
+                "yield_report.unit.scan_other": "scans",
+                "yield_report.unit.fruit_one": "fruit",
+                "yield_report.unit.fruit_other": "fruits",
+                "yield_report.unit.kilograms": "kg"
+            ],
+            "zh": [
+                "yield_report.title": "产量报告",
+                "yield_report.done": "完成",
+                "yield_report.done_hint": "关闭产量报告。",
+                "yield_report.empty_title": "暂无可靠产量数据",
+                "yield_report.empty_message": "完成扫描并保存完整结果后，这里会按树体汇总产量、果数和平均值。",
+                "yield_report.start_scan": "开始扫描",
+                "yield_report.header_subtitle": "汇总果数、重量和每棵树的扫描结果，适合采收后复核。",
+                "yield_report.tree_details": "树体明细",
+                "yield_report.metric.scans": "扫描",
+                "yield_report.metric.total_yield": "总产量",
+                "yield_report.metric.average_yield": "平均",
+                "yield_report.metric.fruit": "果实",
+                "yield_report.unit.scan_one": "次",
+                "yield_report.unit.scan_other": "次",
+                "yield_report.unit.fruit_one": "个",
+                "yield_report.unit.fruit_other": "个",
+                "yield_report.unit.kilograms": "kg"
+            ]
+        ]
+        for (language, expectedValues) in expectedCopy {
+            let bundle = try localizedBundle(language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), expectedValue)
+            }
+        }
+    }
+
+    func testMetricsUseLocalizedGroupingAndPluralUnits() throws {
+        let english = YieldReportPresentation(bundle: try localizedBundle("en"))
+        let chinese = YieldReportPresentation(bundle: try localizedBundle("zh"))
+        XCTAssertEqual(
+            english.metricPresentations(
+                totalScans: 1_234,
+                totalYield: 9_876.5,
+                averageYield: 8,
+                totalFruit: 12_345,
+                locale: Locale(identifier: "en_US")
+            ),
+            [
+                .init(title: "Scans", value: "1,234", unit: "scans"),
+                .init(title: "Total Yield", value: "9,876.5", unit: "kg"),
+                .init(title: "Average", value: "8.0", unit: "kg"),
+                .init(title: "Fruit", value: "12,345", unit: "fruits")
+            ]
+        )
+        XCTAssertEqual(
+            chinese.metricPresentations(
+                totalScans: 1_234,
+                totalYield: 9_876.5,
+                averageYield: 8,
+                totalFruit: 12_345,
+                locale: Locale(identifier: "zh_CN")
+            ),
+            [
+                .init(title: "扫描", value: "1,234", unit: "次"),
+                .init(title: "总产量", value: "9,876.5", unit: "kg"),
+                .init(title: "平均", value: "8.0", unit: "kg"),
+                .init(title: "果实", value: "12,345", unit: "个")
+            ]
+        )
+    }
+
+    private func localizedBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
+        )
+    }
+}
+
 final class BatchExportHeaderLocalizationTests: XCTestCase {
     func testBatchExportHeaderCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
