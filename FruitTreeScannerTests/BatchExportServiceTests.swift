@@ -1120,6 +1120,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportRejectsNegativePrimaryTotals() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        var result = makeYieldResult(nLidar: -9, yieldKg: -2.5)
+        result.note = "manual review"
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-negative",
             fruitType: "apple",
@@ -1127,7 +1129,7 @@ final class BatchExportServiceTests: XCTestCase {
             gpsLat: 35.0,
             gpsLon: 139.0,
             sourceFilename: sourceFilename,
-            result: makeYieldResult(nLidar: -9, yieldKg: -2.5),
+            result: result,
             includeCSV: true
         )
 
@@ -1141,9 +1143,26 @@ final class BatchExportServiceTests: XCTestCase {
         }
 
         let csv = try String(contentsOf: csvURL, encoding: .utf8)
-        XCTAssertTrue(csv.contains(",0,0.00,"))
-        XCTAssertFalse(csv.contains("-9"))
-        XCTAssertFalse(csv.contains("-2.50"))
+        let csvRows = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        XCTAssertEqual(csvRows.count, 2)
+        let headerFields = try XCTUnwrap(csvRows.first).split(
+            separator: ",",
+            omittingEmptySubsequences: false
+        )
+        let recordFields = try XCTUnwrap(csvRows.dropFirst().first).split(
+            separator: ",",
+            omittingEmptySubsequences: false
+        )
+        XCTAssertEqual(recordFields.count, headerFields.count)
+        let fruitCountIndex = try XCTUnwrap(headerFields.firstIndex(of: "果实数量"))
+        let yieldIndex = try XCTUnwrap(headerFields.firstIndex(of: "产量(kg)"))
+        guard recordFields.indices.contains(fruitCountIndex),
+              recordFields.indices.contains(yieldIndex)
+        else {
+            return XCTFail("CSV data row does not contain the primary total columns")
+        }
+        XCTAssertEqual(recordFields[fruitCountIndex], "0")
+        XCTAssertEqual(recordFields[yieldIndex], "0.00")
 
         let metadataURL = try XCTUnwrap(exported.metadataURL)
         let data = try Data(contentsOf: metadataURL)
