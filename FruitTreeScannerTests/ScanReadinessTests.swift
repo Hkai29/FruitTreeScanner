@@ -146,6 +146,142 @@ final class ScanReadinessTests: XCTestCase {
     }
 }
 
+final class ScanPostCaptureLocalizationTests: XCTestCase {
+    private let englishCopy: [L10n.ScanPostCapture.Key: String] = [
+        .title: "Preview Ready",
+        .guidanceComplete: "Coverage is sufficient. You can finish and estimate yield.",
+        .guidanceGood: "You can finish now. If the back of the canopy is missing, resume and scan one more pass.",
+        .guidanceContinue: "Resume scanning to capture the back of the canopy and occluded trunk areas.",
+        .metricPointCloud: "Point Cloud",
+        .metricDuration: "Duration",
+        .metricStatus: "Status",
+        .statusComplete: "Scan Complete",
+        .statusGood: "Good Coverage",
+        .statusContinue: "Continue Scanning",
+        .statusInsufficient: "Insufficient Coverage",
+        .coverage: "Coverage",
+        .resumeAction: "Resume Scan",
+        .finishAction: "Finish & Estimate",
+        .resumeAccessibilityHint: "Resumes this scan and keeps the captured point cloud.",
+        .finishAccessibilityHint: "Saves this scan and starts yield estimation.",
+        .finishUnavailableAccessibilityHint: "Finishing is unavailable until the current scan is ready to export.",
+    ]
+
+    private let chineseCopy: [L10n.ScanPostCapture.Key: String] = [
+        .title: "粗预览已就绪",
+        .guidanceComplete: "覆盖充足，可直接完成并估算产量。",
+        .guidanceGood: "可完成分析；若树冠背面缺失，继续录制补一圈。",
+        .guidanceContinue: "建议继续录制，补齐树冠背面和主干遮挡区域。",
+        .metricPointCloud: "点云",
+        .metricDuration: "时长",
+        .metricStatus: "状态",
+        .statusComplete: "扫描完成",
+        .statusGood: "覆盖良好",
+        .statusContinue: "继续扫描",
+        .statusInsufficient: "覆盖率不足",
+        .coverage: "覆盖率",
+        .resumeAction: "继续补扫",
+        .finishAction: "完成估算",
+        .resumeAccessibilityHint: "继续本次扫描并保留已采集的点云。",
+        .finishAccessibilityHint: "保存本次扫描并开始估算产量。",
+        .finishUnavailableAccessibilityHint: "当前扫描达到可导出条件后才能完成估算。",
+    ]
+
+    func testEnglishPostCaptureCopyExistsInLocalizedResources() throws {
+        try assertCopy(in: localizedBundle(language: "en"), matches: englishCopy)
+    }
+
+    func testChinesePostCaptureCopyExistsInLocalizedResources() throws {
+        try assertCopy(in: localizedBundle(language: "zh"), matches: chineseCopy)
+    }
+
+    func testCoverageStatusPreservesExistingThresholdBoundariesAndTitles() {
+        let expectations: [
+            (overall: Float, status: ScanCompletion.CoverageStatus, title: String)
+        ] = [
+            (0.85, .complete, "扫描完成"),
+            (0.849, .good, "覆盖良好"),
+            (0.6, .good, "覆盖良好"),
+            (0.599, .continueScanning, "继续扫描"),
+            (0.3, .continueScanning, "继续扫描"),
+            (0.299, .insufficient, "覆盖率不足"),
+        ]
+
+        for expectation in expectations {
+            let completion = ScanCompletion(overall: expectation.overall)
+            XCTAssertEqual(completion.coverageStatus, expectation.status)
+            XCTAssertEqual(completion.statusTitle, expectation.title)
+        }
+    }
+
+    func testEnglishPresentationMapsEveryCoverageStatus() throws {
+        let bundle = try localizedBundle(language: "en")
+        let expectations: [
+            (status: ScanCompletion.CoverageStatus, title: String, guidance: String)
+        ] = [
+            (.complete, "Scan Complete", "Coverage is sufficient. You can finish and estimate yield."),
+            (.good, "Good Coverage", "You can finish now. If the back of the canopy is missing, resume and scan one more pass."),
+            (.continueScanning, "Continue Scanning", "Resume scanning to capture the back of the canopy and occluded trunk areas."),
+            (.insufficient, "Insufficient Coverage", "Resume scanning to capture the back of the canopy and occluded trunk areas."),
+        ]
+
+        for expectation in expectations {
+            XCTAssertEqual(
+                L10n.ScanPostCapture.statusTitle(for: expectation.status, in: bundle),
+                expectation.title
+            )
+            XCTAssertEqual(
+                L10n.ScanPostCapture.guidance(for: expectation.status, in: bundle),
+                expectation.guidance
+            )
+        }
+    }
+
+    func testFinishAccessibilityHintExplainsAvailability() throws {
+        let englishBundle = try localizedBundle(language: "en")
+        XCTAssertEqual(
+            L10n.ScanPostCapture.finishAccessibilityHint(canFinish: true, in: englishBundle),
+            "Saves this scan and starts yield estimation."
+        )
+        XCTAssertEqual(
+            L10n.ScanPostCapture.finishAccessibilityHint(canFinish: false, in: englishBundle),
+            "Finishing is unavailable until the current scan is ready to export."
+        )
+    }
+
+    private func assertCopy(
+        in bundle: Bundle,
+        matches expectedCopy: [L10n.ScanPostCapture.Key: String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        XCTAssertEqual(expectedCopy.count, L10n.ScanPostCapture.Key.allCases.count)
+        for key in L10n.ScanPostCapture.Key.allCases {
+            let expected = try XCTUnwrap(expectedCopy[key], file: file, line: line)
+            XCTAssertEqual(
+                bundle.localizedString(forKey: key.rawValue, value: nil, table: nil),
+                expected,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                L10n.ScanPostCapture.text(key, in: bundle),
+                expected,
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func localizedBundle(language: String) throws -> Bundle {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: language, withExtension: "lproj"),
+            "Missing \(language).lproj in app bundle"
+        )
+        return try XCTUnwrap(Bundle(url: url))
+    }
+}
+
 final class ScanLifecycleControllerTests: XCTestCase {
     func testRecordingToInactiveStopsReliableEvidenceAndDoesNotAutoResume() {
         let controller = ScanLifecycleController()

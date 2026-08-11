@@ -1,6 +1,13 @@
 import Foundation
 
 struct ScanCompletion: Equatable {
+    enum CoverageStatus: CaseIterable, Equatable {
+        case complete
+        case good
+        case continueScanning
+        case insufficient
+    }
+
     var overall: Float = 0
     var timeScore: Float = 0
     var voxelScore: Float = 0
@@ -15,11 +22,20 @@ struct ScanCompletion: Equatable {
 
     var overallPercent: Int { Int(min(overall * 100, 100)) }
 
+    var coverageStatus: CoverageStatus {
+        if overall >= 0.85 { return .complete }
+        if overall >= 0.6 { return .good }
+        if overall >= 0.3 { return .continueScanning }
+        return .insufficient
+    }
+
     var statusTitle: String {
-        if overall >= 0.85 { return "扫描完成" }
-        if overall >= 0.6 { return "覆盖良好" }
-        if overall >= 0.3 { return "继续扫描" }
-        return "覆盖率不足"
+        switch coverageStatus {
+        case .complete: return "扫描完成"
+        case .good: return "覆盖良好"
+        case .continueScanning: return "继续扫描"
+        case .insufficient: return "覆盖率不足"
+        }
     }
 
     var statusHint: String {

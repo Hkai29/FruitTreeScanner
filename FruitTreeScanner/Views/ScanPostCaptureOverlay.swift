@@ -14,32 +14,45 @@ struct ScanPostCapturePanel: View {
                 Image(systemName: "cube.transparent")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Design.Colors.harvest)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("粗预览已就绪")
+                    Text(L10n.ScanPostCapture.title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                     Text(nextStepText)
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.68))
                 }
+                .accessibilityElement(children: .combine)
 
                 Spacer()
 
                 Text("\(coveragePercent)%")
                     .font(.system(size: 16, weight: .bold, design: .monospaced))
                     .foregroundColor(statusColor)
+                    .accessibilityLabel(L10n.ScanPostCapture.coverage)
+                    .accessibilityValue("\(coveragePercent)%")
             }
 
             HStack(spacing: 8) {
-                ScanPostCaptureMetric(label: "点云", value: ScanHUDValueFormatter.pointCount(pointCount))
-                ScanPostCaptureMetric(label: "时长", value: completion.formattedDuration)
-                ScanPostCaptureMetric(label: "状态", value: completion.statusTitle)
+                ScanPostCaptureMetric(
+                    label: L10n.ScanPostCapture.metricPointCloud,
+                    value: ScanHUDValueFormatter.pointCount(pointCount)
+                )
+                ScanPostCaptureMetric(
+                    label: L10n.ScanPostCapture.metricDuration,
+                    value: completion.formattedDuration
+                )
+                ScanPostCaptureMetric(
+                    label: L10n.ScanPostCapture.metricStatus,
+                    value: L10n.ScanPostCapture.statusTitle(for: completion.coverageStatus)
+                )
             }
 
             HStack(spacing: 8) {
                 Button(action: onResume) {
-                    Label("继续补扫", systemImage: "plus.viewfinder")
+                    Label(L10n.ScanPostCapture.resumeAction, systemImage: "plus.viewfinder")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -48,9 +61,10 @@ struct ScanPostCapturePanel: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint(L10n.ScanPostCapture.resumeAccessibilityHint)
 
                 Button(action: onFinish) {
-                    Label("完成估算", systemImage: "checkmark")
+                    Label(L10n.ScanPostCapture.finishAction, systemImage: "checkmark")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.black.opacity(0.84))
                         .frame(maxWidth: .infinity)
@@ -61,6 +75,9 @@ struct ScanPostCapturePanel: View {
                 .buttonStyle(.plain)
                 .disabled(!canFinish)
                 .opacity(canFinish ? 1 : 0.55)
+                .accessibilityHint(
+                    L10n.ScanPostCapture.finishAccessibilityHint(canFinish: canFinish)
+                )
             }
         }
         .padding(.horizontal, 16)
@@ -76,19 +93,15 @@ struct ScanPostCapturePanel: View {
     }
 
     private var nextStepText: String {
-        if completion.overall >= 0.85 {
-            return "覆盖充足，可直接完成并估算产量。"
-        }
-        if completion.overall >= 0.6 {
-            return "可完成分析；若树冠背面缺失，继续录制补一圈。"
-        }
-        return "建议继续录制，补齐树冠背面和主干遮挡区域。"
+        L10n.ScanPostCapture.guidance(for: completion.coverageStatus)
     }
 
     private var statusColor: Color {
-        if completion.overall >= 0.85 { return Design.Colors.harvest }
-        if completion.overall >= 0.6 { return Design.Colors.success }
-        return Design.Colors.warning
+        switch completion.coverageStatus {
+        case .complete: return Design.Colors.harvest
+        case .good: return Design.Colors.success
+        case .continueScanning, .insufficient: return Design.Colors.warning
+        }
     }
 }
 
@@ -112,6 +125,9 @@ private struct ScanPostCaptureMetric: View {
         .padding(.vertical, 7)
         .background(Color.white.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
     }
 }
 

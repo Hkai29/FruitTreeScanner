@@ -14,6 +14,25 @@
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.interruption_accessibility_hint" = "Restart clears this scan. Discard does not create a scan result.";
 
+/* Scan Post Capture */
+"scan.post_capture.title" = "Preview Ready";
+"scan.post_capture.guidance.complete" = "Coverage is sufficient. You can finish and estimate yield.";
+"scan.post_capture.guidance.good" = "You can finish now. If the back of the canopy is missing, resume and scan one more pass.";
+"scan.post_capture.guidance.continue" = "Resume scanning to capture the back of the canopy and occluded trunk areas.";
+"scan.post_capture.metric.point_cloud" = "Point Cloud";
+"scan.post_capture.metric.duration" = "Duration";
+"scan.post_capture.metric.status" = "Status";
+"scan.post_capture.status.complete" = "Scan Complete";
+"scan.post_capture.status.good" = "Good Coverage";
+"scan.post_capture.status.continue" = "Continue Scanning";
+"scan.post_capture.status.insufficient" = "Insufficient Coverage";
+"scan.post_capture.coverage" = "Coverage";
+"scan.post_capture.action.resume" = "Resume Scan";
+"scan.post_capture.action.finish" = "Finish & Estimate";
+"scan.post_capture.accessibility.resume_hint" = "Resumes this scan and keeps the captured point cloud.";
+"scan.post_capture.accessibility.finish_hint" = "Saves this scan and starts yield estimation.";
+"scan.post_capture.accessibility.finish_unavailable_hint" = "Finishing is unavailable until the current scan is ready to export.";
+
 /* Scan Readiness */
 "scan.readiness.checking.title" = "Checking Device Capabilities";
 "scan.readiness.checking.message" = "Checking the camera, ARKit, and depth scanning capabilities.";

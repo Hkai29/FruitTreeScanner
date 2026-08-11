@@ -22,6 +22,104 @@ enum L10n {
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")
     }
 
+    // MARK: - Scan Post Capture
+    enum ScanPostCapture {
+        enum Key: String, CaseIterable {
+            case title = "scan.post_capture.title"
+            case guidanceComplete = "scan.post_capture.guidance.complete"
+            case guidanceGood = "scan.post_capture.guidance.good"
+            case guidanceContinue = "scan.post_capture.guidance.continue"
+            case metricPointCloud = "scan.post_capture.metric.point_cloud"
+            case metricDuration = "scan.post_capture.metric.duration"
+            case metricStatus = "scan.post_capture.metric.status"
+            case statusComplete = "scan.post_capture.status.complete"
+            case statusGood = "scan.post_capture.status.good"
+            case statusContinue = "scan.post_capture.status.continue"
+            case statusInsufficient = "scan.post_capture.status.insufficient"
+            case coverage = "scan.post_capture.coverage"
+            case resumeAction = "scan.post_capture.action.resume"
+            case finishAction = "scan.post_capture.action.finish"
+            case resumeAccessibilityHint = "scan.post_capture.accessibility.resume_hint"
+            case finishAccessibilityHint = "scan.post_capture.accessibility.finish_hint"
+            case finishUnavailableAccessibilityHint = "scan.post_capture.accessibility.finish_unavailable_hint"
+
+            fileprivate var fallback: String {
+                switch self {
+                case .title: return "粗预览已就绪"
+                case .guidanceComplete: return "覆盖充足，可直接完成并估算产量。"
+                case .guidanceGood: return "可完成分析；若树冠背面缺失，继续录制补一圈。"
+                case .guidanceContinue: return "建议继续录制，补齐树冠背面和主干遮挡区域。"
+                case .metricPointCloud: return "点云"
+                case .metricDuration: return "时长"
+                case .metricStatus: return "状态"
+                case .statusComplete: return "扫描完成"
+                case .statusGood: return "覆盖良好"
+                case .statusContinue: return "继续扫描"
+                case .statusInsufficient: return "覆盖率不足"
+                case .coverage: return "覆盖率"
+                case .resumeAction: return "继续补扫"
+                case .finishAction: return "完成估算"
+                case .resumeAccessibilityHint: return "继续本次扫描并保留已采集的点云。"
+                case .finishAccessibilityHint: return "保存本次扫描并开始估算产量。"
+                case .finishUnavailableAccessibilityHint: return "当前扫描达到可导出条件后才能完成估算。"
+                }
+            }
+        }
+
+        static func text(_ key: Key, in bundle: Bundle = .main) -> String {
+            bundle.localizedString(forKey: key.rawValue, value: key.fallback, table: nil)
+        }
+
+        static var title: String { text(.title) }
+        static var metricPointCloud: String { text(.metricPointCloud) }
+        static var metricDuration: String { text(.metricDuration) }
+        static var metricStatus: String { text(.metricStatus) }
+        static var coverage: String { text(.coverage) }
+        static var resumeAction: String { text(.resumeAction) }
+        static var finishAction: String { text(.finishAction) }
+        static var resumeAccessibilityHint: String { text(.resumeAccessibilityHint) }
+
+        static func guidance(
+            for status: ScanCompletion.CoverageStatus,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch status {
+            case .complete:
+                return text(.guidanceComplete, in: bundle)
+            case .good:
+                return text(.guidanceGood, in: bundle)
+            case .continueScanning, .insufficient:
+                return text(.guidanceContinue, in: bundle)
+            }
+        }
+
+        static func statusTitle(
+            for status: ScanCompletion.CoverageStatus,
+            in bundle: Bundle = .main
+        ) -> String {
+            switch status {
+            case .complete:
+                return text(.statusComplete, in: bundle)
+            case .good:
+                return text(.statusGood, in: bundle)
+            case .continueScanning:
+                return text(.statusContinue, in: bundle)
+            case .insufficient:
+                return text(.statusInsufficient, in: bundle)
+            }
+        }
+
+        static func finishAccessibilityHint(
+            canFinish: Bool,
+            in bundle: Bundle = .main
+        ) -> String {
+            text(
+                canFinish ? .finishAccessibilityHint : .finishUnavailableAccessibilityHint,
+                in: bundle
+            )
+        }
+    }
+
     // MARK: - Scan Readiness
     enum ScanReadiness {
         enum Key: String {

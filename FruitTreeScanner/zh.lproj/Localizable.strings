@@ -14,6 +14,25 @@
 "scan.discard_after_interruption" = "放弃扫描";
 "scan.interruption_accessibility_hint" = "重新开始会清除本次扫描数据；放弃不会生成扫描结果。";
 
+/* 扫描暂停后的粗预览 */
+"scan.post_capture.title" = "粗预览已就绪";
+"scan.post_capture.guidance.complete" = "覆盖充足，可直接完成并估算产量。";
+"scan.post_capture.guidance.good" = "可完成分析；若树冠背面缺失，继续录制补一圈。";
+"scan.post_capture.guidance.continue" = "建议继续录制，补齐树冠背面和主干遮挡区域。";
+"scan.post_capture.metric.point_cloud" = "点云";
+"scan.post_capture.metric.duration" = "时长";
+"scan.post_capture.metric.status" = "状态";
+"scan.post_capture.status.complete" = "扫描完成";
+"scan.post_capture.status.good" = "覆盖良好";
+"scan.post_capture.status.continue" = "继续扫描";
+"scan.post_capture.status.insufficient" = "覆盖率不足";
+"scan.post_capture.coverage" = "覆盖率";
+"scan.post_capture.action.resume" = "继续补扫";
+"scan.post_capture.action.finish" = "完成估算";
+"scan.post_capture.accessibility.resume_hint" = "继续本次扫描并保留已采集的点云。";
+"scan.post_capture.accessibility.finish_hint" = "保存本次扫描并开始估算产量。";
+"scan.post_capture.accessibility.finish_unavailable_hint" = "当前扫描达到可导出条件后才能完成估算。";
+
 /* 扫描就绪状态 */
 "scan.readiness.checking.title" = "正在检查设备能力";
 "scan.readiness.checking.message" = "正在确认相机、ARKit 和深度扫描链路。";
