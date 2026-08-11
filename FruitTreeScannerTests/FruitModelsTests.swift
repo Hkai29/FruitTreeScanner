@@ -3178,8 +3178,48 @@ final class FruitModelsTests: XCTestCase {
 
         let item = try XCTUnwrap(HistoricalCompareDataSource.items(from: [record]).first)
 
-        XCTAssertEqual(item.diameterFormatted, "--")
-        XCTAssertEqual(item.confidenceFormatted, "--")
+        XCTAssertNil(item.meanDiameterCm)
+        XCTAssertTrue(item.confidence.isEmpty)
+    }
+
+    func testHistoricalCompareZeroYieldBaselineDoesNotReportFalseNeutralChange() throws {
+        XCTAssertNil(HistoricalCompareMetrics.proportionalYieldChange(from: 0, to: 10))
+        XCTAssertNil(HistoricalCompareMetrics.proportionalYieldChange(from: .nan, to: 10))
+        let positiveChange = try XCTUnwrap(
+            HistoricalCompareMetrics.proportionalYieldChange(from: 8, to: 10)
+        )
+        XCTAssertEqual(positiveChange, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(HistoricalCompareMetrics.trend(for: nil), .unavailable)
+        XCTAssertEqual(HistoricalCompareMetrics.trend(from: Optional<Double>.none, to: 10), .unavailable)
+    }
+
+    func testHistoricalCompareSelectionUsesLatestRecordAndClearsRemovedRecord() throws {
+        let originalRecord = historicalCompareRecord(
+            id: "same.ply",
+            treeID: "TREE-OLD",
+            fruitCount: 8,
+            yieldKg: 4,
+            confidence: "medium",
+            persistenceState: .complete
+        )
+        let updatedRecord = historicalCompareRecord(
+            id: "same.ply",
+            treeID: "TREE-UPDATED",
+            fruitCount: 12,
+            yieldKg: 6,
+            confidence: "high",
+            persistenceState: .complete
+        )
+        let original = try XCTUnwrap(HistoricalCompareDataSource.items(from: [originalRecord]).first)
+        let updated = try XCTUnwrap(HistoricalCompareDataSource.items(from: [updatedRecord]).first)
+
+        XCTAssertEqual(
+            HistoricalCompareSelectionPolicy.reconciledSelection(original, availableScans: [updated]),
+            updated
+        )
+        XCTAssertNil(
+            HistoricalCompareSelectionPolicy.reconciledSelection(original, availableScans: [])
+        )
     }
 
     func testHistoricalCompareSelectionRefreshesAndDropsUnavailableItems() throws {
