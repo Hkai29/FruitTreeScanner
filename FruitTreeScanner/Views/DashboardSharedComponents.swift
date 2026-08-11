@@ -123,7 +123,6 @@ struct DashboardFeatureHeader: View {
 
 struct DashboardToolHeader: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let imageName: String
     let title: String
     let subtitle: String
@@ -131,43 +130,73 @@ struct DashboardToolHeader: View {
     var accent: Color = Design.Colors.harvest
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            if !dynamicTypeSize.isAccessibilitySize {
-                DashboardFeatureImage(name: imageName, accent: accent)
-                    .frame(width: 86, height: 66)
-                    .accessibilityHidden(true)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityLayout
+            } else {
+                regularLayout
             }
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 8) {
-                    Image(systemName: icon)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(accent)
-                        .padding(6)
-                        .background(accent.opacity(0.14))
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                        .accessibilityHidden(true)
-
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .layoutPriority(1)
-                }
-
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-
-            Spacer(minLength: 0)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(title))
+        .accessibilityValue(Text(subtitle))
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private var regularLayout: some View {
+        HStack(alignment: .center, spacing: 12) {
+            featureImage
+                .frame(width: 86, height: 66)
+                .clipped()
+
+            textContent
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var accessibilityLayout: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            featureImage
+                .frame(maxWidth: .infinity)
+                .frame(height: 96)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+
+            textContent
+        }
+    }
+
+    private var featureImage: some View {
+        DashboardFeatureImage(name: imageName, accent: accent)
+            .accessibilityHidden(true)
+    }
+
+    private var textContent: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 25, height: 25)
+                    .background(accent.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .accessibilityHidden(true)
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
