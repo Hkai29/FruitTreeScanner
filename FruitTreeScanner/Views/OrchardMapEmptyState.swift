@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OrchardMapEmptyState: View {
+    @Environment(\.orchardMapPresentation) private var presentation
     var onStartScan: (() -> Void)? = nil
 
     var body: some View {
@@ -8,10 +9,14 @@ struct OrchardMapEmptyState: View {
             DashboardSheetEmptyState(
                 icon: "map",
                 imageName: "FeatureMap",
-                title: "暂无定位扫描",
-                message: "带 GPS 的完整扫描记录会显示在果园地图中，用于查看可靠产量分布。",
+                title: presentation.emptyTitle,
+                message: presentation.emptyMessage,
                 accent: Design.Colors.Dark.info,
-                primaryAction: action(title: "开始扫描", icon: "viewfinder", handler: onStartScan),
+                primaryAction: action(
+                    title: presentation.startScan,
+                    icon: "viewfinder",
+                    handler: onStartScan
+                ),
                 outerPadding: false
             )
             .padding(.horizontal, 16)

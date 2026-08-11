@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct TreeMapPin: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.orchardMapPresentation) private var presentation
     let tree: TreeAnnotation
     let isSelected: Bool
 
@@ -12,7 +14,7 @@ struct TreeMapPin: View {
                     .frame(width: isSelected ? 36 : 28, height: isSelected ? 36 : 28)
                     .shadow(color: tree.yieldLevel.color.opacity(0.4), radius: isSelected ? 8 : 4, y: 2)
 
-                Image(systemName: "tree.fill")
+                Image(systemName: tree.yieldLevel.icon)
                     .font(.system(size: isSelected ? 16 : 12, weight: .medium))
                     .foregroundColor(.white)
             }
@@ -23,6 +25,12 @@ struct TreeMapPin: View {
                 .offset(y: -2)
         }
         .animation(.spring(response: 0.3), value: isSelected)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(presentation.treeTitle(tree.treeID)))
+        .accessibilityValue(Text(presentation.mapPinValue(for: tree, locale: locale)))
+        .accessibilityHint(Text(presentation.selectTreeHint))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -37,16 +45,23 @@ struct Triangle: Shape {
 }
 
 struct YieldStatMini: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.orchardMapPresentation) private var presentation
     let level: YieldLevel
     let count: Int
 
     var body: some View {
         HStack(spacing: Design.Space.xs) {
-            Circle().fill(level.color).frame(width: 8, height: 8)
-            Text("\(count)")
-                .font(Design.Typography.subheadlineMedium)
+            Image(systemName: level.icon)
+                .font(.caption)
+                .foregroundColor(level.color)
+            Text(presentation.integerText(count, locale: locale))
+                .font(.subheadline.weight(.medium))
                 .foregroundColor(Design.Colors.Dark.textPrimary)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(presentation.yieldLevelLabel(level)))
+        .accessibilityValue(Text(presentation.treeCountText(count, locale: locale)))
     }
 }
 
@@ -58,11 +73,12 @@ struct TreeStatItem: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(Design.Typography.caption)
+                .font(.caption)
                 .foregroundColor(Design.Colors.Dark.textSecondary)
             Text(value)
-                .font(Design.Typography.subheadlineMedium)
+                .font(.subheadline.weight(.medium))
                 .foregroundColor(color)
         }
+        .accessibilityElement(children: .combine)
     }
 }

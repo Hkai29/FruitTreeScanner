@@ -169,7 +169,7 @@ extension DashboardView {
             if #available(iOS 17, *) {
                 MapSheet(onStartScan: showStartScan)
             } else {
-                Text("地图功能需要 iOS 17")
+                Text(OrchardMapPresentation().requiresIOS17)
             }
         case .importFile:
             ImportFileView()

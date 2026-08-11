@@ -1,14 +1,18 @@
 import SwiftUI
 
 struct TreeDetailCard: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.orchardMapPresentation) private var presentation
     let tree: TreeAnnotation
     let onClose: () -> Void
 
-    private var confidence: (label: String, color: Color) {
-        switch tree.confidence {
-        case "high": return ("高", Design.Colors.Dark.success)
-        case "medium": return ("中", Design.Colors.Dark.warning)
-        default: return ("低", Design.Colors.Dark.error)
+    private var confidenceColor: Color {
+        switch tree.confidence.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "high": return Design.Colors.Dark.success
+        case "medium": return Design.Colors.Dark.warning
+        case "low": return Design.Colors.Dark.error
+        default: return Design.Colors.Dark.textSecondary
         }
     }
 
@@ -27,12 +31,14 @@ struct TreeDetailCard: View {
         HStack {
             HStack(spacing: Design.Space.sm) {
                 Image(systemName: tree.yieldLevel.icon)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.title3.weight(.medium))
                     .foregroundColor(tree.yieldLevel.color)
+                    .accessibilityHidden(true)
 
-                Text("树 #\(tree.treeID)")
-                    .font(Design.Typography.headline)
+                Text(presentation.treeTitle(tree.treeID))
+                    .font(.headline)
                     .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -41,49 +47,90 @@ struct TreeDetailCard: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 44, height: 44)
                     .background(Design.Colors.Dark.bgSurface)
                     .clipShape(Circle())
             }
+            .accessibilityLabel(Text(presentation.closeDetails))
+            .accessibilityHint(Text(presentation.closeDetailsHint))
         }
     }
 
+    @ViewBuilder
     private var statsRow: some View {
-        HStack(spacing: Design.Space.xl) {
-            TreeStatItem(label: "预估产量", value: String(format: "%.1f kg", tree.weight), color: Design.Colors.Dark.glow)
-            TreeStatItem(label: "果实数", value: "\(tree.fruitCount) 个", color: Design.Colors.Dark.glow)
-            TreeStatItem(label: "置信度", value: confidence.label, color: confidence.color)
-            TreeStatItem(label: "扫描日期", value: formatDate(tree.scanDate), color: Design.Colors.Dark.textSecondary)
-        }
-    }
-
-    private var yieldBadgeRow: some View {
-        HStack {
-            Text("产量等级")
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Spacer()
-
-            HStack(spacing: Design.Space.xs) {
-                Circle()
-                    .fill(tree.yieldLevel.color)
-                    .frame(width: 8, height: 8)
-
-                Text(tree.yieldLevel.label)
-                    .font(Design.Typography.captionMedium)
-                    .foregroundColor(tree.yieldLevel.color)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Design.Space.sm) {
+                stats
             }
-            .padding(.horizontal, Design.Space.sm)
-            .padding(.vertical, Design.Space.xs)
-            .background(tree.yieldLevel.color.opacity(0.1))
-            .cornerRadius(Design.Radius.full)
+        } else {
+            HStack(spacing: Design.Space.xl) {
+                stats
+            }
         }
     }
 
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd"
-        return formatter.string(from: date)
+    private var stats: some View {
+        Group {
+            TreeStatItem(
+                label: presentation.estimatedYield,
+                value: presentation.yieldText(tree.weight, locale: locale),
+                color: Design.Colors.Dark.glow
+            )
+            TreeStatItem(
+                label: presentation.fruitCount,
+                value: presentation.fruitCountText(tree.fruitCount, locale: locale),
+                color: Design.Colors.Dark.glow
+            )
+            TreeStatItem(
+                label: presentation.confidence,
+                value: presentation.confidenceLabel(tree.confidence),
+                color: confidenceColor
+            )
+            TreeStatItem(
+                label: presentation.scanDate,
+                value: presentation.scanDateText(tree.scanDate, locale: locale),
+                color: Design.Colors.Dark.textSecondary
+            )
+        }
     }
+
+    @ViewBuilder
+    private var yieldBadgeRow: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Design.Space.sm) {
+                yieldLevelLabel
+                yieldLevelBadge
+            }
+        } else {
+            HStack {
+                yieldLevelLabel
+                Spacer()
+                yieldLevelBadge
+            }
+        }
+    }
+
+    private var yieldLevelLabel: some View {
+        Text(presentation.yieldLevelTitle)
+            .font(.caption)
+            .foregroundColor(Design.Colors.Dark.textSecondary)
+    }
+
+    private var yieldLevelBadge: some View {
+        HStack(spacing: Design.Space.xs) {
+            Image(systemName: tree.yieldLevel.icon)
+                .font(.caption)
+                .foregroundColor(tree.yieldLevel.color)
+
+            Text(presentation.yieldLevelLabel(tree.yieldLevel))
+                .font(.caption.weight(.medium))
+                .foregroundColor(tree.yieldLevel.color)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, Design.Space.sm)
+        .padding(.vertical, Design.Space.xs)
+        .background(tree.yieldLevel.color.opacity(0.1))
+        .cornerRadius(Design.Radius.full)
+    }
+
 }

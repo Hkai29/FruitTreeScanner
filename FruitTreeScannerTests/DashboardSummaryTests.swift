@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import FruitTreeScanner
 
@@ -695,5 +697,319 @@ final class DashboardHomeLocalizationTests: XCTestCase {
         XCTAssertEqual(AppMode.scan.title, L10n.Dashboard.scanMode)
         XCTAssertEqual(AppMode.history.title, L10n.Dashboard.historyMode)
         XCTAssertEqual(AppMode.analytics.title, L10n.Dashboard.analyticsMode)
+    }
+}
+
+final class OrchardMapPresentationTests: XCTestCase {
+    func testCopyIsCompleteInEnglishAndChinese() throws {
+        let expectedCopy: [String: [String: String]] = [
+            "en": [
+                "orchard_map.close": "Close Orchard Map",
+                "orchard_map.close_hint": "Closes the orchard map.",
+                "orchard_map.empty_title": "No Located Scans",
+                "orchard_map.empty_message": "Complete scans with GPS locations appear on the orchard map so you can review reliable yield distribution.",
+                "orchard_map.start_scan": "Start Scanning",
+                "orchard_map.orchard_trees": "Orchard Trees",
+                "orchard_map.estimated_yield": "Estimated Yield",
+                "orchard_map.fruit_count": "Fruit Count",
+                "orchard_map.confidence": "Confidence",
+                "orchard_map.scan_date": "Scan Date",
+                "orchard_map.yield_level": "Yield Level",
+                "orchard_map.filter.selected": "Selected",
+                "orchard_map.filter.not_selected": "Not selected",
+                "orchard_map.filter.hint": "Shows only trees in this yield level.",
+                "orchard_map.filter.selected_hint": "Clears this yield filter.",
+                "orchard_map.filter.clear": "Clear Yield Filter",
+                "orchard_map.filter.clear_hint": "Shows all located trees.",
+                "orchard_map.details.close": "Close Tree Details",
+                "orchard_map.details.close_hint": "Hides the selected tree's scan details.",
+                "orchard_map.pin.select_hint": "Shows this tree's scan details.",
+                "orchard_map.requires_ios17": "Orchard Map requires iOS 17 or later.",
+                "orchard_map.confidence.high": "High",
+                "orchard_map.confidence.medium": "Medium",
+                "orchard_map.confidence.low": "Low",
+                "orchard_map.confidence.unknown": "Unknown",
+                "orchard_map.yield.high": "High yield",
+                "orchard_map.yield.medium": "Medium yield",
+                "orchard_map.yield.low": "Low yield",
+                "orchard_map.tree_title_format": "Tree %@",
+                "orchard_map.pin_value_format": "%@, %@, %@",
+                "orchard_map.unit.tree_one": "tree",
+                "orchard_map.unit.tree_other": "trees",
+                "orchard_map.unit.fruit_one": "fruit",
+                "orchard_map.unit.fruit_other": "fruits",
+                "orchard_map.unit.kilograms": "kg"
+            ],
+            "zh": [
+                "orchard_map.close": "关闭果园地图",
+                "orchard_map.close_hint": "关闭果园地图视图。",
+                "orchard_map.empty_title": "暂无定位扫描",
+                "orchard_map.empty_message": "带 GPS 的完整扫描记录会显示在果园地图中，用于查看可靠产量分布。",
+                "orchard_map.start_scan": "开始扫描",
+                "orchard_map.orchard_trees": "园区树木",
+                "orchard_map.estimated_yield": "预估产量",
+                "orchard_map.fruit_count": "果实数",
+                "orchard_map.confidence": "置信度",
+                "orchard_map.scan_date": "扫描日期",
+                "orchard_map.yield_level": "产量等级",
+                "orchard_map.filter.selected": "已选择",
+                "orchard_map.filter.not_selected": "未选择",
+                "orchard_map.filter.hint": "仅显示此产量等级的树体。",
+                "orchard_map.filter.selected_hint": "取消此产量等级筛选。",
+                "orchard_map.filter.clear": "清除产量筛选",
+                "orchard_map.filter.clear_hint": "显示全部有定位的树体。",
+                "orchard_map.details.close": "关闭树体详情",
+                "orchard_map.details.close_hint": "隐藏当前树体的扫描详情。",
+                "orchard_map.pin.select_hint": "显示这棵树的扫描详情。",
+                "orchard_map.requires_ios17": "果园地图需要 iOS 17 或更高版本。",
+                "orchard_map.confidence.high": "高",
+                "orchard_map.confidence.medium": "中",
+                "orchard_map.confidence.low": "低",
+                "orchard_map.confidence.unknown": "未知",
+                "orchard_map.yield.high": "高产",
+                "orchard_map.yield.medium": "中产",
+                "orchard_map.yield.low": "低产",
+                "orchard_map.tree_title_format": "树 %@",
+                "orchard_map.pin_value_format": "%@，%@，%@",
+                "orchard_map.unit.tree_one": "棵",
+                "orchard_map.unit.tree_other": "棵",
+                "orchard_map.unit.fruit_one": "个",
+                "orchard_map.unit.fruit_other": "个",
+                "orchard_map.unit.kilograms": "kg"
+            ]
+        ]
+
+        for (language, expectedValues) in expectedCopy {
+            let localizedBundle = try localizedBundle(language)
+            for (key, expectedValue) in expectedValues {
+                XCTAssertEqual(
+                    localizedBundle.localizedString(forKey: key, value: nil, table: nil),
+                    expectedValue,
+                    "\(language) localization is missing or incorrect for \(key)"
+                )
+            }
+        }
+    }
+
+    func testPresentationMapsVisibleCopyYieldLevelsAndConfidenceStates() throws {
+        let english = OrchardMapPresentation(bundle: try localizedBundle("en"))
+        let chinese = OrchardMapPresentation(bundle: try localizedBundle("zh"))
+
+        XCTAssertEqual(
+            [
+                english.closeMap,
+                english.emptyTitle,
+                english.startScan,
+                english.orchardTrees,
+                english.estimatedYield,
+                english.yieldLevelTitle,
+                english.filterSelectedHint,
+                english.requiresIOS17
+            ],
+            [
+                "Close Orchard Map",
+                "No Located Scans",
+                "Start Scanning",
+                "Orchard Trees",
+                "Estimated Yield",
+                "Yield Level",
+                "Clears this yield filter.",
+                "Orchard Map requires iOS 17 or later."
+            ]
+        )
+        XCTAssertEqual(english.yieldLevelLabel(.high), "High yield")
+        XCTAssertEqual(english.yieldLevelLabel(.medium), "Medium yield")
+        XCTAssertEqual(english.yieldLevelLabel(.low), "Low yield")
+        XCTAssertEqual(english.confidenceLabel("high"), "High")
+        XCTAssertEqual(english.confidenceLabel("unexpected"), "Unknown")
+
+        XCTAssertEqual(chinese.treeTitle("TREE-8"), "树 TREE-8")
+        XCTAssertEqual(chinese.yieldLevelLabel(.high), "高产")
+        XCTAssertEqual(chinese.confidenceLabel("unexpected"), "未知")
+    }
+
+    func testPresentationUsesRegionalDatesNumbersPluralUnitsAndPinSemantics() throws {
+        let scanDate = try scanDate()
+        let tree = makeTree(
+            id: "tree-many",
+            treeID: "TREE-1234",
+            weight: 9_876.5,
+            confidence: "high",
+            scanDate: scanDate,
+            fruitCount: 12_345
+        )
+
+        let english = OrchardMapPresentation(bundle: try localizedBundle("en"))
+        let englishUS = Locale(identifier: "en_US")
+        XCTAssertEqual(english.treeTitle(tree.treeID), "Tree TREE-1234")
+        XCTAssertEqual(english.treeCountText(1, locale: englishUS), "1 tree")
+        XCTAssertEqual(english.treeCountText(12_345, locale: englishUS), "12,345 trees")
+        XCTAssertEqual(english.fruitCountText(1, locale: englishUS), "1 fruit")
+        XCTAssertEqual(english.fruitCountText(tree.fruitCount, locale: englishUS), "12,345 fruits")
+        XCTAssertEqual(english.yieldText(tree.weight, locale: englishUS), "9,876.5 kg")
+        XCTAssertEqual(english.scanDateText(scanDate, locale: englishUS), "06/01/2026")
+        XCTAssertEqual(
+            english.mapPinValue(for: tree, locale: englishUS),
+            "High yield, 9,876.5 kg, 12,345 fruits"
+        )
+        XCTAssertEqual(
+            english.scanDateText(scanDate, locale: Locale(identifier: "en_GB")),
+            "01/06/2026"
+        )
+
+        let chinese = OrchardMapPresentation(bundle: try localizedBundle("zh"))
+        let chineseLocale = Locale(identifier: "zh_CN")
+        XCTAssertEqual(chinese.treeCountText(12_345, locale: chineseLocale), "12,345 棵")
+        XCTAssertEqual(chinese.fruitCountText(tree.fruitCount, locale: chineseLocale), "12,345 个")
+        XCTAssertEqual(chinese.scanDateText(scanDate, locale: chineseLocale), "2026/06/01")
+        XCTAssertEqual(
+            chinese.mapPinValue(for: tree, locale: chineseLocale),
+            "高产，9,876.5 kg，12,345 个"
+        )
+    }
+
+    @MainActor
+    func testMapEmptyStateAndComponentsRenderInEnglishAndChineseAtLargestAccessibilityTextSize() throws {
+        for language in ["en", "zh"] {
+            let locale = Locale(identifier: language == "en" ? "en_US" : "zh_CN")
+            let presentation = OrchardMapPresentation(bundle: try localizedBundle(language))
+            let selectedTree = makeTree(
+                id: "selected-\(language)",
+                treeID: "TREE-1234",
+                weight: 9_876.5,
+                confidence: "unexpected",
+                scanDate: try scanDate(),
+                fruitCount: 12_345
+            )
+            let summaryTrees = [
+                selectedTree,
+                makeTree(id: "medium", treeID: "TREE-2", weight: 40, confidence: "medium", scanDate: try scanDate(), fruitCount: 2),
+                makeTree(id: "low", treeID: "TREE-3", weight: 10, confidence: "low", scanDate: try scanDate(), fruitCount: 3)
+            ]
+
+            let emptyState = AnyView(
+                OrchardMapEmptyState(onStartScan: {})
+                    .environment(\.orchardMapPresentation, presentation)
+                    .environment(\.locale, locale)
+                    .environment(\.dynamicTypeSize, .accessibility5)
+                    .environment(\.colorScheme, .dark)
+            )
+            attachRender(
+                of: emptyState,
+                size: CGSize(width: 390, height: 844),
+                name: "OrchardMapEmpty-\(language)-AX5"
+            )
+
+            let components = AnyView(
+                VStack(alignment: .leading, spacing: 18) {
+                    OrchardMapTopBar(treeCount: 12_345, onDismiss: {})
+                    OrchardMapLegend(filterYieldLevel: .constant(.high))
+
+                    HStack(spacing: 24) {
+                        ForEach(summaryTrees) { tree in
+                            TreeMapPin(tree: tree, isSelected: tree.id == selectedTree.id)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    TreeDetailCard(tree: selectedTree, onClose: {})
+                    TreeCountCard(filteredTrees: summaryTrees)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(16)
+                .background(Design.Colors.Dark.bgDeep)
+                .environment(\.orchardMapPresentation, presentation)
+                .environment(\.locale, locale)
+                .environment(\.dynamicTypeSize, .accessibility5)
+                .environment(\.colorScheme, .dark)
+            )
+            attachRender(
+                of: components,
+                size: CGSize(width: 390, height: 2_400),
+                name: "OrchardMapComponents-\(language)-AX5"
+            )
+        }
+    }
+
+    private func localizedBundle(_ language: String) throws -> Bundle {
+        try XCTUnwrap(
+            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            "Missing \(language) localization bundle"
+        )
+    }
+
+    private func scanDate() throws -> Date {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 6
+        components.day = 1
+        return try XCTUnwrap(components.date)
+    }
+
+    private func makeTree(
+        id: String,
+        treeID: String,
+        weight: Double,
+        confidence: String,
+        scanDate: Date,
+        fruitCount: Int
+    ) -> TreeAnnotation {
+        TreeAnnotation(
+            id: id,
+            treeID: treeID,
+            coordinate: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737),
+            weight: weight,
+            confidence: confidence,
+            scanDate: scanDate,
+            fruitCount: fruitCount
+        )
+    }
+
+    @MainActor
+    private func attachRender(of view: AnyView, size: CGSize, name: String) {
+        let renderer = ImageRenderer(
+            content: view.frame(width: size.width, height: size.height, alignment: .top)
+        )
+        renderer.scale = 1
+        renderer.proposedSize = ProposedViewSize(size)
+        guard let renderedImage = renderer.uiImage else {
+            return XCTFail("Unable to render \(name)")
+        }
+
+        XCTAssertEqual(renderedImage.size, size)
+        XCTAssertNotNil(renderedImage.cgImage)
+        assertImageHasVisibleContent(renderedImage, name: name)
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func assertImageHasVisibleContent(_ image: UIImage, name: String) {
+        let sampleSize = CGSize(width: 64, height: 64)
+        let sample = UIGraphicsImageRenderer(size: sampleSize).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: sampleSize))
+        }
+        guard let cgImage = sample.cgImage,
+              let data = cgImage.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return XCTFail("Unable to inspect rendered pixels for \(name)")
+        }
+
+        let byteCount = CFDataGetLength(data)
+        var colors = Set<UInt32>()
+        for offset in stride(from: 0, to: byteCount - 3, by: 4) {
+            let color = UInt32(bytes[offset])
+                | (UInt32(bytes[offset + 1]) << 8)
+                | (UInt32(bytes[offset + 2]) << 16)
+                | (UInt32(bytes[offset + 3]) << 24)
+            colors.insert(color)
+            if colors.count > 8 { break }
+        }
+
+        XCTAssertGreaterThan(colors.count, 8, "\(name) rendered without visible component content")
     }
 }
