@@ -526,3 +526,6 @@
 "history.integrity.invalid.csv" = "结果 CSV 无法读取，果数与产量不可用。";
 "history.integrity.invalid.revision" = "结果文件版本不一致，果数与产量不可用。";
 "history.integrity.invalid.unknown" = "结果文件无法验证，果数与产量不可用。";
+"orchard_map.empty.title" = "暂无定位扫描";
+"orchard_map.empty.message" = "带 GPS 的完整扫描记录会显示在果园地图中，用于查看可靠产量分布。";
+"orchard_map.empty.start_scan" = "开始扫描";
