@@ -10,16 +10,42 @@ struct DashboardSheetMetric: Identifiable {
     let unit: String
 }
 
+enum DashboardSheetMetricGridLayout: Equatable {
+    case twoColumns
+    case singleColumn
+
+    init(dynamicTypeSize: DynamicTypeSize) {
+        self = dynamicTypeSize.isAccessibilitySize ? .singleColumn : .twoColumns
+    }
+
+    var columnCount: Int {
+        switch self {
+        case .twoColumns: return 2
+        case .singleColumn: return 1
+        }
+    }
+}
+
 struct DashboardSheetMetricGrid: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let items: [DashboardSheetMetric]
+
+    private var layout: DashboardSheetMetricGridLayout {
+        DashboardSheetMetricGridLayout(dynamicTypeSize: dynamicTypeSize)
+    }
+
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: Design.Space.xs),
+            count: layout.columnCount
+        )
+    }
 
     var body: some View {
         LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8)
-            ],
-            spacing: 8
+            columns: columns,
+            spacing: Design.Space.xs
         ) {
             ForEach(items) { item in
                 DashboardSheetMetricCell(item: item)
@@ -34,16 +60,17 @@ private struct DashboardSheetMetricCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title)
-                .font(.system(size: 12, weight: .medium))
+                .font(.subheadline.weight(.medium))
                 .foregroundColor(Design.Colors.Dark.textSecondary)
 
             HStack(alignment: .lastTextBaseline, spacing: 4) {
                 Text(item.value)
-                    .font(.system(size: 18, weight: .semibold, design: .monospaced))
+                    .font(.system(.title3, design: .monospaced).weight(.semibold))
+                    .monospacedDigit()
                     .foregroundColor(Design.Colors.Dark.textPrimary)
 
                 Text(item.unit)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundColor(Design.Colors.Dark.textMuted)
             }
         }
@@ -51,6 +78,7 @@ private struct DashboardSheetMetricCell: View {
         .padding(12)
         .background(Design.Colors.Dark.bgElevated)
         .cornerRadius(8)
+        .accessibilityElement(children: .combine)
     }
 }
 
