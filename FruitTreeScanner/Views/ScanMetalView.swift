@@ -54,6 +54,13 @@ struct MetalView: UIViewRepresentable {
             context.coordinator.coordinator?.renderer?.drawRectResized(size: uiView.drawableSize)
         }
     }
+
+    static func dismantleUIView(
+        _ uiView: MTKView,
+        coordinator: MetalViewCoordinator
+    ) {
+        coordinator.coordinator?.teardownBinding(for: uiView)
+    }
 }
 
 final class MetalViewCoordinator: NSObject {

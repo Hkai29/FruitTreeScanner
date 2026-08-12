@@ -1,6 +1,7 @@
 import XCTest
 import ARKit
 import AVFoundation
+import MetalKit
 import SwiftUI
 import UIKit
 @testable import FruitTreeScanner
@@ -1107,6 +1108,99 @@ final class ScanCoordinatorARSessionIdentityTests: XCTestCase {
 
         XCTAssertEqual(coordinator.lifecycleSnapshot(), replacementScan)
         XCTAssertTrue(coordinator.acceptsReliableEvidence())
+    }
+}
+
+@MainActor
+final class MetalViewBindingLifecycleTests: XCTestCase {
+    func testDismantlingCurrentMetalViewReleasesOnlyBoundRuntime() {
+        let coordinator = ScanCoordinator()
+        let session = ARSession()
+        let metalView = MTKView()
+        let hudState = ScanHUDState()
+        coordinator.session = session
+        coordinator.mtkView = metalView
+        coordinator.hudState = hudState
+        coordinator.onMeasurementReady = { _ in }
+        session.delegate = coordinator
+
+        MetalView.dismantleUIView(
+            metalView,
+            coordinator: MetalViewCoordinator(coordinator: coordinator)
+        )
+        MetalView.dismantleUIView(
+            metalView,
+            coordinator: MetalViewCoordinator(coordinator: coordinator)
+        )
+
+        XCTAssertTrue(coordinator.isTornDown)
+        XCTAssertNil(coordinator.session)
+        XCTAssertNil(coordinator.mtkView)
+        XCTAssertNil(session.delegate)
+        XCTAssertTrue(coordinator.hudState === hudState)
+        XCTAssertNotNil(coordinator.onMeasurementReady)
+    }
+
+    func testLateDismantleOfReplacedViewCannotTearDownCurrentBinding() {
+        let coordinator = ScanCoordinator()
+        let session = ARSession()
+        let replacedView = MTKView()
+        let currentView = MTKView()
+        coordinator.session = session
+        coordinator.mtkView = currentView
+        session.delegate = coordinator
+
+        MetalView.dismantleUIView(
+            replacedView,
+            coordinator: MetalViewCoordinator(coordinator: coordinator)
+        )
+
+        XCTAssertFalse(coordinator.isTornDown)
+        XCTAssertTrue(coordinator.session === session)
+        XCTAssertTrue(coordinator.mtkView === currentView)
+        XCTAssertTrue(session.delegate === coordinator)
+    }
+
+    func testDismantleRejectsQueuedMeasurementCallbackFromRemovedBinding() async throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let metalView = MTKView(frame: .zero, device: device)
+        let session = ARSession()
+        let renderer = Renderer(
+            session: session,
+            metalDevice: device,
+            renderDestination: metalView
+        )
+        let coordinator = ScanCoordinator(
+            sessionRuntime: ScanSessionRuntime(
+                isWorldTrackingSupported: { false },
+                run: { _, _, _ in }
+            )
+        )
+        var publishedRenderers: [Renderer] = []
+        coordinator.onMeasurementReady = { publishedRenderers.append($0) }
+        metalView.delegate = renderer
+
+        coordinator.bind(
+            session: session,
+            renderer: renderer,
+            mtkView: metalView
+        )
+        MetalView.dismantleUIView(
+            metalView,
+            coordinator: MetalViewCoordinator(coordinator: coordinator)
+        )
+        await drainMainQueue()
+
+        XCTAssertTrue(publishedRenderers.isEmpty)
+        coordinator.teardown()
+    }
+
+    private func drainMainQueue() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                continuation.resume()
+            }
+        }
     }
 }
 

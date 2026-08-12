@@ -316,7 +316,11 @@ class ScanCoordinator: NSObject {
         self.renderer = renderer
         self.mtkView = mtkView
 
-        publishPendingCameraResolution()
+        publishPendingCameraResolution(
+            session: session,
+            renderer: renderer,
+            mtkView: mtkView
+        )
 
         // ARKit may report an interruption or failure as soon as a run starts.
         // Install the observer first so initial sessions cannot lose the callback
@@ -330,11 +334,21 @@ class ScanCoordinator: NSObject {
         // 启动定期处理队列的定时器
         startDetectionTimer()
 
-        scheduleDeferredSettingsLoad()
+        scheduleDeferredSettingsLoad(
+            session: session,
+            renderer: renderer,
+            mtkView: mtkView
+        )
         startHUDDisplayLink()
         UIApplication.shared.isIdleTimerDisabled = true
 
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self, weak session, weak renderer, weak mtkView] in
+            guard let self, let session, let renderer, let mtkView,
+                  self.acceptsBindingCallback(
+                      from: session,
+                      renderer: renderer,
+                      mtkView: mtkView
+                  ) else { return }
             self.onMeasurementReady?(renderer)
         }
     }
@@ -387,6 +401,17 @@ class ScanCoordinator: NSObject {
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
+    @MainActor
+    func teardownBinding(for candidateView: MTKView) {
+        guard mtkView === candidateView else { return }
+        Log.scan.info("Tearing down scan view binding")
+        isTornDown = true
+        invalidateReliableEvidenceGate()
+        stopRuntimeServices()
+        clearBindingReferences()
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+
     private func resetRuntimeState() {
         isTornDown = false
         hasPublishedCameraResolution = false
@@ -394,17 +419,37 @@ class ScanCoordinator: NSObject {
         resetCameraTrackingForSessionRun()
     }
 
-    private func publishPendingCameraResolution() {
+    private func publishPendingCameraResolution(
+        session: ARSession,
+        renderer: Renderer,
+        mtkView: MTKView
+    ) {
         // 延后发布，避免 UIViewRepresentable 创建期触发 SwiftUI 状态警告。
-        DispatchQueue.main.async { [self] in
+        DispatchQueue.main.async { [weak self, weak session, weak renderer, weak mtkView] in
+            guard let self, let session, let renderer, let mtkView,
+                  self.acceptsBindingCallback(
+                      from: session,
+                      renderer: renderer,
+                      mtkView: mtkView
+                  ) else { return }
             settings.currentCameraResolutionDisplay = L10n.Scan.detecting
         }
     }
 
-    private func scheduleDeferredSettingsLoad() {
+    private func scheduleDeferredSettingsLoad(
+        session: ARSession,
+        renderer: Renderer,
+        mtkView: MTKView
+    ) {
         // 等 session 初始化完成后再下发 Metal/检测参数。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            guard !self.isTornDown else { return }
+            [weak self, weak session, weak renderer, weak mtkView] in
+            guard let self, let session, let renderer, let mtkView,
+                  self.acceptsBindingCallback(
+                      from: session,
+                      renderer: renderer,
+                      mtkView: mtkView
+                  ) else { return }
             self.loadSettings()
             self.renderer?.applyScanQualitySettings()
         }
@@ -431,14 +476,19 @@ class ScanCoordinator: NSObject {
         mtkView?.delegate = nil
     }
 
-    private func clearRuntimeReferences() {
-        // 同时释放回调和大对象引用，避免已退出页面继续接收扫描结果。
+    private func clearBindingReferences() {
         mtkView = nil
         renderer = nil
         session = nil
-        hudState = nil
         depthRuntimeStatus = nil
         requestedSceneDepth = false
+        resetCameraTrackingForSessionRun()
+    }
+
+    private func clearRuntimeReferences() {
+        // 同时释放回调和大对象引用，避免已退出页面继续接收扫描结果。
+        clearBindingReferences()
+        hudState = nil
         onMeasurementReady = nil
         onQualitySampleUpdate = nil
         onCoveragePercentChange = nil
@@ -452,7 +502,6 @@ class ScanCoordinator: NSObject {
         archivedFusionEvidenceDetections.removeAll()
         activeFruitConfiguration = nil
         hasPublishedCategoryMismatch = false
-        resetCameraTrackingForSessionRun()
     }
 
     func lifecycleSnapshot() -> ScanLifecycleSnapshot {
@@ -464,6 +513,16 @@ class ScanCoordinator: NSObject {
     func acceptsDelegateCallback(from candidateSession: ARSession) -> Bool {
         guard !isTornDown, let activeSession = session else { return false }
         return activeSession === candidateSession
+    }
+
+    func acceptsBindingCallback(
+        from candidateSession: ARSession,
+        renderer candidateRenderer: Renderer,
+        mtkView candidateView: MTKView
+    ) -> Bool {
+        acceptsDelegateCallback(from: candidateSession)
+            && renderer === candidateRenderer
+            && mtkView === candidateView
     }
 
     func resetCameraTrackingForSessionRun() {
