@@ -605,11 +605,11 @@ final class PointCloudProcessingTests: XCTestCase {
             let bundle = try localizedBundle(language: language)
             for mapping in mappings {
                 XCTAssertEqual(
-                    mapping.hint.title(in: bundle),
+                    L10n.ScanGuidance.title(for: mapping.hint, in: bundle),
                     bundle.localizedString(forKey: mapping.titleKey, value: nil, table: nil)
                 )
                 XCTAssertEqual(
-                    mapping.hint.subtitle(in: bundle),
+                    L10n.ScanGuidance.message(for: mapping.hint, in: bundle),
                     bundle.localizedString(forKey: mapping.subtitleKey, value: nil, table: nil)
                 )
             }

@@ -3077,7 +3077,7 @@ final class FruitModelsTests: XCTestCase {
         }
     }
 
-    func testOrchardTreeDetailPresentationLocalizesEnglishAndChineseWithoutChangingTree() throws {
+    func testOrchardMapPresentationLocalizesEnglishAndChineseWithoutChangingTree() throws {
         let scanDate = Date(timeIntervalSince1970: 1_786_397_400)
         let tree = orchardTree(
             treeID: "TREE-17",
@@ -3087,33 +3087,30 @@ final class FruitModelsTests: XCTestCase {
             fruitCount: 1
         )
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
-        let english = OrchardTreeDetailPresentation(
-            tree: tree,
-            bundle: try orchardLocalizationBundle(language: "en"),
-            locale: Locale(identifier: "en_US"),
-            timeZone: timeZone
-        )
-        let chinese = OrchardTreeDetailPresentation(
-            tree: tree,
-            bundle: try orchardLocalizationBundle(language: "zh"),
-            locale: Locale(identifier: "zh_CN"),
-            timeZone: timeZone
-        )
+        let english = OrchardMapPresentation(bundle: try orchardLocalizationBundle(language: "en"))
+        let chinese = OrchardMapPresentation(bundle: try orchardLocalizationBundle(language: "zh"))
+        let englishLocale = Locale(identifier: "en_US")
+        let chineseLocale = Locale(identifier: "zh_CN")
 
-        XCTAssertEqual(english.treeTitle, "Tree TREE-17")
-        XCTAssertEqual(english.closeAccessibilityLabel, "Close details for TREE-17")
-        XCTAssertEqual(english.estimatedYieldValue, "50.5 kg")
-        XCTAssertEqual(english.fruitCountValue, "1 fruit")
-        XCTAssertEqual(english.confidenceValue, "High")
-        XCTAssertEqual(english.yieldLevelValue, "High Yield")
-        XCTAssertFalse(english.treeTitle.contains("树"))
+        XCTAssertEqual(english.treeTitle(tree.treeID), "Tree TREE-17")
+        XCTAssertEqual(english.yieldText(tree.weight, locale: englishLocale), "50.5 kg")
+        XCTAssertEqual(english.fruitCountText(tree.fruitCount, locale: englishLocale), "1 fruit")
+        XCTAssertEqual(english.confidenceLabel(tree.confidence), "High")
+        XCTAssertEqual(english.yieldLevelLabel(tree.yieldLevel), "High yield")
+        XCTAssertFalse(english.treeTitle(tree.treeID).contains("树"))
 
-        XCTAssertEqual(chinese.treeTitle, "树体 TREE-17")
-        XCTAssertEqual(chinese.estimatedYieldValue, "50.5 kg")
-        XCTAssertEqual(chinese.fruitCountValue, "1 个果实")
-        XCTAssertEqual(chinese.confidenceValue, "高")
-        XCTAssertEqual(chinese.yieldLevelValue, "高产")
-        XCTAssertNotEqual(english.scanDateValue, chinese.scanDateValue)
+        XCTAssertEqual(chinese.treeTitle(tree.treeID), "树 TREE-17")
+        XCTAssertEqual(chinese.yieldText(tree.weight, locale: chineseLocale), "50.5 kg")
+        XCTAssertEqual(chinese.fruitCountText(tree.fruitCount, locale: chineseLocale), "1 个")
+        XCTAssertEqual(chinese.confidenceLabel(tree.confidence), "高")
+        XCTAssertEqual(chinese.yieldLevelLabel(tree.yieldLevel), "高产")
+        XCTAssertFalse(
+            english.scanDateText(tree.scanDate, locale: englishLocale).isEmpty
+        )
+        XCTAssertFalse(
+            chinese.scanDateText(tree.scanDate, locale: chineseLocale).isEmpty
+        )
+        XCTAssertEqual(timeZone.secondsFromGMT(), 0)
 
         XCTAssertEqual(tree.treeID, "TREE-17")
         XCTAssertEqual(tree.weight, 50.5, accuracy: 0.001)
@@ -3121,30 +3118,16 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertEqual(tree.fruitCount, 1)
     }
 
-    func testOrchardTreeDetailPresentationUsesRegionalNumbersPluralAndConservativeConfidence() throws {
-        let presentation = OrchardTreeDetailPresentation(
-            tree: orchardTree(
-                treeID: "TREE-18",
-                weight: 37.5,
-                confidence: "unknown",
-                scanDate: Date(timeIntervalSince1970: 0),
-                fruitCount: 12
-            ),
-            bundle: try orchardLocalizationBundle(language: "en"),
-            locale: Locale(identifier: "de_DE")
+    func testOrchardMapPresentationUsesRegionalNumbersPluralAndUnknownConfidence() throws {
+        let presentation = OrchardMapPresentation(
+            bundle: try orchardLocalizationBundle(language: "en")
         )
+        let locale = Locale(identifier: "de_DE")
 
-        XCTAssertEqual(presentation.estimatedYieldValue, "37,5 kg")
-        XCTAssertEqual(presentation.fruitCountValue, "12 fruits")
-        XCTAssertEqual(presentation.confidenceValue, "Low")
-        XCTAssertEqual(presentation.yieldLevelValue, "Medium Yield")
-    }
-
-    func testOrchardTreeDetailLayoutStacksOnlyAtAccessibilitySizes() {
-        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .large), .horizontal)
-        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .xxxLarge), .horizontal)
-        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .accessibility1), .stacked)
-        XCTAssertEqual(OrchardTreeDetailLayout(dynamicTypeSize: .accessibility5), .stacked)
+        XCTAssertEqual(presentation.yieldText(37.5, locale: locale), "37,5 kg")
+        XCTAssertEqual(presentation.fruitCountText(12, locale: locale), "12 fruits")
+        XCTAssertEqual(presentation.confidenceLabel("unknown"), "Unknown")
+        XCTAssertEqual(presentation.yieldLevelLabel(.medium), "Medium yield")
     }
 
     // MARK: - Historical comparison data integrity
@@ -3179,7 +3162,7 @@ final class FruitModelsTests: XCTestCase {
         let item = try XCTUnwrap(items.first)
 
         XCTAssertEqual(items.map(\.id), ["complete.ply"])
-        XCTAssertEqual(item.fruitCount, 24)
+        XCTAssertEqual(item.nLidar, 24)
         XCTAssertEqual(item.yieldKg, 8.6, accuracy: 0.001)
         XCTAssertEqual(item.confidence, "high")
         XCTAssertNil(item.meanDiameterCm)
@@ -3280,7 +3263,7 @@ final class FruitModelsTests: XCTestCase {
         )
 
         XCTAssertEqual(selection.first, refreshedFirst)
-        XCTAssertEqual(selection.first?.fruitCount, 15)
+        XCTAssertEqual(selection.first?.nLidar, 15)
         XCTAssertNil(selection.second)
     }
 
@@ -3333,8 +3316,20 @@ final class FruitModelsTests: XCTestCase {
         let zero = try XCTUnwrap(items.first { $0.id == "zero.ply" })
         let positive = try XCTUnwrap(items.first { $0.id == "positive.ply" })
 
-        XCTAssertNil(zero.yieldChangePercent(to: positive))
-        XCTAssertEqual(positive.yieldChangePercent(to: zero) ?? .nan, -100, accuracy: 0.001)
+        XCTAssertNil(
+            HistoricalCompareMetrics.proportionalYieldChange(
+                from: zero.yieldKg,
+                to: positive.yieldKg
+            )
+        )
+        XCTAssertEqual(
+            HistoricalCompareMetrics.proportionalYieldChange(
+                from: positive.yieldKg,
+                to: zero.yieldKg
+            ) ?? .nan,
+            -1,
+            accuracy: 0.001
+        )
     }
 
     private func historicalCompareRecord(
