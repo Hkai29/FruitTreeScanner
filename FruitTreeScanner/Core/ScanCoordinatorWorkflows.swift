@@ -273,7 +273,9 @@ extension ScanCoordinator {
         session?.pause()
         publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
         hudState?.update(fusionStatus: "Failed")
-        publishLifecycleSnapshot(scanLifecycle.fail(.sessionFailed(error.localizedDescription)))
+        publishLifecycleSnapshot(
+            scanLifecycle.fail(ScanSessionFailureClassifier.reason(for: error))
+        )
     }
 
     @MainActor

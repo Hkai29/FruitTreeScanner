@@ -36,6 +36,7 @@ struct ScanView: View {
     @State var isViewActive = false
     @State var scanReadiness: ScanReadiness = .checking
     @State var isCheckingScanReadiness = false
+    @State var pendingLifecycleRecoveryAfterReadiness = false
     @State var showCancelConfirmation = false
     @State var categoryMismatch: FruitCategoryMismatch?
     @State var lifecycleSnapshot = ScanLifecycleSnapshot(
