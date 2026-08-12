@@ -1340,10 +1340,10 @@ final class ScanCompletionPresentationTests: XCTestCase {
             let bundle = try localizedBundle(language: language)
             let copy = try XCTUnwrap(expectedCopy[language])
 
-            XCTAssertEqual(ScanCompletion(overall: 0.85).statusTitle(in: bundle), copy["scan.completion.status.complete"])
-            XCTAssertEqual(ScanCompletion(overall: 0.60).statusTitle(in: bundle), copy["scan.completion.status.coverage_good"])
-            XCTAssertEqual(ScanCompletion(overall: 0.30).statusTitle(in: bundle), copy["scan.completion.status.continue_scanning"])
-            XCTAssertEqual(ScanCompletion(overall: 0.29).statusTitle(in: bundle), copy["scan.completion.status.insufficient"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.85).coverageStatus, in: bundle), copy["scan.completion.status.complete"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.60).coverageStatus, in: bundle), copy["scan.completion.status.coverage_good"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.30).coverageStatus, in: bundle), copy["scan.completion.status.continue_scanning"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.29).coverageStatus, in: bundle), copy["scan.completion.status.insufficient"])
 
             let hintCases: [(ScanCompletion, String)] = [
                 (
@@ -1390,7 +1390,11 @@ final class ScanCompletionPresentationTests: XCTestCase {
             ]
 
             for (completion, key) in hintCases {
-                XCTAssertEqual(completion.statusHint(in: bundle), copy[key], "Incorrect hint mapping for \(key)")
+                XCTAssertEqual(
+                    L10n.ScanCoverage.statusHint(for: completion.coverageHint, in: bundle),
+                    copy[key],
+                    "Incorrect hint mapping for \(key)"
+                )
             }
         }
     }

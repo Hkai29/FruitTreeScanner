@@ -1,5 +1,75 @@
 import SwiftUI
 
+struct OrchardMapChromePresentation: Equatable {
+    let closeAccessibilityLabel: String
+    let clearFilterAccessibilityLabel: String
+    let treeCountText: String
+    let highYieldLabel: String
+    let mediumYieldLabel: String
+    let lowYieldLabel: String
+
+    init(treeCount: Int, bundle: Bundle = .main) {
+        closeAccessibilityLabel = bundle.localizedString(
+            forKey: "orchard_map.chrome.close_accessibility",
+            value: "关闭果园地图",
+            table: nil
+        )
+        clearFilterAccessibilityLabel = bundle.localizedString(
+            forKey: "orchard_map.chrome.clear_filter_accessibility",
+            value: "清除产量筛选",
+            table: nil
+        )
+        let countKey = treeCount == 1
+            ? "orchard_map.chrome.tree_count_one"
+            : "orchard_map.chrome.tree_count_other"
+        let countFormat = bundle.localizedString(
+            forKey: countKey,
+            value: "%d 棵果树",
+            table: nil
+        )
+        let locale = bundle.preferredLocalizations.first.map(Locale.init(identifier:)) ?? .current
+        treeCountText = String(format: countFormat, locale: locale, arguments: [treeCount])
+        highYieldLabel = bundle.localizedString(
+            forKey: "orchard_map.chrome.filter_high",
+            value: "高产",
+            table: nil
+        )
+        mediumYieldLabel = bundle.localizedString(
+            forKey: "orchard_map.chrome.filter_medium",
+            value: "中产",
+            table: nil
+        )
+        lowYieldLabel = bundle.localizedString(
+            forKey: "orchard_map.chrome.filter_low",
+            value: "低产",
+            table: nil
+        )
+    }
+
+    func filterLabel(for level: YieldLevel) -> String {
+        switch level {
+        case .high: return highYieldLabel
+        case .medium: return mediumYieldLabel
+        case .low: return lowYieldLabel
+        }
+    }
+}
+
+enum OrchardMapLegendLayout: Equatable {
+    case horizontal
+    case stacked
+
+    init(dynamicTypeSize: DynamicTypeSize) {
+        self = dynamicTypeSize.isAccessibilitySize ? .stacked : .horizontal
+    }
+}
+
+enum OrchardMapYieldFilterSelection {
+    static func next(current: YieldLevel?, tapping level: YieldLevel) -> YieldLevel? {
+        current == level ? nil : level
+    }
+}
+
 struct OrchardMapTopBar: View {
     @Environment(\.locale) private var locale
     @Environment(\.orchardMapPresentation) private var presentation
@@ -62,7 +132,7 @@ struct OrchardMapBottomPanel: View {
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
+            if OrchardMapLegendLayout(dynamicTypeSize: dynamicTypeSize) == .stacked {
                 ScrollView(.vertical) {
                     panelContent
                 }
@@ -162,7 +232,10 @@ struct OrchardMapLegend: View {
     }
 
     private func toggle(_ level: YieldLevel) {
-        filterYieldLevel = filterYieldLevel == level ? nil : level
+        filterYieldLevel = OrchardMapYieldFilterSelection.next(
+            current: filterYieldLevel,
+            tapping: level
+        )
     }
 }
 

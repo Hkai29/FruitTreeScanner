@@ -32,7 +32,14 @@ struct OrchardMapPresentation: Equatable {
     private let yieldMedium: String
     private let yieldLow: String
     private let treeTitleFormat: String
+    private let pinTreeLabelFormat: String
+    private let pinSelectedValueFormat: String
     private let pinValueFormat: String
+    private let summaryTreeCountOneFormat: String
+    private let summaryTreeCountOtherFormat: String
+    private let summaryYieldHigh: String
+    private let summaryYieldMedium: String
+    private let summaryYieldLow: String
     private let treeUnitOne: String
     private let treeUnitOther: String
     private let fruitUnitOne: String
@@ -76,7 +83,14 @@ struct OrchardMapPresentation: Equatable {
         yieldMedium = localized("orchard_map.yield.medium", fallback: "中产")
         yieldLow = localized("orchard_map.yield.low", fallback: "低产")
         treeTitleFormat = localized("orchard_map.tree_title_format", fallback: "树 %@")
+        pinTreeLabelFormat = localized("orchard_map.pin.tree_label", fallback: "果树 %@")
+        pinSelectedValueFormat = localized("orchard_map.pin.selected_value", fallback: "%@，已选中")
         pinValueFormat = localized("orchard_map.pin_value_format", fallback: "%@，%@，%@")
+        summaryTreeCountOneFormat = localized("orchard_map.summary.tree_count_one", fallback: "%d 棵果树")
+        summaryTreeCountOtherFormat = localized("orchard_map.summary.tree_count_other", fallback: "%d 棵果树")
+        summaryYieldHigh = localized("orchard_map.summary.level_high", fallback: "高产")
+        summaryYieldMedium = localized("orchard_map.summary.level_medium", fallback: "中产")
+        summaryYieldLow = localized("orchard_map.summary.level_low", fallback: "低产")
         treeUnitOne = localized("orchard_map.unit.tree_one", fallback: "棵")
         treeUnitOther = localized("orchard_map.unit.tree_other", fallback: "棵")
         fruitUnitOne = localized("orchard_map.unit.fruit_one", fallback: "个")
@@ -103,6 +117,36 @@ struct OrchardMapPresentation: Equatable {
 
     func treeTitle(_ treeID: String) -> String {
         String(format: treeTitleFormat, treeID)
+    }
+
+    func treePinPresentation(
+        for tree: TreeAnnotation,
+        isSelected: Bool
+    ) -> OrchardTreePinPresentation {
+        let level = yieldLevelLabel(tree.yieldLevel)
+        return OrchardTreePinPresentation(
+            symbolName: tree.yieldLevel.icon,
+            accessibilityLabel: String(format: pinTreeLabelFormat, tree.treeID),
+            accessibilityValue: isSelected
+                ? String(format: pinSelectedValueFormat, level)
+                : level
+        )
+    }
+
+    func summaryTreeCountText(_ count: Int, locale: Locale) -> String {
+        String(
+            format: count == 1 ? summaryTreeCountOneFormat : summaryTreeCountOtherFormat,
+            locale: locale,
+            arguments: [count]
+        )
+    }
+
+    func summaryYieldLevelLabel(_ level: YieldLevel) -> String {
+        switch level {
+        case .high: return summaryYieldHigh
+        case .medium: return summaryYieldMedium
+        case .low: return summaryYieldLow
+        }
     }
 
     func treeCountText(_ count: Int, locale: Locale) -> String {

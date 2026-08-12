@@ -1,29 +1,60 @@
 import SwiftUI
 
+struct OrchardMapEmptyStatePresentation: Equatable {
+    let title: String
+    let message: String
+    let startScanTitle: String
+
+    init(bundle: Bundle = .main) {
+        title = bundle.localizedString(
+            forKey: "orchard_map.empty.title",
+            value: "暂无定位扫描",
+            table: nil
+        )
+        message = bundle.localizedString(
+            forKey: "orchard_map.empty.message",
+            value: "带 GPS 的完整扫描记录会显示在果园地图中，用于查看可靠产量分布。",
+            table: nil
+        )
+        startScanTitle = bundle.localizedString(
+            forKey: "orchard_map.empty.start_scan",
+            value: "开始扫描",
+            table: nil
+        )
+    }
+}
+
 struct OrchardMapEmptyState: View {
-    @Environment(\.orchardMapPresentation) private var presentation
-    var onStartScan: (() -> Void)? = nil
+    private let onStartScan: (() -> Void)?
+    private let presentation: OrchardMapEmptyStatePresentation
+
+    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+        self.onStartScan = onStartScan
+        presentation = OrchardMapEmptyStatePresentation(bundle: bundle)
+    }
 
     var body: some View {
-        VStack {
+        ScrollView {
             DashboardSheetEmptyState(
                 icon: "map",
                 imageName: "FeatureMap",
-                title: presentation.emptyTitle,
-                message: presentation.emptyMessage,
+                title: presentation.title,
+                message: presentation.message,
                 accent: Design.Colors.Dark.info,
                 primaryAction: action(
-                    title: presentation.startScan,
+                    title: presentation.startScanTitle,
                     icon: "viewfinder",
                     handler: onStartScan
                 ),
-                outerPadding: false
+                outerPadding: false,
+                adaptsForAccessibility: true
             )
             .padding(.horizontal, 16)
             .padding(.top, 84)
 
-            Spacer()
+            Spacer(minLength: Design.Space.xxl)
         }
+        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Design.Colors.Dark.bgDeep)
         .ignoresSafeArea()

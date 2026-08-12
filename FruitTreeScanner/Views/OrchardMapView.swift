@@ -36,7 +36,7 @@ struct OrchardMapView: View {
                 .ignoresSafeArea()
 
             if trees.isEmpty {
-                OrchardMapEmptyState(onStartScan: onStartScan)
+                OrchardMapEmptyState(onStartScan: onStartScan, bundle: bundle)
             } else {
                 mapView
             }

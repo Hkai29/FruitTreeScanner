@@ -1,5 +1,16 @@
 import SwiftUI
 
+enum DashboardSheetEmptyStateLayout: Equatable {
+    case horizontal
+    case stacked
+
+    init(dynamicTypeSize: DynamicTypeSize, adaptsForAccessibility: Bool) {
+        self = adaptsForAccessibility && dynamicTypeSize.isAccessibilitySize
+            ? .stacked
+            : .horizontal
+    }
+}
+
 struct DashboardSheetEmptyState: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let icon: String
@@ -10,6 +21,14 @@ struct DashboardSheetEmptyState: View {
     var primaryAction: DashboardSheetAction? = nil
     var secondaryAction: DashboardSheetAction? = nil
     var outerPadding: Bool = true
+    var adaptsForAccessibility: Bool = true
+
+    private var layout: DashboardSheetEmptyStateLayout {
+        DashboardSheetEmptyStateLayout(
+            dynamicTypeSize: dynamicTypeSize,
+            adaptsForAccessibility: adaptsForAccessibility
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +48,7 @@ struct DashboardSheetEmptyState: View {
 
     @ViewBuilder
     private var contentLayout: some View {
-        if dynamicTypeSize.isAccessibilitySize {
+        if layout == .stacked {
             VStack(alignment: .leading, spacing: 12) {
                 featureImage(width: nil, height: 112)
                 textContent
@@ -84,7 +103,7 @@ struct DashboardSheetEmptyState: View {
 
     @ViewBuilder
     private var actionLayout: some View {
-        if dynamicTypeSize.isAccessibilitySize {
+        if layout == .stacked {
             verticalActions
         } else {
             ViewThatFits(in: .horizontal) {
