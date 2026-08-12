@@ -17,7 +17,7 @@ struct ScanHUDSnapshot: Equatable {
     var guidanceHint: ScanGuidanceHint = .none
 }
 
-enum ScanGuidanceHint: Equatable {
+enum ScanGuidanceHint: Equatable, Sendable {
     case none
     case tooFast
     case tooClose

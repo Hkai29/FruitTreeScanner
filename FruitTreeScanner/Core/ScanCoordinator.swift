@@ -30,6 +30,30 @@ struct ScanCapturedEvidenceToken: Equatable, Sendable {
     let invalidationEpoch: UInt64
 }
 
+struct ScanCameraTrackingStatus: Equatable, Sendable {
+    let acceptsReliableCapture: Bool
+    let guidanceHint: ScanGuidanceHint
+
+    static func make(from trackingState: ARCamera.TrackingState) -> ScanCameraTrackingStatus {
+        let acceptsReliableCapture: Bool
+        switch trackingState {
+        case .normal:
+            acceptsReliableCapture = true
+        case .notAvailable, .limited:
+            acceptsReliableCapture = false
+        @unknown default:
+            acceptsReliableCapture = false
+        }
+        return ScanCameraTrackingStatus(
+            acceptsReliableCapture: acceptsReliableCapture,
+            guidanceHint: ScanGuidanceHelper.trackingHint(
+                for: trackingState,
+                lightIntensity: nil
+            ) ?? .none
+        )
+    }
+}
+
 /// Serializes scan-local lifecycle transitions and deliberately never resumes
 /// a system-interrupted scan without a new identity.
 final class ScanLifecycleController {
@@ -238,6 +262,12 @@ class ScanCoordinator: NSObject {
     private var reliableEvidenceGeneration = 0
     private var acceptsReliableEvidence = false
     private var capturedEvidenceInvalidationEpoch: UInt64 = 0
+    private let cameraTrackingLock = NSLock()
+    // Unbound coordinators are treated as an already-running session so unit
+    // workflows remain deterministic. bind/reset always moves production to
+    // notAvailable until ARKit reports normal tracking.
+    private var cameraTrackingStatus = ScanCameraTrackingStatus.make(from: .normal)
+    private var trackingSuspendedScanIdentity: UUID?
 
     // MARK: - 相机速度追踪
     var lastCameraPosition: SIMD3<Float>?
@@ -319,6 +349,7 @@ class ScanCoordinator: NSObject {
         guard !isTornDown, let session else { return false }
         // Reassert ownership before starting a replacement run as well.
         session.delegate = self
+        resetCameraTrackingForSessionRun()
         let depthStatus = configureAndRunSession(
             session,
             options: [.resetTracking, .removeExistingAnchors]
@@ -341,6 +372,7 @@ class ScanCoordinator: NSObject {
         isTornDown = false
         hasPublishedCameraResolution = false
         invalidateReliableEvidenceGate()
+        resetCameraTrackingForSessionRun()
     }
 
     private func publishPendingCameraResolution() {
@@ -401,10 +433,133 @@ class ScanCoordinator: NSObject {
         archivedFusionEvidenceDetections.removeAll()
         activeFruitConfiguration = nil
         hasPublishedCategoryMismatch = false
+        resetCameraTrackingForSessionRun()
     }
 
     func lifecycleSnapshot() -> ScanLifecycleSnapshot {
         scanLifecycle.snapshot()
+    }
+
+    func resetCameraTrackingForSessionRun() {
+        cameraTrackingLock.lock()
+        cameraTrackingStatus = ScanCameraTrackingStatus.make(from: .notAvailable)
+        trackingSuspendedScanIdentity = nil
+        cameraTrackingLock.unlock()
+    }
+
+    func cameraTrackingStatusSnapshot() -> ScanCameraTrackingStatus {
+        cameraTrackingLock.lock()
+        defer { cameraTrackingLock.unlock() }
+        return cameraTrackingStatus
+    }
+
+    func isCaptureSuspendedForCameraTracking(scanIdentity: UUID? = nil) -> Bool {
+        cameraTrackingLock.lock()
+        defer { cameraTrackingLock.unlock() }
+        guard let suspendedIdentity = trackingSuspendedScanIdentity else { return false }
+        return scanIdentity.map { $0 == suspendedIdentity } ?? true
+    }
+
+    func clearCameraTrackingSuspension() {
+        cameraTrackingLock.lock()
+        trackingSuspendedScanIdentity = nil
+        cameraTrackingLock.unlock()
+    }
+
+    @MainActor
+    @discardableResult
+    func activateCaptureWhenCameraTrackingAllows(
+        lifecycle: ScanLifecycleSnapshot,
+        resetPointCloud: Bool
+    ) -> Bool {
+        guard lifecycle.state == .recording else { return false }
+
+        cameraTrackingLock.lock()
+        let status = cameraTrackingStatus
+        guard status.acceptsReliableCapture else {
+            trackingSuspendedScanIdentity = lifecycle.scanIdentity
+            suspendReliableEvidenceCaptureImmediately()
+            if resetPointCloud {
+                renderer?.resetPointCloudCapture()
+            }
+            cameraTrackingLock.unlock()
+            hudState?.update(guidanceHint: status.guidanceHint)
+            return false
+        }
+
+        trackingSuspendedScanIdentity = nil
+        _ = setReliableEvidenceAcceptance(true)
+        if resetPointCloud {
+            renderer?.isRecording = true
+        } else {
+            renderer?.resumeRecordingPreservingPointCloud()
+        }
+        cameraTrackingLock.unlock()
+        hudState?.update(guidanceHint: ScanGuidanceHint.none)
+        return true
+    }
+
+    func handleCameraTrackingState(_ trackingState: ARCamera.TrackingState) {
+        guard !isTornDown else { return }
+        let nextStatus = ScanCameraTrackingStatus.make(from: trackingState)
+        let lifecycle = lifecycleSnapshot()
+        var suspendedIdentityToResume: UUID?
+
+        cameraTrackingLock.lock()
+        guard nextStatus != cameraTrackingStatus else {
+            cameraTrackingLock.unlock()
+            return
+        }
+        cameraTrackingStatus = nextStatus
+
+        if lifecycle.state == .recording {
+            // A limited tracking state is recoverable and keeps the same scan
+            // identity. ARSession interruption/failure callbacks remain the
+            // only paths that hard-invalidate the logical scan.
+            if nextStatus.acceptsReliableCapture {
+                suspendedIdentityToResume = trackingSuspendedScanIdentity
+            } else if trackingSuspendedScanIdentity != lifecycle.scanIdentity {
+                trackingSuspendedScanIdentity = lifecycle.scanIdentity
+                // Close the evidence gate on ARSession's callback queue before
+                // any UI work can observe the tracking transition.
+                suspendReliableEvidenceCaptureImmediately()
+            }
+        }
+        cameraTrackingLock.unlock()
+
+        Task { @MainActor [weak self] in
+            guard let self, self.cameraTrackingStatusSnapshot() == nextStatus else { return }
+            self.hudState?.update(guidanceHint: nextStatus.guidanceHint)
+            if let suspendedIdentityToResume {
+                self.resumeCaptureAfterCameraTrackingRecovery(
+                    scanIdentity: suspendedIdentityToResume
+                )
+            }
+        }
+    }
+
+    @MainActor
+    private func resumeCaptureAfterCameraTrackingRecovery(scanIdentity: UUID) {
+        let lifecycle = lifecycleSnapshot()
+
+        cameraTrackingLock.lock()
+        guard cameraTrackingStatus.acceptsReliableCapture,
+              trackingSuspendedScanIdentity == scanIdentity,
+              lifecycle.state == .recording,
+              lifecycle.scanIdentity == scanIdentity else {
+            if trackingSuspendedScanIdentity == scanIdentity,
+               (lifecycle.state != .recording || lifecycle.scanIdentity != scanIdentity) {
+                trackingSuspendedScanIdentity = nil
+            }
+            cameraTrackingLock.unlock()
+            return
+        }
+
+        trackingSuspendedScanIdentity = nil
+        _ = setReliableEvidenceAcceptance(true)
+        renderer?.resumeRecordingPreservingPointCloud()
+        cameraTrackingLock.unlock()
+        hudState?.update(guidanceHint: ScanGuidanceHint.none)
     }
 
     func evidenceGenerationSnapshot() -> Int {
@@ -457,10 +612,17 @@ class ScanCoordinator: NSObject {
         let acceptsActiveEvidence = acceptsReliableEvidence
         evidenceGateLock.unlock()
         guard invalidationEpochMatches else { return false }
+        let acceptsTrackingSuspendedEvidence =
+            isCaptureSuspendedForCameraTracking(
+                scanIdentity: lifecycle.scanIdentity
+            )
 
         switch lifecycle.state {
         case .recording:
-            return acceptsActiveEvidence
+            // A frame captured while tracking was normal remains valid if its
+            // inference finishes during a transient tracking pause. No new
+            // token can be issued while the capture gate is closed.
+            return acceptsActiveEvidence || acceptsTrackingSuspendedEvidence
         case .userPaused, .finishing:
             return true
         default:
@@ -485,6 +647,13 @@ class ScanCoordinator: NSObject {
 
     /// This is safe to call from ARSession's callback queue. It closes the
     /// evidence gate before the MainActor updates presentation state.
+    func suspendReliableEvidenceCaptureImmediately() {
+        _ = setReliableEvidenceAcceptance(false)
+        renderer?.isRecording = false
+    }
+
+    /// Hard invalidation additionally rejects already captured work. Use this
+    /// for session interruption, failure, teardown, and scan replacement.
     func invalidateReliableEvidenceImmediately() {
         invalidateReliableEvidenceGate()
         renderer?.isRecording = false

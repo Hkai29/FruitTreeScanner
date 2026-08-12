@@ -12,18 +12,11 @@ enum ScanGuidanceHelper {
         captureDepthQuality: RendererDepthQuality? = nil
     ) -> ScanGuidanceHint {
         // 优先级：追踪丢失 > 光线 > 速度 > 距离 > 正常
-        switch trackingState {
-        case .notAvailable, .limited(.initializing):
-            return .trackingLost
-        case .limited(.excessiveMotion):
-            return .tooFast
-        case .limited(.insufficientFeatures):
-            if let lux = lightIntensity, lux < 120 {
-                return .lowLight
-            }
-            return .trackingLost
-        default:
-            break
+        if let trackingHint = trackingHint(
+            for: trackingState,
+            lightIntensity: lightIntensity
+        ) {
+            return trackingHint
         }
 
         if let lux = lightIntensity, lux < 120 {
@@ -53,6 +46,27 @@ enum ScanGuidanceHelper {
         }
 
         return .none
+    }
+
+    static func trackingHint(
+        for trackingState: ARCamera.TrackingState,
+        lightIntensity: CGFloat?
+    ) -> ScanGuidanceHint? {
+        switch trackingState {
+        case .notAvailable, .limited(.initializing), .limited(.relocalizing):
+            return .trackingLost
+        case .limited(.excessiveMotion):
+            return .tooFast
+        case .limited(.insufficientFeatures):
+            if let lux = lightIntensity, lux < 120 {
+                return .lowLight
+            }
+            return .trackingLost
+        case .normal:
+            return nil
+        @unknown default:
+            return .trackingLost
+        }
     }
 
     // MARK: - 深度中值采样（轻量级，采 25 个点）
