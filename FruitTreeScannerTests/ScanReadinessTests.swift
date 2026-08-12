@@ -785,7 +785,7 @@ final class ScanLifecycleControllerTests: XCTestCase {
 
 @MainActor
 final class ScanCoordinatorSessionRestartTests: XCTestCase {
-    func testFailureRestartResetsSessionBeforeOpeningReliableEvidence() {
+    func testFailureRestartWaitsForNormalTrackingBeforeOpeningReliableEvidence() async {
         let recorder = ScanSessionRuntimeRecorder()
         var coordinator: ScanCoordinator!
         recorder.beforeRun = {
@@ -807,12 +807,23 @@ final class ScanCoordinatorSessionRestartTests: XCTestCase {
         XCTAssertEqual(recorder.runOptions.count, 1)
         XCTAssertTrue(recorder.runOptions[0].contains(.resetTracking))
         XCTAssertTrue(recorder.runOptions[0].contains(.removeExistingAnchors))
-        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
 
         let restarted = coordinator.lifecycleSnapshot()
         XCTAssertEqual(restarted.state, .recording)
         XCTAssertNotEqual(restarted.scanIdentity, original.scanIdentity)
         XCTAssertEqual(restarted.interruptionCount, 0)
+        XCTAssertTrue(
+            coordinator.isCaptureSuspendedForCameraTracking(
+                scanIdentity: restarted.scanIdentity
+            )
+        )
+
+        coordinator.handleCameraTrackingState(.normal)
+        await Task.yield()
+
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.isCaptureSuspendedForCameraTracking())
     }
 
     func testRestartWithoutBoundSessionFailsClosed() {
@@ -852,7 +863,7 @@ final class ScanCoordinatorSessionRestartTests: XCTestCase {
         XCTAssertEqual(recorder.runOptions.count, 0)
     }
 
-    func testRepeatedRestartDoesNotResetActiveReplacementScan() {
+    func testRepeatedRestartDoesNotResetActiveReplacementScan() async {
         let recorder = ScanSessionRuntimeRecorder()
         let coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
         coordinator.session = ARSession()
@@ -865,6 +876,12 @@ final class ScanCoordinatorSessionRestartTests: XCTestCase {
         XCTAssertFalse(coordinator.restartInterruptedScan(selectedCategory: .apple))
         XCTAssertEqual(recorder.runOptions.count, 1)
         XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertTrue(coordinator.isCaptureSuspendedForCameraTracking())
+
+        coordinator.handleCameraTrackingState(.normal)
+        await Task.yield()
+
         XCTAssertTrue(coordinator.acceptsReliableEvidence())
     }
 
@@ -903,6 +920,170 @@ final class ScanCoordinatorSessionRestartTests: XCTestCase {
         } else {
             XCTFail("Expected teardown restart to preserve failed lifecycle state")
         }
+    }
+}
+
+@MainActor
+final class ScanCoordinatorCameraTrackingTests: XCTestCase {
+    func testOnlyNormalCameraTrackingAcceptsReliableCapture() {
+        let expectations: [(ARCamera.TrackingState, ScanGuidanceHint)] = [
+            (.notAvailable, .trackingLost),
+            (.limited(.initializing), .trackingLost),
+            (.limited(.excessiveMotion), .tooFast),
+            (.limited(.insufficientFeatures), .trackingLost),
+            (.limited(.relocalizing), .trackingLost),
+        ]
+
+        for (trackingState, expectedHint) in expectations {
+            let status = ScanCameraTrackingStatus.make(from: trackingState)
+            XCTAssertFalse(status.acceptsReliableCapture)
+            XCTAssertEqual(status.guidanceHint, expectedHint)
+        }
+
+        let normal = ScanCameraTrackingStatus.make(from: .normal)
+        XCTAssertTrue(normal.acceptsReliableCapture)
+        XCTAssertEqual(normal.guidanceHint, .none)
+        XCTAssertEqual(
+            ScanGuidanceHelper.trackingHint(
+                for: .limited(.insufficientFeatures),
+                lightIntensity: 80
+            ),
+            .lowLight
+        )
+    }
+
+    func testLimitedTrackingSuspendsEvidenceAndNormalResumesSameScan() async throws {
+        let coordinator = ScanCoordinator()
+        let hudState = ScanHUDState()
+        coordinator.hudState = hudState
+        coordinator.startRecording(selectedCategory: .apple)
+        let recording = coordinator.lifecycleSnapshot()
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+
+        coordinator.handleCameraTrackingState(.limited(.excessiveMotion))
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertEqual(coordinator.lifecycleSnapshot().scanIdentity, recording.scanIdentity)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertTrue(coordinator.acceptsCapturedEvidence(token))
+        XCTAssertNil(coordinator.capturedEvidenceToken())
+        XCTAssertTrue(
+            coordinator.isCaptureSuspendedForCameraTracking(
+                scanIdentity: recording.scanIdentity
+            )
+        )
+        await Task.yield()
+        XCTAssertEqual(hudState.guidanceHint, .tooFast)
+
+        coordinator.handleCameraTrackingState(.normal)
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().scanIdentity, recording.scanIdentity)
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.isCaptureSuspendedForCameraTracking())
+        XCTAssertEqual(hudState.guidanceHint, .none)
+    }
+
+    func testNewScanWaitsForNormalTrackingAfterSessionRun() async {
+        let coordinator = ScanCoordinator()
+        coordinator.resetCameraTrackingForSessionRun()
+
+        coordinator.startRecording(selectedCategory: .apple)
+        let waiting = coordinator.lifecycleSnapshot()
+
+        XCTAssertEqual(waiting.state, .recording)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertTrue(
+            coordinator.isCaptureSuspendedForCameraTracking(
+                scanIdentity: waiting.scanIdentity
+            )
+        )
+
+        coordinator.handleCameraTrackingState(.normal)
+        await Task.yield()
+
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.isCaptureSuspendedForCameraTracking())
+    }
+
+    func testUserPauseDuringTrackingLossPreventsAutomaticResume() async {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        coordinator.handleCameraTrackingState(.limited(.insufficientFeatures))
+
+        coordinator.stopRecording()
+        coordinator.handleCameraTrackingState(.normal)
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .userPaused)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.isCaptureSuspendedForCameraTracking())
+    }
+
+    func testUserResumeWaitsWhileTrackingRemainsLimited() async {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let originalIdentity = coordinator.lifecycleSnapshot().scanIdentity
+        coordinator.stopRecording()
+        coordinator.handleCameraTrackingState(.limited(.initializing))
+
+        coordinator.resumeRecordingPreservingCapture()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        XCTAssertEqual(coordinator.lifecycleSnapshot().scanIdentity, originalIdentity)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertTrue(coordinator.isCaptureSuspendedForCameraTracking())
+
+        coordinator.handleCameraTrackingState(.normal)
+        await Task.yield()
+
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertEqual(coordinator.lifecycleSnapshot().scanIdentity, originalIdentity)
+    }
+
+    func testRepeatedLimitedStateDoesNotInvalidateEvidenceTwice() {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+
+        coordinator.handleCameraTrackingState(.limited(.excessiveMotion))
+        let firstInvalidation = coordinator.evidenceGenerationSnapshot()
+        coordinator.handleCameraTrackingState(.limited(.excessiveMotion))
+
+        XCTAssertEqual(coordinator.evidenceGenerationSnapshot(), firstInvalidation)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+    }
+
+    func testStaleNormalRecoveryCannotReopenAfterNewLimitedState() async {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        coordinator.handleCameraTrackingState(.limited(.excessiveMotion))
+        coordinator.handleCameraTrackingState(.normal)
+        coordinator.handleCameraTrackingState(.limited(.insufficientFeatures))
+
+        await Task.yield()
+
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertTrue(coordinator.isCaptureSuspendedForCameraTracking())
+        XCTAssertEqual(
+            coordinator.cameraTrackingStatusSnapshot().guidanceHint,
+            .trackingLost
+        )
+    }
+
+    func testHardSessionInterruptionStillPreventsTrackingAutoResume() async {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        coordinator.handleCameraTrackingState(.limited(.insufficientFeatures))
+        coordinator.handleCameraTrackingState(.normal)
+        coordinator.handleSystemInterruption(.arSessionInterrupted)
+        await Task.yield()
+
+        XCTAssertEqual(
+            coordinator.lifecycleSnapshot().state,
+            .systemInterrupted(.arSessionInterrupted)
+        )
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.isCaptureSuspendedForCameraTracking())
     }
 }
 

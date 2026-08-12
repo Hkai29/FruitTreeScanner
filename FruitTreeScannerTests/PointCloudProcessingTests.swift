@@ -500,6 +500,18 @@ final class PointCloudProcessingTests: XCTestCase {
         )
     }
 
+    func testGuidanceTreatsRelocalizationAsTrackingLoss() {
+        XCTAssertEqual(
+            ScanGuidanceHelper.evaluate(
+                speed: 0,
+                medianDepth: 2,
+                trackingState: .limited(.relocalizing),
+                lightIntensity: 1_000
+            ),
+            .trackingLost
+        )
+    }
+
     func testScanGuidanceCopyExistsInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [

@@ -198,8 +198,10 @@ extension ScanCoordinator {
         smoothedCameraSpeed = 0
         renderer?.currentFolder = "scans"
         let lifecycle = scanLifecycle.startNewScan()
-        _ = setReliableEvidenceAcceptance(true)
-        renderer?.isRecording = true
+        _ = activateCaptureWhenCameraTrackingAllows(
+            lifecycle: lifecycle,
+            resetPointCloud: true
+        )
         publishLifecycleSnapshot(lifecycle)
     }
 
@@ -214,8 +216,10 @@ extension ScanCoordinator {
         publishImageDetectorStatus()
         hudState?.update(fusionStatus: "补扫中")
         renderer?.currentFolder = "scans"
-        _ = setReliableEvidenceAcceptance(true)
-        renderer?.resumeRecordingPreservingPointCloud()
+        _ = activateCaptureWhenCameraTrackingAllows(
+            lifecycle: lifecycle,
+            resetPointCloud: false
+        )
         publishLifecycleSnapshot(lifecycle)
     }
 
@@ -224,6 +228,7 @@ extension ScanCoordinator {
         let lifecycle = scanLifecycle.userPaused()
         _ = setReliableEvidenceAcceptance(false)
         renderer?.isRecording = false
+        clearCameraTrackingSuspension()
         publishLifecycleSnapshot(lifecycle)
     }
 
@@ -234,6 +239,7 @@ extension ScanCoordinator {
         // 先关闭证据门，再冻结采集；之后仅允许显式 flush 的结果进入快照。
         _ = setReliableEvidenceAcceptance(false)
         renderer?.isRecording = false
+        clearCameraTrackingSuspension()
         publishLifecycleSnapshot(lifecycle)
         return true
     }
@@ -246,6 +252,7 @@ extension ScanCoordinator {
     func handleSystemInterruption(_ reason: ScanInterruptionReason) {
         guard !isTornDown else { return }
         invalidateReliableEvidenceImmediately()
+        clearCameraTrackingSuspension()
         publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
         hudState?.update(fusionStatus: "Interrupted")
         publishLifecycleSnapshot(scanLifecycle.interrupt(reason))
@@ -262,6 +269,7 @@ extension ScanCoordinator {
     func handleSessionFailure(_ error: Error) {
         guard !isTornDown else { return }
         invalidateReliableEvidenceImmediately()
+        clearCameraTrackingSuspension()
         session?.pause()
         publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
         hudState?.update(fusionStatus: "Failed")
@@ -290,12 +298,17 @@ extension ScanCoordinator {
 
         startRecording(selectedCategory: selectedCategory)
         let restarted = lifecycleSnapshot()
-        return restarted.state == .recording && acceptsReliableEvidence()
+        return restarted.state == .recording
+            && (acceptsReliableEvidence()
+                || isCaptureSuspendedForCameraTracking(
+                    scanIdentity: restarted.scanIdentity
+                ))
     }
 
     @MainActor
     func discardInterruptedScan() {
         invalidateReliableEvidenceImmediately()
+        clearCameraTrackingSuspension()
         publishLifecycleSnapshot(scanLifecycle.cancel())
     }
 
