@@ -942,6 +942,83 @@ final class ScanCoordinatorSessionRestartTests: XCTestCase {
 }
 
 @MainActor
+final class ScanCoordinatorARSessionIdentityTests: XCTestCase {
+    func testStaleSessionInterruptionCannotInvalidateReplacementScan() async throws {
+        let coordinator = ScanCoordinator()
+        let activeSession = ARSession()
+        coordinator.session = activeSession
+        coordinator.startRecording(selectedCategory: .apple)
+        let recording = coordinator.lifecycleSnapshot()
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+
+        coordinator.sessionWasInterrupted(ARSession())
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), recording)
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertTrue(coordinator.acceptsCapturedEvidence(token))
+    }
+
+    func testStaleSessionFailureCannotFailReplacementScan() async {
+        let coordinator = ScanCoordinator()
+        let activeSession = ARSession()
+        coordinator.session = activeSession
+        coordinator.startRecording(selectedCategory: .apple)
+        let recording = coordinator.lifecycleSnapshot()
+
+        coordinator.session(
+            ARSession(),
+            didFailWithError: ScanSessionTestError.camera
+        )
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), recording)
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+    }
+
+    func testStaleInterruptionEndCannotRecoverCurrentInterruptedSession() async {
+        let coordinator = ScanCoordinator()
+        let activeSession = ARSession()
+        coordinator.session = activeSession
+        coordinator.startRecording(selectedCategory: .apple)
+
+        coordinator.sessionWasInterrupted(activeSession)
+        await Task.yield()
+        let interrupted = coordinator.lifecycleSnapshot()
+        XCTAssertEqual(
+            interrupted.state,
+            .systemInterrupted(.arSessionInterrupted)
+        )
+
+        coordinator.sessionInterruptionEnded(ARSession())
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), interrupted)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+    }
+
+    func testAcceptedFailureCannotFailScanStartedAfterSessionReplacement() async {
+        let coordinator = ScanCoordinator()
+        let replacedSession = ARSession()
+        coordinator.session = replacedSession
+        coordinator.startRecording(selectedCategory: .apple)
+
+        coordinator.session(
+            replacedSession,
+            didFailWithError: ScanSessionTestError.camera
+        )
+
+        coordinator.session = ARSession()
+        let replacementScan = coordinator.scanLifecycle.startNewScan()
+        _ = coordinator.setReliableEvidenceAcceptance(true)
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), replacementScan)
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+    }
+}
+
+@MainActor
 final class ScanCoordinatorCameraTrackingTests: XCTestCase {
     func testOnlyNormalCameraTrackingAcceptsReliableCapture() {
         let expectations: [(ARCamera.TrackingState, ScanGuidanceHint)] = [

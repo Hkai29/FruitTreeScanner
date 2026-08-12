@@ -440,6 +440,13 @@ class ScanCoordinator: NSObject {
         scanLifecycle.snapshot()
     }
 
+    // A coordinator can outlive the UIView that created its ARSession. Reject
+    // callbacks still draining from that replaced session.
+    func acceptsDelegateCallback(from candidateSession: ARSession) -> Bool {
+        guard !isTornDown, let activeSession = session else { return false }
+        return activeSession === candidateSession
+    }
+
     func resetCameraTrackingForSessionRun() {
         cameraTrackingLock.lock()
         cameraTrackingStatus = ScanCameraTrackingStatus.make(from: .notAvailable)
@@ -499,7 +506,10 @@ class ScanCoordinator: NSObject {
         return true
     }
 
-    func handleCameraTrackingState(_ trackingState: ARCamera.TrackingState) {
+    func handleCameraTrackingState(
+        _ trackingState: ARCamera.TrackingState,
+        originatingFrom originatingSession: ARSession? = nil
+    ) {
         guard !isTornDown else { return }
         let nextStatus = ScanCameraTrackingStatus.make(from: trackingState)
         let lifecycle = lifecycleSnapshot()
@@ -528,7 +538,9 @@ class ScanCoordinator: NSObject {
         cameraTrackingLock.unlock()
 
         Task { @MainActor [weak self] in
-            guard let self, self.cameraTrackingStatusSnapshot() == nextStatus else { return }
+            guard let self,
+                  originatingSession.map(self.acceptsDelegateCallback(from:)) ?? true,
+                  self.cameraTrackingStatusSnapshot() == nextStatus else { return }
             self.hudState?.update(guidanceHint: nextStatus.guidanceHint)
             if let suspendedIdentityToResume {
                 self.resumeCaptureAfterCameraTrackingRecovery(

@@ -4,22 +4,26 @@ import UIKit
 // MARK: - ARSessionDelegate
 extension ScanCoordinator: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        guard acceptsDelegateCallback(from: session) else { return }
         // Read tracking quality before any evidence path. This also covers a
         // missed state-change callback by reconciling every delivered frame.
-        handleCameraTrackingState(frame.camera.trackingState)
+        handleCameraTrackingState(
+            frame.camera.trackingState,
+            originatingFrom: session
+        )
         // 非采集状态只允许空闲页更新设备状态，禁止继续形成可靠证据。
         let lifecycleState = lifecycleSnapshot().state
         if lifecycleState == .recording {
             // Keep tracking-quality diagnostics alive while point and image
             // evidence are temporarily suspended.
             publishQualitySampleIfNeeded(frame)
-            publishTrackingGuidanceIfSuspended(frame)
+            publishTrackingGuidanceIfSuspended(frame, session: session)
         }
         guard acceptsReliableEvidence() || lifecycleState == .idle else { return }
         publishDepthStatusIfNeeded(frame)
         enqueueDetectionFrameIfRecording(frame)
-        publishCameraResolutionIfNeeded(frame)
-        updateCameraSpeedAndGuidance(frame)
+        publishCameraResolutionIfNeeded(frame, session: session)
+        updateCameraSpeedAndGuidance(frame, session: session)
     }
 
     private func publishDepthStatusIfNeeded(_ frame: ARFrame) {
@@ -47,12 +51,16 @@ extension ScanCoordinator: ARSessionDelegate {
         )
     }
 
-    private func publishCameraResolutionIfNeeded(_ frame: ARFrame) {
+    private func publishCameraResolutionIfNeeded(
+        _ frame: ARFrame,
+        session: ARSession
+    ) {
         guard !hasPublishedCameraResolution else { return }
         hasPublishedCameraResolution = true
         let res = frame.camera.imageResolution
         let display = "\(Int(res.width))x\(Int(res.height))"
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.acceptsDelegateCallback(from: session) else { return }
             self.settings.currentCameraResolutionDisplay = display
         }
     }
@@ -65,19 +73,25 @@ extension ScanCoordinator: ARSessionDelegate {
         onQualitySampleUpdate?(ScanQualitySampler.makeSample(from: frame))
     }
 
-    private func publishTrackingGuidanceIfSuspended(_ frame: ARFrame) {
+    private func publishTrackingGuidanceIfSuspended(
+        _ frame: ARFrame,
+        session: ARSession
+    ) {
         guard !acceptsReliableEvidence() else { return }
         let hint = ScanGuidanceHelper.trackingHint(
             for: frame.camera.trackingState,
             lightIntensity: frame.lightEstimate?.ambientIntensity
         ) ?? .none
         DispatchQueue.main.async { [weak self] in
-            guard let self, !self.isTornDown else { return }
+            guard let self, self.acceptsDelegateCallback(from: session) else { return }
             self.hudState?.update(guidanceHint: hint)
         }
     }
 
-    private func updateCameraSpeedAndGuidance(_ frame: ARFrame) {
+    private func updateCameraSpeedAndGuidance(
+        _ frame: ARFrame,
+        session: ARSession
+    ) {
         guard renderer?.isRecording == true, acceptsReliableEvidence() else {
             lastCameraPosition = nil
             return
@@ -113,7 +127,7 @@ extension ScanCoordinator: ARSessionDelegate {
         )
 
         DispatchQueue.main.async { [weak self] in
-            guard let self, !self.isTornDown else { return }
+            guard let self, self.acceptsDelegateCallback(from: session) else { return }
             self.hudState?.update(
                 cameraSpeed: self.smoothedCameraSpeed,
                 medianDepth: medianDepth,
@@ -123,29 +137,39 @@ extension ScanCoordinator: ARSessionDelegate {
     }
 
     func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
-        handleCameraTrackingState(camera.trackingState)
+        guard acceptsDelegateCallback(from: session) else { return }
+        handleCameraTrackingState(
+            camera.trackingState,
+            originatingFrom: session
+        )
     }
 
     func sessionWasInterrupted(_ session: ARSession) {
+        guard acceptsDelegateCallback(from: session) else { return }
         // 先同步关闭证据门，再异步更新界面状态，避免中断竞态。
         invalidateReliableEvidenceImmediately()
         clearCameraTrackingSuspension()
         Task { @MainActor [weak self] in
-            self?.handleSystemInterruption(.arSessionInterrupted)
+            guard let self, self.acceptsDelegateCallback(from: session) else { return }
+            self.handleSystemInterruption(.arSessionInterrupted)
         }
     }
 
     func sessionInterruptionEnded(_ session: ARSession) {
+        guard acceptsDelegateCallback(from: session) else { return }
         Task { @MainActor [weak self] in
-            self?.handleSessionInterruptionEnded()
+            guard let self, self.acceptsDelegateCallback(from: session) else { return }
+            self.handleSessionInterruptionEnded()
         }
     }
 
     func session(_ session: ARSession, didFailWithError error: Error) {
+        guard acceptsDelegateCallback(from: session) else { return }
         invalidateReliableEvidenceImmediately()
         clearCameraTrackingSuspension()
         Task { @MainActor [weak self] in
-            self?.handleSessionFailure(error)
+            guard let self, self.acceptsDelegateCallback(from: session) else { return }
+            self.handleSessionFailure(error)
         }
     }
 }
