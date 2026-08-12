@@ -3,6 +3,9 @@
 
 import Foundation
 
+typealias RuntimeScanCoverageStatus = ScanCompletion.CoverageStatus
+typealias RuntimeScanCoverageHint = ScanCompletion.CoverageHint
+
 enum L10n {
     // MARK: - Scan
     enum Scan {
@@ -381,7 +384,7 @@ enum L10n {
         static var resumeAccessibilityHint: String { text(.resumeAccessibilityHint) }
 
         static func guidance(
-            for status: ScanCompletion.CoverageStatus,
+            for status: RuntimeScanCoverageStatus,
             in bundle: Bundle = .main
         ) -> String {
             switch status {
@@ -395,7 +398,7 @@ enum L10n {
         }
 
         static func statusTitle(
-            for status: ScanCompletion.CoverageStatus,
+            for status: RuntimeScanCoverageStatus,
             in bundle: Bundle = .main
         ) -> String {
             switch status {
@@ -487,7 +490,7 @@ enum L10n {
         static var metricStability: String { text(.metricStability) }
 
         static func statusTitle(
-            for status: ScanCompletion.CoverageStatus,
+            for status: RuntimeScanCoverageStatus,
             in bundle: Bundle = .main
         ) -> String {
             switch status {
@@ -499,7 +502,7 @@ enum L10n {
         }
 
         static func statusHint(
-            for hint: ScanCompletion.CoverageHint,
+            for hint: RuntimeScanCoverageHint,
             in bundle: Bundle = .main
         ) -> String {
             switch hint {
