@@ -2330,6 +2330,8 @@ enum L10n {
                 bundle: bundle,
                 arguments: arguments
             )
+        }
+
         private static let completionFileFormat = NSLocalizedString("export.completion.file", value: "导出文件：%@", comment: "Accessibility label containing the completed export filename")
 
         static func completionFileName(_ fileName: String) -> String {
