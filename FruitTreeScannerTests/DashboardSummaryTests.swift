@@ -104,6 +104,8 @@ final class DashboardSummaryTests: XCTestCase {
 
         XCTAssertEqual(snapshot.plotId, plot.id)
         XCTAssertEqual(snapshot.tagIds, [secondTag.id, firstTag.id])
+    }
+
     func testGPSLocationPolicyRejectsStaleInaccurateAndInvalidFixes() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let good = CLLocation(
