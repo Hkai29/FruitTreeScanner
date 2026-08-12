@@ -211,49 +211,49 @@ final class ScanTransientFeedbackLocalizationTests: XCTestCase {
         (
             .tooFast,
             "Moving Too Fast",
-            "Slow down so the canopy and main branches overlap between passes.",
+            "Slow down so canopy and main branches overlap",
             "移动太快",
             "放慢脚步，让树冠和主枝有足够重叠"
         ),
         (
             .tooClose,
             "Too Close",
-            "Step back to keep the full tree outline in view.",
+            "Step back to keep the whole-tree outline",
             "距离太近",
             "后退一步，先保住整棵树轮廓"
         ),
         (
             .tooFar,
             "Too Far",
-            "Move closer to the tree and prioritize the trunk and fruit-dense areas.",
+            "Move closer; prioritize the trunk and fruit-dense areas",
             "距离太远",
             "靠近果树，优先补主干和果实密集区"
         ),
         (
             .trackingLost,
             "Tracking Lost",
-            "Aim at the trunk, ground, or a clearly textured branch to restore tracking.",
+            "Aim at the trunk, ground, or textured branches to resume tracking",
             "追踪丢失",
             "对准树干、地面或纹理清晰的枝条恢复追踪"
         ),
         (
             .lowLight,
             "Low Light",
-            "Low light reduces fruit detection and texture quality.",
+            "Dim light reduces fruit detection and texture quality",
             "光线不足",
             "光线偏暗，果实检测和纹理质量会下降"
         ),
         (
             .sparseDepth,
             "Sparse Canopy Depth",
-            "Keep less sky in view, move closer to the canopy, and slow down.",
+            "Reduce sky in frame, move closer to the canopy, and slow down",
             "树冠深度稀疏",
             "减少天空占比，靠近树冠并放慢移动速度"
         ),
         (
             .goodPace,
             "Good Pace",
-            "Maintain this speed and continue around the tree to cover the hidden side.",
+            "Keep this pace and circle the tree to cover rear blind spots",
             "速度良好",
             "保持速度，继续绕树补齐背面盲区"
         ),
@@ -1336,19 +1336,50 @@ final class ScanCompletionPresentationTests: XCTestCase {
     }
 
     func testCompletionStatusAndHintMappingsKeepExistingDecisionBoundaries() throws {
+        let coverageCopy: [String: [String: String]] = [
+            "en": [
+                "complete": "Scan Complete",
+                "good": "Good Coverage",
+                "continue": "Continue Scanning",
+                "insufficient": "Insufficient Coverage",
+                "other_side": "Scan the other side of the canopy",
+                "back_side": "Scan the back of the canopy",
+                "vertical": "Slow down and scan the upper and lower canopy",
+                "sparse_angles": "Scan the sparsely covered angles",
+                "trunk": "Start at the trunk and circle the tree slowly",
+                "discovering": "Discovering new canopy areas",
+                "finish_back": "Scan the back of the canopy, then save",
+                "stable": "Coverage is complete. You can save and analyze."
+            ],
+            "zh": [
+                "complete": "扫描完成",
+                "good": "覆盖良好",
+                "continue": "继续扫描",
+                "insufficient": "覆盖率不足",
+                "other_side": "补扫树冠另一侧",
+                "back_side": "补扫树冠背面",
+                "vertical": "放慢补扫树冠上下层",
+                "sparse_angles": "补扫稀疏视角",
+                "trunk": "从主干开始慢速环绕",
+                "discovering": "正在发现树冠新区域",
+                "finish_back": "补树冠背面后可保存",
+                "stable": "覆盖完整，可保存分析"
+            ]
+        ]
+
         for language in ["en", "zh"] {
             let bundle = try localizedBundle(language: language)
-            let copy = try XCTUnwrap(expectedCopy[language])
+            let copy = try XCTUnwrap(coverageCopy[language])
 
-            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.85).coverageStatus, in: bundle), copy["scan.completion.status.complete"])
-            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.60).coverageStatus, in: bundle), copy["scan.completion.status.coverage_good"])
-            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.30).coverageStatus, in: bundle), copy["scan.completion.status.continue_scanning"])
-            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.29).coverageStatus, in: bundle), copy["scan.completion.status.insufficient"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.85).coverageStatus, in: bundle), copy["complete"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.60).coverageStatus, in: bundle), copy["good"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.30).coverageStatus, in: bundle), copy["continue"])
+            XCTAssertEqual(L10n.ScanCoverage.statusTitle(for: ScanCompletion(overall: 0.29).coverageStatus, in: bundle), copy["insufficient"])
 
             let hintCases: [(ScanCompletion, String)] = [
                 (
                     ScanCompletion(angleCoverageScore: 0.2, voxelCount: 120, discoveryTrend: .stable),
-                    "scan.completion.hint.other_side"
+                    "other_side"
                 ),
                 (
                     ScanCompletion(
@@ -1359,7 +1390,7 @@ final class ScanCompletionPresentationTests: XCTestCase {
                         voxelCount: 120,
                         discoveryTrend: .stable
                     ),
-                    "scan.completion.hint.back_side"
+                    "back_side"
                 ),
                 (
                     ScanCompletion(
@@ -1370,7 +1401,7 @@ final class ScanCompletionPresentationTests: XCTestCase {
                         voxelCount: 140,
                         discoveryTrend: .stable
                     ),
-                    "scan.completion.hint.vertical"
+                    "vertical"
                 ),
                 (
                     ScanCompletion(
@@ -1381,12 +1412,12 @@ final class ScanCompletionPresentationTests: XCTestCase {
                         voxelCount: 120,
                         discoveryTrend: .stable
                     ),
-                    "scan.completion.hint.sparse_angles"
+                    "sparse_angles"
                 ),
-                (ScanCompletion(discoveryTrend: .collecting), "scan.completion.hint.trunk"),
-                (ScanCompletion(discoveryTrend: .increasing), "scan.completion.hint.discovering"),
-                (ScanCompletion(discoveryTrend: .decreasing), "scan.completion.hint.finish_back"),
-                (ScanCompletion(discoveryTrend: .stable), "scan.completion.hint.stable"),
+                (ScanCompletion(discoveryTrend: .collecting), "trunk"),
+                (ScanCompletion(discoveryTrend: .increasing), "discovering"),
+                (ScanCompletion(discoveryTrend: .decreasing), "finish_back"),
+                (ScanCompletion(discoveryTrend: .stable), "stable"),
             ]
 
             for (completion, key) in hintCases {

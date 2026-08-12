@@ -76,7 +76,7 @@ enum BatchExportJSONWriter {
     }
 
     private static func recordPayload(for record: ScanFileRecord) throws -> [String: Any] {
-        let sidecar = try singleScanMetadata(for: record)
+        let sidecar = singleScanMetadata(for: record)
         let diagnostics = sidecar?["diagnostics"] as? [String: Any]
         let baseName = (record.fileURL.lastPathComponent as NSString).deletingPathExtension
         let scanID = sidecar?["scanID"] as? String ?? baseName
