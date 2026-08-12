@@ -21,12 +21,23 @@ extension ScanView {
             guard isViewActive else { return }
             lifecycleSnapshot = snapshot
             switch snapshot.state {
-            case .systemInterrupted, .failed:
+            case .systemInterrupted:
                 isRecording = false
                 isEstimating = false
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 showLifecycleRecovery = true
+            case .failed(let reason):
+                isRecording = false
+                isEstimating = false
+                pauseCoverageCompletion()
+                clearMeasurementState()
+                if reason.requiresCameraReadinessRecovery {
+                    showLifecycleRecovery = false
+                    refreshScanReadiness(showLifecycleRecoveryWhenReady: true)
+                } else {
+                    showLifecycleRecovery = true
+                }
             case .recovering:
                 isRecording = false
                 isEstimating = false
@@ -72,7 +83,10 @@ extension ScanView {
         refreshScanReadinessWhenActive(phase)
     }
 
-    func refreshScanReadiness() {
+    func refreshScanReadiness(showLifecycleRecoveryWhenReady: Bool = false) {
+        if showLifecycleRecoveryWhenReady {
+            pendingLifecycleRecoveryAfterReadiness = true
+        }
         guard !isCheckingScanReadiness else { return }
         isCheckingScanReadiness = true
         scanReadiness = .checking
@@ -80,9 +94,20 @@ extension ScanView {
             let next = await ScanReadiness.determine()
             await MainActor.run {
                 isCheckingScanReadiness = false
-                guard isViewActive else { return }
+                guard isViewActive else {
+                    pendingLifecycleRecoveryAfterReadiness = false
+                    return
+                }
                 scanReadiness = next
+                let shouldRecoverLifecycle = pendingLifecycleRecoveryAfterReadiness
+                pendingLifecycleRecoveryAfterReadiness = false
+                if next == .ready, shouldRecoverLifecycle {
+                    showLifecycleRecovery = true
+                }
                 if next != .ready {
+                    if shouldRecoverLifecycle {
+                        showLifecycleRecovery = false
+                    }
                     isRecording = false
                     pauseCoverageCompletion()
                     clearMeasurementState()

@@ -1,5 +1,6 @@
 import XCTest
 import ARKit
+import AVFoundation
 import SwiftUI
 import UIKit
 @testable import FruitTreeScanner
@@ -100,6 +101,42 @@ final class ScanReadinessTests: XCTestCase {
     func testReadyHasNoBlockingText() {
         XCTAssertEqual(ScanReadiness.ready.title, "")
         XCTAssertEqual(ScanReadiness.ready.message, "")
+    }
+
+    func testCameraAuthorizationMapsToRecoveryReadiness() async {
+        var accessRequestCount = 0
+        let unexpectedRequest: () async -> Bool = {
+            accessRequestCount += 1
+            return false
+        }
+
+        let authorized = await ScanReadiness.cameraReadiness(
+            authorizationStatus: .authorized,
+            requestAccess: unexpectedRequest
+        )
+        let denied = await ScanReadiness.cameraReadiness(
+            authorizationStatus: .denied,
+            requestAccess: unexpectedRequest
+        )
+        let restricted = await ScanReadiness.cameraReadiness(
+            authorizationStatus: .restricted,
+            requestAccess: unexpectedRequest
+        )
+        XCTAssertEqual(authorized, .ready)
+        XCTAssertEqual(denied, .cameraDenied)
+        XCTAssertEqual(restricted, .cameraRestricted)
+        XCTAssertEqual(accessRequestCount, 0)
+
+        let newlyGranted = await ScanReadiness.cameraReadiness(
+            authorizationStatus: .notDetermined,
+            requestAccess: { true }
+        )
+        let newlyDenied = await ScanReadiness.cameraReadiness(
+            authorizationStatus: .notDetermined,
+            requestAccess: { false }
+        )
+        XCTAssertEqual(newlyGranted, .ready)
+        XCTAssertEqual(newlyDenied, .cameraDenied)
     }
 
     private func assertReadinessCopy(
@@ -785,6 +822,61 @@ final class ScanLifecycleControllerTests: XCTestCase {
 
 @MainActor
 final class ScanCoordinatorSessionRestartTests: XCTestCase {
+    func testCameraUnauthorizedFailureRequiresCameraReadinessRecovery() {
+        let coordinator = ScanCoordinator()
+        _ = coordinator.scanLifecycle.startNewScan()
+        let error = NSError(
+            domain: ARErrorDomain,
+            code: ARError.Code.cameraUnauthorized.rawValue
+        )
+
+        coordinator.handleSessionFailure(error)
+
+        guard case .failed(.cameraUnavailable(let message)) =
+                coordinator.lifecycleSnapshot().state else {
+            return XCTFail("Camera authorization failure must use readiness recovery")
+        }
+        XCTAssertEqual(message, error.localizedDescription)
+        XCTAssertTrue(
+            ScanFailureReason.cameraUnavailable("camera").requiresCameraReadinessRecovery
+        )
+        XCTAssertFalse(
+            ScanFailureReason.sessionFailed("camera").requiresCameraReadinessRecovery
+        )
+    }
+
+    func testSensorUnavailableFailureRemainsGenericSessionFailure() {
+        let coordinator = ScanCoordinator()
+        _ = coordinator.scanLifecycle.startNewScan()
+
+        coordinator.handleSessionFailure(
+            NSError(
+                domain: ARErrorDomain,
+                code: ARError.Code.sensorUnavailable.rawValue
+            )
+        )
+
+        guard case .failed(.sessionFailed) = coordinator.lifecycleSnapshot().state else {
+            return XCTFail("Sensor failures must retain generic restart recovery")
+        }
+    }
+
+    func testMatchingErrorCodeOutsideARKitDomainRemainsGenericSessionFailure() {
+        let coordinator = ScanCoordinator()
+        _ = coordinator.scanLifecycle.startNewScan()
+
+        coordinator.handleSessionFailure(
+            NSError(
+                domain: "FruitTreeScannerTests",
+                code: ARError.Code.cameraUnauthorized.rawValue
+            )
+        )
+
+        guard case .failed(.sessionFailed) = coordinator.lifecycleSnapshot().state else {
+            return XCTFail("Only ARKit camera authorization failures use permission recovery")
+        }
+    }
+
     func testRestartInstallsSessionDelegateBeforeRunningReplacementSession() {
         let recorder = ScanSessionRuntimeRecorder()
         let session = ARSession()

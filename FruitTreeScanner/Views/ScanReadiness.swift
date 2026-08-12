@@ -70,11 +70,21 @@ extension ScanReadiness {
             return .lidarUnavailable
         }
 
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        return await cameraReadiness(
+            authorizationStatus: AVCaptureDevice.authorizationStatus(for: .video),
+            requestAccess: { await AVCaptureDevice.requestAccess(for: .video) }
+        )
+    }
+
+    static func cameraReadiness(
+        authorizationStatus: AVAuthorizationStatus,
+        requestAccess: () async -> Bool
+    ) async -> ScanReadiness {
+        switch authorizationStatus {
         case .authorized:
             return .ready
         case .notDetermined:
-            let granted = await AVCaptureDevice.requestAccess(for: .video)
+            let granted = await requestAccess()
             return granted ? .ready : .cameraDenied
         case .denied:
             return .cameraDenied

@@ -8,7 +8,26 @@ enum ScanInterruptionReason: String, Equatable, Sendable {
 }
 
 enum ScanFailureReason: Equatable, Sendable {
+    case cameraUnavailable(String)
     case sessionFailed(String)
+
+    var requiresCameraReadinessRecovery: Bool {
+        if case .cameraUnavailable = self {
+            return true
+        }
+        return false
+    }
+}
+
+enum ScanSessionFailureClassifier {
+    static func reason(for error: Error) -> ScanFailureReason {
+        let error = error as NSError
+        guard error.domain == ARErrorDomain,
+              error.code == ARError.Code.cameraUnauthorized.rawValue else {
+            return .sessionFailed(error.localizedDescription)
+        }
+        return .cameraUnavailable(error.localizedDescription)
+    }
 }
 
 enum ScanLifecycleState: Equatable, Sendable {
