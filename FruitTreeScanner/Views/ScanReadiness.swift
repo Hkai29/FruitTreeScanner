@@ -95,3 +95,48 @@ extension ScanReadiness {
         }
     }
 }
+
+@MainActor
+final class ScanReadinessRequestController: ObservableObject {
+    typealias Determiner = @Sendable () async -> ScanReadiness
+
+    private let determine: Determiner
+    private var task: Task<Void, Never>?
+    private var generation: UInt64 = 0
+
+    var isRunning: Bool { task != nil }
+
+    init(
+        determine: @escaping Determiner = {
+            await ScanReadiness.determine()
+        }
+    ) {
+        self.determine = determine
+    }
+
+    @discardableResult
+    func start(
+        onResult: @escaping @MainActor (ScanReadiness) -> Void
+    ) -> Task<Void, Never>? {
+        guard task == nil else { return nil }
+        generation &+= 1
+        let requestGeneration = generation
+        let determine = determine
+        let requestTask = Task { [weak self] in
+            guard !Task.isCancelled else { return }
+            let readiness = await determine()
+            guard !Task.isCancelled, let self else { return }
+            guard self.generation == requestGeneration else { return }
+            self.task = nil
+            onResult(readiness)
+        }
+        task = requestTask
+        return requestTask
+    }
+
+    func cancel() {
+        generation &+= 1
+        task?.cancel()
+        task = nil
+    }
+}
