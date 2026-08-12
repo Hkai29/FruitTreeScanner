@@ -785,6 +785,24 @@ final class ScanLifecycleControllerTests: XCTestCase {
 
 @MainActor
 final class ScanCoordinatorSessionRestartTests: XCTestCase {
+    func testRestartInstallsSessionDelegateBeforeRunningReplacementSession() {
+        let recorder = ScanSessionRuntimeRecorder()
+        let session = ARSession()
+        var coordinator: ScanCoordinator!
+        recorder.beforeRun = {
+            XCTAssertIdentical(session.delegate as AnyObject?, coordinator)
+        }
+        coordinator = ScanCoordinator(sessionRuntime: recorder.runtime)
+        coordinator.session = session
+        _ = coordinator.scanLifecycle.startNewScan()
+        _ = coordinator.setReliableEvidenceAcceptance(true)
+        coordinator.handleSessionFailure(ScanSessionTestError.camera)
+
+        XCTAssertNil(session.delegate)
+        XCTAssertTrue(coordinator.restartInterruptedScan(selectedCategory: .apple))
+        XCTAssertIdentical(session.delegate as AnyObject?, coordinator)
+    }
+
     func testFailureRestartResetsSessionBeforeOpeningReliableEvidence() {
         let recorder = ScanSessionRuntimeRecorder()
         var coordinator: ScanCoordinator!

@@ -269,11 +269,13 @@ class ScanCoordinator: NSObject {
 
         publishPendingCameraResolution()
 
+        // ARKit may report an interruption or failure as soon as a run starts.
+        // Install the observer first so initial sessions cannot lose the callback
+        // that closes reliable-evidence capture.
+        session.delegate = self
         let depthStatus = configureAndRunSession(session)
         publishDepthRuntimeStatus(depthStatus)
 
-        // 注册帧回调用于图像检测
-        session.delegate = self
         publishImageDetectorStatus()
 
         // 启动定期处理队列的定时器
@@ -315,6 +317,8 @@ class ScanCoordinator: NSObject {
     @MainActor
     func restartBoundSessionWithResetTracking() -> Bool {
         guard !isTornDown, let session else { return false }
+        // Reassert ownership before starting a replacement run as well.
+        session.delegate = self
         let depthStatus = configureAndRunSession(
             session,
             options: [.resetTracking, .removeExistingAnchors]
