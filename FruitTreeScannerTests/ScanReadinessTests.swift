@@ -1205,6 +1205,96 @@ final class MetalViewBindingLifecycleTests: XCTestCase {
 }
 
 @MainActor
+final class ScanReadinessRecoveryBindingTests: XCTestCase {
+    func testReadinessBlockPreservesParentBindingsAcrossRendererRebind() async throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let coordinator = ScanCoordinator(
+            sessionRuntime: ScanSessionRuntime(
+                isWorldTrackingSupported: { false },
+                run: { _, _, _ in }
+            )
+        )
+        let oldSession = ARSession()
+        let oldView = MTKView(frame: .zero, device: device)
+        let hudState = ScanHUDState()
+        var publishedRenderers: [Renderer] = []
+        coordinator.session = oldSession
+        coordinator.mtkView = oldView
+        coordinator.hudState = hudState
+        coordinator.onMeasurementReady = { publishedRenderers.append($0) }
+        coordinator.onQualitySampleUpdate = { _ in }
+        coordinator.onCoveragePercentChange = { _ in }
+        coordinator.onFruitCategoryMismatch = { _ in }
+        coordinator.onCalibrationWarning = { _ in }
+        coordinator.onLifecycleStateChange = { _ in }
+        #if DEBUG
+        coordinator.onDetectionDebugStateChange = { _ in }
+        #endif
+        coordinator.hasPublishedCategoryMismatch = true
+        oldSession.delegate = coordinator
+
+        coordinator.teardownForReadinessBlock()
+        coordinator.teardownForReadinessBlock()
+
+        XCTAssertTrue(coordinator.isTornDown)
+        XCTAssertNil(coordinator.session)
+        XCTAssertNil(coordinator.mtkView)
+        XCTAssertNil(oldSession.delegate)
+        XCTAssertFalse(coordinator.hasPublishedCategoryMismatch)
+        XCTAssertTrue(coordinator.hudState === hudState)
+        XCTAssertNotNil(coordinator.onMeasurementReady)
+        XCTAssertNotNil(coordinator.onQualitySampleUpdate)
+        XCTAssertNotNil(coordinator.onCoveragePercentChange)
+        XCTAssertNotNil(coordinator.onFruitCategoryMismatch)
+        XCTAssertNotNil(coordinator.onCalibrationWarning)
+        XCTAssertNotNil(coordinator.onLifecycleStateChange)
+        #if DEBUG
+        XCTAssertNotNil(coordinator.onDetectionDebugStateChange)
+        #endif
+
+        let replacementSession = ARSession()
+        let replacementView = MTKView(frame: .zero, device: device)
+        let replacementRenderer = Renderer(
+            session: replacementSession,
+            metalDevice: device,
+            renderDestination: replacementView
+        )
+        replacementView.delegate = replacementRenderer
+        coordinator.bind(
+            session: replacementSession,
+            renderer: replacementRenderer,
+            mtkView: replacementView
+        )
+        await drainMainQueue()
+
+        XCTAssertEqual(publishedRenderers.count, 1)
+        XCTAssertTrue(publishedRenderers.first === replacementRenderer)
+        coordinator.teardown()
+    }
+
+    func testFullTeardownStillReleasesParentBindings() {
+        let coordinator = ScanCoordinator()
+        coordinator.hudState = ScanHUDState()
+        coordinator.onMeasurementReady = { _ in }
+        coordinator.onLifecycleStateChange = { _ in }
+
+        coordinator.teardown()
+
+        XCTAssertNil(coordinator.hudState)
+        XCTAssertNil(coordinator.onMeasurementReady)
+        XCTAssertNil(coordinator.onLifecycleStateChange)
+    }
+
+    private func drainMainQueue() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                continuation.resume()
+            }
+        }
+    }
+}
+
+@MainActor
 final class ScanCoordinatorCameraTrackingTests: XCTestCase {
     func testOnlyNormalCameraTrackingAcceptsReliableCapture() {
         let expectations: [(ARCamera.TrackingState, ScanGuidanceHint)] = [
