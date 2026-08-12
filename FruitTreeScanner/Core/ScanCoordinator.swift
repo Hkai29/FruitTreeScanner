@@ -402,6 +402,17 @@ class ScanCoordinator: NSObject {
     }
 
     @MainActor
+    func teardownForReadinessBlock() {
+        Log.scan.info("Tearing down scan runtime for readiness block")
+        isTornDown = true
+        invalidateReliableEvidenceGate()
+        stopRuntimeServices()
+        clearBindingReferences()
+        clearScanReferences()
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+
+    @MainActor
     func teardownBinding(for candidateView: MTKView) {
         guard mtkView === candidateView else { return }
         Log.scan.info("Tearing down scan view binding")
@@ -488,6 +499,11 @@ class ScanCoordinator: NSObject {
     private func clearRuntimeReferences() {
         // 同时释放回调和大对象引用，避免已退出页面继续接收扫描结果。
         clearBindingReferences()
+        clearPresentationReferences()
+        clearScanReferences()
+    }
+
+    private func clearPresentationReferences() {
         hudState = nil
         onMeasurementReady = nil
         onQualitySampleUpdate = nil
@@ -498,6 +514,9 @@ class ScanCoordinator: NSObject {
         #if DEBUG
         onDetectionDebugStateChange = nil
         #endif
+    }
+
+    private func clearScanReferences() {
         detectedFruits.removeAll()
         archivedFusionEvidenceDetections.removeAll()
         activeFruitConfiguration = nil

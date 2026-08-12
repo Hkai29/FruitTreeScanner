@@ -112,7 +112,7 @@ extension ScanView {
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 measurementController.renderer = nil
-                coordinator.teardown()
+                coordinator.teardownForReadinessBlock()
             }
         }
     }
