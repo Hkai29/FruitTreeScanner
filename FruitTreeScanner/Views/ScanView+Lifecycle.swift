@@ -61,6 +61,7 @@ extension ScanView {
 
     func handleDisappear() {
         isViewActive = false
+        cancelScanReadinessRequest(clearRecoveryRequest: true)
         isEstimating = false
         invalidateTemporaryNotice()
         invalidateCoverageCompletion()
@@ -70,6 +71,9 @@ extension ScanView {
     }
 
     func handleScenePhaseChange(_ phase: ScenePhase) {
+        if phase != .active {
+            cancelScanReadinessRequest(clearRecoveryRequest: false)
+        }
         switch phase {
         case .inactive:
             coordinator.handleSystemInterruption(.appInactive)
@@ -87,34 +91,36 @@ extension ScanView {
         if showLifecycleRecoveryWhenReady {
             pendingLifecycleRecoveryAfterReadiness = true
         }
-        guard !isCheckingScanReadiness else { return }
-        isCheckingScanReadiness = true
+        guard !readinessRequestController.isRunning else { return }
         scanReadiness = .checking
-        Task {
-            let next = await ScanReadiness.determine()
-            await MainActor.run {
-                isCheckingScanReadiness = false
-                guard isViewActive else {
-                    pendingLifecycleRecoveryAfterReadiness = false
-                    return
-                }
-                scanReadiness = next
-                let shouldRecoverLifecycle = pendingLifecycleRecoveryAfterReadiness
+        readinessRequestController.start { next in
+            guard isViewActive else {
                 pendingLifecycleRecoveryAfterReadiness = false
-                if next == .ready, shouldRecoverLifecycle {
-                    showLifecycleRecovery = true
-                }
-                if next != .ready {
-                    if shouldRecoverLifecycle {
-                        showLifecycleRecovery = false
-                    }
-                    isRecording = false
-                    pauseCoverageCompletion()
-                    clearMeasurementState()
-                    measurementController.renderer = nil
-                    coordinator.teardown()
-                }
+                return
             }
+            scanReadiness = next
+            let shouldRecoverLifecycle = pendingLifecycleRecoveryAfterReadiness
+            pendingLifecycleRecoveryAfterReadiness = false
+            if next == .ready, shouldRecoverLifecycle {
+                showLifecycleRecovery = true
+            }
+            if next != .ready {
+                if shouldRecoverLifecycle {
+                    showLifecycleRecovery = false
+                }
+                isRecording = false
+                pauseCoverageCompletion()
+                clearMeasurementState()
+                measurementController.renderer = nil
+                coordinator.teardown()
+            }
+        }
+    }
+
+    private func cancelScanReadinessRequest(clearRecoveryRequest: Bool) {
+        readinessRequestController.cancel()
+        if clearRecoveryRequest {
+            pendingLifecycleRecoveryAfterReadiness = false
         }
     }
 

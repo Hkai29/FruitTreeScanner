@@ -186,6 +186,155 @@ final class ScanReadinessTests: XCTestCase {
     }
 }
 
+@MainActor
+final class ScanReadinessRequestControllerTests: XCTestCase {
+    func testCancellationBeforeExecutionSkipsDetermination() async throws {
+        let determiner = ImmediateScanReadinessDeterminer()
+        let controller = ScanReadinessRequestController {
+            await determiner.determine()
+        }
+        var results: [ScanReadiness] = []
+
+        let task = try XCTUnwrap(controller.start { results.append($0) })
+        controller.cancel()
+        await task.value
+
+        XCTAssertEqual(determiner.requestCount, 0)
+        XCTAssertTrue(results.isEmpty)
+        XCTAssertFalse(controller.isRunning)
+    }
+
+    func testResultPublishesOnceAndClearsRunningState() async throws {
+        let determiner = ControlledScanReadinessDeterminer()
+        let controller = ScanReadinessRequestController {
+            await determiner.determine()
+        }
+        var results: [ScanReadiness] = []
+
+        let task = try XCTUnwrap(controller.start { results.append($0) })
+        await determiner.waitForRequestCount(1)
+        XCTAssertTrue(controller.isRunning)
+
+        determiner.resumeRequest(0, returning: .ready)
+        await task.value
+
+        XCTAssertEqual(results, [.ready])
+        XCTAssertFalse(controller.isRunning)
+    }
+
+    func testDuplicateStartDoesNotCreateConcurrentRequest() async throws {
+        let determiner = ControlledScanReadinessDeterminer()
+        let controller = ScanReadinessRequestController {
+            await determiner.determine()
+        }
+
+        let task = try XCTUnwrap(controller.start { _ in })
+        await determiner.waitForRequestCount(1)
+
+        XCTAssertNil(controller.start { _ in })
+        XCTAssertEqual(determiner.requestCount, 1)
+
+        determiner.resumeRequest(0, returning: .ready)
+        await task.value
+    }
+
+    func testCancellationRejectsLateResult() async throws {
+        let determiner = ControlledScanReadinessDeterminer()
+        let controller = ScanReadinessRequestController {
+            await determiner.determine()
+        }
+        var results: [ScanReadiness] = []
+
+        let task = try XCTUnwrap(controller.start { results.append($0) })
+        await determiner.waitForRequestCount(1)
+
+        controller.cancel()
+        controller.cancel()
+        determiner.resumeRequest(0, returning: .cameraDenied)
+        await task.value
+
+        XCTAssertTrue(results.isEmpty)
+        XCTAssertFalse(controller.isRunning)
+    }
+
+    func testLateCancelledRequestCannotClearOrPublishOverReplacement() async throws {
+        let determiner = ControlledScanReadinessDeterminer()
+        let controller = ScanReadinessRequestController {
+            await determiner.determine()
+        }
+        var results: [ScanReadiness] = []
+
+        let firstTask = try XCTUnwrap(controller.start { results.append($0) })
+        await determiner.waitForRequestCount(1)
+        controller.cancel()
+
+        let secondTask = try XCTUnwrap(controller.start { results.append($0) })
+        await determiner.waitForRequestCount(2)
+
+        determiner.resumeRequest(0, returning: .cameraDenied)
+        await firstTask.value
+        XCTAssertTrue(controller.isRunning)
+        XCTAssertTrue(results.isEmpty)
+
+        determiner.resumeRequest(1, returning: .ready)
+        await secondTask.value
+        XCTAssertEqual(results, [.ready])
+        XCTAssertFalse(controller.isRunning)
+    }
+}
+
+@MainActor
+private final class ImmediateScanReadinessDeterminer {
+    private(set) var requestCount = 0
+
+    func determine() async -> ScanReadiness {
+        requestCount += 1
+        return .ready
+    }
+}
+
+@MainActor
+private final class ControlledScanReadinessDeterminer {
+    private var nextRequestID = 0
+    private var pendingRequests: [Int: CheckedContinuation<ScanReadiness, Never>] = [:]
+    private var requestCountWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    private(set) var requestCount = 0
+
+    func determine() async -> ScanReadiness {
+        await withCheckedContinuation { continuation in
+            let requestID = nextRequestID
+            nextRequestID += 1
+            requestCount += 1
+            pendingRequests[requestID] = continuation
+            resumeSatisfiedWaiters()
+        }
+    }
+
+    func waitForRequestCount(_ expectedCount: Int) async {
+        guard requestCount < expectedCount else { return }
+        await withCheckedContinuation { continuation in
+            requestCountWaiters.append((expectedCount, continuation))
+        }
+    }
+
+    func resumeRequest(_ requestID: Int, returning readiness: ScanReadiness) {
+        pendingRequests.removeValue(forKey: requestID)?.resume(returning: readiness)
+    }
+
+    private func resumeSatisfiedWaiters() {
+        var remaining: [(Int, CheckedContinuation<Void, Never>)] = []
+        for (expectedCount, continuation) in requestCountWaiters {
+            if requestCount >= expectedCount {
+                continuation.resume()
+            } else {
+                remaining.append((expectedCount, continuation))
+            }
+        }
+        requestCountWaiters = remaining
+    }
+}
+
 final class ScanControlLocalizationTests: XCTestCase {
     func testScanControlCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
