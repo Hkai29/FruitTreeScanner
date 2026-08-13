@@ -89,23 +89,22 @@ extension ScanView {
 
     func refreshScanReadiness(showLifecycleRecoveryWhenReady: Bool = false) {
         if showLifecycleRecoveryWhenReady {
-            pendingLifecycleRecoveryAfterReadiness = true
+            readinessRecoveryIntent.request()
         }
         guard !readinessRequestController.isRunning else { return }
         scanReadiness = .checking
         readinessRequestController.start { next in
             guard isViewActive else {
-                pendingLifecycleRecoveryAfterReadiness = false
+                readinessRecoveryIntent.cancel()
                 return
             }
             scanReadiness = next
-            let shouldRecoverLifecycle = pendingLifecycleRecoveryAfterReadiness
-            pendingLifecycleRecoveryAfterReadiness = false
-            if next == .ready, shouldRecoverLifecycle {
+            let hadPendingLifecycleRecovery = readinessRecoveryIntent.isPending
+            if readinessRecoveryIntent.resolve(after: next) {
                 showLifecycleRecovery = true
             }
             if next != .ready {
-                if shouldRecoverLifecycle {
+                if hadPendingLifecycleRecovery {
                     showLifecycleRecovery = false
                 }
                 isRecording = false
@@ -120,7 +119,7 @@ extension ScanView {
     private func cancelScanReadinessRequest(clearRecoveryRequest: Bool) {
         readinessRequestController.cancel()
         if clearRecoveryRequest {
-            pendingLifecycleRecoveryAfterReadiness = false
+            readinessRecoveryIntent.cancel()
         }
     }
 

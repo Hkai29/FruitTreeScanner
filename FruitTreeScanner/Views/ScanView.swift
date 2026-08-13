@@ -35,7 +35,7 @@ struct ScanView: View {
     @StateObject private var scanNoticePresentation = ScanNoticePresentationController()
     @State var isViewActive = false
     @State var scanReadiness: ScanReadiness = .checking
-    @State var pendingLifecycleRecoveryAfterReadiness = false
+    @State var readinessRecoveryIntent = ScanReadinessRecoveryIntent()
     @StateObject var readinessRequestController = ScanReadinessRequestController()
     @State var showCancelConfirmation = false
     @State var categoryMismatch: FruitCategoryMismatch?

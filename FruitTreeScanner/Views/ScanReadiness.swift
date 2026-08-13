@@ -56,6 +56,25 @@ enum ScanReadiness: Equatable {
     }
 }
 
+struct ScanReadinessRecoveryIntent: Equatable {
+    private(set) var isPending = false
+
+    mutating func request() {
+        isPending = true
+    }
+
+    mutating func resolve(after readiness: ScanReadiness) -> Bool {
+        guard readiness == .ready else { return false }
+        let shouldPresentRecovery = isPending
+        isPending = false
+        return shouldPresentRecovery
+    }
+
+    mutating func cancel() {
+        isPending = false
+    }
+}
+
 extension ScanReadiness {
     static func determine() async -> ScanReadiness {
         guard ARWorldTrackingConfiguration.isSupported else {

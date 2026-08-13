@@ -186,6 +186,39 @@ final class ScanReadinessTests: XCTestCase {
     }
 }
 
+final class ScanReadinessRecoveryIntentTests: XCTestCase {
+    func testBlockedReadinessPreservesRecoveryIntentUntilReadinessReturns() {
+        var intent = ScanReadinessRecoveryIntent()
+
+        intent.request()
+
+        XCTAssertFalse(intent.resolve(after: .cameraDenied))
+        XCTAssertTrue(intent.isPending)
+        XCTAssertTrue(intent.resolve(after: .ready))
+        XCTAssertFalse(intent.isPending)
+    }
+
+    func testCancellationClearsRecoveryIntent() {
+        var intent = ScanReadinessRecoveryIntent()
+
+        intent.request()
+        intent.cancel()
+
+        XCTAssertFalse(intent.isPending)
+        XCTAssertFalse(intent.resolve(after: .ready))
+    }
+
+    func testRepeatedRequestsCoalesceAndReadyConsumesIntentOnce() {
+        var intent = ScanReadinessRecoveryIntent()
+
+        intent.request()
+        intent.request()
+
+        XCTAssertTrue(intent.resolve(after: .ready))
+        XCTAssertFalse(intent.resolve(after: .ready))
+    }
+}
+
 @MainActor
 final class ScanReadinessRequestControllerTests: XCTestCase {
     func testCancellationBeforeExecutionSkipsDetermination() async throws {
