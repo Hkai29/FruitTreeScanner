@@ -5,6 +5,39 @@ import XCTest
 
 @MainActor
 final class TagStoreTests: XCTestCase {
+    func testResultTaggingSelectionPreservesPersistedReviewingStatus() {
+        let plotID = UUID()
+        let tagIDs = [UUID(), UUID()]
+        let assignment = TreeAssignment(
+            treeId: "TREE-REVIEW",
+            plotId: plotID,
+            tagIds: tagIDs,
+            status: .reviewing
+        )
+
+        let selection = ResultTaggingSelection(assignment: assignment)
+
+        XCTAssertEqual(selection.plotID, plotID)
+        XCTAssertEqual(selection.tagIDs, Set(tagIDs))
+        XCTAssertEqual(selection.status, .reviewing)
+    }
+
+    func testResultTaggingSelectionPreservesEveryPersistedStatus() {
+        for status in ScanStatus.allCases {
+            let assignment = TreeAssignment(
+                treeId: "TREE-\(status.rawValue)",
+                plotId: nil,
+                tagIds: [],
+                status: status
+            )
+
+            XCTAssertEqual(
+                ResultTaggingSelection(assignment: assignment).status,
+                status
+            )
+        }
+    }
+
     func testRapidSavesKeepLatestSnapshotAndDoNotClearLatestSaveTask() async throws {
         let defaults = makeDefaults()
         defer { clear(defaults) }

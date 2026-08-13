@@ -3,6 +3,18 @@
 
 import SwiftUI
 
+struct ResultTaggingSelection: Equatable {
+    let plotID: UUID?
+    let tagIDs: Set<UUID>
+    let status: ScanStatus
+
+    init(assignment: TreeAssignment) {
+        plotID = assignment.plotId
+        tagIDs = Set(assignment.tagIds)
+        status = assignment.status
+    }
+}
+
 struct ResultView: View {
     let treeID: String
     let result: YieldResult
@@ -68,9 +80,10 @@ struct ResultView: View {
 
     private func restoreExistingAssignment() {
         guard let existing = tagStore.getAssignment(treeId: treeID) else { return }
-        selectedPlotId = existing.plotId
-        selectedTagIds = Set(existing.tagIds)
-        selectedStatus = existing.status == .reviewing ? .scanned : existing.status
+        let selection = ResultTaggingSelection(assignment: existing)
+        selectedPlotId = selection.plotID
+        selectedTagIds = selection.tagIDs
+        selectedStatus = selection.status
     }
 }
 
