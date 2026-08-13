@@ -146,12 +146,13 @@ extension ScanCoordinator: ARSessionDelegate {
 
     func sessionWasInterrupted(_ session: ARSession) {
         guard acceptsDelegateCallback(from: session) else { return }
-        // 先同步关闭证据门，再异步更新界面状态，避免中断竞态。
-        invalidateReliableEvidenceImmediately()
-        clearCameraTrackingSuspension()
+        // 同步迁移状态并关闭证据门，再异步更新界面，避免中断与完成竞态。
+        guard let snapshot = prepareSystemInterruption(.arSessionInterrupted) else { return }
         Task { @MainActor [weak self] in
-            guard let self, self.acceptsDelegateCallback(from: session) else { return }
-            self.handleSystemInterruption(.arSessionInterrupted)
+            guard let self,
+                  self.acceptsDelegateCallback(from: session),
+                  self.lifecycleSnapshot() == snapshot else { return }
+            self.presentSystemInterruption(snapshot)
         }
     }
 
@@ -165,11 +166,12 @@ extension ScanCoordinator: ARSessionDelegate {
 
     func session(_ session: ARSession, didFailWithError error: Error) {
         guard acceptsDelegateCallback(from: session) else { return }
-        invalidateReliableEvidenceImmediately()
-        clearCameraTrackingSuspension()
+        guard let snapshot = prepareSessionFailure(error) else { return }
         Task { @MainActor [weak self] in
-            guard let self, self.acceptsDelegateCallback(from: session) else { return }
-            self.handleSessionFailure(error)
+            guard let self,
+                  self.acceptsDelegateCallback(from: session),
+                  self.lifecycleSnapshot() == snapshot else { return }
+            self.presentSessionFailure(snapshot)
         }
     }
 }

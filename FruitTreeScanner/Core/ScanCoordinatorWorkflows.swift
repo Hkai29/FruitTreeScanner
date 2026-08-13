@@ -250,12 +250,27 @@ extension ScanCoordinator {
 
     @MainActor
     func handleSystemInterruption(_ reason: ScanInterruptionReason) {
-        guard !isTornDown else { return }
+        guard let snapshot = prepareSystemInterruption(reason) else { return }
+        presentSystemInterruption(snapshot)
+    }
+
+    func prepareSystemInterruption(
+        _ reason: ScanInterruptionReason
+    ) -> ScanLifecycleSnapshot? {
+        guard !isTornDown else { return nil }
+        // Linearize the lifecycle transition before invalidating evidence. If
+        // finishing won the race, its frozen evidence remains untouched.
+        guard let snapshot = scanLifecycle.beginInterruption(reason) else { return nil }
         invalidateReliableEvidenceImmediately()
         clearCameraTrackingSuspension()
+        return snapshot
+    }
+
+    @MainActor
+    func presentSystemInterruption(_ snapshot: ScanLifecycleSnapshot) {
         publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
         hudState?.update(fusionStatus: "Interrupted")
-        publishLifecycleSnapshot(scanLifecycle.interrupt(reason))
+        publishLifecycleSnapshot(snapshot)
     }
 
     @MainActor
@@ -267,15 +282,28 @@ extension ScanCoordinator {
 
     @MainActor
     func handleSessionFailure(_ error: Error) {
-        guard !isTornDown else { return }
+        guard let snapshot = prepareSessionFailure(error) else { return }
+        presentSessionFailure(snapshot)
+    }
+
+    func prepareSessionFailure(_ error: Error) -> ScanLifecycleSnapshot? {
+        guard !isTornDown else { return nil }
+        // The state transition and finishing exclusion share the lifecycle
+        // lock, closing the callback-vs-finalization race.
+        guard let snapshot = scanLifecycle.beginFailure(
+            ScanSessionFailureClassifier.reason(for: error)
+        ) else { return nil }
         invalidateReliableEvidenceImmediately()
         clearCameraTrackingSuspension()
+        return snapshot
+    }
+
+    @MainActor
+    func presentSessionFailure(_ snapshot: ScanLifecycleSnapshot) {
         session?.pause()
         publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
         hudState?.update(fusionStatus: "Failed")
-        publishLifecycleSnapshot(
-            scanLifecycle.fail(ScanSessionFailureClassifier.reason(for: error))
-        )
+        publishLifecycleSnapshot(snapshot)
     }
 
     @MainActor

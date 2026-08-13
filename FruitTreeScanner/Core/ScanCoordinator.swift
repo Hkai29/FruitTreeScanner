@@ -94,13 +94,19 @@ final class ScanLifecycleController {
         withLock { if state == .userPaused { generation &+= 1; state = .recording }; return makeSnapshot() }
     }
     func interrupt(_ reason: ScanInterruptionReason) -> ScanLifecycleSnapshot {
+        beginInterruption(reason) ?? snapshot()
+    }
+    func beginInterruption(_ reason: ScanInterruptionReason) -> ScanLifecycleSnapshot? {
         withLock {
             switch state {
-            case .recording, .userPaused, .finishing:
+            case .recording, .userPaused:
                 generation &+= 1; interruptionCount += 1; lastInterruptionTimestamp = Date(); state = .systemInterrupted(reason)
-            default: break
+                return makeSnapshot()
+            // Finishing owns a frozen evidence snapshot and no longer depends
+            // on new frames from the capture session.
+            default:
+                return nil
             }
-            return makeSnapshot()
         }
     }
     func interruptionEnded() -> ScanLifecycleSnapshot {
@@ -113,7 +119,19 @@ final class ScanLifecycleController {
         withLock { if state == .finishing { state = .completed }; return makeSnapshot() }
     }
     func fail(_ reason: ScanFailureReason) -> ScanLifecycleSnapshot {
-        withLock { if state != .completed && state != .cancelled { generation &+= 1; state = .failed(reason) }; return makeSnapshot() }
+        beginFailure(reason) ?? snapshot()
+    }
+    func beginFailure(_ reason: ScanFailureReason) -> ScanLifecycleSnapshot? {
+        withLock {
+            // Capture-session failures must not invalidate a frozen result
+            // pipeline that has already entered finishing.
+            guard state != .finishing && state != .completed && state != .cancelled else {
+                return nil
+            }
+            generation &+= 1
+            state = .failed(reason)
+            return makeSnapshot()
+        }
     }
     func cancel() -> ScanLifecycleSnapshot {
         withLock { if state != .completed { generation &+= 1; state = .cancelled }; return makeSnapshot() }

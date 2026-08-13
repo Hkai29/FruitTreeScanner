@@ -968,10 +968,69 @@ final class ScanLifecycleControllerTests: XCTestCase {
         XCTAssertEqual(second.cancel().state, .cancelled)
         XCTAssertEqual(second.fail(.sessionFailed("camera")).state, .cancelled)
     }
+
+    func testFinishingIgnoresCaptureSessionInterruptionAndFailure() {
+        let controller = ScanLifecycleController()
+        _ = controller.startNewScan()
+        let finishing = controller.beginFinishing()
+
+        let interrupted = controller.interrupt(.appBackgrounded)
+        let failed = controller.fail(.sessionFailed("late camera failure"))
+
+        XCTAssertEqual(interrupted, finishing)
+        XCTAssertEqual(failed, finishing)
+    }
 }
 
 @MainActor
 final class ScanCoordinatorSessionRestartTests: XCTestCase {
+    func testFinishingIgnoresSystemInterruptionAndPreservesFrozenEvidence() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        coordinator.stopRecording()
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        let finishing = coordinator.lifecycleSnapshot()
+        let evidenceGeneration = coordinator.evidenceGenerationSnapshot()
+
+        coordinator.handleSystemInterruption(.appBackgrounded)
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), finishing)
+        XCTAssertEqual(coordinator.evidenceGenerationSnapshot(), evidenceGeneration)
+        XCTAssertTrue(coordinator.acceptsCapturedEvidence(token))
+    }
+
+    func testRepeatedSystemInterruptionDoesNotInvalidateEvidenceTwice() {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+
+        coordinator.handleSystemInterruption(.appInactive)
+        let firstGeneration = coordinator.evidenceGenerationSnapshot()
+        coordinator.handleSystemInterruption(.appBackgrounded)
+
+        XCTAssertEqual(coordinator.evidenceGenerationSnapshot(), firstGeneration)
+        XCTAssertEqual(
+            coordinator.lifecycleSnapshot().state,
+            .systemInterrupted(.appInactive)
+        )
+    }
+
+    func testFinishingIgnoresLateSessionFailureAndPreservesFrozenEvidence() async throws {
+        let coordinator = ScanCoordinator()
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        coordinator.stopRecording()
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        let finishing = coordinator.lifecycleSnapshot()
+        let evidenceGeneration = coordinator.evidenceGenerationSnapshot()
+
+        coordinator.handleSessionFailure(ScanSessionTestError.camera)
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), finishing)
+        XCTAssertEqual(coordinator.evidenceGenerationSnapshot(), evidenceGeneration)
+        XCTAssertTrue(coordinator.acceptsCapturedEvidence(token))
+    }
+
     func testCameraUnauthorizedFailureRequiresCameraReadinessRecovery() {
         let coordinator = ScanCoordinator()
         _ = coordinator.scanLifecycle.startNewScan()
@@ -1185,6 +1244,75 @@ final class ScanCoordinatorSessionRestartTests: XCTestCase {
 
 @MainActor
 final class ScanCoordinatorARSessionIdentityTests: XCTestCase {
+    func testCurrentSessionInterruptionLinearizesBeforeDelegateReturns() {
+        let coordinator = ScanCoordinator()
+        let session = ARSession()
+        coordinator.session = session
+        coordinator.startRecording(selectedCategory: .apple)
+
+        coordinator.sessionWasInterrupted(session)
+
+        XCTAssertEqual(
+            coordinator.lifecycleSnapshot().state,
+            .systemInterrupted(.arSessionInterrupted)
+        )
+        XCTAssertFalse(coordinator.beginFinishingScan())
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+    }
+
+    func testCurrentSessionFailureLinearizesBeforeDelegateReturns() {
+        let coordinator = ScanCoordinator()
+        let session = ARSession()
+        coordinator.session = session
+        coordinator.startRecording(selectedCategory: .apple)
+
+        coordinator.session(session, didFailWithError: ScanSessionTestError.camera)
+
+        guard case .failed(.sessionFailed) = coordinator.lifecycleSnapshot().state else {
+            return XCTFail("Current-session failure must close capture synchronously")
+        }
+        XCTAssertFalse(coordinator.beginFinishingScan())
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+    }
+
+    func testFinishingIgnoresCurrentSessionInterruptionWithoutInvalidatingFrozenEvidence() async throws {
+        let coordinator = ScanCoordinator()
+        let session = ARSession()
+        coordinator.session = session
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        coordinator.stopRecording()
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        let finishing = coordinator.lifecycleSnapshot()
+        let evidenceGeneration = coordinator.evidenceGenerationSnapshot()
+
+        coordinator.sessionWasInterrupted(session)
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), finishing)
+        XCTAssertEqual(coordinator.evidenceGenerationSnapshot(), evidenceGeneration)
+        XCTAssertTrue(coordinator.acceptsCapturedEvidence(token))
+    }
+
+    func testFinishingIgnoresCurrentSessionFailureWithoutInvalidatingFrozenEvidence() async throws {
+        let coordinator = ScanCoordinator()
+        let session = ARSession()
+        coordinator.session = session
+        coordinator.startRecording(selectedCategory: .apple)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        coordinator.stopRecording()
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        let finishing = coordinator.lifecycleSnapshot()
+        let evidenceGeneration = coordinator.evidenceGenerationSnapshot()
+
+        coordinator.session(session, didFailWithError: ScanSessionTestError.camera)
+        await Task.yield()
+
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), finishing)
+        XCTAssertEqual(coordinator.evidenceGenerationSnapshot(), evidenceGeneration)
+        XCTAssertTrue(coordinator.acceptsCapturedEvidence(token))
+    }
+
     func testStaleSessionInterruptionCannotInvalidateReplacementScan() async throws {
         let coordinator = ScanCoordinator()
         let activeSession = ARSession()
