@@ -201,25 +201,19 @@ final class ScanResultExportService: @unchecked Sendable {
         manifestURL: URL
     ) throws -> ExportedFiles? {
         let sourceURL = scansDirectory.appendingPathComponent(request.sourceFilename)
-        let sourceExists = fileManager.fileExists(atPath: sourceURL.path)
+        guard fileManager.fileExists(atPath: sourceURL.path),
+              PLYParserHelper.hasValidPointCloudHeader(at: sourceURL) else {
+            throw SourcePointCloudError.invalidOrChanged
+        }
         if let previousManifest = try? Data(contentsOf: manifestURL),
            let payload = try? JSONSerialization.jsonObject(with: previousManifest) as? [String: Any],
            payload["schemaVersion"] as? Int == 3 {
             guard let previousDigest = payload["sourcePLYSHA256"] as? String,
-                  sourceExists,
                   (try? ScanCompanionIntegrity.digestFile(at: sourceURL)) == previousDigest else {
                 throw SourcePointCloudError.invalidOrChanged
             }
         }
-        let sourceDigest: String?
-        if sourceExists {
-            guard PLYParserHelper.hasValidPointCloudHeader(at: sourceURL) else {
-                throw SourcePointCloudError.invalidOrChanged
-            }
-            sourceDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
-        } else {
-            sourceDigest = nil
-        }
+        let sourceDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
         let revision: String
         do {
             let unsignedMetadata = try makeMetadataData(
@@ -245,18 +239,16 @@ final class ScanResultExportService: @unchecked Sendable {
             ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
             : [metadataURL.lastPathComponent]
         var manifestPayload: [String: Any] = [
-            "schemaVersion": sourceDigest == nil ? 1 : 3,
+            "schemaVersion": 3,
             "scanID": baseName,
             "exportRevision": revision,
             "requiredFiles": requiredFiles
         ]
-        if let sourceDigest {
-            var digests = [metadataURL.lastPathComponent: ScanCompanionIntegrity.digest(metadataData)]
-            if let csvData { digests[csvURL.lastPathComponent] = ScanCompanionIntegrity.digest(csvData) }
-            manifestPayload["fileSHA256"] = digests
-            manifestPayload["sourcePLYFilename"] = request.sourceFilename
-            manifestPayload["sourcePLYSHA256"] = sourceDigest
-        }
+        var digests = [metadataURL.lastPathComponent: ScanCompanionIntegrity.digest(metadataData)]
+        if let csvData { digests[csvURL.lastPathComponent] = ScanCompanionIntegrity.digest(csvData) }
+        manifestPayload["fileSHA256"] = digests
+        manifestPayload["sourcePLYFilename"] = request.sourceFilename
+        manifestPayload["sourcePLYSHA256"] = sourceDigest
         let manifestData = try JSONSerialization.data(withJSONObject: manifestPayload, options: [.prettyPrinted, .sortedKeys])
         try Task.checkCancellation()
         let stagingDirectory = scansDirectory.appendingPathComponent(
