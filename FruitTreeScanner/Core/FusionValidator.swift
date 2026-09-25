@@ -75,47 +75,60 @@ final class FusionValidator: Sendable {
         candidates: [FruitCandidate],
         projectionContext: (DetectedFruit) -> FusionProjectionContext?
     ) -> [ValidatedFruit] {
-        // 每个点云候选最多匹配一次，防止多个 2D 框重复计算同一果实。
         let projectionService = DepthProjectionService(validator: self)
         let candidateMatcher = CandidateMatcher(validator: self)
         let decisionPolicy = FusionDecisionPolicy()
-        var validatedFruits: [ValidatedFruit] = []
-        var usedCandidateIDs = Set<UUID>()
-
+        var seenCandidateIDs = Set<UUID>()
+        let matchingCandidates = candidates.filter { seenCandidateIDs.insert($0.id).inserted }
+        var projections: [(detection: DetectedFruit, context: FusionProjectionContext, result: DepthProjectionResult)] = []
+        projections.reserveCapacity(detections.count)
         for detection in detections {
             guard let context = projectionContext(detection) else { continue }
+            projections.append((detection, context, projectionService.project(detection: detection, context: context)))
+        }
 
-            let projection = projectionService.project(
-                detection: detection,
-                context: context
-            )
-
-            let availableCandidates = candidates.filter { !usedCandidateIDs.contains($0.id) }
-            let matchedCandidate = candidateMatcher.nearestCandidate(
-                position: projection.depthProjectedPosition,
-                candidates: availableCandidates,
-                detection: detection,
-                context: context
-            )
+        var options: [FusionAssignment.Option] = []
+        for (detectionIndex, item) in projections.enumerated() {
+            guard let position = item.result.depthProjectedPosition else { continue }
+            for (candidateIndex, candidate) in matchingCandidates.enumerated() {
+                guard let score = matchScore(
+                    position: position,
+                    candidate: candidate,
+                    detection: item.detection,
+                    cameraIntrinsics: item.context.cameraIntrinsics,
+                    cameraTransform: item.context.cameraTransform,
+                    imageSize: item.context.imageSize
+                ) else { continue }
+                options.append(.init(detectionIndex: detectionIndex, candidateIndex: candidateIndex, score: score))
+            }
+        }
+        let assignments = FusionAssignment.match(
+            detectionCount: projections.count,
+            candidateCount: matchingCandidates.count,
+            options: options
+        )
+        var validatedFruits: [ValidatedFruit] = []
+        for (detectionIndex, item) in projections.enumerated() {
+            let detection = item.detection
+            let matchedCandidate = assignments[detectionIndex].map { matchingCandidates[$0] }
             // 被深度规则否决的候选不能通过图像回退重新升级为 fused。
-            let rejectedByDepthCandidate = projection.depthProjectedPosition.map { depthProjectedPosition in
+            let rejectedByDepthCandidate = item.result.depthProjectedPosition.map { depthProjectedPosition in
                 candidateMatcher.hasRejectedDetectionDepthCandidate(
                     near: depthProjectedPosition,
-                    candidates: availableCandidates,
+                    candidates: candidates,
                     detection: detection,
-                    context: context
+                    context: item.context
                 )
             } ?? false
 
             switch decisionPolicy.decide(
                 detection: detection,
-                projectedPosition: projection.projectedPosition,
+                projectedPosition: item.result.projectedPosition,
                 matchedCandidate: matchedCandidate,
                 rejectedByDepthCandidate: rejectedByDepthCandidate
             ) {
             case let .fused(candidate):
                 // 只有决策策略明确返回 fused 的证据才进入可靠产量链路。
-                usedCandidateIDs.insert(candidate.id)
                 let validatedFruit = ValidatedFruit(
                     category: detection.category,
                     position: candidate.position,

@@ -929,6 +929,60 @@ final class FusionValidatorTests: XCTestCase {
 
     // MARK: - B.5 multi-detection/candidate matching
 
+    func testAssignmentMaximizesFusedCountBeforeMatchScore() {
+        let options: [FusionAssignment.Option] = [
+            .init(detectionIndex: 0, candidateIndex: 0, score: 0),
+            .init(detectionIndex: 0, candidateIndex: 1, score: 0.1),
+            .init(detectionIndex: 1, candidateIndex: 0, score: 0.02)
+        ]
+        XCTAssertEqual(FusionAssignment.match(detectionCount: 2, candidateCount: 2, options: options), [0: 1, 1: 0])
+    }
+
+    func testAssignmentMinimizesTotalScoreAtEqualCardinality() {
+        let options: [FusionAssignment.Option] = [
+            .init(detectionIndex: 0, candidateIndex: 0, score: 0.01),
+            .init(detectionIndex: 0, candidateIndex: 1, score: 0.02),
+            .init(detectionIndex: 1, candidateIndex: 0, score: 0.02),
+            .init(detectionIndex: 1, candidateIndex: 1, score: 0.10)
+        ]
+        XCTAssertEqual(FusionAssignment.match(detectionCount: 2, candidateCount: 2, options: options), [0: 1, 1: 0])
+    }
+
+    func testAssignmentKeepsSparseGraphBounded() {
+        let options: [FusionAssignment.Option] = [
+            .init(detectionIndex: 0, candidateIndex: 10, score: 0.01),
+            .init(detectionIndex: 9_999, candidateIndex: 9_999, score: 0.02)
+        ]
+        XCTAssertEqual(FusionAssignment.match(detectionCount: 10_000, candidateCount: 10_000, options: options),
+                       [0: 10, 9_999: 9_999])
+    }
+
+    func testAmbiguousFirstDetectionDoesNotConsumeOnlyCandidateForSecond() throws {
+        let depth = try XCTUnwrap(makeDepthMap(width: 256, height: 192, fillValue: 2))
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let cameraFacingPositiveZ = simd_float4x4(
+            SIMD4<Float>(1, 0, 0, 0), SIMD4<Float>(0, -1, 0, 0),
+            SIMD4<Float>(0, 0, -1, 0), SIMD4<Float>(0, 0, 0, 1))
+        let detections = [0.5, 0.52].map { centerX in
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: centerX - 0.005, y: 0.495, width: 0.01, height: 0.01),
+                confidence: 0.95,
+                cameraTransform: cameraFacingPositiveZ,
+                cameraIntrinsics: intrinsics,
+                imageSize: imageSize,
+                depthMap: depth
+            )
+        }
+        let sharedCandidate = appleCandidate(at: SIMD3<Float>(0.04, 0, -2))
+        let firstOnlyCandidate = appleCandidate(at: SIMD3<Float>(-0.10, 0, -2))
+        let result = FusionValidator().validate(detections: detections, candidates: [sharedCandidate, firstOnlyCandidate])
+        XCTAssertEqual(result.filter { $0.source == .fused }.count, 2)
+        XCTAssertEqual(result[0].position, firstOnlyCandidate.position)
+        XCTAssertEqual(result[1].position, sharedCandidate.position)
+    }
+
     func testValidateMatchesDetectionsToNearestCandidate() {
         let validator = FusionValidator(config: .default)
         let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0)
