@@ -69,6 +69,7 @@ final class ScanHistoryStore: ObservableObject {
                         fruitType: result.fruitType,
                         confidence: result.confidence,
                         fileSizeBytes: fileSizeBytes,
+                        requiresSourceValidation: true,
                         persistenceState: result.persistenceState,
                         persistenceFailureReason: result.persistenceFailureReason
                     )
@@ -162,10 +163,11 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
     let fruitType: String
     let confidence: String
     let fileSizeBytes: Int
+    let requiresSourceValidation: Bool
     let persistenceState: ScanPersistenceState
     let persistenceFailureReason: String?
 
-    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "", confidence: String = "", fileSizeBytes: Int = 0, persistenceState: ScanPersistenceState = .complete, persistenceFailureReason: String? = nil) {
+    init(id: String, treeID: String, fileURL: URL, scanDate: Date, fruitCount: Int = 0, yieldKg: Float = 0, gpsLat: Double = 0, gpsLon: Double = 0, fruitType: String = "", confidence: String = "", fileSizeBytes: Int = 0, requiresSourceValidation: Bool = false, persistenceState: ScanPersistenceState = .complete, persistenceFailureReason: String? = nil) {
         self.id = id
         self.treeID = treeID
         self.fileURL = fileURL
@@ -177,6 +179,7 @@ struct ScanFileRecord: Identifiable, Equatable, Sendable {
         self.fruitType = fruitType
         self.confidence = confidence
         self.fileSizeBytes = fileSizeBytes
+        self.requiresSourceValidation = requiresSourceValidation
         self.persistenceState = persistenceState
         self.persistenceFailureReason = persistenceFailureReason
     }

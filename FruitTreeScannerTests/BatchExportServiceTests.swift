@@ -58,6 +58,66 @@ final class BatchExportServiceTests: XCTestCase {
         }
     }
 
+    func testEveryBatchFormatRejectsStaleOrCorruptCompanions() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-001", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply",
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25), includeCSV: true
+        )
+        let files = try XCTUnwrap(ScanResultExportService(scansDirectory: directory).exportIfNeeded(request))
+        let matching = makeRecord(fruitCount: 7, yieldKg: 1.25, fileURL: directory.appendingPathComponent("scan.ply"))
+        let stale = makeRecord(fruitCount: 8, yieldKg: 1.25, fileURL: matching.fileURL)
+        for format in BatchExportService.ExportFormat.allCases {
+            let valid = try await BatchExportService.shared.export(records: [matching], format: format, options: .init())
+            try FileManager.default.removeItem(at: valid.url)
+            do {
+                _ = try await BatchExportService.shared.export(records: [stale], format: format, options: .init())
+                XCTFail("\(format) must reject a stale history row")
+            } catch BatchExportError.inconsistentRecord {
+            }
+        }
+        try Data("corrupt".utf8).write(to: try XCTUnwrap(files.csvURL))
+        for format in BatchExportService.ExportFormat.allCases {
+            do {
+                _ = try await BatchExportService.shared.export(records: [matching], format: format, options: .init())
+                XCTFail("\(format) must reject invalid sidecars")
+            } catch BatchExportError.inconsistentRecord {
+            }
+        }
+    }
+
+    func testBatchExportRejectsSourceDeletedAfterHistorySelection() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        let header = "ply\nformat ascii 1.0\ncomment tree_id T-001\ncomment scan_date 1970-01-01T00:00:01Z\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n"
+        try Data(header.utf8).write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-001", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply",
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25), includeCSV: true
+        )
+        _ = try ScanResultExportService(scansDirectory: directory).exportIfNeeded(request)
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+        let selected = ScanFileRecord(
+            id: "scan.ply", treeID: parsed.treeID, fileURL: plyURL, scanDate: parsed.scanDate,
+            fruitCount: parsed.fruitCount, yieldKg: parsed.yieldKg, gpsLat: parsed.gpsLat,
+            gpsLon: parsed.gpsLon, fruitType: parsed.fruitType, confidence: parsed.confidence,
+            fileSizeBytes: Data(header.utf8).count, requiresSourceValidation: true
+        )
+        try FileManager.default.removeItem(at: plyURL)
+        for format in BatchExportService.ExportFormat.allCases {
+            do {
+                _ = try await BatchExportService.shared.export(records: [selected], format: format, options: .init())
+                XCTFail("\(format) must reject a missing selected source")
+            } catch BatchExportError.inconsistentRecord {
+            }
+        }
+    }
+
     private func makeRecord(
         id: String = "scan_001.ply",
         treeID: String = "T-001",
@@ -341,6 +401,10 @@ final class BatchExportServiceTests: XCTestCase {
             payload: [
                 "scanID": "scan-A",
                 "sourceFilename": "scan-A.ply",
+                "treeID": "T-A",
+                "fruitCount": 12,
+                "yieldKg": 3.45,
+                "fruitType": "apple",
                 "validatedFruits": [
                     [
                         "id": "fruit-fused",
@@ -1158,8 +1222,8 @@ final class BatchExportServiceTests: XCTestCase {
 
         let csv = try String(contentsOf: csvURL, encoding: .utf8)
         XCTAssertTrue(csv.contains(",0,0.00,"))
-        XCTAssertFalse(csv.contains("-9"))
-        XCTAssertFalse(csv.contains("-2.50"))
+        XCTAssertFalse(csv.contains(",-9,"))
+        XCTAssertFalse(csv.contains(",-2.50,"))
 
         let metadataURL = try XCTUnwrap(exported.metadataURL)
         let data = try Data(contentsOf: metadataURL)
