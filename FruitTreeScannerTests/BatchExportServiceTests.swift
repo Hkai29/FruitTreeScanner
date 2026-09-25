@@ -22,12 +22,42 @@ final class BatchExportServiceTests: XCTestCase {
         }
     }
 
+    private var minimalPointCloud: Data {
+        Data("ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n".utf8)
+    }
+
+    func testPointCloudDigestDetectsCorruptionAndBlocksResave() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try minimalPointCloud.write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let files = try XCTUnwrap(service.exportIfNeeded(request))
+        let manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: XCTUnwrap(files.manifestURL))) as? [String: Any])
+        XCTAssertEqual(manifest["schemaVersion"] as? Int, 3)
+        XCTAssertEqual(manifest["sourcePLYFilename"] as? String, "scan.ply")
+        XCTAssertEqual(manifest["sourcePLYSHA256"] as? String, try ScanCompanionIntegrity.digestFile(at: plyURL))
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: plyURL).state, .complete)
+
+        try minimalPointCloud.dropLast().write(to: plyURL)
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: plyURL).state, .invalid)
+        XCTAssertEqual(PLYParserHelper.parsePLYFile(at: plyURL)?.persistenceState, .invalid)
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) { error in
+            XCTAssertTrue(error is ScanResultExportService.SourcePointCloudError)
+        }
+    }
+
     func testDiscardRemovesPointCloudAndCompanionsAndRejectsLateSave() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let plyURL = directory.appendingPathComponent("scan.ply")
-        try Data("ply\n".utf8).write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
@@ -50,7 +80,7 @@ final class BatchExportServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let plyURL = directory.appendingPathComponent("scan.ply")
-        try Data("ply\n".utf8).write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
@@ -1870,7 +1900,7 @@ final class BatchExportServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceFilename = "scan.ply"
         let plyURL = directory.appendingPathComponent(sourceFilename)
-        try Data().write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
 
         let original = ScanResultExportService.ExportRequest(
             treeID: "T-old", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
@@ -1919,7 +1949,7 @@ final class BatchExportServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceFilename = "scan.ply"
         let plyURL = directory.appendingPathComponent(sourceFilename)
-        try Data().write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
         let original = ScanResultExportService.ExportRequest(
             treeID: "T-old", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename,
@@ -2027,7 +2057,7 @@ final class BatchExportServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceFilename = "scan.ply"
         let plyURL = directory.appendingPathComponent(sourceFilename)
-        try Data().write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename, result: makeYieldResult(), includeCSV: true

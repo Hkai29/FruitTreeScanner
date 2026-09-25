@@ -74,7 +74,7 @@ extension PLYParserHelper {
     }
 
     private static func readTransactionalCompanions(
-        urls: (metadata: URL, csv: URL, manifest: URL)
+        urls: (metadata: URL, csv: URL, manifest: URL, ply: URL)
     ) -> CompanionReadResult {
         guard let payload = readTransactionalMetadataPayload(urls: urls),
               let metadata = companionMetadata(from: payload)
@@ -85,7 +85,7 @@ extension PLYParserHelper {
     }
 
     private static func readTransactionalMetadataPayload(
-        urls: (metadata: URL, csv: URL, manifest: URL)
+        urls: (metadata: URL, csv: URL, manifest: URL, ply: URL)
     ) -> [String: Any]? {
         guard let metadata = readMetadataPayload(at: urls.metadata),
               let manifestData = readBoundedCompanionData(
@@ -93,10 +93,13 @@ extension PLYParserHelper {
                   maximumByteCount: maximumCompanionManifestByteCount
               ),
               let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
-              manifest["schemaVersion"] as? Int == 1,
+              let schemaVersion = manifest["schemaVersion"] as? Int,
+              (1...3).contains(schemaVersion),
               let revision = manifest["exportRevision"] as? String,
               !revision.isEmpty,
               let requiredFiles = manifest["requiredFiles"] as? [String],
+              requiredFiles.count == Set(requiredFiles).count,
+              Set(requiredFiles).isSubset(of: [urls.metadata.lastPathComponent, urls.csv.lastPathComponent]),
               requiredFiles.contains(urls.metadata.lastPathComponent),
               metadata["exportRevision"] as? String == revision,
               companionMetadata(from: metadata) != nil
@@ -107,16 +110,35 @@ extension PLYParserHelper {
                 return nil
             }
         }
+        if schemaVersion >= 2 {
+            var fileURLs = [urls.metadata]
+            if requiredFiles.contains(urls.csv.lastPathComponent) { fileURLs.append(urls.csv) }
+            guard let digests = manifest["fileSHA256"] as? [String: String],
+                  Set(digests.keys) == Set(requiredFiles),
+                  fileURLs.allSatisfy({ url in
+                      let limit = url == urls.metadata
+                          ? maximumCompanionMetadataByteCount : maximumCompanionCSVByteCount
+                      guard let data = readBoundedCompanionData(at: url, maximumByteCount: limit) else { return false }
+                      return digests[url.lastPathComponent] == ScanCompanionIntegrity.digest(data)
+                  }) else { return nil }
+        }
+        if schemaVersion == 3 {
+            guard manifest["sourcePLYFilename"] as? String == urls.ply.lastPathComponent,
+                  let expectedDigest = manifest["sourcePLYSHA256"] as? String,
+                  hasValidPointCloudHeader(at: urls.ply),
+                  (try? ScanCompanionIntegrity.digestFile(at: urls.ply)) == expectedDigest else { return nil }
+        }
         return metadata
     }
 
-    private static func companionURLs(for plyURL: URL) -> (metadata: URL, csv: URL, manifest: URL) {
+    private static func companionURLs(for plyURL: URL) -> (metadata: URL, csv: URL, manifest: URL, ply: URL) {
         let directory = plyURL.deletingLastPathComponent()
         let baseName = plyURL.deletingPathExtension().lastPathComponent
         return (
             directory.appendingPathComponent("\(baseName)_result.json"),
             directory.appendingPathComponent("\(baseName).csv"),
-            directory.appendingPathComponent("\(baseName)_complete.json")
+            directory.appendingPathComponent("\(baseName)_complete.json"),
+            plyURL
         )
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import os
 
 private final class ScanResultExportCoordinator: @unchecked Sendable {
@@ -57,6 +58,23 @@ private final class ScanResultExportCoordinator: @unchecked Sendable {
     }
 }
 
+enum ScanCompanionIntegrity {
+    static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func digestFile(at url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 256 * 1_024), !chunk.isEmpty {
+            try Task.checkCancellation()
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+}
+
 final class ScanResultExportService: @unchecked Sendable {
     static let shared = ScanResultExportService()
     private static let transactionCoordinator = ScanResultExportCoordinator()
@@ -76,6 +94,14 @@ final class ScanResultExportService: @unchecked Sendable {
         let csvURL: URL?
         let metadataURL: URL?
         let manifestURL: URL?
+    }
+
+    enum SourcePointCloudError: LocalizedError {
+        case invalidOrChanged
+
+        var errorDescription: String? {
+            "点云文件缺失、损坏或保存后发生变化，不能将当前结果标记为完整。"
+        }
     }
 
     private let fileManager: FileManager
@@ -174,6 +200,26 @@ final class ScanResultExportService: @unchecked Sendable {
         metadataURL: URL,
         manifestURL: URL
     ) throws -> ExportedFiles? {
+        let sourceURL = scansDirectory.appendingPathComponent(request.sourceFilename)
+        let sourceExists = fileManager.fileExists(atPath: sourceURL.path)
+        if let previousManifest = try? Data(contentsOf: manifestURL),
+           let payload = try? JSONSerialization.jsonObject(with: previousManifest) as? [String: Any],
+           payload["schemaVersion"] as? Int == 3 {
+            guard let previousDigest = payload["sourcePLYSHA256"] as? String,
+                  sourceExists,
+                  (try? ScanCompanionIntegrity.digestFile(at: sourceURL)) == previousDigest else {
+                throw SourcePointCloudError.invalidOrChanged
+            }
+        }
+        let sourceDigest: String?
+        if sourceExists {
+            guard PLYParserHelper.hasValidPointCloudHeader(at: sourceURL) else {
+                throw SourcePointCloudError.invalidOrChanged
+            }
+            sourceDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
+        } else {
+            sourceDigest = nil
+        }
         let revision: String
         do {
             let unsignedMetadata = try makeMetadataData(
@@ -198,12 +244,20 @@ final class ScanResultExportService: @unchecked Sendable {
         let requiredFiles = request.includeCSV
             ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
             : [metadataURL.lastPathComponent]
-        let manifestData = try JSONSerialization.data(withJSONObject: [
-            "schemaVersion": 1,
+        var manifestPayload: [String: Any] = [
+            "schemaVersion": sourceDigest == nil ? 1 : 3,
             "scanID": baseName,
             "exportRevision": revision,
             "requiredFiles": requiredFiles
-        ], options: [.prettyPrinted, .sortedKeys])
+        ]
+        if let sourceDigest {
+            var digests = [metadataURL.lastPathComponent: ScanCompanionIntegrity.digest(metadataData)]
+            if let csvData { digests[csvURL.lastPathComponent] = ScanCompanionIntegrity.digest(csvData) }
+            manifestPayload["fileSHA256"] = digests
+            manifestPayload["sourcePLYFilename"] = request.sourceFilename
+            manifestPayload["sourcePLYSHA256"] = sourceDigest
+        }
+        let manifestData = try JSONSerialization.data(withJSONObject: manifestPayload, options: [.prettyPrinted, .sortedKeys])
         try Task.checkCancellation()
         let stagingDirectory = scansDirectory.appendingPathComponent(
             ".\(baseName).\(revision).staging",
