@@ -112,44 +112,36 @@ final class ScanResultExportService: @unchecked Sendable {
         let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
         let manifestURL = scansDir.appendingPathComponent("\(baseName)_complete.json")
         let sourceURL = scansDir.appendingPathComponent(request.sourceFilename)
-        let sourceExists = fileManager.fileExists(atPath: sourceURL.path)
+        guard fileManager.fileExists(atPath: sourceURL.path),
+              PLYParserHelper.hasValidPointCloudHeader(at: sourceURL) else {
+            throw SourcePointCloudError.invalidOrChanged
+        }
         if let previousManifest = try? Data(contentsOf: manifestURL),
            let payload = try? JSONSerialization.jsonObject(with: previousManifest) as? [String: Any],
            payload["schemaVersion"] as? Int == 3 {
             guard let previousDigest = payload["sourcePLYSHA256"] as? String,
-                  sourceExists,
                   (try? ScanCompanionIntegrity.digestFile(at: sourceURL)) == previousDigest else {
                 throw SourcePointCloudError.invalidOrChanged
             }
         }
-        let sourceDigest: String?
-        if sourceExists {
-            guard PLYParserHelper.hasValidPointCloudHeader(at: sourceURL) else {
-                throw SourcePointCloudError.invalidOrChanged
-            }
-            sourceDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
-        } else {
-            sourceDigest = nil
-        }
+        let sourceDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
         let unsignedMetadata = try makeMetadataData(for: request, baseName: baseName, revision: "")
         let revision = transactionRevision(for: unsignedMetadata, includeCSV: request.includeCSV)
         let metadataData = try makeMetadataData(for: request, baseName: baseName, revision: revision)
         let csvData = request.includeCSV ? Data(makeCSVContent(for: request, revision: revision).utf8) : nil
         var manifestPayload: [String: Any] = [
-            "schemaVersion": sourceDigest == nil ? 1 : 3,
+            "schemaVersion": 3,
             "scanID": baseName,
             "exportRevision": revision,
             "requiredFiles": request.includeCSV
                 ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
                 : [metadataURL.lastPathComponent]
         ]
-        if let sourceDigest {
-            var digests = [metadataURL.lastPathComponent: ScanCompanionIntegrity.digest(metadataData)]
-            if let csvData { digests[csvURL.lastPathComponent] = ScanCompanionIntegrity.digest(csvData) }
-            manifestPayload["fileSHA256"] = digests
-            manifestPayload["sourcePLYFilename"] = request.sourceFilename
-            manifestPayload["sourcePLYSHA256"] = sourceDigest
-        }
+        var digests = [metadataURL.lastPathComponent: ScanCompanionIntegrity.digest(metadataData)]
+        if let csvData { digests[csvURL.lastPathComponent] = ScanCompanionIntegrity.digest(csvData) }
+        manifestPayload["fileSHA256"] = digests
+        manifestPayload["sourcePLYFilename"] = request.sourceFilename
+        manifestPayload["sourcePLYSHA256"] = sourceDigest
         let manifestData = try JSONSerialization.data(withJSONObject: manifestPayload, options: [.prettyPrinted, .sortedKeys])
 
         if isCommittedTransaction(
