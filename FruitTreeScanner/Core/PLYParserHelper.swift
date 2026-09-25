@@ -86,6 +86,17 @@ enum PLYParserHelper {
         }
     }
 
+    static func hasValidPointCloudHeader(at url: URL) -> Bool {
+        guard let prefix = readPointCloudHeaderPrefix(at: url),
+              let end = headerEndRange(in: prefix),
+              end.upperBound <= maximumHeaderSize,
+              let header = String(data: prefix[prefix.startIndex..<end.lowerBound], encoding: .utf8)
+        else { return false }
+        let lines = header.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        return parsePointCloudHeader(lines) != nil
+    }
+
     static func headerEndRange(in data: Data) -> Range<Data.Index>? {
         data.range(of: Data("\nend_header\r\n".utf8))
             ?? data.range(of: Data("\nend_header\n".utf8))

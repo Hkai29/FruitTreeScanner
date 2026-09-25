@@ -1,5 +1,23 @@
 import Foundation
+import CryptoKit
 import os
+
+enum ScanCompanionIntegrity {
+    static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func digestFile(at url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 256 * 1_024), !chunk.isEmpty {
+            try Task.checkCancellation()
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+}
 
 final class ScanResultExportService: @unchecked Sendable {
     static let shared = ScanResultExportService()
@@ -19,6 +37,14 @@ final class ScanResultExportService: @unchecked Sendable {
         let csvURL: URL?
         let metadataURL: URL?
         let manifestURL: URL?
+    }
+
+    enum SourcePointCloudError: LocalizedError {
+        case invalidOrChanged
+
+        var errorDescription: String? {
+            "点云文件缺失、损坏或保存后发生变化，不能将当前结果标记为完整。"
+        }
     }
 
     private let fileManager: FileManager
@@ -85,15 +111,54 @@ final class ScanResultExportService: @unchecked Sendable {
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
         let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
         let manifestURL = scansDir.appendingPathComponent("\(baseName)_complete.json")
+        let sourceURL = scansDir.appendingPathComponent(request.sourceFilename)
+        let sourceExists = fileManager.fileExists(atPath: sourceURL.path)
+        if let previousManifest = try? Data(contentsOf: manifestURL),
+           let payload = try? JSONSerialization.jsonObject(with: previousManifest) as? [String: Any],
+           payload["schemaVersion"] as? Int == 3 {
+            guard let previousDigest = payload["sourcePLYSHA256"] as? String,
+                  sourceExists,
+                  (try? ScanCompanionIntegrity.digestFile(at: sourceURL)) == previousDigest else {
+                throw SourcePointCloudError.invalidOrChanged
+            }
+        }
+        let sourceDigest: String?
+        if sourceExists {
+            guard PLYParserHelper.hasValidPointCloudHeader(at: sourceURL) else {
+                throw SourcePointCloudError.invalidOrChanged
+            }
+            sourceDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
+        } else {
+            sourceDigest = nil
+        }
         let unsignedMetadata = try makeMetadataData(for: request, baseName: baseName, revision: "")
         let revision = transactionRevision(for: unsignedMetadata, includeCSV: request.includeCSV)
+        let metadataData = try makeMetadataData(for: request, baseName: baseName, revision: revision)
+        let csvData = request.includeCSV ? Data(makeCSVContent(for: request, revision: revision).utf8) : nil
+        var manifestPayload: [String: Any] = [
+            "schemaVersion": sourceDigest == nil ? 1 : 3,
+            "scanID": baseName,
+            "exportRevision": revision,
+            "requiredFiles": request.includeCSV
+                ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
+                : [metadataURL.lastPathComponent]
+        ]
+        if let sourceDigest {
+            var digests = [metadataURL.lastPathComponent: ScanCompanionIntegrity.digest(metadataData)]
+            if let csvData { digests[csvURL.lastPathComponent] = ScanCompanionIntegrity.digest(csvData) }
+            manifestPayload["fileSHA256"] = digests
+            manifestPayload["sourcePLYFilename"] = request.sourceFilename
+            manifestPayload["sourcePLYSHA256"] = sourceDigest
+        }
+        let manifestData = try JSONSerialization.data(withJSONObject: manifestPayload, options: [.prettyPrinted, .sortedKeys])
 
         if isCommittedTransaction(
             metadataURL: metadataURL,
             csvURL: csvURL,
             manifestURL: manifestURL,
-            revision: revision,
-            includeCSV: request.includeCSV
+            metadataData: metadataData,
+            csvData: csvData,
+            manifestData: manifestData
         ) {
             return ExportedFiles(
                 csvURL: request.includeCSV ? csvURL : nil,
@@ -113,20 +178,10 @@ final class ScanResultExportService: @unchecked Sendable {
         let stagedCSV = stagingDirectory.appendingPathComponent(csvURL.lastPathComponent)
         let stagedManifest = stagingDirectory.appendingPathComponent(manifestURL.lastPathComponent)
 
-        try writeData(try makeMetadataData(for: request, baseName: baseName, revision: revision), stagedMetadata)
-        if request.includeCSV {
-            try writeData(Data(makeCSVContent(for: request, revision: revision).utf8), stagedCSV)
+        try writeData(metadataData, stagedMetadata)
+        if let csvData {
+            try writeData(csvData, stagedCSV)
         }
-
-        let requiredFiles = request.includeCSV
-            ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
-            : [metadataURL.lastPathComponent]
-        let manifestData = try JSONSerialization.data(withJSONObject: [
-            "schemaVersion": 1,
-            "scanID": baseName,
-            "exportRevision": revision,
-            "requiredFiles": requiredFiles
-        ], options: [.prettyPrinted, .sortedKeys])
         try writeData(manifestData, stagedManifest)
         try Task.checkCancellation()
         try publishTransaction(
@@ -320,27 +375,14 @@ final class ScanResultExportService: @unchecked Sendable {
         metadataURL: URL,
         csvURL: URL,
         manifestURL: URL,
-        revision: String,
-        includeCSV: Bool
+        metadataData: Data,
+        csvData: Data?,
+        manifestData: Data
     ) -> Bool {
-        guard let manifestData = try? Data(contentsOf: manifestURL),
-              let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
-              manifest["exportRevision"] as? String == revision,
-              let requiredFiles = manifest["requiredFiles"] as? [String],
-              requiredFiles.contains(metadataURL.lastPathComponent),
-              requiredFiles.contains(csvURL.lastPathComponent) == includeCSV,
-              let metadataData = try? Data(contentsOf: metadataURL),
-              let metadata = try? JSONSerialization.jsonObject(with: metadataData) as? [String: Any],
-              metadata["exportRevision"] as? String == revision
-        else { return false }
-
-        guard includeCSV,
-              let csv = try? String(contentsOf: csvURL, encoding: .utf8)
-        else { return !includeCSV }
-        let rows = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        guard let header = rows.first,
-              let row = rows.dropFirst().first else { return false }
-        return header.hasSuffix("ExportRevision") && row.hasSuffix(",\(revision)")
+        guard (try? Data(contentsOf: manifestURL)) == manifestData,
+              (try? Data(contentsOf: metadataURL)) == metadataData else { return false }
+        if let csvData { return (try? Data(contentsOf: csvURL)) == csvData }
+        return !fileManager.fileExists(atPath: csvURL.path)
     }
 
     private func publishTransaction(

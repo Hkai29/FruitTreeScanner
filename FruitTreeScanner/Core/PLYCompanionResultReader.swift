@@ -26,12 +26,18 @@ extension PLYParserHelper {
         let jsonExists = FileManager.default.fileExists(atPath: urls.metadata.path)
         let csvExists = FileManager.default.fileExists(atPath: urls.csv.path)
         if let metadata = readCompanionMetadata(at: urls.metadata) {
+            guard metadata.revision == nil else {
+                return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultRevisionMismatch")
+            }
             return CompanionReadResult(state: .complete, result: metadata.result, failureReason: nil)
         }
         if jsonExists {
             return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultJSONFailed")
         }
         if let csv = readCompanionCSV(at: urls.csv) {
+            guard csv.revision == nil else {
+                return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultRevisionMismatch")
+            }
             return CompanionReadResult(state: .complete, result: csv.result, failureReason: nil)
         }
         if csvExists {
@@ -49,14 +55,17 @@ extension PLYParserHelper {
     }
 
     private static func readTransactionalCompanions(
-        urls: (metadata: URL, csv: URL, manifest: URL)
+        urls: (metadata: URL, csv: URL, manifest: URL, ply: URL)
     ) -> CompanionReadResult {
         guard let manifestData = try? Data(contentsOf: urls.manifest),
               let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
-              manifest["schemaVersion"] as? Int == 1,
+              let schemaVersion = manifest["schemaVersion"] as? Int,
+              (1...3).contains(schemaVersion),
               let revision = manifest["exportRevision"] as? String,
               !revision.isEmpty,
               let requiredFiles = manifest["requiredFiles"] as? [String],
+              requiredFiles.count == Set(requiredFiles).count,
+              Set(requiredFiles).isSubset(of: [urls.metadata.lastPathComponent, urls.csv.lastPathComponent]),
               requiredFiles.contains(urls.metadata.lastPathComponent),
               let metadata = readCompanionMetadata(at: urls.metadata),
               metadata.revision == revision
@@ -69,16 +78,37 @@ extension PLYParserHelper {
                 return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultRevisionMismatch")
             }
         }
+        if schemaVersion >= 2 {
+            var fileURLs = [urls.metadata]
+            if requiredFiles.contains(urls.csv.lastPathComponent) { fileURLs.append(urls.csv) }
+            guard let digests = manifest["fileSHA256"] as? [String: String],
+                  Set(digests.keys) == Set(requiredFiles),
+                  fileURLs.allSatisfy({ url in
+                      guard let data = try? Data(contentsOf: url) else { return false }
+                      return digests[url.lastPathComponent] == ScanCompanionIntegrity.digest(data)
+                  }) else {
+                return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanResultContentMismatch")
+            }
+        }
+        if schemaVersion == 3 {
+            guard manifest["sourcePLYFilename"] as? String == urls.ply.lastPathComponent,
+                  let expectedDigest = manifest["sourcePLYSHA256"] as? String,
+                  hasValidPointCloudHeader(at: urls.ply),
+                  (try? ScanCompanionIntegrity.digestFile(at: urls.ply)) == expectedDigest else {
+                return CompanionReadResult(state: .invalid, result: nil, failureReason: "scanPointCloudContentMismatch")
+            }
+        }
         return CompanionReadResult(state: .complete, result: metadata.result, failureReason: nil)
     }
 
-    private static func companionURLs(for plyURL: URL) -> (metadata: URL, csv: URL, manifest: URL) {
+    private static func companionURLs(for plyURL: URL) -> (metadata: URL, csv: URL, manifest: URL, ply: URL) {
         let directory = plyURL.deletingLastPathComponent()
         let baseName = plyURL.deletingPathExtension().lastPathComponent
         return (
             directory.appendingPathComponent("\(baseName)_result.json"),
             directory.appendingPathComponent("\(baseName).csv"),
-            directory.appendingPathComponent("\(baseName)_complete.json")
+            directory.appendingPathComponent("\(baseName)_complete.json"),
+            plyURL
         )
     }
 
