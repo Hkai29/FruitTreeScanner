@@ -3,6 +3,61 @@ import XCTest
 
 final class BatchExportServiceTests: XCTestCase {
 
+    func testDiscardRemovesPointCloudAndCompanionsAndRejectsLateSave() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try Data("ply\n".utf8).write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let files = try XCTUnwrap(service.exportIfNeeded(request))
+
+        try service.discardScanArtifacts(sourceFilename: request.sourceFilename)
+        for url in [plyURL, try XCTUnwrap(files.metadataURL), try XCTUnwrap(files.csvURL), try XCTUnwrap(files.manifestURL)] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), url.lastPathComponent)
+        }
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) { error in
+            XCTAssertTrue(error is CancellationError)
+        }
+        try service.discardScanArtifacts(sourceFilename: request.sourceFilename)
+    }
+
+    func testDiscardSerializesWithInFlightCompanionPublication() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try Data("ply\n".utf8).write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let publicationStarted = expectation(description: "companion publication started")
+        let allowPublication = DispatchSemaphore(value: 0)
+        let service = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
+            if destination.lastPathComponent == "scan_result.json" {
+                publicationStarted.fulfill()
+                guard allowPublication.wait(timeout: .now() + 10) == .success else {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+            }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        let save = Task.detached { try service.exportIfNeeded(request) }
+        await fulfillment(of: [publicationStarted], timeout: 10)
+        let discard = Task.detached { try service.discardScanArtifacts(sourceFilename: request.sourceFilename) }
+        allowPublication.signal()
+        _ = try await save.value
+        try await discard.value
+        for filename in ["scan.ply", "scan_result.json", "scan.csv", "scan_complete.json"] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(filename).path), filename)
+        }
+    }
+
     private func makeRecord(
         id: String = "scan_001.ply",
         treeID: String = "T-001",
