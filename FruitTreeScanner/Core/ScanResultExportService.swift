@@ -85,6 +85,7 @@ final class ScanResultExportService: @unchecked Sendable {
     private let removeStagingDirectory: (URL) throws -> Void
     private let exportQueue = DispatchQueue(label: "com.fruittreescanner.scan-result-export")
     private static let committedFileReadChunkByteCount = 64 * 1_024
+    private var discardedFilenames = Set<String>()
 
     init(
         fileManager: FileManager = .default,
@@ -116,9 +117,30 @@ final class ScanResultExportService: @unchecked Sendable {
         }
     }
 
+    func discardScanArtifacts(sourceFilename: String) throws {
+        try exportQueue.sync {
+            guard LocalFileStorage.isSafeLeafFilename(sourceFilename),
+                  (sourceFilename as NSString).pathExtension.lowercased() == "ply" else {
+                throw LocalFileStorageError.invalidFilename
+            }
+            discardedFilenames.insert(sourceFilename)
+            let directory = try scansDirectory()
+            let baseName = (sourceFilename as NSString).deletingPathExtension
+            let manifestURL = directory.appendingPathComponent("\(baseName)_complete.json")
+            let transactionKey = manifestURL.standardizedFileURL.resolvingSymlinksInPath().path
+            try Self.transactionCoordinator.withTransaction(for: transactionKey) {
+                for filename in ["\(baseName)_complete.json", "\(baseName)_result.json", "\(baseName).csv", sourceFilename] {
+                    let url = directory.appendingPathComponent(filename)
+                    if fileManager.fileExists(atPath: url.path) { try fileManager.removeItem(at: url) }
+                }
+            }
+        }
+    }
+
     @discardableResult
     private func exportIfNeededOnQueue(_ request: ExportRequest) throws -> ExportedFiles? {
         try Task.checkCancellation()
+        guard !discardedFilenames.contains(request.sourceFilename) else { throw CancellationError() }
         let scansDir = try scansDirectory()
         guard LocalFileStorage.isSafeLeafFilename(request.sourceFilename) else {
             throw LocalFileStorageError.invalidFilename

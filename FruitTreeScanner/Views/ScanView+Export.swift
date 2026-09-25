@@ -50,6 +50,7 @@ extension ScanView {
 
         clearMeasurementState()
         resultPersistenceState = .idle
+        let scanIdentity = coordinator.lifecycleSnapshot().scanIdentity
         withAnimation(.easeInOut(duration: 0.2)) { isEstimating = true }
         let gpsSnapshot = gps.reliableLocationSnapshot()
         coordinator.exportPLY(
@@ -57,7 +58,12 @@ extension ScanView {
             lat: gpsSnapshot?.latitude ?? 0,
             lon: gpsSnapshot?.longitude ?? 0
         ) { filename in
-            guard self.isViewActive else { return }
+            guard self.isViewActive,
+                  self.coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
+                  self.coordinator.lifecycleSnapshot().state == .finishing else {
+                if let filename { self.discardScanArtifacts(filename: filename) }
+                return
+            }
             guard let filename else {
                 self.isEstimating = false
                 self.showTemporaryNotice(L10n.Scan.exportFailed)
@@ -67,9 +73,14 @@ extension ScanView {
 
             self.coordinator.runMultiModalYieldEstimate(season: season) { result, _ in
                 Task { @MainActor in
-                    guard self.isViewActive else { return }
+                    guard self.isViewActive,
+                          self.coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
+                          self.coordinator.lifecycleSnapshot().state == .finishing else { return }
+                    self.resultScanIdentity = scanIdentity
                     let didPersist = await self.persistScanResult(result: result, filename: filename)
-                    guard self.isViewActive else { return }
+                    guard self.isViewActive,
+                          self.coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
+                          self.coordinator.lifecycleSnapshot().state == .finishing else { return }
 
                     if !didPersist {
                         ScanHistoryStore.shared.notifyRecordsUpdated()
@@ -95,9 +106,11 @@ extension ScanView {
 
         resultPersistenceState = .retrying
         let filename = savedFilename
+        let scanIdentity = coordinator.lifecycleSnapshot().scanIdentity
         Task { @MainActor in
             let didPersist = await persistScanResult(result: result, filename: filename)
-            guard isViewActive else { return }
+            guard isViewActive,
+                  coordinator.lifecycleSnapshot().scanIdentity == scanIdentity else { return }
 
             resultPersistenceState = .resolved(didPersist: didPersist)
             if didPersist {
@@ -134,22 +147,6 @@ extension ScanView {
             _ = try await Task.detached(priority: .utility) {
                 try ScanResultExportService.shared.exportIfNeeded(request)
             }.value
-            ScanHistoryStore.shared.notifyRecordsUpdated()
-            if let existing = TagStore.shared.getAssignment(treeId: treeID) {
-                TagStore.shared.createOrUpdateAssignment(
-                    treeId: treeID,
-                    plotId: existing.plotId,
-                    tagIds: existing.tagIds,
-                    status: .scanned
-                )
-            } else {
-                TagStore.shared.createOrUpdateAssignment(
-                    treeId: treeID,
-                    plotId: nil,
-                    tagIds: [],
-                    status: .scanned
-                )
-            }
             return true
         } catch {
             Log.export.error("Failed to persist scan result: \(error.localizedDescription)")
@@ -170,5 +167,24 @@ extension ScanView {
             )
         }
         return (parsed.scanDate, parsed.gpsLat, parsed.gpsLon)
+    }
+
+    func discardCurrentScanArtifacts() {
+        guard coordinator.lifecycleSnapshot().state != .completed,
+              !savedFilename.isEmpty else { return }
+        discardScanArtifacts(filename: savedFilename)
+        savedFilename = ""
+        resultScanIdentity = nil
+    }
+
+    func discardScanArtifacts(filename: String) {
+        Task.detached(priority: .utility) {
+            do {
+                try ScanResultExportService.shared.discardScanArtifacts(sourceFilename: filename)
+                await ScanHistoryStore.shared.notifyRecordsUpdated()
+            } catch {
+                Log.export.error("Failed to discard scan artifacts for \(filename): \(error.localizedDescription)")
+            }
+        }
     }
 }
