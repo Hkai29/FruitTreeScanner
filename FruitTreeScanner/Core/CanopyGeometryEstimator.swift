@@ -56,13 +56,21 @@ enum CanopyGeometryEstimator {
     }
 
     static func estimate(positions: [SIMD3<Float>]) -> CanopyGeometryEstimate? {
-        let usable = positions.filter { point in
+        let finitePositions = positions.filter { point in
             point.x.isFinite &&
                 point.y.isFinite &&
-                point.z.isFinite &&
-                abs(point.x) <= 20 &&
-                abs(point.y) <= 20 &&
-                abs(point.z) <= 20
+                point.z.isFinite
+        }
+        // 树冠输出是尺寸，使用局部坐标；AR 世界原点不应决定点是否有效。
+        guard !finitePositions.isEmpty else { return nil }
+        let middle = finitePositions.count / 2
+        let origin = SIMD3<Float>(finitePositions.map(\.x).sorted()[middle],
+                                 finitePositions.map(\.y).sorted()[middle],
+                                 finitePositions.map(\.z).sorted()[middle])
+        let usable = finitePositions.compactMap { point -> SIMD3<Float>? in
+            let local = point - origin
+            guard abs(local.x) <= 20, abs(local.y) <= 20, abs(local.z) <= 20 else { return nil }
+            return local
         }
         guard usable.count >= minimumPointCount else { return nil }
 

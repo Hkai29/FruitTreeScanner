@@ -178,7 +178,7 @@ final class FusionValidatorTests: XCTestCase {
             imageSize: imageSize,
             depthMap: invalidDepthMap
         )
-        let fallbackPositionCandidate = appleCandidate(at: SIMD3<Float>(0, 0, 2))
+        let fallbackPositionCandidate = appleCandidate(at: SIMD3<Float>(0, 0, -2))
 
         let result = validator.validate(
             detections: [detection],
@@ -211,7 +211,7 @@ final class FusionValidatorTests: XCTestCase {
             depthMap: depthMap,
             depthConfidenceMap: confidenceMap
         )
-        let depthPositionCandidate = appleCandidate(at: SIMD3<Float>(0, 0, 2))
+        let depthPositionCandidate = appleCandidate(at: SIMD3<Float>(0, 0, -2))
 
         let result = validator.validate(
             detections: [detection],
@@ -243,7 +243,7 @@ final class FusionValidatorTests: XCTestCase {
 
         let result = FusionValidator().validate(
             detections: [detection],
-            candidates: [appleCandidate(at: SIMD3<Float>(0, 0, 2))]
+            candidates: [appleCandidate(at: SIMD3<Float>(0, 0, -2))]
         )
 
         XCTAssertTrue(result.isEmpty)
@@ -259,7 +259,7 @@ final class FusionValidatorTests: XCTestCase {
         let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
         let imageSize = CGSize(width: 1920, height: 1080)
 
-        let projectedPosition = SIMD3<Float>(0, 0, 2)
+        let projectedPosition = SIMD3<Float>(0, 0, -2)
         let candidate = FruitCandidate(
             position: projectedPosition,
             diameter: 0.08,
@@ -308,7 +308,7 @@ final class FusionValidatorTests: XCTestCase {
             imageSize: imageSize
         )
         let lowSupportCandidate = FruitCandidate(
-            position: SIMD3<Float>(0, 0, 2),
+            position: SIMD3<Float>(0, 0, -2),
             diameter: 0.08,
             sphericity: 0.9,
             pointCount: 20,
@@ -367,7 +367,7 @@ final class FusionValidatorTests: XCTestCase {
             imageSize: imageSize
         )
 
-        XCTAssertEqual(projected.z, 1.4, accuracy: 0.001, "检测框内近景果面簇应优先于背景深度")
+        XCTAssertEqual(projected.z, -1.4, accuracy: 0.001, "检测框内近景果面簇应优先于背景深度")
     }
 
     func testProjectDetectionTreatsDepthAsCameraZForOffCenterDetection() {
@@ -394,7 +394,7 @@ final class FusionValidatorTests: XCTestCase {
 
         XCTAssertEqual(projected.x, 1.0, accuracy: 0.001)
         XCTAssertEqual(projected.y, 0.0, accuracy: 0.001)
-        XCTAssertEqual(projected.z, 2.0, accuracy: 0.001, "深度图读数应作为相机 z 深度，而不是射线长度")
+        XCTAssertEqual(projected.z, -2.0, accuracy: 0.001, "深度图读数应作为相机 z 深度，而不是射线长度")
     }
 
     func testDetectionDepthCandidateUsesDominant3DClusterInsideROI() throws {
@@ -698,7 +698,7 @@ final class FusionValidatorTests: XCTestCase {
             depthMap: depthMap
         )
         let frustumCandidate = FruitCandidate(
-            position: SIMD3<Float>(0.22, 0, 2),
+            position: SIMD3<Float>(0.22, 0, -2),
             diameter: 0.08,
             sphericity: 0.85,
             pointCount: 20,
@@ -721,7 +721,7 @@ final class FusionValidatorTests: XCTestCase {
         XCTAssertNotNil(depthMap)
         let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
         let imageSize = CGSize(width: 1920, height: 1080)
-        let candidate = appleCandidate(at: SIMD3<Float>(0, 0, 2))
+        let candidate = appleCandidate(at: SIMD3<Float>(0, 0, -2))
 
         let aligned = DetectedFruit(
             category: .apple,
@@ -800,7 +800,7 @@ final class FusionValidatorTests: XCTestCase {
         )
 
         let lowSphericityCandidate = FruitCandidate(
-            position: SIMD3<Float>(0, 0, 2),
+            position: SIMD3<Float>(0, 0, -2),
             diameter: 0.08,
             sphericity: 0.3,
             pointCount: 20,
@@ -836,7 +836,7 @@ final class FusionValidatorTests: XCTestCase {
         )
 
         let fewPointsCandidate = FruitCandidate(
-            position: SIMD3<Float>(0, 0, 2),
+            position: SIMD3<Float>(0, 0, -2),
             diameter: 0.08,
             sphericity: 0.85,
             pointCount: 2,
@@ -873,7 +873,7 @@ final class FusionValidatorTests: XCTestCase {
         )
 
         let sparseROIDepthCandidate = FruitCandidate(
-            position: SIMD3<Float>(0, 0, 2),
+            position: SIMD3<Float>(0, 0, -2),
             diameter: 0.08,
             sphericity: 0.85,
             pointCount: 3,
@@ -906,7 +906,7 @@ final class FusionValidatorTests: XCTestCase {
             imageSize: imageSize
         )
         let orangeROICandidate = FruitCandidate(
-            position: SIMD3<Float>(0, 0, 2),
+            position: SIMD3<Float>(0, 0, -2),
             diameter: 0.08,
             sphericity: 0.85,
             pointCount: 20,
@@ -975,8 +975,8 @@ final class FusionValidatorTests: XCTestCase {
                 depthMap: depth
             )
         }
-        let sharedCandidate = appleCandidate(at: SIMD3<Float>(0.04, 0, -2))
-        let firstOnlyCandidate = appleCandidate(at: SIMD3<Float>(-0.10, 0, -2))
+        let sharedCandidate = appleCandidate(at: SIMD3<Float>(0.04, 0, 2))
+        let firstOnlyCandidate = appleCandidate(at: SIMD3<Float>(-0.10, 0, 2))
         let result = FusionValidator().validate(detections: detections, candidates: [sharedCandidate, firstOnlyCandidate])
         XCTAssertEqual(result.filter { $0.source == .fused }.count, 2)
         XCTAssertEqual(result[0].position, firstOnlyCandidate.position)
@@ -1009,7 +1009,7 @@ final class FusionValidatorTests: XCTestCase {
         )
 
         let candidateA = FruitCandidate(
-            position: SIMD3<Float>(0, 0, 2),
+            position: SIMD3<Float>(0, 0, -2),
             diameter: 0.08,
             sphericity: 0.85,
             pointCount: 20,
@@ -1017,7 +1017,7 @@ final class FusionValidatorTests: XCTestCase {
         )
 
         let candidateB = FruitCandidate(
-            position: SIMD3<Float>(0.04, 0, 2),
+            position: SIMD3<Float>(0.04, 0, -2),
             diameter: 0.09,
             sphericity: 0.8,
             pointCount: 15,
@@ -1065,7 +1065,7 @@ final class FusionValidatorTests: XCTestCase {
             imageSize: imageSize
         )
 
-        let candidate = appleCandidate(at: SIMD3<Float>(0, 0, 2))
+        let candidate = appleCandidate(at: SIMD3<Float>(0, 0, -2))
 
         let result = validator.validate(
             detections: [det1, det2],

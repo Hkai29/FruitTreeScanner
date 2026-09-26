@@ -85,16 +85,21 @@ enum YOLOParserSupport {
         centerX: Float,
         centerY: Float,
         width: Float,
-        height: Float
+        height: Float,
+        modelInputSize: CGSize = CGSize(width: 320, height: 320)
     ) -> CGRect? {
         guard centerX.isFinite, centerY.isFinite, width.isFinite, height.isFinite,
               width > 0, height > 0 else { return nil }
 
-        let coordinateScale: Float = max(abs(centerX), abs(centerY), abs(width), abs(height)) > 2 ? 320 : 1
-        let normalizedCenterX = centerX / coordinateScale
-        let normalizedCenterY = centerY / coordinateScale
-        let normalizedWidth = width / coordinateScale
-        let normalizedHeight = height / coordinateScale
+        guard modelInputSize.width.isFinite, modelInputSize.height.isFinite,
+              modelInputSize.width > 0, modelInputSize.height > 0 else { return nil }
+        let usesPixels = max(abs(centerX), abs(centerY), abs(width), abs(height)) > 2
+        let scaleX = usesPixels ? Float(modelInputSize.width) : 1
+        let scaleY = usesPixels ? Float(modelInputSize.height) : 1
+        let normalizedCenterX = centerX / scaleX
+        let normalizedCenterY = centerY / scaleY
+        let normalizedWidth = width / scaleX
+        let normalizedHeight = height / scaleY
 
         let minX = max(0, min(1, normalizedCenterX - normalizedWidth / 2))
         let maxX = max(0, min(1, normalizedCenterX + normalizedWidth / 2))

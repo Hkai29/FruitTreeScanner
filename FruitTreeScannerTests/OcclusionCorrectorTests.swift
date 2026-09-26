@@ -107,7 +107,8 @@ final class OcclusionCorrectorTests: XCTestCase {
             lidarPenetrationM: 0.4,
             scanAngleCoverage: 1.0,
             visualDetectionCount: 10,
-            lidarDetectionCount: 5
+            lidarDetectionCount: 5,
+            countsRepresentDistinctFruits: true
         )
 
         XCTAssertEqual(baseline.k, 1.0, accuracy: 0.01)

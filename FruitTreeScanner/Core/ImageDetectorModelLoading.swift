@@ -34,6 +34,7 @@ struct ImageDetectorLoadedModel {
     let bundleExtension: String
     let supportedClasses: [String]
     let labelDiagnostics: ModelLabelCompatibilityDiagnostics
+    let inputSize: CGSize
 
     var displayName: String {
         "\(resourceName).\(bundleExtension)"
@@ -98,7 +99,8 @@ enum ImageDetectorModelLoader {
                 resourceName: name,
                 bundleExtension: "mlmodelc",
                 supportedClasses: labelDiagnostics.runtimeModelLabels,
-                labelDiagnostics: labelDiagnostics
+                labelDiagnostics: labelDiagnostics,
+                inputSize: inputSize(of: mlModel)
             )
         }
 
@@ -112,7 +114,8 @@ enum ImageDetectorModelLoader {
                 resourceName: name,
                 bundleExtension: "mlmodel",
                 supportedClasses: labelDiagnostics.runtimeModelLabels,
-                labelDiagnostics: labelDiagnostics
+                labelDiagnostics: labelDiagnostics,
+                inputSize: inputSize(of: mlModel)
             )
         }
 
@@ -126,7 +129,8 @@ enum ImageDetectorModelLoader {
                 resourceName: name,
                 bundleExtension: "mlpackage",
                 supportedClasses: labelDiagnostics.runtimeModelLabels,
-                labelDiagnostics: labelDiagnostics
+                labelDiagnostics: labelDiagnostics,
+                inputSize: inputSize(of: mlModel)
             )
         }
 
@@ -140,6 +144,13 @@ enum ImageDetectorModelLoader {
     static func labelDiagnostics(from mlModel: MLModel) -> ModelLabelCompatibilityDiagnostics {
         let labels = supportedClasses(from: mlModel)
         return labelDiagnostics(forRuntimeLabels: labels)
+    }
+
+    private static func inputSize(of model: MLModel) -> CGSize {
+        guard let image = model.modelDescription.inputDescriptionsByName.values.compactMap(\.imageConstraint).first else {
+            return .zero
+        }
+        return CGSize(width: image.pixelsWide, height: image.pixelsHigh)
     }
 
     static func labelDiagnostics(forRuntimeLabels labels: [String]) -> ModelLabelCompatibilityDiagnostics {

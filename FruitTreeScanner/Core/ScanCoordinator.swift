@@ -166,6 +166,15 @@ struct ScanFruitConfiguration {
         let parametersSnapshot = FruitParametersStore.shared.parameterSnapshot()
         let defaultParams = parametersSnapshot[selectedCategory.rawValue]
             ?? FruitVarietyParams(category: selectedCategory)
+        let clusterConfig = settings.clusterConfig(for: defaultParams)
+        let fusionConfig = settings.fruitScanConfig
+        let colorFilter = settings.colorFilter(for: selectedCategory)
+        let calibrationContext = YieldCalibrationContext.make(
+            parameters: parametersSnapshot,
+            cluster: clusterConfig,
+            fusion: fusionConfig,
+            color: colorFilter
+        )
         let calibrationRecords: [CalibrationRecord]
         let calibrationWarning: ScanCalibrationWarning?
         do {
@@ -180,14 +189,18 @@ struct ScanFruitConfiguration {
             selectedCategory: selectedCategory,
             parametersSnapshot: parametersSnapshot,
             defaultParams: defaultParams,
-            clusterConfig: settings.clusterConfig(for: defaultParams),
-            fusionConfig: settings.fruitScanConfig,
-            colorFilter: settings.colorFilter(for: selectedCategory),
-            calibrationCorrection: YieldCalibrationCorrector.correction(
-                from: calibrationRecords,
-                fruitCategory: selectedCategory,
-                fruitType: selectedCategory.rawValue
-            ),
+            clusterConfig: clusterConfig,
+            fusionConfig: fusionConfig,
+            colorFilter: colorFilter,
+            calibrationCorrection: calibrationContext.map { context in
+                YieldCalibrationCorrector.correction(
+                    from: calibrationRecords,
+                    fruitCategory: selectedCategory,
+                    fruitType: selectedCategory.rawValue,
+                    requiredAlgorithmRevision: YieldAlgorithmRevision.current,
+                    requiredContext: context
+                )
+            } ?? .neutral,
             calibrationWarning: calibrationWarning
         )
     }
@@ -232,6 +245,7 @@ class ScanCoordinator: NSObject {
 
     var detectedFruits: [DetectedFruit] = []
     var archivedFusionEvidenceDetections: [DetectedFruit] = []
+    @MainActor var evidenceArchiveRevision: UInt64 = 0
     var activeFruitConfiguration: ScanFruitConfiguration?
     var hasPublishedCategoryMismatch = false
 

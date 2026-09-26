@@ -214,6 +214,7 @@ extension ImageDetector {
         rawDetectedLabels: [String],
         mappedCategories: [String],
         unmappedLabels: [String],
+        failureReason: String? = nil,
         expectedQueueGeneration: Int
     ) -> Bool {
         lock.lock()
@@ -226,7 +227,8 @@ extension ImageDetector {
             mappedFruitCount: mappedFruitCount,
             rawDetectedLabels: rawDetectedLabels,
             mappedCategories: mappedCategories,
-            unmappedLabels: unmappedLabels
+            unmappedLabels: unmappedLabels,
+            failureReason: failureReason
         )
         return true
     }
@@ -276,22 +278,23 @@ extension ImageDetector {
     }
 
     func drainPendingFrames() async -> [QueuedFrame] {
-        // 给已被选中的异步帧复制留出短暂完成窗口，不阻塞主线程。
-        let maxAttempts = 6
-        for _ in 0..<maxAttempts {
-            let drainResult = drainPendingFramesIfReady()
+        let generation = queueGenerationSnapshot()
+        while !Task.isCancelled {
+            let drainResult = drainPendingFramesIfReady(expectedGeneration: generation)
             if !drainResult.frames.isEmpty || !drainResult.isPreparing {
                 return drainResult.frames
             }
-            try? await Task.sleep(nanoseconds: 25_000_000)
+            do { try await Task.sleep(nanoseconds: 25_000_000) }
+            catch { return [] }
         }
-
-        return drainPendingFramesIfReady().frames
+        return []
     }
 
-    func drainPendingFramesIfReady() -> (frames: [QueuedFrame], isPreparing: Bool) {
+    func drainPendingFramesIfReady(expectedGeneration: Int? = nil) -> (frames: [QueuedFrame], isPreparing: Bool) {
         lock.lock()
         defer { lock.unlock() }
+
+        if let expectedGeneration, expectedGeneration != queueGeneration { return ([], false) }
 
         guard !pendingFrames.isEmpty else {
             return ([], preparingFrameGeneration != nil)

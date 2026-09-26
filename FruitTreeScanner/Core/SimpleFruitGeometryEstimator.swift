@@ -105,7 +105,8 @@ enum SimpleFruitGeometryEstimator {
     ) -> FruitMassEstimate {
         let qualityHint = highConfidenceRatio ?? candidate.sphericity
         let effectiveValidDepthRatio = candidate.depthSupportRatio ?? validDepthRatio
-        if let sourceCategory = candidate.sourceCategory {
+        // 混合候选仍有实测点集；类别信息不代表它只有 ROI 直径证据。
+        if let sourceCategory = candidate.sourceCategory, !candidate.hasPointCloudEvidence {
             return estimateFromDiameter(
                 diameterM: candidate.diameter,
                 fruitCategory: fruitCategory ?? sourceCategory,

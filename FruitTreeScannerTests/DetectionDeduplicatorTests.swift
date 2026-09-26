@@ -5,6 +5,62 @@ import CoreVideo
 
 final class DetectionDeduplicatorTests: XCTestCase {
 
+    func testRegressionYOLOUsesActualNonSquareInputSize() throws {
+        let output = try MLMultiArray(shape: [1, 30, 1], dataType: .float32)
+        for i in 0..<output.count { output[i] = 0 }
+        for (channel, value) in [0: 320.0, 1: 240.0, 2: 128.0, 3: 96.0, 4: 0.95] {
+            output[[0, NSNumber(value: channel), 0]] = NSNumber(value: value)
+        }
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output, timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5),
+            labelDiagnostics: ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: FruitCategory.customModelLabelOrder),
+            modelInputSize: CGSize(width: 640, height: 480)
+        )
+        let box = try XCTUnwrap(parsed.fruits.first).boundingBox
+        XCTAssertEqual(parsed.fruits.count, 1)
+        XCTAssertEqual(box.minX, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(box.minY, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(box.width, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(box.height, 0.2, accuracy: 0.0001)
+        XCTAssertNil(YOLOParserSupport.makeVisionBoundingBox(centerX: 320, centerY: 240, width: 128, height: 96, modelInputSize: .zero))
+    }
+
+    func testRegressionProductionModelInferenceSmoke() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "FruitsDetector", withExtension: "mlmodelc"))
+        let config = MLModelConfiguration()
+        config.computeUnits = .cpuOnly
+        let model = try MLModel(contentsOf: url, configuration: config)
+        var buffer: CVPixelBuffer?
+        XCTAssertEqual(CVPixelBufferCreate(kCFAllocatorDefault, 320, 320, kCVPixelFormatType_32BGRA, nil, &buffer), kCVReturnSuccess)
+        let pixels = try XCTUnwrap(buffer)
+        CVPixelBufferLockBaseAddress(pixels, [])
+        memset(CVPixelBufferGetBaseAddress(pixels), 0, CVPixelBufferGetDataSize(pixels))
+        CVPixelBufferUnlockBaseAddress(pixels, [])
+        let input = try MLDictionaryFeatureProvider(dictionary: ["image": MLFeatureValue(pixelBuffer: pixels)])
+        let output = try model.prediction(from: input)
+        let value = try XCTUnwrap(output.featureValue(for: "var_910")?.multiArrayValue)
+        XCTAssertEqual(value.shape.map(\.intValue), [1, 30, 2100])
+        for anchor in 0..<2100 {
+            let score = YOLOParserSupport.bestClassScore(in: value, classCount: 26, anchorIndex: anchor, channelAxis: 1).confidence
+            XCTAssertTrue(score.isFinite)
+        }
+    }
+
+    func testRegressionTransposedYOLOContract() throws {
+        let output = try MLMultiArray(shape: [1, 2100, 30], dataType: .float32)
+        for i in 0..<output.count { output[i] = 0 }
+        for (channel, value) in [0: 160.0, 1: 160.0, 2: 64.0, 3: 64.0, 4: 0.95] {
+            output[[0, 0, NSNumber(value: channel)]] = NSNumber(value: value)
+        }
+        let parsed = ImageDetector.parseYOLOMultiArray(
+            output, timestamp: 10,
+            config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5),
+            labelDiagnostics: ImageDetectorModelLoader.labelDiagnostics(forRuntimeLabels: FruitCategory.customModelLabelOrder)
+        )
+        XCTAssertEqual(parsed.fruits.count, 1, "A transposed tensor with a valid 26-class contract must retain the apple")
+    }
+
     private func pinholeIntrinsics(fx: Float, fy: Float, cx: Float, cy: Float) -> simd_float3x3 {
         simd_float3x3(
             SIMD3<Float>(fx, 0, 0),

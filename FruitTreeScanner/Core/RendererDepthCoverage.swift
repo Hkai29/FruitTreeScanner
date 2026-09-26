@@ -342,10 +342,43 @@ enum RendererDepthCoverage {
         let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
         guard let depthMap = depthData?.depthMap,
               let confidenceMap = depthData?.confidenceMap else { return [] }
+        return makeCoverageVoxels(
+            depthMap: depthMap,
+            confidenceMap: confidenceMap,
+            cameraIntrinsics: frame.camera.intrinsics,
+            imageSize: frame.camera.imageResolution,
+            cameraTransform: frame.camera.transform,
+            minDepth: minDepth,
+            maxDepth: maxDepth,
+            confidenceThreshold: confidenceThreshold,
+            voxelSize: voxelSize
+        )
+    }
+
+    static func makeCoverageVoxels(
+        depthMap: CVPixelBuffer,
+        confidenceMap: CVPixelBuffer,
+        cameraIntrinsics: simd_float3x3,
+        imageSize: CGSize,
+        cameraTransform: simd_float4x4,
+        minDepth: Float,
+        maxDepth: Float,
+        confidenceThreshold: Int,
+        voxelSize: Float
+    ) -> Set<RendererVoxelKey> {
         let depthWidth = CVPixelBufferGetWidth(depthMap)
         let depthHeight = CVPixelBufferGetHeight(depthMap)
         let confidenceWidth = CVPixelBufferGetWidth(confidenceMap)
         let confidenceHeight = CVPixelBufferGetHeight(confidenceMap)
+        guard depthWidth > 0, depthHeight > 0, confidenceWidth > 0, confidenceHeight > 0,
+              imageSize.width.isFinite, imageSize.height.isFinite,
+              imageSize.width > 0, imageSize.height > 0,
+              minDepth.isFinite, maxDepth.isFinite, maxDepth >= minDepth,
+              voxelSize.isFinite, voxelSize > 0,
+              (0...Int(UInt8.max)).contains(confidenceThreshold),
+              CVPixelBufferGetPixelFormatType(depthMap) == kCVPixelFormatType_DepthFloat32,
+              CVPixelBufferGetPixelFormatType(confidenceMap) == kCVPixelFormatType_OneComponent8 else { return [] }
+        let inverseIntrinsics = cameraIntrinsics.inverse
 
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
@@ -362,32 +395,29 @@ enum RendererDepthCoverage {
 
         let sampleStep = 4
         var newVoxels: Set<RendererVoxelKey> = []
-        let projMatrix = frame.camera.projectionMatrix(for: orientation, viewportSize: viewportSize, zNear: 0.001, zFar: 0)
-        let viewMatrix = frame.camera.viewMatrix(for: orientation)
-        let vpInverse = (projMatrix * viewMatrix).inverse
 
         for gy in stride(from: 0, to: depthHeight, by: sampleStep) {
             for gx in stride(from: 0, to: depthWidth, by: sampleStep) {
                 let depth = floatBuffer[gy * (bytesPerRow / 4) + gx]
-                guard depth >= minDepth && depth <= maxDepth else { continue }
+                guard depth.isFinite, depth >= minDepth && depth <= maxDepth else { continue }
                 let confidenceX = min(gx * confidenceWidth / max(depthWidth, 1), confidenceWidth - 1)
                 let confidenceY = min(gy * confidenceHeight / max(depthHeight, 1), confidenceHeight - 1)
                 let confidence = confidenceBuffer[confidenceY * confidenceBytesPerRow + confidenceX]
                 guard confidence >= UInt8(confidenceThreshold) else { continue }
 
-                let fx = Float(gx) / Float(depthWidth) * 2 - 1
-                let fy = Float(gy) / Float(depthHeight) * 2 - 1
-                let clipPos = simd_float4(fx * depth, fy * depth, -depth, 1)
-                var worldPos = vpInverse * clipPos
-                worldPos /= worldPos.w
-
-                let invSize = 1.0 / voxelSize
-                let key = RendererVoxelKey(
-                    x: Int32(floor(worldPos.x * invSize)),
-                    y: Int32(floor(worldPos.y * invSize)),
-                    z: Int32(floor(worldPos.z * invSize))
+                let imagePoint = SIMD3<Float>(
+                    Float(gx) * Float(imageSize.width) / Float(depthWidth),
+                    Float(gy) * Float(imageSize.height) / Float(depthHeight),
+                    1
                 )
-                newVoxels.insert(key)
+                guard let cameraPoint = ImageCameraCoordinateSpace.cameraPoint(
+                    imagePoint: imagePoint, depth: depth, inverseIntrinsics: inverseIntrinsics
+                ), let worldPoint = ImageCameraCoordinateSpace.worldPoint(
+                    cameraPoint: cameraPoint, transform: cameraTransform
+                ), let x = Int32(exactly: floor(Double(worldPoint.x) / Double(voxelSize))),
+                   let y = Int32(exactly: floor(Double(worldPoint.y) / Double(voxelSize))),
+                   let z = Int32(exactly: floor(Double(worldPoint.z) / Double(voxelSize))) else { continue }
+                newVoxels.insert(RendererVoxelKey(x: x, y: y, z: z))
             }
         }
 

@@ -6,6 +6,8 @@ import CoreGraphics
 import simd
 
 extension FusionValidator {
+    /// 从检测框内的深度样本中选择靠近相机且具有足够支持的表面。
+    /// 返回中位数以降低单个噪声像素对三维位置的影响。
     static func robustDepth(from rawDepths: [Float]) -> Float? {
         // 优先选择近端且有足够支持的深度簇，降低叶片后方背景的干扰。
         let depths = rawDepths
@@ -45,6 +47,7 @@ extension FusionValidator {
         return median(foregroundCluster)
     }
 
+    /// 将世界坐标点投影到 Vision 使用的左下原点归一化图像坐标。
     static func projectWorldPointToNormalizedImage(
         _ worldPoint: SIMD3<Float>,
         cameraIntrinsics: matrix_float3x3,
@@ -61,7 +64,7 @@ extension FusionValidator {
             1.0
         )
         let cameraPoint = SIMD3<Float>(cameraPoint4.x, cameraPoint4.y, cameraPoint4.z)
-        guard cameraPoint.z > 0.05,
+        guard cameraPoint.z < -0.05,
               cameraPoint.x.isFinite,
               cameraPoint.y.isFinite,
               cameraPoint.z.isFinite else {
@@ -77,8 +80,8 @@ extension FusionValidator {
             return nil
         }
 
-        let imageX = (fx * cameraPoint.x / cameraPoint.z) + cx
-        let imageY = (fy * cameraPoint.y / cameraPoint.z) + cy
+        let imageX = (fx * cameraPoint.x / -cameraPoint.z) + cx
+        let imageY = (fy * -cameraPoint.y / -cameraPoint.z) + cy
         let normalizedX = CGFloat(imageX) / imageSize.width
         let normalizedY = 1.0 - CGFloat(imageY) / imageSize.height
 
@@ -86,6 +89,7 @@ extension FusionValidator {
         return CGPoint(x: normalizedX, y: normalizedY)
     }
 
+    /// 把 Vision 归一化坐标换算到可能具有不同分辨率的深度图像素坐标。
     static func depthSamplePoint(
         normalizedPoint: CGPoint,
         imageSize: CGSize,
@@ -107,31 +111,21 @@ extension FusionValidator {
         )
     }
 
+    /// 利用相机内参和实测深度，把图像像素反投影到相机坐标系。
     static func cameraPointFromImagePoint(
         _ imagePoint: SIMD3<Float>,
         depth: Float,
         cameraIntrinsics: matrix_float3x3
     ) -> SIMD3<Float>? {
         guard depth.isFinite, depth > 0.1 else { return nil }
-
-        let ray = cameraIntrinsics.inverse * imagePoint
-        guard ray.x.isFinite,
-              ray.y.isFinite,
-              ray.z.isFinite,
-              abs(ray.z) > 1e-6 else {
-            return nil
-        }
-
-        let cameraPoint = ray * (depth / ray.z)
-        guard cameraPoint.x.isFinite,
-              cameraPoint.y.isFinite,
-              cameraPoint.z.isFinite,
-              cameraPoint.z > 0 else {
-            return nil
-        }
-        return cameraPoint
+        return ImageCameraCoordinateSpace.cameraPoint(
+            imagePoint: imagePoint,
+            depth: depth,
+            inverseIntrinsics: cameraIntrinsics.inverse
+        )
     }
 
+    /// 供诊断和可视化使用的兼容入口；缺少深度时允许固定距离回退。
     func projectDetectionTo3D(
         detection: DetectedFruit,
         depthMap: CVPixelBuffer?,
@@ -148,9 +142,10 @@ extension FusionValidator {
             cameraTransform: cameraTransform,
             imageSize: imageSize,
             fallbackDepth: 2.0
-        ) ?? SIMD3<Float>(0, 0, 2)
+        ) ?? SIMD3<Float>(0, 0, -2)
     }
 
+    /// 可靠融合入口；只有取得有效深度时才返回三维位置。
     func projectDetectionTo3DWithValidDepth(
         detection: DetectedFruit,
         depthMap: CVPixelBuffer?,
@@ -171,6 +166,7 @@ extension FusionValidator {
         )
     }
 
+    /// 在检测框内采样深度，并把框中心沿选定深度反投影到世界坐标。
     private func projectDetectionTo3D(
         detection: DetectedFruit,
         depthMap: CVPixelBuffer?,
@@ -182,10 +178,7 @@ extension FusionValidator {
     ) -> SIMD3<Float>? {
         let box = detection.boundingBox
 
-        // A 9x9 grid plus foreground-cluster selection follows the same idea as
-        // frustum-based fruit localization: keep the near, coherent depth
-        // surface inside the 2D detection instead of letting background leaves
-        // dominate a simple center or whole-box median.
+        // 网格采样后选择近端连续深度面，避免背景叶片主导整框中位数。
         var validDepths: [Float] = []
         if let depthMap = depthMap,
            let depthSampler = DepthSampler(depthMap: depthMap, confidenceMap: depthConfidenceMap) {
@@ -225,11 +218,11 @@ extension FusionValidator {
         let centerY = (1 - normCenterY) * imageSize.height
 
         let imagePoint = SIMD3<Float>(Float(centerX), Float(centerY), 1.0)
-        let cameraPoint = Self.cameraPointFromImagePoint(
+        guard let cameraPoint = Self.cameraPointFromImagePoint(
             imagePoint,
             depth: depth,
             cameraIntrinsics: cameraIntrinsics
-        ) ?? SIMD3<Float>(0, 0, depth)
+        ) else { return nil }
 
         let worldPoint = cameraTransform * SIMD4<Float>(cameraPoint.x, cameraPoint.y, cameraPoint.z, 1.0)
         return SIMD3<Float>(worldPoint.x, worldPoint.y, worldPoint.z)
@@ -246,14 +239,17 @@ extension FusionValidator {
 }
 
 enum DetectionDepthCandidateBuilder {
+    // 固定网格限制每个检测框的深度读取量，避免随图像分辨率增长。
     private static let roiSampleGrid = 9
 
+    // 同时保留网格位置和世界坐标，用于连通性及形状检查。
     private struct DepthWorldSample {
         let row: Int
         let col: Int
         let worldPoint: SIMD3<Float>
     }
 
+    /// 为每个二维检测框构造带深度支持的三维候选；失败的框直接留在诊断链路。
     static func makeCandidates(
         from detections: [DetectedFruit],
         clusterConfig: ClusterConfig
@@ -283,6 +279,7 @@ enum DetectionDepthCandidateBuilder {
             return nil
         }
 
+        // 在框内均匀取样，避免只读取中心像素时被枝叶或孔洞误导。
         var samples: [(point: CGPoint, depth: Float, row: Int, col: Int)] = []
         samples.reserveCapacity(roiSampleGrid * roiSampleGrid)
 
@@ -309,12 +306,14 @@ enum DetectionDepthCandidateBuilder {
             return nil
         }
 
+        // 阈值随距离增长，并保留近距离场景所需的最小容差。
         let foregroundThreshold = max(0.08, foregroundDepth * 0.05)
         let foregroundSamples = samples.filter { abs($0.depth - foregroundDepth) <= foregroundThreshold }
         guard foregroundSamples.count >= max(3, min(clusterConfig.minPoints, 8)) else {
             return nil
         }
 
+        // 初始直径只用于确定空间连通半径，最终直径会结合三维点集重算。
         let preliminaryDiameter = estimatedDiameter(
             detection: detection,
             depth: foregroundDepth,
@@ -323,6 +322,7 @@ enum DetectionDepthCandidateBuilder {
             clusterConfig: clusterConfig
         )
 
+        // 每个前景深度样本使用同帧位姿转换到世界坐标。
         var worldSamples: [DepthWorldSample] = []
         worldSamples.reserveCapacity(foregroundSamples.count)
         for sample in foregroundSamples {
@@ -356,11 +356,13 @@ enum DetectionDepthCandidateBuilder {
         guard worldPoints.count >= max(3, min(clusterConfig.minPoints, 8)) else {
             return nil
         }
+        // 过细或过于稀疏的网格簇更可能来自枝条，不生成候选。
         let shapeQuality = roiClusterShapeQuality(selectedCluster)
         guard shapeQuality >= roiClusterShapeQualityThreshold(for: detection.category) else {
             return nil
         }
 
+        // 支持率记录有效三维样本占整个检测框采样网格的比例。
         let center = centroid(of: worldPoints)
         let depthSupportRatio = Float(worldPoints.count) / Float(roiSampleGrid * roiSampleGrid)
         // 直径综合图像投影与三维点集，并限制在品类物理范围内。
@@ -390,6 +392,7 @@ enum DetectionDepthCandidateBuilder {
         )
     }
 
+    /// 使用网格长宽比和填充率衡量候选在检测框内是否形成紧凑区域。
     private static func roiClusterShapeQuality(_ samples: [DepthWorldSample]) -> Float {
         guard samples.count >= 3 else { return 0 }
         let rows = samples.map(\.row)
@@ -409,6 +412,7 @@ enum DetectionDepthCandidateBuilder {
         return min(max(aspect * sqrt(min(max(fillRatio, 0), 1)), 0), 1)
     }
 
+    /// 按深度间隔分簇，并只接受具有最小支持数的最近表面。
     private static func roiForegroundDepth(from rawDepths: [Float]) -> Float? {
         let depths = rawDepths
             .filter { $0.isFinite && $0 > 0.1 && $0 < 10.0 }
@@ -455,6 +459,7 @@ enum DetectionDepthCandidateBuilder {
         return sortedValues[mid]
     }
 
+    // 细长或成串水果使用较低形状阈值，圆形水果保持更严格要求。
     private static func roiClusterShapeQualityThreshold(for category: FruitCategory) -> Float {
         switch category {
         case .mango, .papaya, .pear, .fig:
@@ -466,12 +471,14 @@ enum DetectionDepthCandidateBuilder {
         }
     }
 
+    // 将二维网格形状质量映射为候选球形度，但不低于品类先验下限。
     private static func roiCandidateSphericity(shapeQuality: Float, category: FruitCategory) -> Float {
         let base = max(category.sphericityThreshold + 0.05, 0.55)
         let qualityBoost = min(max(shapeQuality, 0), 1) * 0.35
         return min(max(base + qualityBoost, base), 0.95)
     }
 
+    /// 在三维样本中搜索连通分量，并选择点数与中心位置综合得分最高的一簇。
     private static func selectDominantCluster(
         from samples: [DepthWorldSample],
         referencePoint: SIMD3<Float>?,
@@ -487,6 +494,7 @@ enum DetectionDepthCandidateBuilder {
             var stack = [startIndex]
             visited[startIndex] = true
 
+            // 深度优先遍历把空间距离小于阈值的样本归入同一分量。
             while let index = stack.popLast() {
                 let sample = samples[index]
                 cluster.append(sample)
@@ -514,6 +522,7 @@ enum DetectionDepthCandidateBuilder {
         return bestCluster
     }
 
+    /// 点数是主得分，偏离检测框中心或中心射线的簇会被扣分。
     private static func clusterScore(
         _ cluster: [DepthWorldSample],
         referencePoint: SIMD3<Float>?,
@@ -529,6 +538,7 @@ enum DetectionDepthCandidateBuilder {
         return score
     }
 
+    /// 抑制贴近检测框边缘的簇，降低邻近果实或枝叶进入候选的概率。
     private static func roiCenterDistancePenalty(for cluster: [DepthWorldSample]) -> Float {
         guard !cluster.isEmpty else { return 0 }
         let averageRow = cluster.reduce(Float(0)) { $0 + Float($1.row) } / Float(cluster.count)
@@ -540,6 +550,7 @@ enum DetectionDepthCandidateBuilder {
         return normalizedDistance * Float(cluster.count) * 0.65
     }
 
+    // 连通半径由估计直径和品类尺寸共同约束，避免跨果实合并。
     private static func roiClusterDistance(
         diameter: Float,
         category: FruitCategory
@@ -552,6 +563,7 @@ enum DetectionDepthCandidateBuilder {
         return max(0.025, min(referenceDiameter * 1.10, 0.14))
     }
 
+    /// 依次完成归一化坐标到像素、相机坐标和世界坐标的转换。
     private static func projectNormalizedImagePointToWorld(
         _ normalizedPoint: CGPoint,
         depth: Float,
@@ -579,6 +591,7 @@ enum DetectionDepthCandidateBuilder {
         return result
     }
 
+    /// 融合图像投影直径、点集空间范围和品类先验，输出受物理范围约束的直径。
     private static func estimatedDiameter(
         detection: DetectedFruit,
         depth: Float,
@@ -603,6 +616,7 @@ enum DetectionDepthCandidateBuilder {
             clusterDiameter: clusterDiameter,
             categoryRange: categoryRange
         )
+        // 点簇越紧凑、深度支持越充分，实测尺寸在融合结果中的权重越高。
         var measurementReliability = min(
             max(0.20 + min(max(shapeQuality, 0), 1) * 0.35 + min(max(depthSupportRatio, 0), 1) * 0.30, 0.20),
             0.75
@@ -619,6 +633,7 @@ enum DetectionDepthCandidateBuilder {
         return min(max(blended, minDiameter), maxDiameter)
     }
 
+    // 根据焦距、框尺寸和深度近似目标在真实空间中的直径。
     private static func projectedImageDiameter(
         detection: DetectedFruit,
         depth: Float,
@@ -633,6 +648,7 @@ enum DetectionDepthCandidateBuilder {
         return diameter.isFinite ? diameter : 0
     }
 
+    // 使用三维包围盒对角线描述点簇的最大空间跨度。
     private static func spatialExtentDiameter(of points: [SIMD3<Float>]) -> Float {
         guard points.count >= 2 else { return 0 }
         var minPoint = points[0]
@@ -654,6 +670,7 @@ enum DetectionDepthCandidateBuilder {
         return diameter.isFinite ? diameter : 0
     }
 
+    /// 图像直径为主体，点簇跨度只作为防止明显低估的下限证据。
     private static func measuredDiameter(
         imageDiameter: Float,
         clusterDiameter: Float,
@@ -680,6 +697,7 @@ enum DetectionDepthCandidateBuilder {
         return sum / Float(points.count)
     }
 
+    // 深度候选没有可靠 RGB 均值时，使用品类代表色供点云显示。
     private static func representativeColor(for category: FruitCategory) -> SIMD3<Float> {
         switch category {
         case .apple, .cherry, .persimmon, .pomegranate, .hawthorn, .bayberry:
@@ -708,6 +726,7 @@ private final class DepthSampler {
     private let baseAddress: UnsafeMutableRawPointer
     private let pixelFormat: FourCharCode
 
+    /// 在采样器生命周期内锁定像素缓冲区，避免每个采样点重复加锁。
     init?(depthMap: CVPixelBuffer, confidenceMap: CVPixelBuffer? = nil) {
         if let confidenceMap {
             guard let confidenceSampler = DepthConfidenceSampler(confidenceMap: confidenceMap) else {
@@ -761,6 +780,7 @@ private final class DepthSampler {
         let up16: FourCharCode = 0x75703136 // 'up16' = kCVPixelFormatType_16U
         let depth: Float
 
+        // 兼容 ARKit 深度图以及导入或测试路径使用的常见浮点和毫米格式。
         if pixelFormat == fp32 || pixelFormat == depthFloat32 || pixelFormat == oneComponentFloat32 {
             let floatBuffer = baseAddress.assumingMemoryBound(to: Float.self)
             let rowBytes = bytesPerRow / MemoryLayout<Float>.size
@@ -784,12 +804,14 @@ private final class DepthSampler {
 }
 
 private final class DepthConfidenceSampler {
+    // 置信度图通常比深度图分辨率低，读取前需要按比例映射坐标。
     private let confidenceMap: CVPixelBuffer
     private let baseAddress: UnsafeMutableRawPointer
     private let bytesPerRow: Int
     private let width: Int
     private let height: Int
 
+    /// 锁定置信度缓冲区，并缓存行跨度以便后续常量时间读取。
     init?(confidenceMap: CVPixelBuffer) {
         CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
         guard let baseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else {
@@ -819,6 +841,7 @@ private final class DepthConfidenceSampler {
             return false
         }
 
+        // 用整数比例映射并夹紧边界，避免不同尺寸缓冲区发生越界访问。
         let confidenceX = max(0, min(x * width / depthWidth, width - 1))
         let confidenceY = max(0, min(y * height / depthHeight, height - 1))
         let confidenceBuffer = baseAddress.assumingMemoryBound(to: UInt8.self)

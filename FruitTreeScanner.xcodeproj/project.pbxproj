@@ -114,6 +114,7 @@
 		RENDPCEXP001 /* RendererPointCloudExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDPCEXP002 /* RendererPointCloudExport.swift */; };
 		RENDPCACC001 /* RendererPointCloudAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDPCACC002 /* RendererPointCloudAccess.swift */; };
 		RENDDEPTH001 /* RendererDepthCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDDEPTH002 /* RendererDepthCoverage.swift */; };
+		IMGCOORD001 /* ImageCameraCoordinateSpace.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMGCOORD002 /* ImageCameraCoordinateSpace.swift */; };
 		RENDPROG001 /* RendererScanProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDPROG002 /* RendererScanProgress.swift */; };
 		RENDSETTINGS001 /* RendererScanSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDSETTINGS002 /* RendererScanSettings.swift */; };
 		BFE751D382AA5DCD78668766 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 869591D63C1E6AC52725B236 /* Theme.swift */; };
@@ -415,6 +416,7 @@
 		RENDPCEXP002 /* RendererPointCloudExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererPointCloudExport.swift; sourceTree = "<group>"; };
 		RENDPCACC002 /* RendererPointCloudAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererPointCloudAccess.swift; sourceTree = "<group>"; };
 		RENDDEPTH002 /* RendererDepthCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererDepthCoverage.swift; sourceTree = "<group>"; };
+		IMGCOORD002 /* ImageCameraCoordinateSpace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCameraCoordinateSpace.swift; sourceTree = "<group>"; };
 		RENDPROG002 /* RendererScanProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererScanProgress.swift; sourceTree = "<group>"; };
 		RENDSETTINGS002 /* RendererScanSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererScanSettings.swift; sourceTree = "<group>"; };
 		D20D286AA15B66451D7E4867 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
@@ -843,6 +845,7 @@
 				RENDPCEXP002 /* RendererPointCloudExport.swift */,
 				RENDPCACC002 /* RendererPointCloudAccess.swift */,
 				RENDDEPTH002 /* RendererDepthCoverage.swift */,
+				IMGCOORD002 /* ImageCameraCoordinateSpace.swift */,
 				RENDPROG002 /* RendererScanProgress.swift */,
 				RENDSETTINGS002 /* RendererScanSettings.swift */,
 				D20D286AA15B66451D7E4867 /* Shaders.metal */,
@@ -1155,6 +1158,7 @@
 				RENDPCEXP001 /* RendererPointCloudExport.swift in Sources */,
 				RENDPCACC001 /* RendererPointCloudAccess.swift in Sources */,
 				RENDDEPTH001 /* RendererDepthCoverage.swift in Sources */,
+				IMGCOORD001 /* ImageCameraCoordinateSpace.swift in Sources */,
 				RENDPROG001 /* RendererScanProgress.swift in Sources */,
 					RENDSETTINGS001 /* RendererScanSettings.swift in Sources */,
 					HELP279228 /* HelpView.swift in Sources */,

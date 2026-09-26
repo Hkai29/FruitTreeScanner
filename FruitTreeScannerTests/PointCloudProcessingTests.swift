@@ -394,6 +394,44 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(quality.validRatio, 0)
     }
 
+    func testCoverageVoxelsUseRawCameraDepthCoordinates() throws {
+        let depth = try makeDepthMap(width: 8, height: 8) { _, _ in 2 }
+        let confidence = try makeConfidenceMap(width: 8, height: 8, value: 2)
+        let intrinsics = simd_float3x3(
+            SIMD3<Float>(4, 0, 0),
+            SIMD3<Float>(0, 4, 0),
+            SIMD3<Float>(0, 0, 1)
+        )
+        let voxels = RendererDepthCoverage.makeCoverageVoxels(
+            depthMap: depth,
+            confidenceMap: confidence,
+            cameraIntrinsics: intrinsics,
+            imageSize: CGSize(width: 8, height: 8),
+            cameraTransform: matrix_identity_float4x4,
+            minDepth: 0.2,
+            maxDepth: 5,
+            confidenceThreshold: 1,
+            voxelSize: 1
+        )
+        XCTAssertEqual(voxels, Set([
+            RendererVoxelKey(x: 0, y: 0, z: -2),
+            RendererVoxelKey(x: 2, y: 0, z: -2),
+            RendererVoxelKey(x: 0, y: -2, z: -2),
+            RendererVoxelKey(x: 2, y: -2, z: -2)
+        ]))
+        XCTAssertTrue(RendererDepthCoverage.makeCoverageVoxels(
+            depthMap: depth,
+            confidenceMap: confidence,
+            cameraIntrinsics: intrinsics,
+            imageSize: CGSize(width: 8, height: 8),
+            cameraTransform: matrix_identity_float4x4,
+            minDepth: 0.2,
+            maxDepth: 5,
+            confidenceThreshold: 1,
+            voxelSize: 0
+        ).isEmpty)
+    }
+
     func testDepthTextureFormatsMatchDocumentedARKitBuffers() throws {
         let depthMap = try makePixelBuffer(
             width: 8,

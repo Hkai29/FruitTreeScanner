@@ -211,14 +211,14 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
     }
 
     private func cameraTransform(eye: SIMD3<Float>, target: SIMD3<Float>) -> simd_float4x4 {
-        let forward = simd_normalize(target - eye)
+        let backward = simd_normalize(eye - target)
         let worldUp = SIMD3<Float>(0, 1, 0)
-        let right = simd_normalize(simd_cross(worldUp, forward))
-        let up = simd_cross(forward, right)
+        let right = simd_normalize(simd_cross(worldUp, backward))
+        let up = simd_cross(backward, right)
         return simd_float4x4(
             SIMD4<Float>(right.x, right.y, right.z, 0),
             SIMD4<Float>(up.x, up.y, up.z, 0),
-            SIMD4<Float>(forward.x, forward.y, forward.z, 0),
+            SIMD4<Float>(backward.x, backward.y, backward.z, 0),
             SIMD4<Float>(eye.x, eye.y, eye.z, 1)
         )
     }

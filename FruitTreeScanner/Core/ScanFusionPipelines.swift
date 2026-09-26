@@ -253,7 +253,7 @@ enum CandidateCombiner {
             pointCount = seed.pointCount
             points = Array(seed.points.prefix(Self.maxPointSamples))
             sourceCategory = seed.sourceCategory
-            hasPointCloudEvidence = seed.sourceCategory == nil && seed.depthSupportRatio == nil
+            hasPointCloudEvidence = seed.hasPointCloudEvidence
             if let depthSupportRatio = seed.depthSupportRatio {
                 weightedDepthSupport = Self.clampedRatio(depthSupportRatio) * weight
                 depthSupportWeight = weight
@@ -285,7 +285,7 @@ enum CandidateCombiner {
             if sourceCategory == nil {
                 sourceCategory = candidate.sourceCategory
             }
-            if candidate.sourceCategory == nil && candidate.depthSupportRatio == nil {
+            if candidate.hasPointCloudEvidence {
                 hasPointCloudEvidence = true
             }
             if let depthSupportRatio = candidate.depthSupportRatio {
@@ -308,7 +308,8 @@ enum CandidateCombiner {
                 averageColor: weightedColor / safeWeight,
                 points: points,
                 sourceCategory: sourceCategory,
-                depthSupportRatio: depthSupportRatio
+                depthSupportRatio: depthSupportRatio,
+                hasPointCloudEvidence: hasPointCloudEvidence
             )
         }
 

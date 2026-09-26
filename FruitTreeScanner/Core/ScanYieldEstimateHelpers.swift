@@ -13,12 +13,17 @@ enum ScanYieldEstimateHelpers {
         let meanDiameterCm: Float
         let meanVolumeCm3: Float
         let massEstimates: [FruitMassEstimate]
+        var fallbackFruitCount: Int = 0
     }
 
     static func estimateQuality(
-        for validatedFruits: [ValidatedFruit]
+        for validatedFruits: [ValidatedFruit],
+        massEstimate: VisibleYieldEstimate? = nil
     ) -> (confidence: String, methodUsed: String, sourceDescription: String) {
         if validatedFruits.contains(where: { $0.source == .fused }) {
+            if let massEstimate, massEstimate.fallbackFruitCount > 0 {
+                return (massEstimate.massEstimates.isEmpty ? "manual_review" : "medium", "fusion_mass_fallback", "融合计数，部分重量使用品类均值")
+            }
             let confidence = weightedEvidence(for: validatedFruits) >= 5 ? "high" : "medium"
             return (confidence, "fusion_visual_calibrated", "RGB+LiDAR 融合检测")
         }
@@ -94,17 +99,26 @@ enum ScanYieldEstimateHelpers {
         var measuredWeight: Float = 0
         var usedCandidateIDs = Set<UUID>()
         var massEstimates: [FruitMassEstimate] = []
+        var fallbackFruitCount = 0
 
-        for fruit in validatedFruits {
+        let orderedFruits = validatedFruits.sorted {
+            if $0.sourceCandidateIDs.isEmpty != $1.sourceCandidateIDs.isEmpty { return !$0.sourceCandidateIDs.isEmpty }
+            return $0.id.uuidString < $1.id.uuidString
+        }
+        for fruit in orderedFruits {
             let availableCandidates = candidates.filter {
                 !usedCandidateIDs.contains($0.id) &&
-                candidate($0, isCompatibleWith: fruit)
+                candidate($0, isCompatibleWith: fruit) &&
+                (fruit.sourceCandidateIDs.isEmpty || fruit.sourceCandidateIDs.contains($0.id))
             }
-            let matchedCandidate = availableCandidates
-                .map { c in (candidate: c, dist: simd_distance(c.position, fruit.position)) }
-                .filter { $0.dist < 0.1 }
-                .min(by: { $0.dist < $1.dist })
-                .map { $0.candidate }
+            let distances: [(candidate: FruitCandidate, dist: Float)] = availableCandidates.map {
+                (candidate: $0, dist: simd_distance($0.position, fruit.position))
+            }
+            let eligible = distances.filter { !fruit.sourceCandidateIDs.isEmpty || $0.dist < 0.1 }
+            let matchedCandidate = eligible.min { lhs, rhs in
+                if lhs.dist == rhs.dist { return lhs.candidate.id.uuidString < rhs.candidate.id.uuidString }
+                return lhs.dist < rhs.dist
+            }?.candidate
 
             if let candidate = matchedCandidate {
                 let params = fruit.category.flatMap { paramsByCategory[$0.rawValue] } ?? defaultParams
@@ -123,6 +137,7 @@ enum ScanYieldEstimateHelpers {
                 usedCandidateIDs.insert(candidate.id)
                 massEstimates.append(massEstimate)
             } else {
+                fallbackFruitCount += 1
                 let avgG = fruit.category.flatMap { paramsByCategory[$0.rawValue] }?.averageWeightG ?? defaultParams.averageWeightG
                 totalWeightKg += avgG / 1000 * FruitCounter.evidenceWeight(for: fruit)
             }
@@ -134,7 +149,8 @@ enum ScanYieldEstimateHelpers {
             yieldKg: totalWeightKg,
             meanDiameterCm: meanDiameter,
             meanVolumeCm3: meanVolume,
-            massEstimates: massEstimates
+            massEstimates: massEstimates,
+            fallbackFruitCount: fallbackFruitCount
         )
     }
 
