@@ -65,6 +65,10 @@ extension ScanView {
         isEstimating = false
         invalidateTemporaryNotice()
         invalidateCoverageCompletion()
+        if coordinator.lifecycleSnapshot().state != .completed {
+            coordinator.discardInterruptedScan()
+            discardCurrentScanArtifacts()
+        }
         clearMeasurementState()
         measurementController.renderer = nil
         coordinator.teardown()

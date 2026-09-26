@@ -3259,6 +3259,7 @@ final class BatchExportFailureFeedbackTests: XCTestCase {
     func testBatchExportFailureClassifiesErrorsAndProvidesRecoveryCopy() {
         let noRecords = BatchExportFailurePresentation(error: BatchExportError.noRecords)
         let aggregate = BatchExportFailurePresentation(error: BatchExportError.aggregateOutOfRange)
+        let inconsistent = BatchExportFailurePresentation(error: BatchExportError.inconsistentRecord)
         let outOfSpace = BatchExportFailurePresentation(error: CocoaError(.fileWriteOutOfSpace))
         let fileWrite = BatchExportFailurePresentation(error: CocoaError(.fileWriteNoPermission))
         let generic = BatchExportFailurePresentation(error: NSError(domain: "BatchExportFailureTests", code: 1))
@@ -3272,6 +3273,8 @@ final class BatchExportFailureFeedbackTests: XCTestCase {
 
         XCTAssertEqual(noRecords.kind, .noRecords)
         XCTAssertEqual(aggregate.kind, .aggregateOutOfRange)
+        XCTAssertEqual(inconsistent.kind, .inconsistentRecord)
+        XCTAssertFalse(inconsistent.message.isEmpty)
         XCTAssertEqual(outOfSpace.kind, .outOfSpace)
         XCTAssertEqual(fileWrite.kind, .fileWrite)
         XCTAssertEqual(generic.kind, .generic)

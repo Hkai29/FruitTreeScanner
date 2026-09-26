@@ -98,6 +98,14 @@ extension ScanView {
             showTemporaryNotice(scanReadiness.title)
             return
         }
+        if coordinator.lifecycleSnapshot().state != .completed {
+            coordinator.discardInterruptedScan()
+            discardCurrentScanArtifacts()
+        }
+        savedFilename = ""
+        resultScanIdentity = nil
+        yieldResult = nil
+        showResult = false
         clearMeasurementState()
         createDirectory(folder: "scans")
         beginCoverageCompletionForNewScan()
@@ -152,6 +160,7 @@ extension ScanView {
         }
         clearMeasurementState()
         coordinator.discardInterruptedScan()
+        discardCurrentScanArtifacts()
         coordinator.teardown()
         dismiss()
     }
@@ -161,6 +170,8 @@ extension ScanView {
             showTemporaryNotice(scanReadiness.title)
             return
         }
+        coordinator.discardInterruptedScan()
+        discardCurrentScanArtifacts()
         clearMeasurementState()
         let restarted = coordinator.restartInterruptedScan(
             selectedCategory: selectedFruitCategory
@@ -182,6 +193,7 @@ extension ScanView {
         showLifecycleRecovery = false
         isEstimating = false
         coordinator.discardInterruptedScan()
+        discardCurrentScanArtifacts()
         coordinator.teardown()
         dismiss()
     }
