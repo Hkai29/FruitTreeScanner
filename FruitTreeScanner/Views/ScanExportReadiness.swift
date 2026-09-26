@@ -1,6 +1,27 @@
 import Foundation
 
 struct ScanExportReadiness {
+    enum RetryAction: Equatable {
+        case unavailable, exportPointCloud, persistResult
+    }
+
+    static func retryAction(
+        state: ScanLifecycleState,
+        hasResult: Bool,
+        canRetryPersistence: Bool,
+        filename: String,
+        currentScanIdentity: UUID?,
+        resultScanIdentity: UUID?
+    ) -> RetryAction {
+        guard state == .finishing else { return .unavailable }
+        if hasResult {
+            guard canRetryPersistence, !filename.isEmpty, let currentScanIdentity,
+                  resultScanIdentity == currentScanIdentity else { return .unavailable }
+            return .persistResult
+        }
+        return .exportPointCloud
+    }
+
     static let minimumExportablePointCount = 100
 
     static func canExport(

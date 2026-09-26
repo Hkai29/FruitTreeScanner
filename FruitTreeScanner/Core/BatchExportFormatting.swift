@@ -3,6 +3,29 @@
 
 import Foundation
 
+struct ScanRecordTotals {
+    let fruitCount: Int?
+    let yieldKg: Float?
+
+    init(records: [ScanFileRecord]) {
+        var count: Int? = 0
+        var yield: Double? = 0
+        for record in records {
+            if let current = count {
+                let next = current.addingReportingOverflow(record.fruitCount)
+                count = record.fruitCount >= 0 && !next.overflow ? next.partialValue : nil
+            }
+            if let current = yield {
+                let next = current + Double(record.yieldKg)
+                yield = record.yieldKg.isFinite && record.yieldKg >= 0
+                    && next <= Double(Float.greatestFiniteMagnitude) ? next : nil
+            }
+        }
+        fruitCount = count
+        yieldKg = yield.map(Float.init)
+    }
+}
+
 struct BatchExportTotals: Equatable, Sendable {
     let totalYield: Float
     let totalFruitCount: Int
@@ -229,20 +252,10 @@ enum BatchExportFormatting {
     }
 
     static func totals(for records: [ScanFileRecord]) -> BatchExportTotals? {
-        var totalYield: Float = 0
-        var totalFruitCount = 0
-        for record in records {
-            let nextYield = totalYield + record.yieldKg
-            guard nextYield.isFinite else { return nil }
-            let nextCount = totalFruitCount.addingReportingOverflow(record.fruitCount)
-            guard !nextCount.overflow else { return nil }
-            totalYield = nextYield
-            totalFruitCount = nextCount.partialValue
-        }
-        return BatchExportTotals(
-            totalYield: totalYield,
-            totalFruitCount: totalFruitCount
-        )
+        let totals = ScanRecordTotals(records: records)
+        guard let totalYield = totals.yieldKg,
+              let totalFruitCount = totals.fruitCount else { return nil }
+        return BatchExportTotals(totalYield: totalYield, totalFruitCount: totalFruitCount)
     }
 
     private static var dayGroupDateFormatter: DateFormatter {

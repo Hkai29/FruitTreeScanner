@@ -25,21 +25,30 @@ extension ImageDetector {
         config: FruitScanConfig,
         labelDiagnostics: ModelLabelCompatibilityDiagnostics,
         lowConfidenceFloor: Float = 0.05,
-        nmsThreshold: Float = 0.45
+        nmsThreshold: Float = 0.45,
+        modelInputSize: CGSize = CGSize(width: 320, height: 320)
     ) -> YOLOParsingResult {
         // 兼容常见 [1, channels, boxes] 与 [1, boxes, channels] 排布。
         let dimensions = multiArray.shape.map { $0.intValue }
-        guard dimensions.count == 3 else {
-            return YOLOParserSupport.emptyResult()
+        guard dimensions.count == 3, dimensions[0] == 1 else {
+            return YOLOParserSupport.emptyResult(labelMappingFailureReason: "YOLO output must be a rank-3 tensor with batch size 1.")
+        }
+        guard modelInputSize.width.isFinite, modelInputSize.height.isFinite,
+              modelInputSize.width > 0, modelInputSize.height > 0 else {
+            return YOLOParserSupport.emptyResult(labelMappingFailureReason: "YOLO model input image size is unavailable or invalid.")
         }
 
         let channelAxis: Int
-        if dimensions[1] >= 5 {
+        let expectedChannels = (labelDiagnostics.runtimeModelLabelsAvailable
+            ? labelDiagnostics.runtimeModelLabels.count : FruitCategory.customModelLabelOrder.count) + 4
+        if dimensions[1] == expectedChannels && dimensions[2] == expectedChannels {
+            return YOLOParserSupport.emptyResult(labelMappingFailureReason: "Ambiguous YOLO channel axis")
+        } else if dimensions[1] == expectedChannels {
             channelAxis = 1
-        } else if dimensions[2] >= 5 {
+        } else if dimensions[2] == expectedChannels {
             channelAxis = 2
         } else {
-            return YOLOParserSupport.emptyResult()
+            return YOLOParserSupport.emptyResult(labelMappingFailureReason: "YOLO label contract rejected: label count does not match output class count.")
         }
 
         let anchorAxis = channelAxis == 1 ? 2 : 1
@@ -47,7 +56,7 @@ extension ImageDetector {
         let anchorCount = dimensions[anchorAxis]
         let classCount = channelCount - 4
         guard classCount > 0, anchorCount > 0 else {
-            return YOLOParserSupport.emptyResult()
+            return YOLOParserSupport.emptyResult(labelMappingFailureReason: "YOLO output has no classes or anchors.")
         }
 
         // 标签数量必须与输出通道契约一致，禁止错位映射为其他水果。
@@ -98,7 +107,8 @@ extension ImageDetector {
                 centerX: centerX,
                 centerY: centerY,
                 width: width,
-                height: height
+                height: height,
+                modelInputSize: modelInputSize
             )
 
             if let boundingBox {

@@ -165,7 +165,8 @@ struct OcclusionCorrector {
         lidarPenetrationM: Float = FruitScanExperimentConfig.default.occlusion.lidarPenetrationMeters,
         scanAngleCoverage: Float = 0.5,
         visualDetectionCount: Int? = nil,
-        lidarDetectionCount: Int? = nil
+        lidarDetectionCount: Int? = nil,
+        countsRepresentDistinctFruits: Bool = false
     ) -> CorrectionResult {
         guard visibleCount > 0 else {
             return CorrectionResult(k: 1.0, kLow: 1.0, kHigh: 1.0,
@@ -189,8 +190,8 @@ struct OcclusionCorrector {
         let evidenceReliability = min(Float(visibleCount) / 1000.0, 1.0) * min(max(scanAngleCoverage, 0), 1)
         let geometrySupportedK = 1.0 + (geometricKClamped - 1.0) * (1.0 - evidenceReliability)
         let ratioSupportedK = visualLidarRatioSupportedK(
-            visualDetectionCount: visualDetectionCount,
-            lidarDetectionCount: lidarDetectionCount,
+            visualDetectionCount: countsRepresentDistinctFruits ? visualDetectionCount : nil,
+            lidarDetectionCount: countsRepresentDistinctFruits ? lidarDetectionCount : nil,
             scanAngleCoverage: scanAngleCoverage
         )
         let kClamped = min(max(geometrySupportedK, ratioSupportedK), 3.0)

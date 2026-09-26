@@ -14,6 +14,10 @@ struct FruitInfo {
 }
 
 struct YieldResult: Sendable {
+    var algorithmRevision: String? = nil
+    var calibrationContext: String? = nil
+    var calibrationBaseCount: Int? = nil
+    var calibrationBaseYieldKg: Float? = nil
     var nLidar: Int = 0
     var nVisual: Int? = nil
     var correctionK: Float = 1.0

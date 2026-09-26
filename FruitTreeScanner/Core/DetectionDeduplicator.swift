@@ -476,6 +476,7 @@ extension ValidatedFruit {
         var observationCount: Int
         var imageObservationCount: Int
         var accumulatedEvidence: Float
+        var sourceCandidateIDs: Set<UUID>
 
         init(seed: ValidatedFruit) {
             let weight = Self.weight(for: seed)
@@ -485,6 +486,7 @@ extension ValidatedFruit {
             observationCount = 1
             imageObservationCount = seed.source.isImageBased ? 1 : 0
             accumulatedEvidence = Self.evidence(for: seed)
+            sourceCandidateIDs = Set(seed.sourceCandidateIDs)
         }
 
         var center: SIMD3<Float> {
@@ -493,6 +495,7 @@ extension ValidatedFruit {
         }
 
         mutating func add(_ fruit: ValidatedFruit) {
+            sourceCandidateIDs.formUnion(fruit.sourceCandidateIDs)
             let weight = Self.weight(for: fruit)
             weightedPosition += fruit.position * weight
             totalWeight += weight
@@ -514,7 +517,9 @@ extension ValidatedFruit {
                 category: representative.category,
                 position: center,
                 confidence: min(max(representative.confidence, accumulatedEvidence), 1.0),
-                source: mergedSource
+                source: mergedSource,
+                measuredDiameter: representative.measuredDiameter,
+                sourceCandidateIDs: sourceCandidateIDs.sorted { $0.uuidString < $1.uuidString }
             )
         }
 
@@ -600,7 +605,8 @@ extension ValidatedFruit {
 
         let category = fruit.category ?? track.representative.category
         let upperDiameter = category?.sizeRange.upperBound ?? 0.10
-        let baseThreshold = upperDiameter / 2
+        let measuredUpper = max(fruit.measuredDiameter ?? upperDiameter, track.representative.measuredDiameter ?? upperDiameter)
+        let baseThreshold = min(upperDiameter, measuredUpper) / 2
 
         guard fruit.source.isImageBased,
               fruit.source != .fused,

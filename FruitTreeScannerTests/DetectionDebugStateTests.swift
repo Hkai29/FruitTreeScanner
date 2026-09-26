@@ -21,8 +21,20 @@ final class DetectionDebugStateTests: XCTestCase {
     }
 
     @MainActor
-    func testScanFruitConfigurationAppliesVerifiedCalibrationWithoutWarning() {
-        let record = CalibrationRecord(
+    func testScanFruitConfigurationAppliesVerifiedCalibrationWithoutWarning() throws {
+        let settings = SettingsStore.shared
+        let baseline = ScanFruitConfiguration.capture(
+            selectedCategory: .apple,
+            settings: settings,
+            calibrationRecordsLoader: { [] }
+        )
+        let context = try XCTUnwrap(YieldCalibrationContext.make(
+            parameters: baseline.parametersSnapshot,
+            cluster: baseline.clusterConfig,
+            fusion: baseline.fusionConfig,
+            color: baseline.colorFilter
+        ))
+        var record = CalibrationRecord(
             id: UUID(),
             treeID: "T-verified",
             scanDate: Date(timeIntervalSince1970: 1_780_000_000),
@@ -32,10 +44,12 @@ final class DetectionDebugStateTests: XCTestCase {
             actualYieldKg: 4,
             fruitType: FruitCategory.apple.rawValue
         )
+        record.algorithmRevision = YieldAlgorithmRevision.current
+        record.calibrationContext = context
 
         let configuration = ScanFruitConfiguration.capture(
             selectedCategory: .apple,
-            settings: SettingsStore.shared,
+            settings: settings,
             calibrationRecordsLoader: { [record] }
         )
 

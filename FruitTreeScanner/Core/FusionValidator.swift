@@ -133,7 +133,9 @@ final class FusionValidator: Sendable {
                     category: detection.category,
                     position: candidate.position,
                     confidence: decisionPolicy.fusedConfidence(detection: detection, candidate: candidate),
-                    source: .fused
+                    source: .fused,
+                    measuredDiameter: candidate.diameter,
+                    sourceCandidateIDs: [candidate.id]
                 )
                 validatedFruits.append(validatedFruit)
             case let .imageOnly(position):

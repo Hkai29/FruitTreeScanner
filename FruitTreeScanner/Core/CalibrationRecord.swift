@@ -1,4 +1,52 @@
 import Foundation
+import CryptoKit
+
+enum YieldCalibrationContext {
+    static let bundledModelFingerprint: String? = {
+        guard let resource = ImageDetectorModelLoader.modelURL(named: "FruitsDetector") else { return nil }
+        let root = resource.url
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory) else { return nil }
+        let files: [URL]
+        if isDirectory.boolValue {
+            guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]) else { return nil }
+            files = enumerator.compactMap { $0 as? URL }.filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }.sorted { $0.path < $1.path }
+        } else { files = [root] }
+        guard !files.isEmpty else { return nil }
+        var hash = SHA256()
+        do {
+            for file in files {
+                hash.update(data: Data(file.path.replacingOccurrences(of: root.path, with: "").utf8))
+                let handle = try FileHandle(forReadingFrom: file)
+                defer { try? handle.close() }
+                while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty { hash.update(data: data) }
+            }
+            return hash.finalize().map { String(format: "%02x", $0) }.joined()
+        } catch { return nil }
+    }()
+
+    static func make(parameters: [String: FruitVarietyParams], cluster: ClusterConfig, fusion: FruitScanConfig, color: ColorFilter?, modelFingerprint: String? = bundledModelFingerprint) -> String? {
+        guard let modelFingerprint else { return nil }
+        let encoder = JSONEncoder()
+        func object<T: Encodable>(_ value: T) throws -> Any { try JSONSerialization.jsonObject(with: encoder.encode(value), options: [.fragmentsAllowed]) }
+        do {
+            var params = try object(parameters) as? [String: [String: Any]] ?? [:]
+            for key in Array(params.keys) {
+                params[key]?.removeValue(forKey: "id")
+                params[key]?.removeValue(forKey: "isCustomized")
+            }
+            let payload: [String: Any] = ["algorithm": YieldAlgorithmRevision.current, "modelSHA256": modelFingerprint,
+                "parameters": params, "cluster": try object(cluster), "fusion": try object(fusion),
+                "color": try object(color), "experiment": try object(FruitScanExperimentConfig.default)]
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+            return String(data: data, encoding: .utf8)
+        } catch { return nil }
+    }
+}
+
+enum YieldAlgorithmRevision {
+    static let current = "fusion-geometry-evidence-v2-20260906"
+}
 
 // MARK: - 校准记录
 
@@ -11,6 +59,8 @@ struct CalibrationRecord: Codable, Identifiable, Sendable {
     let estimatedYieldKg: Double
     let actualYieldKg: Double?
     let fruitType: String
+    var algorithmRevision: String? = nil
+    var calibrationContext: String? = nil
 
     var countError: Double? {
         guard let manual = manualFruitCount, manual > 0 else { return nil }
@@ -133,10 +183,14 @@ enum YieldCalibrationCorrector {
     static func correction(
         from records: [CalibrationRecord],
         fruitCategory: FruitCategory?,
-        fruitType: String
+        fruitType: String,
+        requiredAlgorithmRevision: String? = nil,
+        requiredContext: String? = nil
     ) -> YieldCalibrationCorrection {
         let matchingRecords = records.filter {
-            record($0, matches: fruitCategory, fruitType: fruitType)
+            record($0, matches: fruitCategory, fruitType: fruitType) &&
+                (requiredAlgorithmRevision == nil || $0.algorithmRevision == requiredAlgorithmRevision) &&
+                (requiredContext == nil || $0.calibrationContext == requiredContext)
         }
         let countRatios = matchingRecords.compactMap(countRatio)
         let yieldRatios = matchingRecords.compactMap(yieldRatio)

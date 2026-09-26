@@ -723,8 +723,8 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["complete-a", "complete-b"])
         XCTAssertEqual(report.totalScans, 2)
         XCTAssertEqual(report.totalTrees, 2)
-        XCTAssertEqual(report.totalYield, 5.5, accuracy: 0.001)
-        XCTAssertEqual(report.averageYield, 2.75, accuracy: 0.001)
+        XCTAssertEqual(report.totalYield ?? -1, 5.5, accuracy: 0.001)
+        XCTAssertEqual(report.averageYield ?? -1, 2.75, accuracy: 0.001)
         XCTAssertEqual(report.totalFruit, 20)
         XCTAssertFalse(report.isEmpty)
     }
@@ -757,8 +757,8 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertTrue(report.visibleRecords.isEmpty)
         XCTAssertEqual(report.totalScans, 0)
         XCTAssertEqual(report.totalTrees, 0)
-        XCTAssertEqual(report.totalYield, 0, accuracy: 0.001)
-        XCTAssertEqual(report.averageYield, 0, accuracy: 0.001)
+        XCTAssertEqual(report.totalYield ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(report.averageYield ?? -1, 0, accuracy: 0.001)
         XCTAssertEqual(report.totalFruit, 0)
     }
 
@@ -828,9 +828,27 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(report.totalTrees, 2)
         XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["tree-a-new", "tree-b"])
         XCTAssertEqual(report.visibleRecords.map(\.id), ["tree-a-new", "tree-b"])
-        XCTAssertEqual(report.totalYield, 7, accuracy: 0.001)
-        XCTAssertEqual(report.averageYield, 3.5, accuracy: 0.001)
+        XCTAssertEqual(report.totalYield ?? -1, 7, accuracy: 0.001)
+        XCTAssertEqual(report.averageYield ?? -1, 3.5, accuracy: 0.001)
         XCTAssertEqual(report.totalFruit, 35)
+    }
+
+    func testYieldReportDataDoesNotOverflowLargeTotals() {
+        let scanDate = Date(timeIntervalSince1970: 100)
+        let countOverflow = YieldReportData(records: [
+            makeRecord(id: "max-count", treeID: "A", scanDate: scanDate, fruitCount: .max, yieldKg: 1),
+            makeRecord(id: "extra-count", treeID: "B", scanDate: scanDate, fruitCount: 1, yieldKg: 1)
+        ])
+        XCTAssertNil(countOverflow.totalFruit)
+        XCTAssertEqual(countOverflow.totalYield, 2)
+
+        let yieldOverflow = YieldReportData(records: [
+            makeRecord(id: "max-yield-a", treeID: "A", scanDate: scanDate, fruitCount: 1, yieldKg: .greatestFiniteMagnitude),
+            makeRecord(id: "max-yield-b", treeID: "B", scanDate: scanDate, fruitCount: 1, yieldKg: .greatestFiniteMagnitude)
+        ])
+        XCTAssertNil(yieldOverflow.totalYield)
+        XCTAssertNil(yieldOverflow.averageYield)
+        XCTAssertEqual(yieldOverflow.totalFruit, 2)
     }
 
     func testYieldReportDataUsesStableTieBreakForSameTreeAndTimestamp() {
@@ -855,7 +873,7 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(report.totalScans, 2)
         XCTAssertEqual(report.totalTrees, 1)
         XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["scan-a"])
-        XCTAssertEqual(report.totalYield, 1, accuracy: 0.001)
+        XCTAssertEqual(report.totalYield ?? -1, 1, accuracy: 0.001)
         XCTAssertEqual(report.totalFruit, 10)
     }
 
@@ -889,8 +907,8 @@ final class DashboardSummaryTests: XCTestCase {
         XCTAssertEqual(report.totalTrees, 1)
         XCTAssertEqual(report.latestRecordsByTree.map(\.id), ["latest-zero"])
         XCTAssertEqual(report.visibleRecords.map(\.id), ["latest-zero"])
-        XCTAssertEqual(report.totalYield, 0, accuracy: 0.001)
-        XCTAssertEqual(report.averageYield, 0, accuracy: 0.001)
+        XCTAssertEqual(report.totalYield ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(report.averageYield ?? -1, 0, accuracy: 0.001)
         XCTAssertEqual(report.totalFruit, 0)
     }
 

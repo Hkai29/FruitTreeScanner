@@ -228,9 +228,13 @@ extension PLYParserHelper {
     }
 
     static func nonNegativeIntValue(_ value: Any?) -> Int? {
-        guard let raw = finiteDouble(value), raw >= 0, raw.rounded(.towardZero) == raw,
-              raw <= Double(Int.max) else { return nil }
-        return Int(raw)
+        if let integer = value as? Int { return integer >= 0 ? integer : nil }
+        if let string = value as? String,
+           let integer = Int(string.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return integer >= 0 ? integer : nil
+        }
+        guard let raw = finiteDouble(value), raw >= 0 else { return nil }
+        return Int(exactly: raw)
     }
 
     static func nonNegativeFloatValue(_ value: Any?) -> Float? {

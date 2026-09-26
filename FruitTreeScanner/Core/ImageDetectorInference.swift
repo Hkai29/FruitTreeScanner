@@ -201,7 +201,8 @@ struct ImageDetectorInference: Sendable {
                 multiArray,
                 timestamp: timestamp,
                 config: config,
-                labelDiagnostics: detector.modelLabelDiagnosticsSnapshot()
+                labelDiagnostics: detector.modelLabelDiagnosticsSnapshot(),
+                modelInputSize: detector.modelInputSize
             )
             guard detector.recordCoreMLDetection(
                 observationCount: parsed.modelCandidateCount,
@@ -211,6 +212,7 @@ struct ImageDetectorInference: Sendable {
                 rawDetectedLabels: parsed.rawPredictions.map(\.label),
                 mappedCategories: parsed.mappedCategories,
                 unmappedLabels: parsed.unmappedLabels,
+                failureReason: parsed.labelMappingFailureReason,
                 expectedQueueGeneration: queueGeneration
             ) else {
                 completion([])

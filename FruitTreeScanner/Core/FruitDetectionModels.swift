@@ -79,6 +79,7 @@ struct FruitCandidate: Identifiable, Sendable {
     let points: [SIMD3<Float>]
     let sourceCategory: FruitCategory?
     let depthSupportRatio: Float?
+    let hasPointCloudEvidence: Bool
 
     init(
         position: SIMD3<Float>,
@@ -88,7 +89,8 @@ struct FruitCandidate: Identifiable, Sendable {
         averageColor: SIMD3<Float>,
         points: [SIMD3<Float>] = [],
         sourceCategory: FruitCategory? = nil,
-        depthSupportRatio: Float? = nil
+        depthSupportRatio: Float? = nil,
+        hasPointCloudEvidence: Bool? = nil
     ) {
         self.id = UUID()
         self.position = position
@@ -99,6 +101,7 @@ struct FruitCandidate: Identifiable, Sendable {
         self.points = points
         self.sourceCategory = sourceCategory
         self.depthSupportRatio = depthSupportRatio
+        self.hasPointCloudEvidence = hasPointCloudEvidence ?? (sourceCategory == nil && depthSupportRatio == nil)
     }
 
     func isValidFruit(expectedCategory: FruitCategory? = nil) -> Bool {
@@ -122,13 +125,17 @@ struct ValidatedFruit: Identifiable, Sendable {
     let position: SIMD3<Float>
     let confidence: Float
     let source: ValidationSource
+    let measuredDiameter: Float?
+    let sourceCandidateIDs: [UUID]
 
-    init(id: UUID = UUID(), category: FruitCategory?, position: SIMD3<Float>, confidence: Float, source: ValidationSource) {
+    init(id: UUID = UUID(), category: FruitCategory?, position: SIMD3<Float>, confidence: Float, source: ValidationSource, measuredDiameter: Float? = nil, sourceCandidateIDs: [UUID] = []) {
         self.id = id
         self.category = category
         self.position = position
         self.confidence = confidence
         self.source = source
+        self.measuredDiameter = measuredDiameter.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        self.sourceCandidateIDs = sourceCandidateIDs
     }
 }
 
@@ -212,7 +219,7 @@ struct ValidatedFruitData: Codable, Sendable {
 }
 
 // MARK: - 扫描配置
-struct FruitScanConfig: Sendable {
+struct FruitScanConfig: Sendable, Encodable {
     var imageDetectionInterval: Int = FruitScanExperimentConfig.default.detector.imageDetectionInterval
     var minConfidence: Float = FruitScanExperimentConfig.default.detector.minConfidence
     var sizeTolerance: Float = FruitScanExperimentConfig.default.fusion.sizeTolerance
@@ -224,7 +231,7 @@ struct FruitScanConfig: Sendable {
 }
 
 // MARK: - 聚类配置
-struct ClusterConfig: Sendable {
+struct ClusterConfig: Sendable, Encodable {
     var minPoints: Int = FruitScanExperimentConfig.default.clustering.minPoints
     var minDiameter: Float = FruitScanExperimentConfig.default.clustering.minDiameter
     var maxDiameter: Float = FruitScanExperimentConfig.default.clustering.maxDiameter

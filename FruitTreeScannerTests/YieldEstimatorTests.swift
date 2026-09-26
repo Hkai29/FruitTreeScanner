@@ -3,6 +3,161 @@ import XCTest
 
 final class YieldEstimatorTests: XCTestCase {
 
+    func testCalibrationContextTracksParametersAndModelNotRandomIDs() throws {
+        let params = FruitVarietyParams(category: .apple)
+        func context(_ value: FruitVarietyParams, model: String = "model-A") throws -> String {
+            try XCTUnwrap(YieldCalibrationContext.make(parameters: ["apple": value], cluster: .default, fusion: .default, color: nil, modelFingerprint: model))
+        }
+        let original = try context(params)
+        XCTAssertEqual(original, try context(FruitVarietyParams(category: .apple)))
+        XCTAssertNotEqual(original, try context(params, model: "model-B"))
+        var changed = params
+        changed.density += 0.1
+        let changedContext = try context(changed)
+        XCTAssertNotEqual(original, changedContext)
+        var record = CalibrationRecord(id: UUID(), treeID: "T", scanDate: Date(), estimatedFruitCount: 10, manualFruitCount: 15, estimatedYieldKg: 1, actualYieldKg: 2, fruitType: "apple")
+        record.algorithmRevision = YieldAlgorithmRevision.current
+        record.calibrationContext = original
+        let matched = YieldCalibrationCorrector.correction(from: [record], fruitCategory: .apple, fruitType: "apple", requiredAlgorithmRevision: YieldAlgorithmRevision.current, requiredContext: original)
+        XCTAssertEqual(matched.yieldSampleCount, 1)
+        let changedResult = YieldCalibrationCorrector.correction(from: [record], fruitCategory: .apple, fruitType: "apple", requiredAlgorithmRevision: YieldAlgorithmRevision.current, requiredContext: changedContext)
+        XCTAssertEqual(changedResult, .neutral)
+    }
+
+    func testCalibrationRevisionExcludesLegacyWithoutDeletingIt() throws {
+        let legacy = CalibrationRecord(id: UUID(), treeID: "T", scanDate: Date(), estimatedFruitCount: 10, manualFruitCount: 20, estimatedYieldKg: 1, actualYieldKg: 2, fruitType: "apple")
+        let data = try JSONEncoder().encode(legacy)
+        let restored = try JSONDecoder().decode(CalibrationRecord.self, from: data)
+        XCTAssertNil(restored.algorithmRevision)
+        let excluded = YieldCalibrationCorrector.correction(from: [restored], fruitCategory: .apple, fruitType: "apple", requiredAlgorithmRevision: YieldAlgorithmRevision.current)
+        XCTAssertEqual(excluded, .neutral)
+        var current = restored
+        current.algorithmRevision = YieldAlgorithmRevision.current
+        let accepted = YieldCalibrationCorrector.correction(from: [restored, current], fruitCategory: .apple, fruitType: "apple", requiredAlgorithmRevision: YieldAlgorithmRevision.current)
+        XCTAssertEqual(accepted.yieldSampleCount, 1)
+        XCTAssertEqual(accepted.yieldFactor, 2)
+    }
+
+    func testMergedFusionKeepsSourceCandidateIdentity() {
+        let first = UUID(), second = UUID()
+        let fruits = [first, second].map { id in
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(0, 0, -2), confidence: 1, source: .fused, sourceCandidateIDs: [id])
+        }
+        let merged = ValidatedFruit.deduplicate3D(fruits)
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(Set(merged[0].sourceCandidateIDs), Set([first, second]))
+    }
+
+    func testArchitectureAuditMassRematchingDependsOnFruitOrder() {
+        let candidates = [(Float(0), Float(0.06)), (Float(0.18), Float(0.10))].map { x, diameter in
+            FruitCandidate(position: SIMD3<Float>(x, 0, -2), diameter: diameter, sphericity: 0.9, pointCount: 40, averageColor: SIMD3<Float>(1, 0, 0))
+        }
+        let fruits = [Float(0.085), Float(0)].enumerated().map { index, x in
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(x, 0, -2), confidence: 1, source: .fused, sourceCandidateIDs: [candidates[1 - index].id])
+        }
+        let params = FruitVarietyParams(category: .apple)
+        func estimate(_ fruits: [ValidatedFruit]) -> ScanYieldEstimateHelpers.VisibleYieldEstimate {
+            ScanYieldEstimateHelpers.computeYieldFromValidatedFruits(fruits, candidates: candidates, paramsByCategory: ["apple": params], defaultParams: params)
+        }
+        let a = estimate(fruits), b = estimate(Array(fruits.reversed()))
+        print("ARCH_AUDIT rematch forwardKg=\(a.yieldKg) reverseKg=\(b.yieldKg) measured=\(a.massEstimates.count)/\(b.massEstimates.count)")
+        // 显式候选关联应使结果不受果实排列顺序影响。
+        XCTAssertEqual(a.massEstimates.count, 2)
+        XCTAssertEqual(b.massEstimates.count, 2)
+        XCTAssertEqual(a.yieldKg, b.yieldKg, accuracy: 0.000001)
+    }
+
+    func testArchitectureAuditHighQualityWithoutAnyMeasuredMass() {
+        let fruits = (0..<6).map { i in
+            ValidatedFruit(category: .apple, position: SIMD3<Float>(Float(i), 0, -2), confidence: 1, source: .fused, measuredDiameter: 0.06)
+        }
+        let params = FruitVarietyParams(category: .apple)
+        let result = ScanYieldEstimateHelpers.computeYieldFromValidatedFruits(fruits, candidates: [], paramsByCategory: ["apple": params], defaultParams: params)
+        let quality = ScanYieldEstimateHelpers.estimateQuality(for: fruits, massEstimate: result)
+        print("ARCH_AUDIT fallback massKg=\(result.yieldKg) measured=\(result.massEstimates.count) meanDiameter=\(result.meanDiameterCm) confidence=\(quality.confidence)")
+        XCTAssertGreaterThan(result.yieldKg, 0)
+        XCTAssertTrue(result.massEstimates.isEmpty)
+        XCTAssertEqual(result.meanDiameterCm, 0)
+        XCTAssertEqual(quality.confidence, "manual_review")
+    }
+
+    func testDeepAuditPearMassChangesUnderRigidRotation() {
+        var points: [SIMD3<Float>] = []
+        for latitude in 1..<20 {
+            let theta = Float(latitude) * Float.pi / 20
+            for longitude in 0..<40 {
+                let phi = Float(longitude) * 2 * Float.pi / 40
+                points.append(SIMD3<Float>(0.02 * sin(theta) * cos(phi), 0.05 * cos(theta), 0.02 * sin(theta) * sin(phi)))
+            }
+        }
+        let c = sqrt(Float(0.5))
+        let rotated = points.map { SIMD3<Float>(c * ($0.x - $0.y), c * ($0.x + $0.y), $0.z) }
+        let a = SimpleFruitGeometryEstimator.estimate(points: points, fruitCategory: .pear, densityGPerCm3: 1, highConfidenceRatio: 1, validDepthRatio: 1)
+        let b = SimpleFruitGeometryEstimator.estimate(points: rotated, fruitCategory: .pear, densityGPerCm3: 1, highConfidenceRatio: 1, validDepthRatio: 1)
+        print("YIELD_AUDIT rigidRotation originalG=\(a.estimatedWeightG) rotatedG=\(b.estimatedWeightG) ratio=\(b.estimatedWeightG / a.estimatedWeightG)")
+        // 同一刚体旋转不应该改变重量。
+        XCTAssertEqual(b.estimatedWeightG, a.estimatedWeightG, accuracy: a.estimatedWeightG * 0.01)
+        let angle: Float = 0.71
+        let rotatedAgain = rotated.map { SIMD3<Float>($0.x, cos(angle) * $0.y - sin(angle) * $0.z, sin(angle) * $0.y + cos(angle) * $0.z) + SIMD3<Float>(25, -30, 40) }
+        let moved = SimpleFruitGeometryEstimator.estimate(points: rotatedAgain, fruitCategory: .pear, densityGPerCm3: 1, highConfidenceRatio: 1, validDepthRatio: 1)
+        XCTAssertEqual(moved.estimatedWeightG, a.estimatedWeightG, accuracy: a.estimatedWeightG * 0.01)
+    }
+
+    func testDeepAuditRepeatedObservationsInflateOcclusionMultiplier() {
+        let a = OcclusionCorrector.correctionFactorDetailed(visibleCount: 10, crownRadiusM: 0.3, crownDepthM: 0.4, lidarPenetrationM: 0.5, scanAngleCoverage: 1, visualDetectionCount: 20, lidarDetectionCount: 10)
+        let b = OcclusionCorrector.correctionFactorDetailed(visibleCount: 10, crownRadiusM: 0.3, crownDepthM: 0.4, lidarPenetrationM: 0.5, scanAngleCoverage: 1, visualDetectionCount: 30, lidarDetectionCount: 10)
+        print("YIELD_AUDIT repeatedFrames twoObservationsK=\(a.k) threeObservationsK=\(b.k) ratio=\(b.k / a.k)")
+        XCTAssertEqual(b.k, a.k, accuracy: 0.0001)
+    }
+
+    func testDeepAuditNearbySmallStrawberriesMergedWithoutMeasuredSize() {
+        let fruits = [Float(0), 0.022].map { x in
+            ValidatedFruit(category: .strawberry, position: SIMD3<Float>(x, 0, -2), confidence: 0.99, source: .fused, measuredDiameter: 0.02)
+        }
+        let result = ValidatedFruit.deduplicate3D(fruits)
+        print("YIELD_AUDIT adjacentStrawberries separationM=0.022 input=2 output=\(result.count)")
+        XCTAssertEqual(result.count, 2)
+        let duplicate = ValidatedFruit(category: .strawberry, position: SIMD3<Float>(0.003, 0, -2), confidence: 0.98, source: .fused, measuredDiameter: 0.02)
+        let withRepeatedObservation = ValidatedFruit.deduplicate3D(fruits + [duplicate])
+        XCTAssertEqual(withRepeatedObservation.count, 2)
+        XCTAssertTrue(withRepeatedObservation.allSatisfy { $0.measuredDiameter == 0.02 })
+    }
+
+    func testRegressionWorldTranslationMustNotEraseMeasuredFruit() {
+        var points: [SIMD3<Float>] = []
+        for x: Float in [-0.02, 0.02] {
+            for y: Float in [-0.05, 0.05] {
+                for z: Float in [-0.02, 0.02] { points.append(SIMD3<Float>(x, y, z)) }
+            }
+        }
+        let a = SimpleFruitGeometryEstimator.estimate(points: points, fruitCategory: .pear, densityGPerCm3: 1, highConfidenceRatio: 1, validDepthRatio: 1)
+        let b = SimpleFruitGeometryEstimator.estimate(points: points.map { $0 + SIMD3<Float>(25, 0, 0) }, fruitCategory: .pear, densityGPerCm3: 1, highConfidenceRatio: 1, validDepthRatio: 1)
+        print("DEEP_REVIEW translated mass origin=\(a.estimatedWeightG) shifted=\(b.estimatedWeightG)")
+        XCTAssertEqual(a.estimatedWeightG, b.estimatedWeightG, accuracy: 0.01, "A world origin change must not change fruit mass")
+    }
+
+    func testRegressionMixedCandidateMustPreserveMeasuredGeometry() throws {
+        var points: [SIMD3<Float>] = []
+        for _ in 0..<10 {
+            for x: Float in [-0.02, 0.02] {
+                for y: Float in [-0.05, 0.05] {
+                    for z: Float in [-0.02, 0.02] { points.append(SIMD3<Float>(x, y, 2 + z)) }
+                }
+            }
+        }
+        let cloud = FruitCandidate(position: SIMD3<Float>(0, 0, 2), diameter: 0.10,
+            sphericity: 0.8, pointCount: points.count, averageColor: SIMD3<Float>(1, 0.7, 0), points: points)
+        let roi = FruitCandidate(position: cloud.position, diameter: cloud.diameter,
+            sphericity: cloud.sphericity, pointCount: 8, averageColor: cloud.averageColor,
+            points: [], sourceCategory: .pear, depthSupportRatio: 0.8)
+        let merged = try XCTUnwrap(CandidateCombiner.combine(pointCloudCandidates: [cloud], detectionDepthCandidates: [roi]).first)
+        let before = SimpleFruitGeometryEstimator.estimate(candidate: cloud, fruitCategory: .pear, densityGPerCm3: 1)
+        let after = SimpleFruitGeometryEstimator.estimate(candidate: merged, fruitCategory: .pear, densityGPerCm3: 1)
+        print("DEEP_REVIEW mixed geometry before=\(before.estimatedWeightG)g after=\(after.estimatedWeightG)g points=\(merged.points.count) depthSupport=\(String(describing: merged.depthSupportRatio))")
+        XCTAssertEqual(after.estimatedWeightG, before.estimatedWeightG, accuracy: before.estimatedWeightG * 0.05,
+                       "Adding agreeing category evidence must not replace measured ellipsoid geometry with a sphere")
+    }
+
     private var estimator: YieldEstimator!
 
     override func setUp() {

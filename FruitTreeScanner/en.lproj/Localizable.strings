@@ -480,6 +480,8 @@
 "calibration.statistics.yield_mape" = "Yield MAPE";
 "calibration.statistics.record_count" = "Calibrations";
 "calibration.records.title" = "Calibration Records";
+"calibration.record.context_matched_if_current" = "Applies only when the model and settings match";
+"calibration.record.legacy_reference" = "Kept for comparison; excluded from automatic calibration";
 "calibration.records.empty_title" = "No Calibration Records";
 "calibration.records.empty_message" = "Add a manual count or actual weight to compare estimation errors here.";
 "calibration.records.loading" = "Loading calibration records…";
@@ -1242,6 +1244,7 @@
 "yield_report.metric.total_yield" = "Total Yield";
 "yield_report.metric.average_yield" = "Average";
 "yield_report.metric.fruit" = "Fruit";
+"yield_report.metric.out_of_range" = "Out of range";
 "yield_report.unit.scan_one" = "scan";
 "yield_report.unit.scan_other" = "scans";
 "yield_report.unit.fruit_one" = "fruit";

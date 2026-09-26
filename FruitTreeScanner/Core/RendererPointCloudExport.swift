@@ -58,22 +58,41 @@ enum RendererPointCloudSnapshot {
     ) -> [RendererPointSample] {
         guard currentPointCount > 0 else { return [] }
 
+        let validPointCount: Int
+        if inputSampleLimit != nil {
+            validPointCount = (0..<currentPointCount).reduce(into: 0) { count, offset in
+                let index = (currentPointIndex - currentPointCount + offset + maxPoints) % maxPoints
+                if isExportableParticle(particlesBuffer[index], confidenceThreshold: confidenceThreshold) {
+                    count += 1
+                }
+            }
+        } else {
+            validPointCount = currentPointCount
+        }
         let sampleStep = inputSampleLimit.map { limit in
             let clampedLimit = max(limit, 1)
-            return max((currentPointCount + clampedLimit - 1) / clampedLimit, 1)
+            return max((validPointCount + clampedLimit - 1) / clampedLimit, 1)
         } ?? 1
         var bestSamplesByVoxel: [RendererVoxelKey: RendererPointSample] = [:]
-        bestSamplesByVoxel.reserveCapacity(min(currentPointCount / sampleStep, 200_000))
+        bestSamplesByVoxel.reserveCapacity(min(validPointCount / sampleStep, 200_000))
 
         var i = 0
+        var validOrdinal = 0
+        var sampledCount = 0
         while i < currentPointCount {
             let bufferIndex = (currentPointIndex - currentPointCount + i + maxPoints) % maxPoints
             let particle = particlesBuffer[bufferIndex]
-            defer { i += sampleStep }
+            defer { i += 1 }
             guard let sample = makeExportableSample(
                 from: particle,
                 confidenceThreshold: confidenceThreshold
             ) else { continue }
+            // 步长应用于有效证据序号，避免深度孔洞与固定槽位相位重合。
+            let shouldSample = validOrdinal % sampleStep == 0
+            validOrdinal += 1
+            guard shouldSample else { continue }
+            if let limit = inputSampleLimit, sampledCount >= max(limit, 1) { break }
+            sampledCount += 1
 
             let key = voxelKey(for: sample.position, size: voxelSize)
             if let existing = bestSamplesByVoxel[key], existing.confidence >= sample.confidence {

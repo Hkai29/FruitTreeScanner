@@ -5,15 +5,10 @@ import Foundation
 import simd
 
 extension SimpleFruitGeometryEstimator {
-    private static let maxAbsCoordinateMeters: Float = 20
-
     static func isUsablePoint(_ point: SIMD3<Float>) -> Bool {
         point.x.isFinite &&
             point.y.isFinite &&
-            point.z.isFinite &&
-            abs(point.x) <= maxAbsCoordinateMeters &&
-            abs(point.y) <= maxAbsCoordinateMeters &&
-            abs(point.z) <= maxAbsCoordinateMeters
+            point.z.isFinite
     }
 
     static func dimensionsCm(from points: [SIMD3<Float>]) -> (length: Float, width: Float, height: Float) {
@@ -28,7 +23,13 @@ extension SimpleFruitGeometryEstimator {
         from points: [SIMD3<Float>],
         normalizedCategoryName: String?
     ) -> (length: Float, width: Float, height: Float) {
-        let robustDimensions = dimensionsCm(from: points)
+        let usesPrincipalAxes = !usesRoundSpherePrior(normalizedCategoryName)
+        let measurementPoints = usesPrincipalAxes ? principalAxisPoints(points) : points
+        let extents = dimensionsCm(from: measurementPoints)
+        // 主轴没有固定 X/Y/Z 身份，统一以长、中、短轴命名。
+        let ordered = [extents.length, extents.width, extents.height].sorted(by: >)
+        let robustDimensions = usesPrincipalAxes
+            ? (length: ordered[0], width: ordered[1], height: ordered[2]) : extents
         guard let fittedDiameterCm = occlusionAwareSphereDiameterCm(
             from: points,
             robustDimensions: robustDimensions,
@@ -37,6 +38,45 @@ extension SimpleFruitGeometryEstimator {
             return robustDimensions
         }
         return (fittedDiameterCm, fittedDiameterCm, fittedDiameterCm)
+    }
+
+    // 局部协方差的正交主轴消除世界坐标朝向对非球形体积的影响。
+    // 仅旋转测量坐标，仍沿用稳健分位跨度、形状先验和质量门槛。
+    private static func principalAxisPoints(_ points: [SIMD3<Float>]) -> [SIMD3<Float>] {
+        guard points.count >= 3, let origin = points.first else { return points }
+        let local = points.map { SIMD3<Double>(Double($0.x) - Double(origin.x), Double($0.y) - Double(origin.y), Double($0.z) - Double(origin.z)) }
+        let center = local.reduce(SIMD3<Double>.zero, +) / Double(local.count)
+        var a = Array(repeating: Array(repeating: 0.0, count: 3), count: 3)
+        var axes = [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]]
+        for point in local {
+            let d = point - center
+            for i in 0..<3 { for j in 0..<3 { a[i][j] += d[i] * d[j] / Double(local.count) } }
+        }
+        guard a.allSatisfy({ $0.allSatisfy(\.isFinite) }) else { return points }
+        for _ in 0..<24 {
+            var p = 0, q = 1
+            for (i, j) in [(0, 2), (1, 2)] where abs(a[i][j]) > abs(a[p][q]) { p = i; q = j }
+            guard abs(a[p][q]) > 1e-14 else { break }
+            let angle = 0.5 * atan2(2 * a[p][q], a[q][q] - a[p][p])
+            let c = cos(angle), s = sin(angle)
+            let pp = a[p][p], qq = a[q][q], pq = a[p][q]
+            a[p][p] = c*c*pp - 2*s*c*pq + s*s*qq
+            a[q][q] = s*s*pp + 2*s*c*pq + c*c*qq
+            a[p][q] = 0; a[q][p] = 0
+            for k in 0..<3 {
+                if k != p && k != q {
+                    let kp = a[k][p], kq = a[k][q]
+                    a[k][p] = c*kp - s*kq; a[p][k] = a[k][p]
+                    a[k][q] = s*kp + c*kq; a[q][k] = a[k][q]
+                }
+                let vp = axes[k][p], vq = axes[k][q]
+                axes[k][p] = c*vp - s*vq; axes[k][q] = s*vp + c*vq
+            }
+        }
+        return local.map { point in
+            let d = point - center
+            return SIMD3<Float>((0..<3).map { j in Float((0..<3).reduce(0.0) { $0 + d[$1] * axes[$1][j] }) })
+        }
     }
 
     private static func occlusionAwareSphereDiameterCm(
@@ -96,10 +136,12 @@ extension SimpleFruitGeometryEstimator {
         var minPoint = SIMD3<Float>(Float.greatestFiniteMagnitude, Float.greatestFiniteMagnitude, Float.greatestFiniteMagnitude)
         var maxPoint = SIMD3<Float>(-Float.greatestFiniteMagnitude, -Float.greatestFiniteMagnitude, -Float.greatestFiniteMagnitude)
 
+        // 在局部原点求解，避免世界坐标平移放大正规方程的数值误差。
+        guard let origin = points.first else { return nil }
         for point in points {
-            let x = Double(point.x)
-            let y = Double(point.y)
-            let z = Double(point.z)
+            let x = Double(point.x) - Double(origin.x)
+            let y = Double(point.y) - Double(origin.y)
+            let z = Double(point.z) - Double(origin.z)
             let row = [x, y, z, 1]
             let target = -(x * x + y * y + z * z)
             for i in 0..<4 {
@@ -137,7 +179,7 @@ extension SimpleFruitGeometryEstimator {
 
         var residualSum = 0.0
         for point in points {
-            let pointDouble = SIMD3<Double>(Double(point.x), Double(point.y), Double(point.z))
+            let pointDouble = SIMD3<Double>(Double(point.x) - Double(origin.x), Double(point.y) - Double(origin.y), Double(point.z) - Double(origin.z))
             let distance = simd_length(pointDouble - center)
             let residual = distance - radius
             residualSum += residual * residual

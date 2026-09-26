@@ -47,6 +47,7 @@ final class ImageDetector: @unchecked Sendable {
 
     // CoreML 模型 (由初始化时注入)
     var coreMLModel: VNCoreMLModel?
+    private(set) var modelInputSize = CGSize.zero
     private(set) var modelStatus: ImageDetectorModelStatus = .fallback(reason: "模型尚未加载")
     private var modelLabelDiagnostics = ModelLabelCompatibilityDiagnostics.unavailable
     var diagnosticsRecorder = ImageDetectorDiagnosticsRecorder()
@@ -87,6 +88,7 @@ final class ImageDetector: @unchecked Sendable {
         modelStatus = loadState.status
 
         if let loadedModel = loadState.loadedModel {
+            modelInputSize = loadedModel.inputSize
             Log.detection.info(
                 "CoreML model loaded: \(loadedModel.displayName), supportedClasses=\(loadedModel.supportedClasses.joined(separator: ","))"
             )
@@ -193,7 +195,8 @@ final class ImageDetector: @unchecked Sendable {
         mappedFruitCount: Int,
         rawDetectedLabels: [String] = [],
         mappedCategories: [String] = [],
-        unmappedLabels: [String] = []
+        unmappedLabels: [String] = [],
+        failureReason: String? = nil
     ) {
         lock.lock()
         diagnosticsRecorder.recordCoreMLDetection(
@@ -203,7 +206,8 @@ final class ImageDetector: @unchecked Sendable {
             mappedFruitCount: mappedFruitCount,
             rawDetectedLabels: rawDetectedLabels,
             mappedCategories: mappedCategories,
-            unmappedLabels: unmappedLabels
+            unmappedLabels: unmappedLabels,
+            failureReason: failureReason
         )
         lock.unlock()
     }

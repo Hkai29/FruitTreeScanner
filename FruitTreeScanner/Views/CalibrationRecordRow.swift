@@ -11,11 +11,30 @@ struct CalibrationRecordRow: View {
         VStack(alignment: .leading, spacing: Design.Space.sm) {
             header
             detailRow
+            Text(calibrationStatusText)
+                .font(Design.Typography.caption)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
         }
         .padding(Design.Space.md)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.medium)
                 .fill(Design.Colors.Dark.bgSurface.opacity(0.3))
+        )
+    }
+
+    private var calibrationStatusText: String {
+        if record.algorithmRevision == YieldAlgorithmRevision.current,
+           record.calibrationContext != nil {
+            return NSLocalizedString(
+                "calibration.record.context_matched_if_current",
+                value: "Applies only when the model and settings match",
+                comment: "Calibration record with a captured algorithm context"
+            )
+        }
+        return NSLocalizedString(
+            "calibration.record.legacy_reference",
+            value: "Kept for comparison; excluded from automatic calibration",
+            comment: "Legacy or unversioned calibration record"
         )
     }
 

@@ -76,7 +76,7 @@ enum BatchExportJSONWriter {
     }
 
     private static func recordPayload(for record: ScanFileRecord) throws -> [String: Any] {
-        let sidecar = singleScanMetadata(for: record)
+        let sidecar = try singleScanMetadata(for: record)
         let diagnostics = sidecar?["diagnostics"] as? [String: Any]
         let baseName = (record.fileURL.lastPathComponent as NSString).deletingPathExtension
         let scanID = sidecar?["scanID"] as? String ?? baseName
@@ -111,8 +111,27 @@ enum BatchExportJSONWriter {
         ]
     }
 
-    private static func singleScanMetadata(for record: ScanFileRecord) -> [String: Any]? {
-        PLYParserHelper.readValidatedCompanionMetadataPayload(for: record.fileURL)
+    private static func singleScanMetadata(for record: ScanFileRecord) throws -> [String: Any]? {
+        let baseName = record.fileURL.deletingPathExtension().lastPathComponent
+        let directory = record.fileURL.deletingLastPathComponent()
+        let metadataURL = directory.appendingPathComponent("\(baseName)_result.json")
+        let manifestURL = directory.appendingPathComponent("\(baseName)_complete.json")
+        guard let payload = PLYParserHelper.readValidatedCompanionMetadataPayload(for: record.fileURL) else {
+            if record.requiresSourceValidation,
+               FileManager.default.fileExists(atPath: metadataURL.path)
+                || FileManager.default.fileExists(atPath: manifestURL.path) {
+                throw BatchExportError.inconsistentRecord
+            }
+            return nil
+        }
+        if record.requiresSourceValidation {
+            guard PLYParserHelper.nonNegativeIntValue(payload["fruitCount"]) == record.fruitCount,
+                  PLYParserHelper.nonNegativeFloatValue(payload["yieldKg"]) == record.yieldKg,
+                  payload["treeID"] == nil || payload["treeID"] as? String == record.treeID,
+                  payload["fruitType"] == nil || payload["fruitType"] as? String == record.fruitType
+            else { throw BatchExportError.inconsistentRecord }
+        }
+        return payload
     }
 
     private static func sourceCounts(from diagnostics: [String: Any]?) -> [String: Any] {
@@ -176,15 +195,13 @@ enum BatchExportJSONWriter {
             "unmappedDetectedLabels": stringArrayValue(diagnostics?["imageUnmappedLabels"]),
             "filteredBySelectedFruitTypeCount": intValue(diagnostics?["filteredBySelectedFruitTypeCount"]),
             "confidenceFilteredCount": intValue(diagnostics?["imageConfidenceFilteredCount"]),
-            "unmappedObservationCount": max(0, intValue(diagnostics?["imageObservationCount"]) - intValue(diagnostics?["imageConfidenceFilteredCount"]) - intValue(diagnostics?["imageMappedFruitCount"])),
+            "unmappedObservationCount": max(0, max(0, intValue(diagnostics?["imageObservationCount"]) - intValue(diagnostics?["imageConfidenceFilteredCount"])) - intValue(diagnostics?["imageMappedFruitCount"])),
             "mappedFruitCount": intValue(diagnostics?["imageMappedFruitCount"])
         ]
     }
 
     private static func intValue(_ value: Any?) -> Int {
-        if let value = value as? Int { return value }
-        if let value = value as? NSNumber { return value.intValue }
-        return 0
+        PLYParserHelper.nonNegativeIntValue(value) ?? 0
     }
 
     private static func boolValue(_ value: Any?, defaultValue: Bool = false) -> Bool {

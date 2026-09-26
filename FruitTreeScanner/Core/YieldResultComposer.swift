@@ -3,6 +3,7 @@ import Foundation
 import simd
 
 struct YieldResultComposer {
+    // 汇总遮挡修正所需的计数和多种角度覆盖指标。
     struct OcclusionCorrection {
         let correction: Float
         let correctedCount: Int
@@ -11,6 +12,8 @@ struct YieldResultComposer {
         let scanAngleCoverage: Float
     }
 
+    /// 把可靠融合证据组合为计数、重量、置信度和可追溯诊断结果。
+    /// 本层不重新接纳 imageOnly 或 cloudOnly 候选。
     func compose(
         input: ScanFusionYieldBuilder.Input,
         candidates: [FruitCandidate],
@@ -19,7 +22,7 @@ struct YieldResultComposer {
         canopyGeometry: CanopyGeometryEstimate?,
         diagnostics: inout ScanYieldDiagnostics
     ) -> (YieldResult, FruitCountResult) {
-        // 计数和重量只消费 FusionEvidencePipeline 返回的可靠 fused 集合。
+        // 计数和重量仅使用融合管线返回的 fused 集合。
         let fruitCounter = FruitCounter()
         let countResult = fruitCounter.count(
             fusionOutput.validatedFruits,
@@ -27,6 +30,7 @@ struct YieldResultComposer {
         )
         let weightedVisibleCount = fruitCounter.weightedTotal(fusionOutput.validatedFruits)
 
+        // 先按每个可靠果实估算可见重量，再统一应用遮挡和本地校准。
         let visibleYieldEstimate = ScanYieldEstimateHelpers.computeYieldFromValidatedFruits(
             fusionOutput.validatedFruits,
             candidates: candidates,
@@ -53,7 +57,7 @@ struct YieldResultComposer {
         )
         ScanFusionDiagnosticsUpdater.applyOcclusion(occlusion, to: &diagnostics)
 
-        // 没有可靠可见果实时返回可解释的零产量，而不是点云回退值。
+        // 无可靠果实时返回零产量，并保留诊断原因。
         if visualCorrection.visibleCount > 0 {
             return (
                 makeVisibleYieldResult(
@@ -84,6 +88,7 @@ struct YieldResultComposer {
         )
     }
 
+    /// 非成熟季节没有适用模型时返回可解释的人工复核结果。
     static func makeUncalibratedSeasonResult(
         input: ScanFusionYieldBuilder.Input
     ) -> (YieldResult, FruitCountResult) {
@@ -111,6 +116,7 @@ struct YieldResultComposer {
         return (result, countResult)
     }
 
+    /// 综合树冠几何、点云覆盖和相机环绕覆盖计算遮挡修正系数。
     private static func makeOcclusionCorrection(
         points: [ColoredPoint],
         fruitColoredPoints: [ColoredPoint],
@@ -130,6 +136,7 @@ struct YieldResultComposer {
             from: detections,
             around: validatedFruits
         )
+        // 相机覆盖按证据可靠性折减，避免大量低质量检测放大修正系数。
         let effectiveCameraAngleCoverage = cameraAngleCoverage * min(max(validationSourceReliability, 0), 1)
         let scanAngleCoverage = max(pointAngleCoverage, effectiveCameraAngleCoverage)
         let occlusionResult = OcclusionCorrector.correctionFactorDetailed(
@@ -138,8 +145,9 @@ struct YieldResultComposer {
             crownDepthM: crownDepth,
             lidarPenetrationM: FruitScanExperimentConfig.default.occlusion.lidarPenetrationMeters,
             scanAngleCoverage: scanAngleCoverage,
-            visualDetectionCount: detections.count,
-            lidarDetectionCount: lidarBackedFruitCount(validatedFruits)
+            // 多帧观测不是独立果实数量，不能作为视觉/LiDAR 数量比。
+            visualDetectionCount: nil,
+            lidarDetectionCount: nil
         )
         return OcclusionCorrection(
             correction: occlusionResult.k,
@@ -165,17 +173,7 @@ struct YieldResultComposer {
         return min(allPointCoverage, fruitPointCoverage)
     }
 
-    private static func lidarBackedFruitCount(_ validatedFruits: [ValidatedFruit]) -> Int {
-        validatedFruits.filter { fruit in
-            switch fruit.source {
-            case .fused, .cloudOnly:
-                return true
-            case .imageOnly, .trackedImage:
-                return false
-            }
-        }.count
-    }
-
+    /// 先把多帧检测关联到可靠果实，再平均每个果实的相机方位覆盖。
     private static func estimateCameraAngleCoverage(
         from detections: [DetectedFruit],
         around validatedFruits: [ValidatedFruit],
@@ -183,6 +181,7 @@ struct YieldResultComposer {
     ) -> Float {
         guard !detections.isEmpty, !validatedFruits.isEmpty, binCount > 3 else { return 0 }
 
+        // 同一检测只分配给一个最近的同类别可靠果实。
         var detectionsByFruit = Array(repeating: [DetectedFruit](), count: validatedFruits.count)
         for detection in detections {
             guard let fruitIndex = associatedFruitIndex(
@@ -260,6 +259,7 @@ struct YieldResultComposer {
         return bestIndex
     }
 
+    // 仅使用与检测帧对齐且通过置信度检查的深度生成三维关联位置。
     private static func projectedDetectionPosition(for detection: DetectedFruit) -> SIMD3<Float>? {
         guard detection.hasAlignedDepthContext,
               let depthMap = detection.depthMap,
@@ -279,12 +279,14 @@ struct YieldResultComposer {
         )
     }
 
+    /// 在同类别可靠果实中查找最近三维位置，并限制最大关联距离。
     private static func nearestFruitIndex(
         to projectedPosition: SIMD3<Float>,
         detection: DetectedFruit,
         in validatedFruits: [ValidatedFruit]
     ) -> Int? {
         let maxDiameter = detection.category.sizeRange.upperBound
+        // 阈值随品类尺寸变化，同时设置上下限防止过严或跨目标关联。
         let associationThreshold = max(0.08, min(maxDiameter * 1.75, 0.22))
         var bestIndex: Int?
         var bestDistance = Float.infinity
@@ -350,6 +352,7 @@ struct YieldResultComposer {
         return max(min(coverage, 1.0), 0)
     }
 
+    // 无深度回退关联时适度扩框，并始终限制在归一化图像边界内。
     private static func expandedDetectionBox(_ box: CGRect, by fraction: CGFloat) -> CGRect {
         let dx = box.width * fraction
         let dy = box.height * fraction
@@ -381,7 +384,8 @@ struct YieldResultComposer {
             0
         )
         let estimateQuality = ScanYieldEstimateHelpers.estimateQuality(
-            for: validatedFruits
+            for: validatedFruits,
+            massEstimate: visibleYieldEstimate
         )
         let adjustedQuality = ScanYieldEstimateHelpers.adjustQualityForCoverageRisk(
             confidence: estimateQuality.confidence,
@@ -393,6 +397,10 @@ struct YieldResultComposer {
 
         var result = YieldResult()
         result.nLidar = calibratedCount
+        result.algorithmRevision = YieldAlgorithmRevision.current
+        result.calibrationContext = YieldCalibrationContext.make(parameters: input.paramsSnapshot, cluster: input.clusterConfig, fusion: input.fusionConfig, color: input.colorFilter)
+        result.calibrationBaseCount = occlusion.correctedCount
+        result.calibrationBaseYieldKg = visualCorrection.visibleYieldKg * occlusion.correction
         result.correctionK = occlusion.correction
         result.yieldFinalKg = yieldAfterOcclusion
         result.yieldBVisibleKg = visualCorrection.visibleYieldKg
@@ -406,6 +414,9 @@ struct YieldResultComposer {
             with: adjustedQuality.sourceDescription
         )
         note += adjustedQuality.noteSuffix
+        if visibleYieldEstimate.fallbackFruitCount > 0 {
+            note += "；\(visibleYieldEstimate.fallbackFruitCount) 个果实缺少关联几何，重量使用品类均值，需复核"
+        }
         if calibration.hasEvidence {
             note += String(
                 format: "；本地校准 count×%.2f(%d) yield×%.2f(%d)",
@@ -435,7 +446,7 @@ struct YieldResultComposer {
         occlusionCorrection: Float,
         canopyGeometry: CanopyGeometryEstimate?
     ) -> YieldResult {
-        // 零产量结果完整保留原因、扫描质量和融合诊断，便于现场复查。
+        // 零产量结果保留扫描质量和融合诊断。
         var result = YieldResult()
         result.nLidar = 0
         result.yieldFinalKg = 0

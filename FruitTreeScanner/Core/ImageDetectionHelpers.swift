@@ -204,7 +204,8 @@ struct ImageDetectorDiagnosticsRecorder {
         mappedFruitCount: Int,
         rawDetectedLabels: [String] = [],
         mappedCategories: [String] = [],
-        unmappedLabels: [String] = []
+        unmappedLabels: [String] = [],
+        failureReason: String? = nil
     ) {
         snapshot.processedFrameCount += 1
         snapshot.observationCount += observationCount
@@ -214,7 +215,7 @@ struct ImageDetectorDiagnosticsRecorder {
         snapshot.rawDetectedLabels = Self.mergingLimited(snapshot.rawDetectedLabels, rawDetectedLabels)
         snapshot.mappedCategories = Self.mergingLimited(snapshot.mappedCategories, mappedCategories)
         snapshot.unmappedLabels = Self.mergingLimited(snapshot.unmappedLabels, unmappedLabels)
-        snapshot.lastDetectionError = ""
+        snapshot.lastDetectionError = failureReason ?? ""
     }
 
     mutating func recordDetectionFailure(_ reason: String) {

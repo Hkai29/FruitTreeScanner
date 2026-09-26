@@ -85,6 +85,7 @@ extension ScanCoordinator {
         )
     }
 
+    @MainActor
     private func appendDetectedFruits(
         _ detected: [DetectedFruit],
         evidenceToken: ScanCapturedEvidenceToken?,
@@ -93,44 +94,68 @@ extension ScanCoordinator {
         guard !detected.isEmpty else { return }
         let detectorConfig = imageDetector.configSnapshot()
 
-        await MainActor.run {
-            guard !self.isTornDown else { return }
-            guard enforceLifecycle else {
-                self.detectedFruits.append(contentsOf: detected)
-                self.publishFruitCategoryMismatchIfNeeded()
-                self.archiveStableFusionEvidence(detectorConfig: detectorConfig)
-                self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
-                return
-            }
+        guard !isTornDown, !Task.isCancelled else { return }
+        if enforceLifecycle {
             if let evidenceToken {
-                guard self.acceptsCapturedEvidence(evidenceToken) else { return }
+                guard acceptsCapturedEvidence(evidenceToken) else { return }
             } else {
-                guard self.lifecycleSnapshot().state == .finishing else { return }
+                guard lifecycleSnapshot().state == .finishing else { return }
             }
-            self.detectedFruits.append(contentsOf: detected)
-            self.publishFruitCategoryMismatchIfNeeded()
-            self.archiveStableFusionEvidence(detectorConfig: detectorConfig)
-            self.detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(self.detectedFruits)
         }
+        detectedFruits.append(contentsOf: detected)
+        publishFruitCategoryMismatchIfNeeded()
+        evidenceArchiveRevision &+= 1
+        let revision = evidenceArchiveRevision
+        let scanIdentity = lifecycleSnapshot().scanIdentity
+        let activeDetections = detectedFruits
+        let previousArchive = archivedFusionEvidenceDetections
+        let worker = Task.detached(priority: .utility) {
+            Self.makeArchivedEvidence(
+                detections: activeDetections,
+                archive: previousArchive,
+                detectorConfig: detectorConfig
+            )
+        }
+        let archived = await withTaskCancellationHandler(
+            operation: { await worker.value },
+            onCancel: { worker.cancel() }
+        )
+        guard !isTornDown, !Task.isCancelled,
+              scanIdentity == lifecycleSnapshot().scanIdentity,
+              revision == evidenceArchiveRevision else { return }
+        if enforceLifecycle {
+            if let evidenceToken {
+                guard acceptsCapturedEvidence(evidenceToken) else { return }
+            } else {
+                guard lifecycleSnapshot().state == .finishing else { return }
+            }
+        }
+        archivedFusionEvidenceDetections = archived
+        detectedFruits = DetectionRetentionPolicy.trimmedByFrameLimit(detectedFruits)
     }
 
-    func archiveStableFusionEvidence(detectorConfig: FruitScanConfig) {
+    static func makeArchivedEvidence(
+        detections: [DetectedFruit],
+        archive: [DetectedFruit],
+        detectorConfig: FruitScanConfig
+    ) -> [DetectedFruit] {
         // 只归档具有对齐深度且跨帧稳定的检测，单帧命中不进入可靠产量。
         let minimumObservations = max(detectorConfig.minimumStableDetectionsForYield, 2)
         let minimumConfidence = max(detectorConfig.minConfidence, 0.85)
         let stableEvidence = DetectionDeduplicator.stableEvidenceDetections(
-            detectedFruits.filter(\.hasAlignedDepthContext),
+            detections.filter(\.hasAlignedDepthContext),
             minimumObservations: minimumObservations,
             minimumConfidence: minimumConfidence,
             timeWindow: detectorConfig.stableDetectionTimeWindow
         )
-        guard !stableEvidence.isEmpty else { return }
+        guard !stableEvidence.isEmpty, !Task.isCancelled else { return archive }
 
+        var archivedFusionEvidenceDetections = archive
         var archivedIDs = Set(archivedFusionEvidenceDetections.map(\.id))
         for detection in stableEvidence where archivedIDs.insert(detection.id).inserted {
             archivedFusionEvidenceDetections.append(detection)
         }
-        archivedFusionEvidenceDetections = DetectionDeduplicator.compactStableEvidenceDetections(
+        return DetectionDeduplicator.compactStableEvidenceDetections(
             archivedFusionEvidenceDetections,
             minimumObservations: minimumObservations,
             minimumConfidence: minimumConfidence,
@@ -342,8 +367,7 @@ extension ScanCoordinator {
     private func makeYieldEstimationSnapshot(season: Season) -> ScanYieldEstimationController.Snapshot? {
         guard !isTornDown, let scanConfiguration = activeFruitConfiguration else { return nil }
 
-        // 快照建立后清空活动缓存，确保一次扫描只消费一次证据集合。
-        archiveStableFusionEvidence(detectorConfig: scanConfiguration.fusionConfig)
+        // 检测追加任务已等待后台归档完成；快照保留活动窗口作为最终证据。
         let savedDetections = fusionEstimateDetectionsSnapshot()
         let categoryVerification = FruitCategoryVerificationSummary.make(
             selectedCategory: scanConfiguration.selectedCategory,

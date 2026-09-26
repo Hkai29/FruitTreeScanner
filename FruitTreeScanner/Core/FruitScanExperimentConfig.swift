@@ -3,7 +3,7 @@
 
 import Foundation
 
-struct FruitScanExperimentConfig: Sendable {
+struct FruitScanExperimentConfig: Sendable, Encodable {
     var detector: FruitDetectorExperimentConfig = .default
     var fusion: FusionExperimentConfig = .default
     var clustering: ClusterExperimentConfig = .default
@@ -15,14 +15,14 @@ struct FruitScanExperimentConfig: Sendable {
     static let `default` = FruitScanExperimentConfig()
 }
 
-struct FruitDetectorExperimentConfig: Sendable {
+struct FruitDetectorExperimentConfig: Sendable, Encodable {
     var imageDetectionInterval: Int = 10
     var minConfidence: Float = 0.5
 
     static let `default` = FruitDetectorExperimentConfig()
 }
 
-struct FusionExperimentConfig: Sendable {
+struct FusionExperimentConfig: Sendable, Encodable {
     var sizeTolerance: Float = 0.35
     var sphericityThreshold: Float = 0.5
     var minimumStableDetections: Int = 1
@@ -38,7 +38,7 @@ struct FusionExperimentConfig: Sendable {
     static let `default` = FusionExperimentConfig()
 }
 
-struct ClusterExperimentConfig: Sendable {
+struct ClusterExperimentConfig: Sendable, Encodable {
     var minPoints: Int = 3
     var minDiameter: Float = 0.015
     var maxDiameter: Float = 0.20
@@ -48,7 +48,7 @@ struct ClusterExperimentConfig: Sendable {
     static let `default` = ClusterExperimentConfig()
 }
 
-struct PointCloudExperimentConfig: Sendable {
+struct PointCloudExperimentConfig: Sendable, Encodable {
     var denoisingMinPointMultiplier: Int = 12
     var denoisingMinPointFloor: Int = 50
     var denoisingNeighborCount: Int = 12
@@ -57,7 +57,7 @@ struct PointCloudExperimentConfig: Sendable {
     static let `default` = PointCloudExperimentConfig()
 }
 
-struct DepthExperimentConfig: Sendable {
+struct DepthExperimentConfig: Sendable, Encodable {
     var projectionSampleGrid: Int = 9
     var minimumReliableConfidence: UInt8 = 1
     /// Sparse outdoor canopies rarely fill a large fraction of the LiDAR map.
@@ -74,13 +74,13 @@ struct DepthExperimentConfig: Sendable {
     static let `default` = DepthExperimentConfig()
 }
 
-struct OcclusionExperimentConfig: Sendable {
+struct OcclusionExperimentConfig: Sendable, Encodable {
     var lidarPenetrationMeters: Float = 0.4
 
     static let `default` = OcclusionExperimentConfig()
 }
 
-struct CandidateMergeExperimentConfig: Sendable {
+struct CandidateMergeExperimentConfig: Sendable, Encodable {
     var diameterSimilarityThreshold: Float = 0.55
     var minMergeDistance: Float = 0.035
     var diameterMergeDistanceMultiplier: Float = 0.75

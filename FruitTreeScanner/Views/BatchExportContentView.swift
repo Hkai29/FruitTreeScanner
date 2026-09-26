@@ -84,7 +84,7 @@ struct BatchExportContentView: View {
                 hasCompletedExport: exportedURL != nil,
                 action: onPrimaryAction
             )
-            .disabled(normalizedSelectedRecords.isEmpty && !isExporting)
+            .disabled((normalizedSelectedRecords.isEmpty || summary == nil) && !isExporting)
             .padding(Design.Space.md)
         }
     }
