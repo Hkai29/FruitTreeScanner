@@ -6,36 +6,6 @@ import Foundation
 import simd
 
 extension FusionValidator {
-    func findNearestCandidate(
-        position: SIMD3<Float>,
-        candidates: [FruitCandidate],
-        detection: DetectedFruit,
-        cameraIntrinsics: matrix_float3x3? = nil,
-        cameraTransform: simd_float4x4? = nil,
-        imageSize: CGSize? = nil
-    ) -> FruitCandidate? {
-        var nearestCandidate: FruitCandidate?
-        var bestScore: Float = .infinity
-
-        for candidate in candidates {
-            guard let score = matchScore(
-                position: position,
-                candidate: candidate,
-                detection: detection,
-                cameraIntrinsics: cameraIntrinsics,
-                cameraTransform: cameraTransform,
-                imageSize: imageSize
-            ) else { continue }
-
-            if score < bestScore {
-                bestScore = score
-                nearestCandidate = candidate
-            }
-        }
-
-        return nearestCandidate
-    }
-
     func matchScore(
         position: SIMD3<Float>,
         candidate: FruitCandidate,
@@ -44,7 +14,7 @@ extension FusionValidator {
         cameraTransform: simd_float4x4?,
         imageSize: CGSize?
     ) -> Float? {
-        // Keep the same gates used by the single-detection matcher.
+        // Keep the established geometric gates for each assignment edge.
         guard candidate.isValidFruit(expectedCategory: detection.category) else { return nil }
         let experimentConfig = FruitScanExperimentConfig.default.fusion
         let positionTolerance = experimentConfig.nearestCandidateDistance

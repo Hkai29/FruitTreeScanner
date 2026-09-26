@@ -50,24 +50,6 @@ struct DepthProjectionService {
 struct CandidateMatcher {
     let validator: FusionValidator
 
-    func nearestCandidate(
-        position: SIMD3<Float>?,
-        candidates: [FruitCandidate],
-        detection: DetectedFruit,
-        context: FusionProjectionContext
-    ) -> FruitCandidate? {
-        position.flatMap { projectedPosition in
-            validator.findNearestCandidate(
-                position: projectedPosition,
-                candidates: candidates,
-                detection: detection,
-                cameraIntrinsics: context.cameraIntrinsics,
-                cameraTransform: context.cameraTransform,
-                imageSize: context.imageSize
-            )
-        }
-    }
-
     func hasRejectedDetectionDepthCandidate(
         near projectedPosition: SIMD3<Float>,
         candidates: [FruitCandidate],
