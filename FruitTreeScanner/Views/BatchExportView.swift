@@ -131,6 +131,7 @@ struct BatchExportFailurePresentation {
     enum Kind: Equatable {
         case noRecords
         case aggregateOutOfRange
+        case inconsistentRecord
         case outOfSpace
         case fileWrite
         case generic
@@ -148,6 +149,8 @@ struct BatchExportFailurePresentation {
             return L10n.Export.noRecordsRecovery
         case .aggregateOutOfRange:
             return L10n.Export.aggregateOutOfRangeRecovery
+        case .inconsistentRecord:
+            return BatchExportError.inconsistentRecord.recoverySuggestion ?? L10n.Export.genericFailureRecovery
         case .outOfSpace:
             return L10n.Export.outOfSpaceRecovery
         case .fileWrite:
@@ -172,6 +175,7 @@ struct BatchExportFailurePresentation {
             switch batchExportError {
             case .noRecords: return .noRecords
             case .aggregateOutOfRange: return .aggregateOutOfRange
+            case .inconsistentRecord: return .inconsistentRecord
             }
         }
 
