@@ -3,6 +3,179 @@ import XCTest
 
 final class BatchExportServiceTests: XCTestCase {
 
+    private var minimalPointCloud: Data {
+        Data("ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n".utf8)
+    }
+
+    @discardableResult
+    private func writeMinimalPointCloud(in directory: URL, filename: String) throws -> URL {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent(filename)
+        try minimalPointCloud.write(to: url)
+        return url
+    }
+
+    @discardableResult
+    private func writeMinimalPointCloudInScans(filename: String) throws -> URL {
+        try writeMinimalPointCloud(in: LocalFileStorage.directoryURL(folder: "scans"), filename: filename)
+    }
+
+    func testPointCloudDigestDetectsCorruptionAndBlocksResave() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try minimalPointCloud.write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let files = try XCTUnwrap(service.exportIfNeeded(request))
+        let manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: XCTUnwrap(files.manifestURL))) as? [String: Any])
+        XCTAssertEqual(manifest["schemaVersion"] as? Int, 3)
+        XCTAssertEqual(manifest["sourcePLYFilename"] as? String, "scan.ply")
+        XCTAssertEqual(manifest["sourcePLYSHA256"] as? String, try ScanCompanionIntegrity.digestFile(at: plyURL))
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: plyURL).state, .complete)
+
+        try minimalPointCloud.dropLast().write(to: plyURL)
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: plyURL).state, .invalid)
+        XCTAssertEqual(PLYParserHelper.parsePLYFile(at: plyURL)?.persistenceState, .invalid)
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) { error in
+            XCTAssertTrue(error is ScanResultExportService.SourcePointCloudError)
+        }
+    }
+
+    func testResultExportCannotCompleteWithoutSourcePointCloud() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "missing.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) { error in
+            XCTAssertTrue(error is ScanResultExportService.SourcePointCloudError)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("missing_complete.json").path))
+    }
+
+    func testDiscardRemovesPointCloudAndCompanionsAndRejectsLateSave() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try minimalPointCloud.write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let files = try XCTUnwrap(service.exportIfNeeded(request))
+
+        try service.discardScanArtifacts(sourceFilename: request.sourceFilename)
+        for url in [plyURL, try XCTUnwrap(files.metadataURL), try XCTUnwrap(files.csvURL), try XCTUnwrap(files.manifestURL)] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), url.lastPathComponent)
+        }
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) { error in
+            XCTAssertTrue(error is CancellationError)
+        }
+        try service.discardScanArtifacts(sourceFilename: request.sourceFilename)
+    }
+
+    func testDiscardSerializesWithInFlightCompanionPublication() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        try minimalPointCloud.write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
+        )
+        let publicationStarted = expectation(description: "companion publication started")
+        let allowPublication = DispatchSemaphore(value: 0)
+        let service = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
+            if destination.lastPathComponent == "scan_result.json" {
+                publicationStarted.fulfill()
+                guard allowPublication.wait(timeout: .now() + 10) == .success else {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+            }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        let save = Task.detached { try service.exportIfNeeded(request) }
+        await fulfillment(of: [publicationStarted], timeout: 10)
+        let discard = Task.detached { try service.discardScanArtifacts(sourceFilename: request.sourceFilename) }
+        allowPublication.signal()
+        _ = try await save.value
+        try await discard.value
+        for filename in ["scan.ply", "scan_result.json", "scan.csv", "scan_complete.json"] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(filename).path), filename)
+        }
+    }
+
+    func testEveryBatchFormatRejectsStaleOrCorruptCompanions() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-001", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply",
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25), includeCSV: true
+        )
+        let files = try XCTUnwrap(ScanResultExportService(scansDirectory: directory).exportIfNeeded(request))
+        let matching = makeRecord(fruitCount: 7, yieldKg: 1.25, fileURL: directory.appendingPathComponent("scan.ply"))
+        let stale = makeRecord(fruitCount: 8, yieldKg: 1.25, fileURL: matching.fileURL)
+        for format in BatchExportService.ExportFormat.allCases {
+            let valid = try await BatchExportService.shared.export(records: [matching], format: format, options: .init())
+            try FileManager.default.removeItem(at: valid.url)
+            do {
+                _ = try await BatchExportService.shared.export(records: [stale], format: format, options: .init())
+                XCTFail("\(format) must reject a stale history row")
+            } catch BatchExportError.inconsistentRecord {
+            }
+        }
+        try Data("corrupt".utf8).write(to: try XCTUnwrap(files.csvURL))
+        for format in BatchExportService.ExportFormat.allCases {
+            do {
+                _ = try await BatchExportService.shared.export(records: [matching], format: format, options: .init())
+                XCTFail("\(format) must reject invalid sidecars")
+            } catch BatchExportError.inconsistentRecord {
+            }
+        }
+    }
+
+    func testBatchExportRejectsSourceDeletedAfterHistorySelection() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let plyURL = directory.appendingPathComponent("scan.ply")
+        let header = "ply\nformat ascii 1.0\ncomment tree_id T-001\ncomment scan_date 1970-01-01T00:00:01Z\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n"
+        try Data(header.utf8).write(to: plyURL)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-001", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply",
+            result: makeYieldResult(nLidar: 7, yieldKg: 1.25), includeCSV: true
+        )
+        _ = try ScanResultExportService(scansDirectory: directory).exportIfNeeded(request)
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePLYFile(at: plyURL))
+        let selected = ScanFileRecord(
+            id: "scan.ply", treeID: parsed.treeID, fileURL: plyURL, scanDate: parsed.scanDate,
+            fruitCount: parsed.fruitCount, yieldKg: parsed.yieldKg, gpsLat: parsed.gpsLat,
+            gpsLon: parsed.gpsLon, fruitType: parsed.fruitType, confidence: parsed.confidence,
+            fileSizeBytes: Data(header.utf8).count, requiresSourceValidation: true
+        )
+        try FileManager.default.removeItem(at: plyURL)
+        for format in BatchExportService.ExportFormat.allCases {
+            do {
+                _ = try await BatchExportService.shared.export(records: [selected], format: format, options: .init())
+                XCTFail("\(format) must reject a missing selected source")
+            } catch BatchExportError.inconsistentRecord {
+            }
+        }
+    }
+
     private func makeRecord(
         id: String = "scan_001.ply",
         treeID: String = "T-001",
@@ -286,6 +459,10 @@ final class BatchExportServiceTests: XCTestCase {
             payload: [
                 "scanID": "scan-A",
                 "sourceFilename": "scan-A.ply",
+                "treeID": "T-A",
+                "fruitCount": 12,
+                "yieldKg": 3.45,
+                "fruitType": "apple",
                 "validatedFruits": [
                     [
                         "id": "fruit-fused",
@@ -740,6 +917,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportNeutralizesCSVAndWritesMetadata() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let sourcePLY = try writeMinimalPointCloudInScans(filename: sourceFilename)
+        defer { try? FileManager.default.removeItem(at: sourcePLY) }
         var result = makeYieldResult()
         result.diagnostics.detectionDepthCandidateCount = 2
         result.diagnostics.detectionDepthSupportRatio = 0.75
@@ -962,6 +1141,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportSanitizesNonFiniteNumericValues() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let sourcePLY = try writeMinimalPointCloudInScans(filename: sourceFilename)
+        defer { try? FileManager.default.removeItem(at: sourcePLY) }
         var result = makeYieldResult()
         result.yieldFinalKg = .nan
         result.clusterEps = .infinity
@@ -1045,6 +1226,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportBoundsGPSCoordinates() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let sourcePLY = try writeMinimalPointCloudInScans(filename: sourceFilename)
+        defer { try? FileManager.default.removeItem(at: sourcePLY) }
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-bad-gps",
             fruitType: "apple",
@@ -1081,6 +1264,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportRejectsNegativePrimaryTotals() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let sourcePLY = try writeMinimalPointCloudInScans(filename: sourceFilename)
+        defer { try? FileManager.default.removeItem(at: sourcePLY) }
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-negative",
             fruitType: "apple",
@@ -1103,8 +1288,8 @@ final class BatchExportServiceTests: XCTestCase {
 
         let csv = try String(contentsOf: csvURL, encoding: .utf8)
         XCTAssertTrue(csv.contains(",0,0.00,"))
-        XCTAssertFalse(csv.contains("-9"))
-        XCTAssertFalse(csv.contains("-2.50"))
+        XCTAssertFalse(csv.contains(",-9,"))
+        XCTAssertFalse(csv.contains(",-2.50,"))
 
         let metadataURL = try XCTUnwrap(exported.metadataURL)
         let data = try Data(contentsOf: metadataURL)
@@ -1116,6 +1301,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportRefreshesCSVAndMetadataInTheSameRevision() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let sourcePLY = try writeMinimalPointCloudInScans(filename: sourceFilename)
+        defer { try? FileManager.default.removeItem(at: sourcePLY) }
         let firstRequest = ScanResultExportService.ExportRequest(
             treeID: "T-first",
             fruitType: "apple",
@@ -1171,6 +1358,8 @@ final class BatchExportServiceTests: XCTestCase {
 
     func testScanResultExportSkipsCSVWhenDisabledButWritesMetadata() throws {
         let sourceFilename = "scan-result-\(UUID().uuidString).ply"
+        let sourcePLY = try writeMinimalPointCloudInScans(filename: sourceFilename)
+        defer { try? FileManager.default.removeItem(at: sourcePLY) }
         let baseName = (sourceFilename as NSString).deletingPathExtension
         let scansDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("scans", isDirectory: true)
@@ -1206,7 +1395,7 @@ final class BatchExportServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceFilename = "scan.ply"
         let plyURL = directory.appendingPathComponent(sourceFilename)
-        try Data().write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
 
         let original = ScanResultExportService.ExportRequest(
             treeID: "T-old", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
@@ -1235,6 +1424,7 @@ final class BatchExportServiceTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
+        try writeMinimalPointCloud(in: directory, filename: "scan.ply")
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true
@@ -1255,7 +1445,7 @@ final class BatchExportServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceFilename = "scan.ply"
         let plyURL = directory.appendingPathComponent(sourceFilename)
-        try Data().write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
         let original = ScanResultExportService.ExportRequest(
             treeID: "T-old", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename,
@@ -1284,7 +1474,7 @@ final class BatchExportServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceFilename = "scan.ply"
         let plyURL = directory.appendingPathComponent(sourceFilename)
-        try Data().write(to: plyURL)
+        try minimalPointCloud.write(to: plyURL)
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: sourceFilename, result: makeYieldResult(), includeCSV: true
@@ -1306,6 +1496,7 @@ final class BatchExportServiceTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
+        try writeMinimalPointCloud(in: directory, filename: "scan.ply")
         let request = ScanResultExportService.ExportRequest(
             treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
             gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(), includeCSV: true

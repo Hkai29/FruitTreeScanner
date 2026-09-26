@@ -19,6 +19,7 @@ struct ScanView: View {
     @State var isRecording = false
     @State var showGuide = true
     @State var savedFilename = ""
+    @State var resultScanIdentity: UUID?
     @State var yieldResult: YieldResult? = nil
     @State var showResult = false
     @State var isEstimating = false
@@ -81,6 +82,15 @@ struct ScanView: View {
 
             if let scanNotice {
                 ScanNoticeToast(message: scanNotice)
+            }
+            if isEstimating {
+                VStack {
+                    Spacer()
+                    Button("取消本次估算") { showCancelConfirmation = true }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("scan.cancelEstimation")
+                        .padding(.bottom, 24)
+                }
             }
         }
         .onAppear(perform: handleAppear)

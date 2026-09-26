@@ -21,6 +21,12 @@ extension ScanView {
     }
 
     var canExportScan: Bool {
+        if lifecycleSnapshot.state == .finishing,
+           yieldResult != nil,
+           !savedFilename.isEmpty,
+           resultScanIdentity == coordinator.lifecycleSnapshot().scanIdentity {
+            return !isEstimating
+        }
         guard lifecycleSnapshot.state == .recording || lifecycleSnapshot.state == .userPaused else {
             return false
         }

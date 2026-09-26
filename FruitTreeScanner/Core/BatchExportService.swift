@@ -71,6 +71,7 @@ final class BatchExportService {
             guard !completeRecords.isEmpty else {
                 throw BatchExportError.noRecords
             }
+            try Self.validateCurrentRecords(completeRecords)
 
             let timestamp = Self.filenameDateFormatter.string(from: Date())
             let filename = "果园批次数据_\(timestamp)_\(UUID().uuidString.prefix(8)).\(format.fileExtension)"
@@ -95,6 +96,7 @@ final class BatchExportService {
             }
 
             try Task.checkCancellation()
+            try Self.validateCurrentRecords(completeRecords)
             shouldKeepFile = true
             return ExportResult(
                 url: tempURL,
@@ -115,14 +117,53 @@ final class BatchExportService {
     nonisolated static var filenameDateFormatter: DateFormatter {
         StableDataFormatting.dateFormatter(dateFormat: "yyyyMMdd_HHmmss")
     }
+
+    /// History rows are snapshots. Check their source and companions before
+    /// and after writing every batch format.
+    nonisolated private static func validateCurrentRecords(_ records: [ScanFileRecord]) throws {
+        let fileManager = FileManager.default
+        for record in records {
+            try Task.checkCancellation()
+            let baseURL = record.fileURL.deletingPathExtension()
+            let directory = record.fileURL.deletingLastPathComponent()
+            let sidecarExists = [
+                baseURL.appendingPathExtension("csv"),
+                directory.appendingPathComponent("\(baseURL.lastPathComponent)_result.json"),
+                directory.appendingPathComponent("\(baseURL.lastPathComponent)_complete.json")
+            ].contains { fileManager.fileExists(atPath: $0.path) }
+            if !sidecarExists && !record.requiresSourceValidation { continue }
+            guard let current = PLYParserHelper.readCompanionResult(for: record.fileURL).result,
+                  current.fruitCount == record.fruitCount,
+                  current.yieldKg == record.yieldKg,
+                  current.fruitType == record.fruitType
+            else { throw BatchExportError.inconsistentRecord }
+            if record.requiresSourceValidation {
+                guard fileManager.fileExists(atPath: record.fileURL.path),
+                      let size = try? record.fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                      size == record.fileSizeBytes,
+                      current.confidence == record.confidence
+                else { throw BatchExportError.inconsistentRecord }
+                let metadata = PLYParserHelper.parseHeaderMetadata(from: record.fileURL)
+                    ?? PLYParserHelper.parseFilenameMetadata(from: record.fileURL)
+                    ?? PLYParserHelper.fallbackMetadata(from: record.fileURL)
+                guard metadata.treeID == record.treeID,
+                      metadata.scanDate == record.scanDate,
+                      metadata.gpsLat == record.gpsLat,
+                      metadata.gpsLon == record.gpsLon
+                else { throw BatchExportError.inconsistentRecord }
+            }
+        }
+    }
 }
 
 enum BatchExportError: LocalizedError {
     case noRecords
+    case inconsistentRecord
     
     var errorDescription: String? {
         switch self {
         case .noRecords: return "没有可导出的记录"
+        case .inconsistentRecord: return "扫描结果文件不完整或已更新，请刷新历史记录后重试导出"
         }
     }
 }

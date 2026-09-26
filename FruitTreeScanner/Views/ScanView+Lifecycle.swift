@@ -42,6 +42,10 @@ extension ScanView {
     func handleDisappear() {
         isViewActive = false
         isEstimating = false
+        if coordinator.lifecycleSnapshot().state != .completed {
+            coordinator.discardInterruptedScan()
+            discardCurrentScanArtifacts()
+        }
         clearMeasurementState()
         measurementController.renderer = nil
         coordinator.teardown()
