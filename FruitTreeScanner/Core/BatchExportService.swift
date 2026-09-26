@@ -280,7 +280,12 @@ final class BatchExportService {
                 directory.appendingPathComponent("\(baseURL.lastPathComponent)_result.json"),
                 directory.appendingPathComponent("\(baseURL.lastPathComponent)_complete.json")
             ].contains { fileManager.fileExists(atPath: $0.path) }
-            if !sidecarExists && !record.requiresSourceValidation { continue }
+            // History rows always require source validation. Callers may also
+            // supply synthetic records without a source for summary exports.
+            if !record.requiresSourceValidation &&
+                (!sidecarExists || !fileManager.fileExists(atPath: record.fileURL.path)) {
+                continue
+            }
             guard let current = PLYParserHelper.readCompanionResult(for: record.fileURL).result,
                   current.fruitCount == record.fruitCount,
                   current.yieldKg == record.yieldKg,
