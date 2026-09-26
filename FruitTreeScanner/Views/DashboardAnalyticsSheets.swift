@@ -6,12 +6,12 @@ import SwiftUI
 struct YieldReportData {
     let completeRecords: [ScanFileRecord]
     let latestRecordsByTree: [ScanFileRecord]
-    let totalYield: Float
-    let totalFruit: Int
+    let totalYield: Float?
+    let totalFruit: Int?
 
     var totalScans: Int { completeRecords.count }
     var totalTrees: Int { latestRecordsByTree.count }
-    var averageYield: Float { totalTrees > 0 ? totalYield / Float(totalTrees) : 0 }
+    var averageYield: Float? { totalYield.map { totalTrees > 0 ? $0 / Float(totalTrees) : 0 } }
     var visibleRecords: [ScanFileRecord] { Array(latestRecordsByTree.prefix(20)) }
     var isEmpty: Bool { latestRecordsByTree.isEmpty }
 
@@ -19,8 +19,9 @@ struct YieldReportData {
         let completeRecords = records.filter { $0.persistenceState == .complete }
         self.completeRecords = completeRecords
         latestRecordsByTree = Self.latestRecordsByTree(from: completeRecords)
-        totalYield = latestRecordsByTree.reduce(0) { $0 + $1.yieldKg }
-        totalFruit = latestRecordsByTree.reduce(0) { $0 + $1.fruitCount }
+        let totals = ScanRecordTotals(records: latestRecordsByTree)
+        totalYield = totals.yieldKg
+        totalFruit = totals.fruitCount
     }
 
     private static func latestRecordsByTree(
@@ -86,6 +87,7 @@ struct YieldReportPresentation {
     private let fruitUnitOne: String
     private let fruitUnitOther: String
     private let kilogramsUnit: String
+    private let outOfRangeText: String
 
     init(bundle: Bundle = .main) {
         func localized(_ key: String, fallback: String) -> String {
@@ -110,6 +112,7 @@ struct YieldReportPresentation {
         totalYieldMetricTitle = localized("yield_report.metric.total_yield", fallback: "总产量")
         averageYieldMetricTitle = localized("yield_report.metric.average_yield", fallback: "平均")
         fruitMetricTitle = localized("yield_report.metric.fruit", fallback: "果实")
+        outOfRangeText = localized("yield_report.metric.out_of_range", fallback: "超出范围")
         scanUnitOne = localized("yield_report.unit.scan_one", fallback: "次")
         scanUnitOther = localized("yield_report.unit.scan_other", fallback: "次")
         fruitUnitOne = localized("yield_report.unit.fruit_one", fallback: "个")
@@ -119,9 +122,9 @@ struct YieldReportPresentation {
 
     func metricPresentations(
         totalScans: Int,
-        totalYield: Float,
-        averageYield: Float,
-        totalFruit: Int,
+        totalYield: Float?,
+        averageYield: Float?,
+        totalFruit: Int?,
         locale: Locale
     ) -> [YieldReportMetricPresentation] {
         [
@@ -132,18 +135,18 @@ struct YieldReportPresentation {
             ),
             YieldReportMetricPresentation(
                 title: totalYieldMetricTitle,
-                value: Self.formattedDecimal(totalYield, locale: locale),
-                unit: kilogramsUnit
+                value: totalYield.map { Self.formattedDecimal($0, locale: locale) } ?? outOfRangeText,
+                unit: totalYield == nil ? "" : kilogramsUnit
             ),
             YieldReportMetricPresentation(
                 title: averageYieldMetricTitle,
-                value: Self.formattedDecimal(averageYield, locale: locale),
-                unit: kilogramsUnit
+                value: averageYield.map { Self.formattedDecimal($0, locale: locale) } ?? outOfRangeText,
+                unit: averageYield == nil ? "" : kilogramsUnit
             ),
             YieldReportMetricPresentation(
                 title: fruitMetricTitle,
-                value: Self.formattedInteger(totalFruit, locale: locale),
-                unit: totalFruit == 1 ? fruitUnitOne : fruitUnitOther
+                value: totalFruit.map { Self.formattedInteger($0, locale: locale) } ?? outOfRangeText,
+                unit: totalFruit.map { $0 == 1 ? fruitUnitOne : fruitUnitOther } ?? ""
             )
         ]
     }

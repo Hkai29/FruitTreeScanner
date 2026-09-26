@@ -480,6 +480,8 @@
 "calibration.statistics.yield_mape" = "产量 MAPE";
 "calibration.statistics.record_count" = "校准次数";
 "calibration.records.title" = "校准记录";
+"calibration.record.context_matched_if_current" = "仅在模型与参数匹配时参与自动校准";
+"calibration.record.legacy_reference" = "保留作对照，未参与自动校准";
 "calibration.records.empty_title" = "暂无校准记录";
 "calibration.records.empty_message" = "添加人工计数或实际重量后，这里会显示误差对比。";
 "calibration.records.loading" = "正在读取校准记录…";
@@ -1242,6 +1244,7 @@
 "yield_report.metric.total_yield" = "总产量";
 "yield_report.metric.average_yield" = "平均";
 "yield_report.metric.fruit" = "果实";
+"yield_report.metric.out_of_range" = "超出范围";
 "yield_report.unit.scan_one" = "次";
 "yield_report.unit.scan_other" = "次";
 "yield_report.unit.fruit_one" = "个";

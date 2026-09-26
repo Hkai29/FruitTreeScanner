@@ -23,6 +23,7 @@ extension ScanView {
     }
 
     var canExportScan: Bool {
+        if exportRetryAction != .unavailable { return !isEstimating }
         guard lifecycleSnapshot.state == .recording || lifecycleSnapshot.state == .userPaused else {
             return false
         }
@@ -31,6 +32,17 @@ extension ScanView {
             depthRuntimeStatus: hudState.depthRuntimeStatus,
             exportablePointStatus: hudState.exportablePointStatus,
             pointCount: hudState.pointCount
+        )
+    }
+
+    var exportRetryAction: ScanExportReadiness.RetryAction {
+        ScanExportReadiness.retryAction(
+            state: lifecycleSnapshot.state,
+            hasResult: yieldResult != nil,
+            canRetryPersistence: resultPersistenceState == .failed,
+            filename: savedFilename,
+            currentScanIdentity: coordinator.lifecycleSnapshot().scanIdentity,
+            resultScanIdentity: resultScanIdentity
         )
     }
 }

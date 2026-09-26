@@ -4,6 +4,31 @@ import UIKit
 @testable import FruitTreeScanner
 
 final class ScanExportReadinessTests: XCTestCase {
+    func testRetryActionRequiresMatchingScanAndFailedPersistence() {
+        let scanID = UUID()
+        let otherID = UUID()
+        XCTAssertEqual(ScanExportReadiness.retryAction(
+            state: .finishing, hasResult: false, canRetryPersistence: false,
+            filename: "", currentScanIdentity: scanID, resultScanIdentity: nil
+        ), .exportPointCloud)
+        XCTAssertEqual(ScanExportReadiness.retryAction(
+            state: .finishing, hasResult: true, canRetryPersistence: true,
+            filename: "scan.ply", currentScanIdentity: scanID, resultScanIdentity: scanID
+        ), .persistResult)
+        XCTAssertEqual(ScanExportReadiness.retryAction(
+            state: .finishing, hasResult: true, canRetryPersistence: false,
+            filename: "scan.ply", currentScanIdentity: scanID, resultScanIdentity: scanID
+        ), .unavailable)
+        XCTAssertEqual(ScanExportReadiness.retryAction(
+            state: .finishing, hasResult: true, canRetryPersistence: true,
+            filename: "scan.ply", currentScanIdentity: scanID, resultScanIdentity: otherID
+        ), .unavailable)
+        XCTAssertEqual(ScanExportReadiness.retryAction(
+            state: .cancelled, hasResult: false, canRetryPersistence: false,
+            filename: "", currentScanIdentity: scanID, resultScanIdentity: nil
+        ), .unavailable)
+    }
+
     func testScanExportReadinessCopyExistsInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [

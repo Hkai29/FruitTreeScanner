@@ -26,6 +26,16 @@ enum ScanResultPersistenceState: Equatable {
 extension ScanView {
     func finishScan() {
         guard !isEstimating else { return }
+        switch exportRetryAction {
+        case .exportPointCloud:
+            exportAndEstimate()
+            return
+        case .persistResult:
+            retryResultPersistence()
+            return
+        case .unavailable:
+            break
+        }
         guard canExportScan else {
             showTemporaryNotice(exportBlockedReason)
             return
@@ -101,7 +111,9 @@ extension ScanView {
     func retryResultPersistence() {
         guard resultPersistenceState == .failed,
               let result = yieldResult,
-              !savedFilename.isEmpty
+              !savedFilename.isEmpty,
+              resultScanIdentity == coordinator.lifecycleSnapshot().scanIdentity,
+              coordinator.lifecycleSnapshot().state == .finishing
         else { return }
 
         resultPersistenceState = .retrying
@@ -110,7 +122,9 @@ extension ScanView {
         Task { @MainActor in
             let didPersist = await persistScanResult(result: result, filename: filename)
             guard isViewActive,
-                  coordinator.lifecycleSnapshot().scanIdentity == scanIdentity else { return }
+                  coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
+                  resultScanIdentity == scanIdentity,
+                  coordinator.lifecycleSnapshot().state == .finishing else { return }
 
             resultPersistenceState = .resolved(didPersist: didPersist)
             if didPersist {
