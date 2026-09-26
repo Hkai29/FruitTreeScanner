@@ -7,3 +7,5 @@ This folder contains documents that decide whether the app is ready for real orc
 - `GROUND_TRUTH_PROTOCOL.md`: ground-truth sampling and error-measurement protocol.
 
 Simulator checks can validate UI, navigation, export code, and pure algorithm logic. LiDAR depth quality and scanning accuracy still require a real LiDAR-capable iPhone or iPad.
+
+Dated audit and repair reports in this folder record the code and test results at the time of each review. Their test counts and file links are historical; use the current test run and source tree for a release decision.
