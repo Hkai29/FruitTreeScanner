@@ -3,6 +3,22 @@ import XCTest
 
 @MainActor
 final class FruitParametersStoreTests: XCTestCase {
+    func testParameterSchemaFixtureKeepsIdentityAndCalibrationFields() throws {
+        // Fixed pre-migration schema fixture; not a user's private stored record.
+        let fixture = Data(#"{"id":"01234567-89AB-4CDE-8F01-23456789ABCD","category":"pear","diamMin":0.031,"diamMax":0.13,"averageWeightG":245,"density":0.94,"clusterEps":0.047,"sphericityThreshold":0.33,"isCustomized":true}"#.utf8)
+        let parameters = try JSONDecoder().decode(FruitVarietyParams.self, from: fixture)
+        XCTAssertEqual(parameters.id, UUID(uuidString: "01234567-89AB-4CDE-8F01-23456789ABCD"))
+        XCTAssertEqual(parameters.fruitCategory, .pear)
+        XCTAssertTrue(parameters.isCustomized)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        // A separate Foundation encoder can expand Float decimals; use fixed
+        // JSONEncoder-compatible bytes instead of normalizing through NSNumber.
+        let expected = Data(#"{"averageWeightG":245,"category":"pear","clusterEps":0.047,"density":0.94,"diamMax":0.13,"diamMin":0.031,"id":"01234567-89AB-4CDE-8F01-23456789ABCD","isCustomized":true,"sphericityThreshold":0.33}"#.utf8)
+        XCTAssertEqual(try encoder.encode(parameters), expected,
+            "Moving the parameter value must not change its persisted identity, keys or calibration inputs")
+    }
+
     func testRapidSavesKeepLatestParametersAndDoNotClearLatestSaveTask() async throws {
         let defaults = makeDefaults()
         defer { clear(defaults) }

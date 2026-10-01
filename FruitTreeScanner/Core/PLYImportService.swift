@@ -48,19 +48,24 @@ enum PLYImportService {
             throw ImportError.invalidPointCloud
         }
         try cancellationCheckpoint()
-        let destURL = try commitStagedFile(
-            at: stagingURL,
-            for: fileURL,
-            in: scansDir
+        let safeBaseName = TreeIdentifierPolicy.safeFileComponent(
+            from: fileURL.deletingPathExtension().lastPathComponent
         )
-        do {
-            try cancellationCheckpoint()
-        } catch {
-            try? fileManager.removeItem(at: destURL)
-            throw error
+        let preferredURL = scansDir.appendingPathComponent("\(safeBaseName).ply")
+        return try ScanRepository.shared.withScanTransaction(at: preferredURL) {
+            let destURL = try commitStagedFile(
+                at: stagingURL,
+                for: fileURL,
+                in: scansDir
+            )
+            do {
+                try cancellationCheckpoint()
+            } catch {
+                try? fileManager.removeItem(at: destURL)
+                throw error
+            }
+            return destURL.lastPathComponent
         }
-
-        return destURL.lastPathComponent
     }
 
     nonisolated static func commitStagedFile(

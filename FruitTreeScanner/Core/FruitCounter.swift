@@ -23,6 +23,15 @@ class FruitCounter {
         }
     }
 
+    /// Reliable-yield entry point accepts only evidence created at fusion admission.
+    func count(_ evidence: [ReliableYieldEvidence], defaultCategory: FruitCategory = .apple) -> FruitCountResult {
+        count(evidence.map(\.validatedFruit), defaultCategory: defaultCategory)
+    }
+
+    func weightedTotal(_ evidence: [ReliableYieldEvidence]) -> Float {
+        weightedTotal(evidence.map(\.validatedFruit))
+    }
+
     static func evidenceWeight(for fruit: ValidatedFruit) -> Float {
         let confidence = min(max(fruit.confidence, 0), 1)
         return fruit.source.countWeight * confidence

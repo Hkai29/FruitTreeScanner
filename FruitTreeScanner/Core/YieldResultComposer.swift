@@ -24,15 +24,17 @@ struct YieldResultComposer {
     ) -> (YieldResult, FruitCountResult) {
         // 计数和重量仅使用融合管线返回的 fused 集合。
         let fruitCounter = FruitCounter()
+        let reliableEvidence = fusionOutput.reliableEvidence
+        let validatedFruits = reliableEvidence.map(\.validatedFruit)
         let countResult = fruitCounter.count(
-            fusionOutput.validatedFruits,
+            reliableEvidence,
             defaultCategory: input.fruitCategory ?? .apple
         )
-        let weightedVisibleCount = fruitCounter.weightedTotal(fusionOutput.validatedFruits)
+        let weightedVisibleCount = fruitCounter.weightedTotal(reliableEvidence)
 
         // 先按每个可靠果实估算可见重量，再统一应用遮挡和本地校准。
-        let visibleYieldEstimate = ScanYieldEstimateHelpers.computeYieldFromValidatedFruits(
-            fusionOutput.validatedFruits,
+        let visibleYieldEstimate = ScanYieldEstimateHelpers.computeYieldFromReliableEvidence(
+            reliableEvidence,
             candidates: candidates,
             paramsByCategory: input.paramsSnapshot,
             defaultParams: input.defaultParams
@@ -50,10 +52,11 @@ struct YieldResultComposer {
             points: input.points,
             fruitColoredPoints: pointCloudOutput.clusteringPoints,
             detections: fusionOutput.evidenceDetections,
-            validatedFruits: fusionOutput.validatedFruits,
+            validatedFruits: validatedFruits,
             validationSourceReliability: diagnostics.validationSourceReliability,
             visibleCountForCorrection: visibleCountForCorrection,
-            weightedVisibleCount: visualCorrection.visibleCount
+            weightedVisibleCount: visualCorrection.visibleCount,
+            configuration: input.experimentConfiguration.occlusion
         )
         ScanFusionDiagnosticsUpdater.applyOcclusion(occlusion, to: &diagnostics)
 
@@ -63,7 +66,7 @@ struct YieldResultComposer {
                 makeVisibleYieldResult(
                     input: input,
                     diagnostics: diagnostics,
-                    validatedFruits: fusionOutput.validatedFruits,
+                    validatedFruits: validatedFruits,
                     visibleYieldEstimate: visibleYieldEstimate,
                     visualCorrection: visualCorrection,
                     occlusion: occlusion,
@@ -110,7 +113,7 @@ struct YieldResultComposer {
         result.diagnostics = diagnostics
 
         let countResult = FruitCounter().count(
-            [],
+            [] as [ValidatedFruit],
             defaultCategory: input.fruitCategory ?? .apple
         )
         return (result, countResult)
@@ -120,11 +123,12 @@ struct YieldResultComposer {
     private static func makeOcclusionCorrection(
         points: [ColoredPoint],
         fruitColoredPoints: [ColoredPoint],
-        detections: [DetectedFruit],
+        detections: [Observation],
         validatedFruits: [ValidatedFruit],
         validationSourceReliability: Float,
         visibleCountForCorrection: Int,
-        weightedVisibleCount: Float
+        weightedVisibleCount: Float,
+        configuration: OcclusionExperimentConfig
     ) -> OcclusionCorrection {
         let crownRadius = OcclusionCorrector.estimateCrownRadius(from: points)
         let crownDepth = OcclusionCorrector.estimateCrownDepth(from: points)
@@ -143,7 +147,7 @@ struct YieldResultComposer {
             visibleCount: visibleCountForCorrection,
             crownRadiusM: crownRadius,
             crownDepthM: crownDepth,
-            lidarPenetrationM: FruitScanExperimentConfig.default.occlusion.lidarPenetrationMeters,
+            lidarPenetrationM: configuration.lidarPenetrationMeters,
             scanAngleCoverage: scanAngleCoverage,
             // 多帧观测不是独立果实数量，不能作为视觉/LiDAR 数量比。
             visualDetectionCount: nil,
@@ -175,14 +179,14 @@ struct YieldResultComposer {
 
     /// 先把多帧检测关联到可靠果实，再平均每个果实的相机方位覆盖。
     private static func estimateCameraAngleCoverage(
-        from detections: [DetectedFruit],
+        from detections: [Observation],
         around validatedFruits: [ValidatedFruit],
         binCount: Int = 36
     ) -> Float {
         guard !detections.isEmpty, !validatedFruits.isEmpty, binCount > 3 else { return 0 }
 
         // 同一检测只分配给一个最近的同类别可靠果实。
-        var detectionsByFruit = Array(repeating: [DetectedFruit](), count: validatedFruits.count)
+        var detectionsByFruit = Array(repeating: [Observation](), count: validatedFruits.count)
         for detection in detections {
             guard let fruitIndex = associatedFruitIndex(
                 for: detection,
@@ -206,7 +210,7 @@ struct YieldResultComposer {
     }
 
     private static func associatedFruitIndex(
-        for detection: DetectedFruit,
+        for detection: Observation,
         in validatedFruits: [ValidatedFruit]
     ) -> Int? {
         // 优先使用可靠深度投影；深度存在但失效时禁止退化为纯 2D 关联。
@@ -219,7 +223,7 @@ struct YieldResultComposer {
             return nearest
         }
 
-        if detection.depthMap != nil {
+        if detection.hasDepthMap {
             return nil
         }
 
@@ -239,7 +243,7 @@ struct YieldResultComposer {
             if let category = fruit.category, category != detection.category {
                 continue
             }
-            guard let projected = FusionValidator.projectWorldPointToNormalizedImage(
+            guard let projected = ObservationProjection.projectWorldPointToNormalizedImage(
                 fruit.position,
                 cameraIntrinsics: cameraIntrinsics,
                 cameraTransform: cameraTransform,
@@ -260,29 +264,27 @@ struct YieldResultComposer {
     }
 
     // 仅使用与检测帧对齐且通过置信度检查的深度生成三维关联位置。
-    private static func projectedDetectionPosition(for detection: DetectedFruit) -> SIMD3<Float>? {
+    private static func projectedDetectionPosition(for detection: Observation) -> SIMD3<Float>? {
         guard detection.hasAlignedDepthContext,
-              let depthMap = detection.depthMap,
               let cameraIntrinsics = detection.cameraIntrinsics,
               let cameraTransform = detection.cameraTransform,
               let imageSize = detection.imageSize else {
             return nil
         }
 
-        return FusionValidator().projectDetectionTo3DWithValidDepth(
+        return ObservationProjection.projectObservationTo3D(
             detection: detection,
-            depthMap: depthMap,
-            depthConfidenceMap: detection.depthConfidenceMap,
             cameraIntrinsics: cameraIntrinsics,
             cameraTransform: cameraTransform,
-            imageSize: imageSize
+            imageSize: imageSize,
+            fallbackDepth: nil
         )
     }
 
     /// 在同类别可靠果实中查找最近三维位置，并限制最大关联距离。
     private static func nearestFruitIndex(
         to projectedPosition: SIMD3<Float>,
-        detection: DetectedFruit,
+        detection: Observation,
         in validatedFruits: [ValidatedFruit]
     ) -> Int? {
         let maxDiameter = detection.category.sizeRange.upperBound
@@ -311,7 +313,7 @@ struct YieldResultComposer {
     }
 
     private static func cameraAngleCoverage(
-        for detections: [DetectedFruit],
+        for detections: [Observation],
         around center: SIMD3<Float>,
         binCount: Int
     ) -> Float {
@@ -397,8 +399,19 @@ struct YieldResultComposer {
 
         var result = YieldResult()
         result.nLidar = calibratedCount
-        result.algorithmRevision = YieldAlgorithmRevision.current
-        result.calibrationContext = YieldCalibrationContext.make(parameters: input.paramsSnapshot, cluster: input.clusterConfig, fusion: input.fusionConfig, color: input.colorFilter)
+        result.algorithmRevision = input.calibrationIdentity?.algorithmRevision ?? YieldAlgorithmRevision.current
+        if let identity = input.calibrationIdentity {
+            result.calibrationContext = identity.context
+        } else {
+            // Raw callers with nondefault legacy calibration settings supply
+            // ScanCalibrationIdentity explicitly. This fallback uses the old default.
+            result.calibrationContext = YieldCalibrationContext.make(
+                parameters: input.paramsSnapshot, cluster: input.clusterConfig,
+                fusion: input.fusionConfig, color: input.colorFilter,
+                experimentConfiguration: input.experimentConfiguration,
+                legacyFusionSphericityThreshold: YieldCalibrationContext.legacyDefaultFusionSphericityThreshold
+            )
+        }
         result.calibrationBaseCount = occlusion.correctedCount
         result.calibrationBaseYieldKg = visualCorrection.visibleYieldKg * occlusion.correction
         result.correctionK = occlusion.correction

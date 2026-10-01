@@ -33,7 +33,7 @@ extension ImportFileView {
             importTask?.cancel()
             importTask = Task.detached(priority: .utility) {
                 do {
-                    let importedName = try PLYImportService.importFile(fileURL)
+                    let importedName = try ScanRepository.shared.importPointCloud(fileURL)
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
                         guard isViewActive else { return }

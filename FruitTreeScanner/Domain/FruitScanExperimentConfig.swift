@@ -1,12 +1,10 @@
 // FruitScanExperimentConfig.swift
-// Central default parameters for scan-yield fusion experiments.
+// Runtime parameters that supplement the resolved FruitScanConfig/ClusterConfig.
 
 import Foundation
 
-struct FruitScanExperimentConfig: Sendable, Encodable {
-    var detector: FruitDetectorExperimentConfig = .default
+struct FruitScanExperimentConfig: Equatable, Sendable, Encodable {
     var fusion: FusionExperimentConfig = .default
-    var clustering: ClusterExperimentConfig = .default
     var pointCloud: PointCloudExperimentConfig = .default
     var depth: DepthExperimentConfig = .default
     var occlusion: OcclusionExperimentConfig = .default
@@ -15,18 +13,7 @@ struct FruitScanExperimentConfig: Sendable, Encodable {
     static let `default` = FruitScanExperimentConfig()
 }
 
-struct FruitDetectorExperimentConfig: Sendable, Encodable {
-    var imageDetectionInterval: Int = 10
-    var minConfidence: Float = 0.5
-
-    static let `default` = FruitDetectorExperimentConfig()
-}
-
-struct FusionExperimentConfig: Sendable, Encodable {
-    var sizeTolerance: Float = 0.35
-    var sphericityThreshold: Float = 0.5
-    var minimumStableDetections: Int = 1
-    var stableDetectionTimeWindow: TimeInterval = 3.5
+struct FusionExperimentConfig: Equatable, Sendable, Encodable {
     var nearestCandidateDistance: Float = 0.15
     var frustumSupportRatio: Float = 0.25
     var projectedBoxExpansionFraction: Float = 0.12
@@ -38,17 +25,7 @@ struct FusionExperimentConfig: Sendable, Encodable {
     static let `default` = FusionExperimentConfig()
 }
 
-struct ClusterExperimentConfig: Sendable, Encodable {
-    var minPoints: Int = 3
-    var minDiameter: Float = 0.015
-    var maxDiameter: Float = 0.20
-    var baseEps: Float = 0.1
-    var sphericityThreshold: Float = 0.5
-
-    static let `default` = ClusterExperimentConfig()
-}
-
-struct PointCloudExperimentConfig: Sendable, Encodable {
+struct PointCloudExperimentConfig: Equatable, Sendable, Encodable {
     var denoisingMinPointMultiplier: Int = 12
     var denoisingMinPointFloor: Int = 50
     var denoisingNeighborCount: Int = 12
@@ -57,7 +34,7 @@ struct PointCloudExperimentConfig: Sendable, Encodable {
     static let `default` = PointCloudExperimentConfig()
 }
 
-struct DepthExperimentConfig: Sendable, Encodable {
+struct DepthExperimentConfig: Equatable, Sendable, Encodable {
     var projectionSampleGrid: Int = 9
     var minimumReliableConfidence: UInt8 = 1
     /// Sparse outdoor canopies rarely fill a large fraction of the LiDAR map.
@@ -72,15 +49,21 @@ struct DepthExperimentConfig: Sendable, Encodable {
     var minimumStableDepthNeighborCount: Int = 1
 
     static let `default` = DepthExperimentConfig()
+
+    // Experimental profiles may tighten the confidence gate, never admit Low.
+    var reliableConfidence: UInt8 { min(max(minimumReliableConfidence, 1), 2) }
+    // Keep per-observation and per-frame sampling within the established bounds.
+    var boundedProjectionGrid: Int { min(max(projectionSampleGrid, 1), 9) }
+    var boundedCaptureGrid: Int { min(max(captureQualitySampleGrid, 2), 9) }
 }
 
-struct OcclusionExperimentConfig: Sendable, Encodable {
+struct OcclusionExperimentConfig: Equatable, Sendable, Encodable {
     var lidarPenetrationMeters: Float = 0.4
 
     static let `default` = OcclusionExperimentConfig()
 }
 
-struct CandidateMergeExperimentConfig: Sendable, Encodable {
+struct CandidateMergeExperimentConfig: Equatable, Sendable, Encodable {
     var diameterSimilarityThreshold: Float = 0.55
     var minMergeDistance: Float = 0.035
     var diameterMergeDistanceMultiplier: Float = 0.75
@@ -89,8 +72,6 @@ struct CandidateMergeExperimentConfig: Sendable, Encodable {
     var minimumCandidateWeightSphericity: Float = 0.05
 
     static let `default` = CandidateMergeExperimentConfig()
-}
 
-// TODO: Thread this config through the remaining fusion and yield services once
-// experiment profiles can be injected without changing today's default scan
-// behavior or diagnostics.
+    var boundedPointSamples: Int { min(max(maxPointSamples, 0), 256) }
+}

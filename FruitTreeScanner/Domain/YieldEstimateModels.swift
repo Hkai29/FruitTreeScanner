@@ -3,16 +3,6 @@
 
 import simd
 
-struct FruitInfo {
-    let center: SIMD3<Float>
-    let radiusM: Float
-    let diameterCm: Float
-    let volumeCm3: Float
-    let weightG: Float
-    let pointCount: Int
-    let massEstimate: FruitMassEstimate?
-}
-
 struct YieldResult: Sendable {
     var algorithmRevision: String? = nil
     var calibrationContext: String? = nil
@@ -121,19 +111,4 @@ struct ScanYieldDiagnostics: Sendable, Equatable {
     var automaticSuggestionFrameCount: Int = 0
     var zeroYieldReasons: [String] = []
 
-    var shortStatus: String {
-        if zeroYieldReasons.isEmpty {
-            return fusedFruitCount > 0 ? "融合有效" : "等待估算"
-        }
-        return zeroYieldReasons.joined(separator: "；")
-    }
-}
-
-enum Season: Sendable {
-    case mature
-    case off
-
-    var supportsYieldEstimation: Bool {
-        self == .mature
-    }
 }

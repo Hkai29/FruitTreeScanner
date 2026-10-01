@@ -2,10 +2,10 @@ enum ScanFusionDiagnosticsUpdater {
     static func makeInitialDiagnostics(input: ScanFusionYieldBuilder.Input) -> ScanYieldDiagnostics {
         var diagnostics = ScanDiagnosticsBuilder.makeDiagnostics(
             pointCloudPointCount: input.points.count,
-            depthAvailable: input.savedDetections.contains { $0.hasAlignedDepthContext },
+            depthAvailable: input.observations.contains { $0.hasAlignedDepthContext },
             imageDiagnostics: input.imageDiagnostics
         )
-        diagnostics.imageDetectionCount = input.savedDetections.count
+        diagnostics.imageDetectionCount = input.observations.count
         if let verification = input.categoryVerification {
             diagnostics.selectedCategory = verification.selectedCategory.rawValue
             diagnostics.detectedCategoryCounts = verification.detectedCategoryCounts
@@ -16,7 +16,7 @@ enum ScanFusionDiagnosticsUpdater {
             diagnostics.automaticSuggestionConfidence = verification.automaticSuggestion?.confidence ?? 0
             diagnostics.automaticSuggestionFrameCount = verification.automaticSuggestion?.supportingFrameCount ?? 0
         }
-        if input.savedDetections.contains(where: { $0.depthConfidenceProvenance == .copyFailed }) {
+        if input.observations.contains(where: { $0.depthConfidenceProvenance == .copyFailed }) {
             diagnostics.depthConfidenceFailureReason = DepthConfidenceProvenance.copyFailureReason
         }
         return diagnostics

@@ -5,7 +5,53 @@ import Foundation
 @preconcurrency import CoreVideo
 import simd
 
+/// One immutable, same-frame RGB/depth/pose packet. Its copied pixel buffers
+/// are owned by the inference queue and are reduced to Observation values
+/// before detections leave that queue.
+struct FramePacket: @unchecked Sendable {
+    let frameID: FrameID
+    let pixelBuffer: CVPixelBuffer
+    let depthMap: CVPixelBuffer?
+    let depthConfidenceMap: CVPixelBuffer?
+    let depthConfidenceProvenance: DepthConfidenceProvenance
+    let timestamp: TimeInterval
+    let cameraTransform: simd_float4x4
+    let cameraIntrinsics: simd_float3x3
+    let imageSize: CGSize
+    let depthConfiguration: DepthExperimentConfig
+
+    init(
+        frameID: FrameID = FrameID(),
+        pixelBuffer: CVPixelBuffer,
+        depthMap: CVPixelBuffer?,
+        depthConfidenceMap: CVPixelBuffer?,
+        depthConfidenceProvenance: DepthConfidenceProvenance,
+        timestamp: TimeInterval,
+        cameraTransform: simd_float4x4,
+        cameraIntrinsics: simd_float3x3,
+        imageSize: CGSize,
+        depthConfiguration: DepthExperimentConfig = .default
+    ) {
+        self.frameID = frameID
+        self.pixelBuffer = pixelBuffer
+        self.depthMap = depthMap
+        self.depthConfidenceMap = depthConfidenceMap
+        self.depthConfidenceProvenance = depthConfidenceProvenance
+        self.timestamp = timestamp
+        self.cameraTransform = cameraTransform
+        self.cameraIntrinsics = cameraIntrinsics
+        self.imageSize = imageSize
+        self.depthConfiguration = depthConfiguration
+    }
+}
+
 enum ImageDetectorQueue {
+    /// All mutable state is protected by the owning ImageDetector.lock.
+    final class DrainWaiter: @unchecked Sendable {
+        var isCancelled = false
+        var continuation: CheckedContinuation<Void, Never>?
+    }
+
     private static let queueGenerationAttachmentKey =
         "com.fruittreescanner.image-detector.queue-generation" as CFString
 
@@ -24,7 +70,8 @@ enum ImageDetectorQueue {
         imageSize: CGSize,
         depthMap: CVPixelBuffer?,
         depthConfidenceMap: CVPixelBuffer?,
-        pixelBufferCopier: (CVPixelBuffer) -> CVPixelBuffer? = { duplicatePixelBuffer(input: $0) }
+        pixelBufferCopier: (CVPixelBuffer) -> CVPixelBuffer? = { duplicatePixelBuffer(input: $0) },
+        depthConfiguration: DepthExperimentConfig = .default
     ) -> FrameCopyResult {
         // ARKit 会复用帧缓冲区，必须先复制再交给异步推理队列。
         guard let copiedPixelBuffer = pixelBufferCopier(pixelBuffer) else {
@@ -48,6 +95,7 @@ enum ImageDetectorQueue {
             depthConfidenceProvenance = .available
         }
         let queuedFrame = ImageDetector.QueuedFrame(
+            frameID: FrameID(),
             pixelBuffer: copiedPixelBuffer,
             depthMap: copiedDepthMap,
             depthConfidenceMap: copiedDepthConfidenceMap,
@@ -55,7 +103,8 @@ enum ImageDetectorQueue {
             timestamp: timestamp,
             cameraTransform: cameraTransform,
             cameraIntrinsics: cameraIntrinsics,
-            imageSize: imageSize
+            imageSize: imageSize,
+            depthConfiguration: depthConfiguration
         )
 
         return FrameCopyResult(
@@ -70,9 +119,18 @@ enum ImageDetectorQueue {
         _ fruits: [DetectedFruit],
         with frame: ImageDetector.QueuedFrame
     ) -> [DetectedFruit] {
+        observations(from: fruits, with: frame).map(DetectedFruit.init(observation:))
+    }
+
+    static func observations(
+        from fruits: [DetectedFruit],
+        with frame: ImageDetector.QueuedFrame
+    ) -> [Observation] {
         // 所有检测结果都绑定产生它的帧上下文，禁止使用当前帧补配旧检测。
         fruits.map { fruit in
-            DetectedFruit(
+            Observation.capture(
+                id: fruit.id,
+                frameID: frame.frameID,
                 category: fruit.category,
                 boundingBox: fruit.boundingBox,
                 confidence: fruit.confidence,
@@ -82,7 +140,8 @@ enum ImageDetectorQueue {
                 imageSize: frame.imageSize,
                 depthMap: frame.depthMap,
                 depthConfidenceMap: frame.depthConfidenceMap,
-                depthConfidenceProvenance: frame.depthConfidenceProvenance
+                depthConfidenceProvenance: frame.depthConfidenceProvenance,
+                depthConfiguration: frame.depthConfiguration
             )
         }
     }
@@ -151,6 +210,7 @@ extension ImageDetector {
 
         lastQueuedTimestamp = timestamp
         let generation = queueGeneration
+        let capturedDepthConfiguration = depthConfiguration
         preparingFrameGeneration = generation
         diagnosticsRecorder.recordQueuedFrame()
         lock.unlock()
@@ -162,7 +222,8 @@ extension ImageDetector {
             cameraIntrinsics: cameraIntrinsics,
             imageSize: imageSize,
             depthMap: depthMap,
-            depthConfidenceMap: depthConfidenceMap
+            depthConfidenceMap: depthConfidenceMap,
+            depthConfiguration: capturedDepthConfiguration
         )
         guard let queuedFrame = frameCopy.queuedFrame else {
             Log.detection.error("Dropping image detection frame: failed to copy RGB pixel buffer")
@@ -190,7 +251,9 @@ extension ImageDetector {
         preparingFrameGeneration = nil
         diagnosticsRecorder.reset(modelStatus: modelStatus)
         applyModelLabelDiagnosticsToDiagnosticsLocked()
+        let continuations = takeDrainContinuationsLocked()
         lock.unlock()
+        continuations.forEach { $0.resume() }
     }
 
     func queueGenerationSnapshot() -> Int {
@@ -259,42 +322,95 @@ extension ImageDetector {
 
     func finishPreparingFrame(_ queuedFrame: QueuedFrame, generation: Int) {
         lock.lock()
-        defer { lock.unlock() }
-
         if preparingFrameGeneration == generation {
             preparingFrameGeneration = nil
         }
-        guard generation == queueGeneration else { return }
-        guard pendingFrames.isEmpty else { return }
-        pendingFrames.append(queuedFrame)
+        guard generation == queueGeneration else {
+            lock.unlock()
+            return
+        }
+        if pendingFrames.isEmpty { pendingFrames.append(queuedFrame) }
+        let continuations = takeDrainContinuationsLocked()
+        lock.unlock()
+        continuations.forEach { $0.resume() }
     }
 
     func cancelPreparingFrame(generation: Int) {
         lock.lock()
         if preparingFrameGeneration == generation {
             preparingFrameGeneration = nil
+            let continuations = takeDrainContinuationsLocked()
+            lock.unlock()
+            continuations.forEach { $0.resume() }
+            return
         }
         lock.unlock()
     }
 
     func drainPendingFrames() async -> [QueuedFrame] {
         let generation = queueGenerationSnapshot()
-        while !Task.isCancelled {
-            let drainResult = drainPendingFramesIfReady(expectedGeneration: generation)
-            if !drainResult.frames.isEmpty || !drainResult.isPreparing {
-                return drainResult.frames
+        let waiter = ImageDetectorQueue.DrainWaiter()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                registerDrainWaiter(waiter, generation: generation, continuation: continuation)
             }
-            do { try await Task.sleep(nanoseconds: 25_000_000) }
-            catch { return [] }
+            // Waking never transfers frame ownership. A cancelled consumer must
+            // leave any newly prepared frame available to a valid consumer.
+            guard !Task.isCancelled else { return [] }
+            return drainPendingFramesIfReady(expectedGeneration: generation, waiter: waiter).frames
+        } onCancel: {
+            self.cancelDrainWaiter(waiter)
         }
-        return []
     }
 
-    func drainPendingFramesIfReady(expectedGeneration: Int? = nil) -> (frames: [QueuedFrame], isPreparing: Bool) {
+    private func registerDrainWaiter(
+        _ waiter: ImageDetectorQueue.DrainWaiter,
+        generation: Int,
+        continuation: CheckedContinuation<Void, Never>
+    ) {
+        lock.lock()
+        // Readiness and registration are atomic with copy completion/clear.
+        // Cancellation may have run before this continuation was installed.
+        if waiter.isCancelled || generation != queueGeneration ||
+            preparingFrameGeneration == nil || !pendingFrames.isEmpty {
+            lock.unlock()
+            continuation.resume()
+            return
+        }
+        waiter.continuation = continuation
+        drainWaiters[ObjectIdentifier(waiter)] = waiter
+        lock.unlock()
+    }
+
+    private func cancelDrainWaiter(_ waiter: ImageDetectorQueue.DrainWaiter) {
+        lock.lock()
+        waiter.isCancelled = true
+        drainWaiters.removeValue(forKey: ObjectIdentifier(waiter))
+        let continuation = waiter.continuation
+        waiter.continuation = nil
+        lock.unlock()
+        continuation?.resume()
+    }
+
+    /// Caller holds lock; continuations must be resumed after unlocking.
+    private func takeDrainContinuationsLocked() -> [CheckedContinuation<Void, Never>] {
+        let continuations = drainWaiters.values.compactMap { waiter in
+            defer { waiter.continuation = nil }
+            return waiter.continuation
+        }
+        drainWaiters.removeAll()
+        return continuations
+    }
+
+    func drainPendingFramesIfReady(
+        expectedGeneration: Int? = nil,
+        waiter: ImageDetectorQueue.DrainWaiter? = nil
+    ) -> (frames: [QueuedFrame], isPreparing: Bool) {
         lock.lock()
         defer { lock.unlock() }
 
         if let expectedGeneration, expectedGeneration != queueGeneration { return ([], false) }
+        if waiter?.isCancelled == true { return ([], false) }
 
         guard !pendingFrames.isEmpty else {
             return ([], preparingFrameGeneration != nil)

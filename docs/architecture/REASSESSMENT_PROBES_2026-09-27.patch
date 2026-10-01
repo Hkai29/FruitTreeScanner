@@ -1,0 +1,82 @@
+diff --git a/FruitTreeScannerTests/BatchExportServiceTests.swift b/FruitTreeScannerTests/BatchExportServiceTests.swift
+--- a/FruitTreeScannerTests/BatchExportServiceTests.swift
++++ b/FruitTreeScannerTests/BatchExportServiceTests.swift
+@@ -6,1 +6,32 @@
++// BEGIN temporary architecture reassessment probes 2026-09-27
++extension BatchExportServiceTests {
++    func testReviewRejectsSourceReplacedBetweenStagingAndFirstCommit() throws {
++        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
++        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
++        defer { try? FileManager.default.removeItem(at: directory) }
++        let sourceURL = directory.appendingPathComponent("scan.ply")
++        let draft = try ScanRepository.shared.stagePointCloud(to: sourceURL) {
++            try minimalPointCloud.write(to: sourceURL)
++        }
++        let capturedDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
++        let request = ScanResultExportService.ExportRequest(
++            treeID: "T-review", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
++            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
++        )
++        let replacement = String(decoding: minimalPointCloud, as: UTF8.self)
++            .replacingOccurrences(of: "0 0 0\n", with: "9 9 9\n")
++        try Data(replacement.utf8).write(to: sourceURL, options: .atomic)
++        XCTAssertTrue(PLYParserHelper.hasValidPointCloudHeader(at: sourceURL))
++        XCTAssertNotEqual(capturedDigest, try ScanCompanionIntegrity.digestFile(at: sourceURL))
++        XCTAssertThrowsError(try ScanRepository.shared.commit(
++            ScanAssessment(draft: draft, exportRequest: request),
++            using: ScanResultExportService(scansDirectory: directory)
++        ), "An assessment for the staged source must reject a replaced source on its first commit")
++        let observed = try ScanRepository.shared.readRecord(at: sourceURL)
++        print("REVIEW_SOURCE_REPLACEMENT observed persistence state: \(String(describing: observed?.persistenceState))")
++    }
++}
++// END temporary architecture reassessment probes 2026-09-27
++
++
+ final class BatchExportServiceTests: XCTestCase {
+diff --git a/FruitTreeScannerTests/ScanReadinessTests.swift b/FruitTreeScannerTests/ScanReadinessTests.swift
+--- a/FruitTreeScannerTests/ScanReadinessTests.swift
++++ b/FruitTreeScannerTests/ScanReadinessTests.swift
+@@ -2676,1 +2676,42 @@
++// BEGIN temporary architecture reassessment probes 2026-09-27
++extension ScanFinalizationWorkflowTests {
++    @MainActor
++    func testReviewCancelledFailedPersistenceSettlesTheDraft() async {
++        let workflow = ScanFinalizationWorkflow()
++        let harness = ScanFinalizationTestHarness()
++        let original = harness.operations
++        var pending: CheckedContinuation<Void, Error>?
++        var persistenceReturned = false
++        let operations = ScanFinalizationOperations(
++            lifecycleSnapshot: original.lifecycleSnapshot,
++            beginFinishing: original.beginFinishing,
++            exportPointCloud: original.exportPointCloud,
++            estimateYield: original.estimateYield,
++            persistResult: { _, _, _, _, _ in
++                defer { persistenceReturned = true }
++                try await withCheckedThrowingContinuation { pending = $0 }
++            },
++            markCompleted: original.markCompleted,
++            refreshHistory: original.refreshHistory,
++            discardArtifacts: original.discardArtifacts
++        )
++        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: operations)
++        harness.exportCompletions[0]("cancelled_failure.ply")
++        await waitUntil { harness.estimateCount == 1 }
++        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 2.5), nil)
++        await waitUntil { pending != nil }
++        workflow.cancel()
++        pending?.resume(throwing: CocoaError(.fileWriteUnknown))
++        await waitUntil { persistenceReturned }
++        // The continuation resumes the persistence task on the MainActor; yield
++        // lets its catch branch finish before checking the cleanup operation.
++        await Task.yield()
++        XCTAssertEqual(workflow.phase, .cancelled)
++        XCTAssertEqual(harness.discardedFilenames, ["cancelled_failure.ply"],
++                       "Cancelled persistence that did not commit must settle its draft")
++    }
++}
++// END temporary architecture reassessment probes 2026-09-27
++
++
+ private extension ScanFinalizationWorkflow.Phase {

@@ -36,13 +36,11 @@ extension ScanView {
     }
 
     var exportRetryAction: ScanExportReadiness.RetryAction {
-        ScanExportReadiness.retryAction(
-            state: lifecycleSnapshot.state,
-            hasResult: yieldResult != nil,
-            canRetryPersistence: resultPersistenceState == .failed,
-            filename: savedFilename,
-            currentScanIdentity: coordinator.lifecycleSnapshot().scanIdentity,
-            resultScanIdentity: resultScanIdentity
-        )
+        switch finalizationWorkflow.retryAction {
+        case .unavailable: return .unavailable
+        case .exportPointCloud: return .exportPointCloud
+        case .estimateYield: return .estimateYield
+        case .persistResult: return .persistResult
+        }
     }
 }

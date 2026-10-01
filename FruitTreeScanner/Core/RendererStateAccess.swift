@@ -21,6 +21,7 @@ extension Renderer {
             defer { pointBufferLock.unlock() }
             currentPointIndex = 0
             currentPointCount = 0
+            pointBufferRevision &+= 1
         }
         coverageVoxels.removeAll()
         scanProgress.reset()
@@ -50,10 +51,10 @@ extension Renderer {
         captureDiagnosticsLock.unlock()
     }
 
-    func pointBufferSnapshot() -> (count: Int, index: Int) {
+    func pointBufferSnapshot() -> (count: Int, index: Int, revision: UInt64) {
         pointBufferLock.lock()
         defer { pointBufferLock.unlock() }
-        return (currentPointCount, currentPointIndex)
+        return (currentPointCount, currentPointIndex, pointBufferRevision)
     }
 
     /// Wait until every submitted render command buffer has completed. Call

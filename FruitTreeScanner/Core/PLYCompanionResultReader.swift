@@ -68,7 +68,7 @@ extension PLYParserHelper {
             return readTransactionalMetadataPayload(urls: urls)
         }
         guard let payload = readMetadataPayload(at: urls.metadata),
-              !payload.keys.contains("exportRevision")
+              !ScanLegacyArchiveCodec.hasExportRevisionField(payload)
         else { return nil }
         return payload
     }
@@ -92,17 +92,15 @@ extension PLYParserHelper {
                   at: urls.manifest,
                   maximumByteCount: maximumCompanionManifestByteCount
               ),
-              let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
-              let schemaVersion = manifest["schemaVersion"] as? Int,
-              (1...3).contains(schemaVersion),
-              let revision = manifest["exportRevision"] as? String,
-              !revision.isEmpty,
-              let requiredFiles = manifest["requiredFiles"] as? [String],
+              let manifest = ScanLegacyArchiveCodec.manifest(from: manifestData),
+              let metadataDTO = ScanLegacyArchiveCodec.metadata(from: metadata),
+              let revision = metadataDTO.exportRevision,
+              revision == manifest.exportRevision else { return nil }
+        let requiredFiles = manifest.requiredFiles
+        guard
               requiredFiles.count == Set(requiredFiles).count,
               Set(requiredFiles).isSubset(of: [urls.metadata.lastPathComponent, urls.csv.lastPathComponent]),
-              requiredFiles.contains(urls.metadata.lastPathComponent),
-              metadata["exportRevision"] as? String == revision,
-              companionMetadata(from: metadata) != nil
+              requiredFiles.contains(urls.metadata.lastPathComponent)
         else { return nil }
 
         if requiredFiles.contains(urls.csv.lastPathComponent) {
@@ -110,10 +108,10 @@ extension PLYParserHelper {
                 return nil
             }
         }
-        if schemaVersion >= 2 {
+        if manifest.schemaVersion >= 2 {
             var fileURLs = [urls.metadata]
             if requiredFiles.contains(urls.csv.lastPathComponent) { fileURLs.append(urls.csv) }
-            guard let digests = manifest["fileSHA256"] as? [String: String],
+            guard let digests = manifest.fileSHA256,
                   Set(digests.keys) == Set(requiredFiles),
                   fileURLs.allSatisfy({ url in
                       let limit = url == urls.metadata
@@ -122,9 +120,9 @@ extension PLYParserHelper {
                       return digests[url.lastPathComponent] == ScanCompanionIntegrity.digest(data)
                   }) else { return nil }
         }
-        if schemaVersion == 3 {
-            guard manifest["sourcePLYFilename"] as? String == urls.ply.lastPathComponent,
-                  let expectedDigest = manifest["sourcePLYSHA256"] as? String,
+        if manifest.schemaVersion == 3 {
+            guard manifest.sourcePLYFilename == urls.ply.lastPathComponent,
+                  let expectedDigest = manifest.sourcePLYSHA256,
                   hasValidPointCloudHeader(at: urls.ply),
                   (try? ScanCompanionIntegrity.digestFile(at: urls.ply)) == expectedDigest else { return nil }
         }
@@ -162,18 +160,16 @@ extension PLYParserHelper {
     private static func companionMetadata(
         from payload: [String: Any]
     ) -> (result: CompanionResult, revision: String?, hasRevisionField: Bool)? {
-        guard let fruitCount = nonNegativeIntValue(payload["fruitCount"]),
-              let yieldKg = nonNegativeFloatValue(payload["yieldKg"])
-        else { return nil }
+        guard let dto = ScanLegacyArchiveCodec.metadata(from: payload) else { return nil }
         return (
             CompanionResult(
-                fruitCount: fruitCount,
-                yieldKg: yieldKg,
-                fruitType: payload["fruitType"] as? String ?? "",
-                confidence: payload["confidence"] as? String ?? ""
+                fruitCount: dto.fruitCount,
+                yieldKg: dto.yieldKg,
+                fruitType: dto.fruitType,
+                confidence: dto.confidence
             ),
-            payload["exportRevision"] as? String,
-            payload.keys.contains("exportRevision")
+            dto.exportRevision,
+            dto.hasExportRevision
         )
     }
 

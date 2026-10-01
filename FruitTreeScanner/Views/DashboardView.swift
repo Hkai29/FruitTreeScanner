@@ -5,6 +5,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var router: NavigationRouter
+    @EnvironmentObject private var appDependencies: AppDependencies
     @State var destination: DashboardDestination?
     @State var scanLaunchPresentationState = ScanLaunchPresentationState<ScanLaunchRequest>()
     @State var activeScanRequest: ScanLaunchRequest?
@@ -43,6 +44,7 @@ struct DashboardView: View {
                 gps: request.gps,
                 season: request.season,
                 selectedFruitCategory: request.selectedFruitCategory,
+                appDependencies: appDependencies,
                 onScanNextTree: requestNextTreeScan
             )
         }

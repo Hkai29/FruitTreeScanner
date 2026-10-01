@@ -1,0 +1,565 @@
+# 重构迭代执行记录
+
+创建：2026-09-27；更新：2026-10-01。分支：`codex/scan-architecture-refactor`，基于 `81f49a6ec3d5` 及已有未提交迁移继续实施。
+
+用户目标：进行重构，完成后继续构思下一轮并迭代。当前目标保持进行中；本文件区分已实施、待验证与下一轮范围，不把整个架构迁移宣称为已完成。
+
+## 迭代 1：源身份与取消后的事务结算
+
+实施内容：
+
+- DraftScan 在暂存阶段记录原始文件 SHA-256、设备/文件节点身份和操作所有权；首次提交核对该凭证，拒绝同名、同大小、同 inode 但内容已改变的源。
+- Renderer 向上返回 StagedPointCloud，包含凭证和实际写入的 FinalPointCloud。结束流程传递原凭证，不在估算结束后重新按文件名创建草稿。
+- 源校验仍在提交锁内执行，保留提交期间源变化检查和原有 manifest/schema/原始字节摘要规则。不同目录中的同名路径不能被凭证混用。
+- 取消后的文件结算返回 discarded、preservedCommitted 或 requiresRecovery。先验证文件身份和提交状态，再判断是否清理；不会直接删除已提交记录或由新操作接管的草稿。
+- 仓储收尾和历史刷新不再依赖旧 UI WorkID 仍有效。取消后保存失败会结算草稿；取消与提交成功竞争时保留记录并刷新历史。
+- 清理失败保留 PLY 历史锚点，保留可恢复原因；旧页面只能接收属于自身扫描的结算状态。
+
+定向验证：120 项 XCTest 通过，0 失败，xcodebuild 退出码 0。
+
+## 迭代 2：冻结估算输入与明确终态
+
+复核发现：保存侧身份得到约束之后，估算仍使用只报告成功的回调，无法解释输入不可用或提供可靠的失败重试。因此本轮继续收紧估算边界。
+
+实施内容：
+
+- 增加可抛错、可取消的异步快照准备和后台估算接口，生产结束流程使用这些接口；旧回调入口暂保留用于兼容。
+- 结束流程持有不可变估算 Snapshot 和其 ID；计算失败后重试同一 Snapshot，不重复导出 PLY，不再次消耗检测归档。
+- 输入必须携带与 StagedPointCloud 一致的点云签名。估算直接使用实际写入的点集，不依赖 Renderer 缓存仍然有效。
+- 估算任务句柄由流程持有，取消传给后台计算；即使替身或旧任务迟到返回，失效任务也不能继续保存。
+- 增加估算失败状态、重试动作和中英文用户提示，避免快照不可用时静默停留在 estimating。
+- 提交确认后释放草稿所有权。相同凭证对完全相同已提交结果的重试仍幂等；已经失效的凭证不能修改结果。这是本轮自审发现并补齐的二次边界。
+
+定向验证：164 项 XCTest 通过，0 失败，xcodebuild 退出码 0。后续幂等重试与签名校验补充纳入全量验证。
+
+## 迭代 3：取消通知、暂存凭证和资源生命周期
+
+实施内容：
+
+- 检测排空从每 25 ms 轮询改为准备完成、准备失败或队列清空时唤醒。准备状态与等待者注册使用同一把锁，continuation 在解锁后恢复；取消可早于注册发生，每个等待者仅恢复一次。
+- 唤醒只通知就绪，不转移帧所有权。等待取消、旧代次清空不会消费新扫描的帧；取消一个等待者不影响其他消费者。
+- 结束流程持有可取消的导出 Task；生产导出使用 async throws，并向后台任务传递取消。保留旧 callback 入口作为兼容适配。
+- PLY writer 对实际写入的 header/chunk 增量计算 SHA-256，发布前从临时文件取得文件身份。独占 rename 成功后没有新的可抛错凭证读取步骤；仓储直接登记返回凭证，消除发布后摘要读取失败的窗口。
+- 发布前取消清理临时文件；发布后取消仍返回凭证，由结束流程结算。覆盖“writer 已发布后取消当前 Task”的回归，验证仍可按凭证清理草稿。
+- 估算失败保留冻结输入供重试；估算成功后释放流程持有的点云和 Snapshot，保存重试只保留结果与草稿。取消也解除这两个引用。
+- 估算 await 不再强持有整个 workflow；页面退出时解除 onEvent 展示回调。新增弱引用测试验证取消后的流程可在估算替身尚未返回时释放。
+
+定向验证：资源/队列第一批 63 项通过；导出、队列、点云、批量与流程第二批 311 项通过，均为退出码 0。后续发布后取消补充纳入迭代 4 全量验证。
+
+限制：取消是协作式的。Metal 已提交命令保持原有最长 5 秒等待上限，超时返回失败；不会撤销已经提交到 GPU 的命令。已经运行的同步采样/计算需返回取消检查点后释放任务局部输入。上述引用测试不等于真机峰值内存测量。
+
+## 迭代 4：抽出共同的存档访问底层
+
+暂存凭证现在被 writer、仓储和旧 exporter 同时使用，因此先完成共享访问边界，再继续扩展证据身份。
+
+- 新增 ScanArchiveAccess，集中每源文件信号量、草稿所有权和源身份错误。
+- Repository 与兼容 exporter 均依赖同一个访问实例；ScanResultExportService 不再调用 ScanRepository，移除反向调用环。
+- 保留同文件串行、不同文件可并行、等待锁时取消、提交后确认和 manifest 最后发布。锁顺序明确为 exporter queue → source semaphore → registry lock；registry lock 不跨文件锁等待持有。
+- SourcePointCloudError 保留类型别名，旧调用者的错误匹配不变。新文件纳入原 App target，没有增加 target 或系统版本要求。
+
+这是仓储解耦的一部分；动态研究 JSON 读取、可注入装配与完整记录契约仍在下节列为未完成项。
+
+## 迭代 5：将冻结证据绑定到草稿与结果
+
+- 增加 ScanContext（逻辑扫描/计划）、ScanCaptureIdentity（附带点云签名）和 ScanEvidenceIdentity（附带不可变输入 Snapshot ID、源所有权和摘要）。Renderer 写 PLY 时记录 captureIdentity，协调器排空检测后生成带真实活动扫描/计划身份的 Snapshot。
+- ScanEvidenceSnapshot.freeze 校验上下文与点云签名，并在源事务锁内将草稿绑定到第一次冻结的 Snapshot。相同绑定可重试，另一批观测不能覆盖该绑定。绑定成功返回构造器受限的 ScanEvidenceReceipt。
+- 异步估算器直接返回携带输入身份的 ScanEstimate。workflow 拒绝跨扫描、跨计划、跨 Snapshot 和跨源草稿的输出；保存只接收绑定凭证与对应估算。原始 YieldResult 继续供展示使用。
+- ScanAssessment 从绑定凭证和估算生成 exportRequest，仓储提交前再次核对来源；服务新增受校验的 assessment 入口。活跃扫描不能通过旧裸结果接口、遗漏 expectedSource 或重新按路径领取旧式草稿来绕过证据约束。
+- 估算失败仍复用同一冻结输入；估算成功释放大数组，仅保存小凭证与结果供持久化重试。提交后对同一结果的幂等重试保留原绑定凭证。
+- RendererSnapshotSignature 的纯值定义移入 Domain，保留原类型名；新契约不引入 UIKit/Metal 缓冲或 unchecked Sendable。
+- 新增错配扫描/计划/观测/点云/源所有权/摘要的拒绝测试、拒绝重新绑定和兼容入口绕过的测试，以及真实协调器 → 冻结输入 → 估算器 → 临时仓储提交/幂等重试的集成测试。
+
+本轮身份是进程内操作契约。没有把逻辑 UUID 写入旧 manifest.scanID，也没有改变 schema 1–3 的摘要输入、算法阈值或数值公式。历史记录继续沿已有格式验证；跨进程的持久化 provenance 若未来需要，必须单独制定格式迁移。
+
+验证状态：第一批 127 项、绑定凭证定向 167 项通过；全量结果包确认 939 通过、0 失败/跳过。该全量进程句柄随后失效，终端退出码未取回。之后补充了兼容裸导出入口的保护，127 项定向通过、退出码 0。Release 与仓储下一轮一并验证。
+
+## 迭代 6：仓储记录契约与依赖装配
+
+- 将研究 JSON 的 sidecar 字段解析和兼容默认值移入 ScanResearchArchiveCodec。批量 writer 逐条获取仓储返回的已验证记录 Data，不再读取动态 sidecar 键。仅移动原来的单次序列化，没有增加中间 JSON 编解码；未知诊断字段仍保留，原始预测大数组仍按原规则排除。
+- 仓储在源文件锁内读取 sidecar、判断缺失/不一致和核对历史摘要，再在锁外编码该不可变字典快照，避免把大记录的编码时间放进文件锁。
+- 新增 VerifiedScanRecord，包含现有 ScanFileRecord 摘要与可选 CompletionManifestDTO。构造入口要求合法 PLY 文件头和完整 companion；旧 CSV/JSON 记录的 manifest 保持 nil，不伪造旧记录没有的摘要证据。要求源校验的批量记录使用该入口，保留写出前后两次检查。
+- 此处补齐一条拒绝规则：即使 companion 显示 complete，缺失或文件头无效的 PLY 也不能得到 VerifiedScanRecord，不能通过要求源校验的批量导出。新增针对性测试；普通历史摘要仍可展示恢复状态。
+- ScanRepository 允许注入目录和 exporter。AppDependencies 提供仓储，并贯穿 ScanView → finalization → coordinator/renderer、freeze、persist、cancel settlement。默认目录/兼容入口保持原用法；各仓储实例共用按规范路径协调的事务锁，不能因实例不同破坏同文件互斥。
+- 增加自定义目录及跨目录拒绝测试；真实 production operations 集成测试只替换物理捕获边界，验证准备、估算、落盘、完成事件与历史通知均使用注入仓储。研究 JSON 测试补充未知嵌套诊断和 Int64.max 的保留检查。
+
+自审补充：旧按文件名删除入口也拒绝活跃 capture 草稿，且拒绝时不设置 discardedFilenames，避免污染后续合法提交。
+
+验证过程中先发现历史通知默认回调缺少 MainActor 标记导致编译失败；补齐了接口隔离。随后 129 项通过、1 项失败，失败仅来自新测试的目录 URL 尾斜杠标记不一致；修正为显式目录 URL 后，全量 **942 项通过、0 失败/跳过，退出码 0**。Release 模拟器构建成功，退出码 0。没有剩余已知编译或测试失败。
+
+## 迭代 7：落实计划配置与资源预算
+
+- ScanFusionYieldBuilder.Input 显式携带冻结的 experimentConfiguration，协调器从 activeScanPlan 传入；候选去噪、两次候选合并、融合匹配/拒绝距离和遮挡合成均消费该值。旧入口保留默认参数，默认公式和阈值不变。
+- 深度配置在检测入队锁内捕获进 FramePacket，ROI/投影采样在完成推理后使用该帧配置；更新检测器不会改变已经入队帧的采样规则。可靠 confidenceMap 仍至少要求 Medium，实验配置不能接纳 Low；采样网格和候选点保留量保留原有上界。
+- RendererScanSettings 捕获深度配置，并传入实际帧质量检查；扫描引导使用同一个计划规则，避免采集已拒绝而提示仍显示正常。
+- ScanResourceBudget 删除重复的 particleCapacity/maxCapturePoints 字段：物理容量仍由 Renderer 的 Metal buffer 持有，实际采集上限仍由 RendererScanSettings.maxPoints 持有。预算现在只承载实时点云采样、最终分析采样及活动检测窗口的帧保留上限，并接入实际执行点；已有稳定证据归档规则继续保留，活动窗口上限不表示全部归档观测总数。
+- 预算不能扩大现有 240,000/120,000/360 上限。点云预算的读写与缓存失效使用 snapshotLock；最终点云签名附带本次分析采样上限，避免不同预算间复用缓存或混淆证据身份。
+- 校准上下文编码实际实验配置，并在预算非默认时编码资源预算；默认预算不新增 JSON 键，保留原默认上下文的编码结构。不同实验或预算不复用旧校准记录。
+- 增加计划贯通估算且设置重载不漂移、帧配置不漂移、置信度底线、候选距离/点保留、去噪与遮挡实际生效、预算缓存隔离和校准隔离测试。
+
+定向测试初次 179 通过、1 失败，退出码 65。失败是新增遮挡夹具的默认/自定义两次结果均达到修正系数上限，无法区分配置；换为环绕覆盖的合成冠层后，该测试通过、退出码 0。全量模拟器 **951 项通过、0 失败/跳过，退出码 0**。
+
+该阶段留下的默认种子与运行配置混合问题已在迭代 11 收敛，默认校准上下文编码兼容也有固定夹具验证。
+
+## 迭代 8：分开计划值、应用工厂与展示模型
+
+- Domain/ScanPlan.swift 只保存不可变计划、预算、模型身份和果类配置值；Application/ScanPlanFactory.swift 负责读取设置、加载校准记录、准备模型身份并创建计划。旧 ScanFruitConfiguration.capture 保留为应用层扩展。
+- 将生命周期枚举、扫描/绑定/证据身份值移到 Domain/ScanSession.swift，移除其对 Combine 的直接依赖。ARKit 错误分类和追踪状态转换继续留在设备协调器；同步准入门和状态转换没有增加第二个所有者。
+- ScanFeatureModel 移到 Views，仅提供 MainActor 上的只读展示投影。迟到快照拒绝、暂停保留在途证据、取消与重新绑定作废旧证据的规则保持不变。
+- Xcode 项目引用同步更新，仍为原 App/XCTest target、iOS 16 和 Swift 5。此次是职责迁移，不新增 UI 流程或算法行为。
+
+验证：项目文件结构检查通过；迁移后全量 **951 项通过、0 失败/跳过，退出码 0**。Release 模拟器构建成功，退出码 0。Domain 目录当前只直接导入 Foundation，但仍使用 Core 中的算法值类型；这不等于已经完成独立 Swift package 的依赖证明。
+
+## 迭代 9：结果保留扫描时的校准身份
+
+沿最终落盘链路复核发现：YieldResultComposer.makeVisibleYieldResult 仍自行从默认配置/当前 bundled model 生成 calibrationContext。虽然迭代 7 已让校准匹配使用实际实验配置，结果标记仍可能与本次扫描不同。
+
+- 增加纯值 ScanCalibrationIdentity，包含算法修订和可选 context。协调器创建估算 Snapshot 时复制计划中的身份，结果合成直接沿用。
+- 显式不可用的 context 保持 nil；不能在模型后来可用时补成另一个扫描身份。仅未提供计划身份的旧 builder 输入保留兼容计算，此路径也使用 Input 中的实际 experimentConfiguration。
+- 新增正产量结果身份回归：固定身份被保留；显式 nil 不回退。计划到 Snapshot 的测试也核对 revision/context。
+
+全量模拟器 **952 项通过、0 失败/跳过，退出码 0**。该修复后的模拟器 Release 与设备 SDK 未签名 Release 均构建成功，退出码 0。后者只证明设备目标可编译，未安装或运行采集验收。该修复没有改变可靠水果集合、数值公式或存档 schema，修复的是输出记录的校准来源标记。
+
+## 迭代 10：相机请求与会话切换顺序
+
+- 先加入相机规格选择边界并运行两个回归，确认开始扫描沿用预览规格、中断重启使用后来的设置，两项均失败，退出码 65。
+- 新增 ScanCameraRequest 纯值，将计划中的分辨率/帧率请求传入 ARKit 视频规格选择器；预览读取注入的 settings，活动扫描和恢复使用对应计划。实际格式仍从设备支持列表选择，保留原有 FPS 上限筛选和优先级，无法匹配时沿用 ARKit 默认格式；请求不伪装成设备实际规格。
+- 新计划开始前同步关闭旧证据门，再更新计划、检测/渲染配置。需要改变相机请求时重新运行会话并等待 normal tracking；请求相同则保留健康追踪，暂停后的同扫描恢复不重新运行 ARSession。
+- 中断重启显式传入新计划请求，在失败旧扫描仍持有状态且证据门关闭时运行 ARSession，成功后才启动新扫描；新扫描识别已配置请求，避免第二次 run。没有绑定或不支持 AR 的情况继续拒绝采集。
+- 删除延迟绑定初始化中 `loadSettings()` 之后额外读取全局 renderer 设置的调用。新增等待延迟回调的回归，确认它不能覆盖活动计划的采样预算。
+- 相机请求切换后重新发布实际帧分辨率；Renderer 仍根据每个真实帧的图像尺寸更新网格/内参相关输入。
+
+验证中修复一处跨文件 extension 访问 private 准入方法的编译错误。之后 41 项定向通过、退出码 0；补充不支持 AR 的新计划及同规格新扫描回归后，全量 **957 项通过、0 失败/跳过，退出码 0**。Release 与下一轮一起收尾。
+
+## 迭代 11：消除重复默认配置
+
+- FruitScanExperimentConfig 只保留运行时使用的融合匹配、去噪、深度、遮挡和候选合并参数；删除无执行消费者的 detector/clustering 默认容器及 fusion 中重复的四个设置种子。
+- FruitScanConfig 和 ClusterConfig 各自定义唯一默认数值，用户设置仍生成这两个明确的实际配置。不再允许通过实验配置修改一个不会执行的同名种子。
+- 旧校准上下文需要保留历史编码键。兼容种子的重建集中在 YieldCalibrationContext 的编码路径，取值来自实际配置类型的默认值；不再混入可变运行参数。
+- 新增固定历史 JSON 夹具，校验默认上下文规范化后的完整字节相等；保留自定义配置生效与校准隔离测试。
+
+验证：72 项定向通过；全量模拟器 **958 项通过、0 失败/跳过，退出码 0**；模拟器 Release 和设备 SDK 未签名 Release 均构建成功，退出码 0。设备目标编译不表示真机采集通过。
+
+## 迭代 12：固定观测的估算与存档回放
+
+- 增加测试目标内的 ScanObservationReplayTests，使用 30 个合成点、两帧固定 Observation 身份/时间、32×32 合成深度/置信度图；不引入真实用户数据、训练集或 App 资源。
+- 通过生产 Observation.capture 验证置信度采样，再经过真实 freeze → estimate → commit → verified record → BatchExportService JSON 导出。可靠深度、Low 置信度、confidence copy failure、image-only、cloud-only 分别验证；拒绝场景提供同位置可聚类的果实点云，检查回退不能升级为可靠产量。
+- 可靠场景的期望几何与重量按固定针孔投影、既有尺寸先验、球体体积及置信度加权公式独立手算，使用固定数值断言；两帧对应同一果实，融合权重 0.81、可靠果数 1、遮挡修正后的估计果数 2 分别检查。反转观测输入后比较导出业务字段。
+- 输入扫描/计划/观测/帧身份固定。Snapshot、事务所有权和输出 UUID 仍由生产代码创建，每次验证其真实绑定；跨次比较仅剔除 validatedFruits.id、fruitMassEstimates.id/createdAt，不更改生产身份或摘要规则。
+- 这组回放从推理完成后的二维检测边界开始，不覆盖模型推理精度、ARKit 调度或物理 LiDAR；下一轮可在该边界补多果实竞争关联和异类干扰。
+
+初次定向 4 项通过、1 项失败：夹具误将默认 9×9 投影网格写成 5×5，已修正。之后全量 962 项通过、1 项失败：手算期望漏计既有融合置信度权重 0.81，已补充对应推导与权重断言，生产算法未改变。修正后全量 **963 项通过、0 失败/跳过，退出码 0**；模拟器与设备 SDK 未签名 Release 均通过，退出码 0。
+
+## 迭代 13：模型指纹的基础设施边界
+
+- 模型定位、文件枚举和分块摘要移入 Infrastructure/Configuration/ScanModelFingerprint。Application 的模型身份准备器直接调用该边界；校准上下文保留旧入口适配，实际文件读取只在新位置实现。
+- 保留路径排序、相对路径字节拼接、1 MiB 分块读取和 bundled identity 一次性缓存。固定 SHA-256 夹具覆盖目录创建顺序、根路径变化、文件内容变化、单文件及超过分块边界的内容；文件打开中途失败返回不可用。
+- 自审发现旧目录枚举会吞掉读取错误并可能对可读子集生成已验证指纹。改为逐层可抛错读取，子目录读取或文件属性查询失败均返回不可用；不跟随目录符号链接。新增失败子目录、列出后消失的文件和目录符号链接回环测试。完整模型仍保持历史路径/内容摘要字节。
+
+初次迁移定向 42 项通过。故障注入最初尝试覆盖 Foundation extension 方法，编译器拒绝覆盖，退出码 65；改用目录读取边界注入后 43 项定向通过。补充文件消失和目录链接回归后，全量 **968 项通过、0 失败/跳过，退出码 0**；模拟器与设备 SDK 未签名 Release 均通过，退出码 0。
+
+## 迭代 14：可检查的观测值边界
+
+- 将 FrameID、深度置信度来源、观测拒绝原因、ObservationDepthSample 和 Observation 从带 CoreVideo 依赖的共享文件移到 Domain/Observation.swift。定义和行为不变；该文件仅依赖 Foundation、CoreGraphics 和 simd 的值类型。
+- ScanFusionYieldBuilder.Input 改为编译器检查的 Sendable，不再使用 unchecked 声明。输入存储点值、紧凑观测和配置快照；兼容 savedDetections 仍是计算投影，不存储旧帧缓冲。
+- DetectedFruit/FramePacket 的平台缓冲适配仍保留；未将这些私有缓冲包装误标为完全由编译器证明的并发安全类型。Domain 仍有 Core 值类型依赖，完整模块分离继续推进。
+
+全量 **968 项通过、0 失败/跳过，退出码 0**；模拟器与设备 SDK 未签名 Release 均构建成功，退出码 0。编译未报告 Input 的 Sendable 字段问题。随后显式标注新增测试的 openFile 闭包参数，以消除尾随闭包匹配警告；补充校准测试 **27 项通过、0 失败/跳过，退出码 0**。仍有既有 XCTest 最低链接版本提示，不属于本轮新增问题。
+
+## 迭代 15：分离投影核心、ROI 候选和像素缓冲适配
+
+- Domain/Fusion/ObservationProjection 保存稳健深度、世界/图像坐标转换和紧凑观测投影；DetectionDepthCandidateBuilder 保存 ROI 前景、连通性、形状与尺寸计算。ImageCameraCoordinateSpace 同时移入该领域目录。
+- Observation.capture 和两种私有像素采样器移入 Infrastructure/Detection/ObservationCapture；CVPixelBuffer 生命周期与采样实现整体保留。旧 DetectedFruit/CVPixelBuffer 的融合和投影入口集中在 FusionValidatorLegacyInput，先转换为观测值再调用数值核心。
+- 融合匹配、去重、结果合成和采样坐标映射直接调用 ObservationProjection。DepthProjectionService 不再持有不参与数值计算的 FusionValidator；原 FusionValidatorProjection 保留旧签名的薄转发，以支持已有测试和兼容入口。
+- 迁移后的领域投影/ROI 文件没有 CoreVideo、ARKit、Metal、Vision、UIKit 导入，也不接受 DetectedFruit 或 CVPixelBuffer。算法函数体只改变所属类型及调用路径；没有合并两种不同的前景深度策略，没有改变拒绝阈值或固定距离回退的适用范围。
+- 已逐项核对移动前的函数体与新文件，项目文件检查与差异检查通过。定向融合、去重、诊断、估产和完整存档回放 **178 项通过、0 失败/跳过，退出码 0**；全量 **968 项通过、0 失败/跳过，退出码 0**；模拟器及设备 SDK 未签名 Release 构建均成功，退出码 0。
+
+## 迭代 16：让去重直接消费观测值
+
+- 稳定轨迹、证据压缩、2D 去重与已有 3D 去重移入 Domain/Fusion/DetectionDeduplicator。观测入口使用明确的 `observations:` 标签，保留旧接口空数组调用的可解析性。算法只更换输入类型、参数标签和已解析观测的读取方式；规范化这些差异后，函数体与迁移前一致。
+- FusionEvidencePipeline 的稳定性过滤和去重直接消费 Observation，移除两次 Observation → DetectedFruit → Observation 往返。帧身份、采样值、拒绝原因和顺序随原观测保留。
+- DetectedFruit 兼容接口与旧帧窗口保留策略集中到 Infrastructure/Detection/DetectionDeduplicatorLegacyInput。兼容接口按被选中的身份返回原始检测对象，保留私有缓冲；重复出现的同一对象不触发字典唯一键错误，选择结果的顺序和数量不被字典去重。
+- FruitCandidate、ValidatedFruit、ValidationSource 及计数序列化值移入 Domain/Fusion/FruitEvidence，声明、阈值、权重与编码字段原样保留。ReliableYieldEvidence 的 fileprivate 构造器继续限制在融合准入所在文件，未为移动目录而放宽可靠证据构造权限。
+- 新增 3 项回归，覆盖帧身份/拒绝原因与最近窗口、有限样本的最小持续时间/异果保留、原缓冲适配对象及重复身份；原 3D 关联、无效深度和低置信度深度测试同时验证原生观测入口。
+
+定向融合、去重、点云、诊断、估产与存档回放 **316 项通过、0 失败/跳过，退出码 0**；全量 **971 项通过、0 失败/跳过，退出码 0**；模拟器及设备 SDK 未签名 Release 均构建成功，退出码 0。两份 Release 日志没有编译警告；测试构建仍有既有 XCTest 最低链接版本及异步 RunLoop 警告。协调器的实时与归档数组仍使用旧检测对象，纯值类型还依赖 Core 中的品类/配置；本轮不宣称已经完成领域模块隔离。
+
+## 迭代 17：协调器贯通原生观测
+
+- ImageDetector.processObservations 与 ImageDetectorQueue.observations 在同帧推理完成后直接产出 Observation；旧 processQueue/enrich 只在兼容调用时包装检测对象。
+- 协调器的活动数组、稳定证据归档、后台归档任务、HUD 融合与最终估算快照都改用 Observation。冻结合并按原归档优先顺序去重，避免先拼接两份证据数组；帧身份、采样值和拒绝原因保持原值。
+- 原检测输入在非主 actor 的 async 兼容边界采样，使用当前扫描计划的深度配置；如果已经携带 Observation，保留捕获时的证据，不重新套用当前配置。旧调试与快照入口仅在返回时构造兼容门面。
+- 帧保留策略移入 Domain，原生与旧接口共享按采集时间戳选取最近帧的实现，不改变同帧多个检测、原顺序与 360 帧上限。品类核对使用最小的类别/时间/置信度值，不为统计读取或复制深度缓冲。
+- 新增 3 项回归覆盖归档裁剪后冻结的完整观测、旧缓冲按计划采样与已捕获观测不漂移、同帧多框的品类计数。正常结束/暂停保留证据，以及硬中断/换扫描/销毁拒绝旧结果的 6 项回归改为直接走原生观测入口；原队列配置与窗口测试同时核对新入口。
+
+定向 **292 项通过、0 失败/跳过，退出码 0**；全量 **974 项通过、0 失败/跳过，退出码 0**；模拟器与设备 SDK 未签名 Release 均成功，退出码 0。可靠产量规则、归档修订复核、生命周期令牌与原有阈值没有改变。
+
+复核发现下一处实际配置缺口：confirmedLiveFruitCount 仍从可变 settings 生成聚类配置、使用默认 FusionExperimentConfig，并且没有应用最终估产使用的目标品类过滤。本轮只迁移其输入类型，下一轮用独立失败回归证明配置/异类干扰影响后修复，保留实时计数更严格的最少两帧与 0.85 置信度门槛。
+
+## 迭代 18：实时确认计数使用扫描计划
+
+- 修复 confirmedLiveFruitCount：置信度、最少观测数、稳定时间窗、聚类配置和目标品类来自 activeFruitConfiguration；融合距离/视锥参数来自 activeScanPlan.experimentConfiguration.fusion。未建立扫描配置的兼容路径仍使用传入检测配置和设置。
+- 稳定性与最近窗口先对全部对齐观测计算，再复用 ScanFusionCategoryFilter 筛选目标品类，避免其他品类进入目标实时果数，也避免筛掉新异类帧后把旧目标轨迹误当近期证据。
+- 保留实时最少两帧、最低 0.85、原持续时间要求、ROI 深度准入与仅 fused 计数。实时窗口与最终全扫描计数仍有各自范围，不要求二者数值相同。
+- 新增 6 项真实调用回归。修复前 5 项探针中 **4 项失败、1 项通过，退出码 65**：异类混入得到 2 而非 1；计划置信度、尺寸限制和融合距离未生效均得到 1 而非 0。设置变更用例随后改用受支持的葡萄品类并断言设置确实改变，补充新异类帧使旧目标证据过期的边界测试。
+- 修复后融合、计数、生命周期和存档回放定向 **206 项通过、0 失败/跳过，退出码 0**。测试清理闭包随后改为只传递隔离域名称，消除新增的 UserDefaults 非 Sendable 捕获警告；全量 **980 项通过、0 失败/跳过，退出码 0**，模拟器与设备 SDK 未签名 Release 均成功，退出码 0。最新测试构建只有既有 XCTest 最低链接版本提示，两份 Release 日志没有编译警告。
+
+## 迭代 19：分离运行配置与历史校准字段
+
+- 先固定独立的历史 JSON 夹具：默认配置、高/中/低质量预设、捕获后设置变化、不同历史融合球形度不得复用校准。迁移前校准基线 **30 项通过、0 失败/跳过，退出码 0**。
+- FruitScanConfig 移除无运行消费者的 sphericityThreshold，保留实际执行的 5 项配置。FruitScanConfig 与 ClusterConfig 移入 Domain/ScanConfiguration；ClusterConfig.sphericityThreshold 的实际聚类用途与默认值保留。
+- SettingsStore 单独计算 legacyFusionSphericityThreshold；ScanFruitConfigurationSnapshot 在捕获配置时保存它，仅用于生成校准上下文，不再随运行配置传入检测、融合与估产。高/低预设原来的 max/min 规则保持不变。
+- YieldCalibrationContext 显式接收兼容值，重建旧 fusion.sphericityThreshold；历史 experiment.fusion 的 0.5 默认种子也由校准编码负责。标量继续经过 JSONEncoder，避免直接桥接 Float 后改变小数字节。旧上下文不归一化，严格匹配范围不放宽。
+- 本轮包含内部源码接口迁移：删除 21 个构造点中无效的默认 0.5 参数；需要构建历史校准上下文的调用显式提供兼容值或复用已冻结的 calibrationContext。没有计划的旧估算输入使用历史默认；非默认旧校准输入须显式传入 ScanCalibrationIdentity。
+- 初次定向 **144 通过、2 失败，退出码 65**：两处旧测试只用运行配置重建上下文，遗漏已分离兼容值，导致 0.8 校准系数被拒绝并返回中性 1.0。已改为使用完整冻结上下文，同时将底层兼容参数改为必填，避免未来静默遗漏。固定 JSON 字节夹具始终通过，未调整 0.8 的预期。
+
+补齐调用后定向 **189 项通过、0 失败/跳过，退出码 0**；全量 **983 项通过、0 失败/跳过，退出码 0**；模拟器与设备 SDK 未签名 Release 均成功，退出码 0。本轮没有修改可靠水果准入、真实聚类球形度、估产公式、持久化 schema 或既有校准文件。
+
+## 迭代 20：多果实质量回放与候选关联精简
+
+- 新增两项完整回放，每项分别运行正序与逆序观测：两个中心相距 11 cm、不同尺寸和置信度的苹果；以及与小苹果重叠、置信度更高的梨干扰。两条交叉候选边在默认 15 cm 门槛内，正确关联仍应保留各自中心与质量。链路覆盖 Observation 捕获、冻结、估算、仓储提交、校验读取及研究 JSON 批量导出。
+- 期望值按针孔投影、9×9 网格、既有尺寸先验与球体公式独立计算：直径 6.714045208/9.071067812 cm，质量 134.7008485/332.1947685 g，置信度权重 0.855/0.81，可见产量 0.384246988 kg，K=2.999，最终产量 1.152356717 kg。逐果质量同时检查自己的置信度，避免仅比较总质量而漏过交换关联。
+- 新增两项质量关联边界：显式来源不存在或品类不兼容时不借用附近候选；相同候选 ID 只消费一次，显式关联先于旧空间入口，重复候选/重复来源 ID 不放大质量，显式来源耗尽后保留品类均值回退。原有融合准入和 fallback 质量评级不变。
+- 初次基线 **48 通过、2 失败，退出码 65**，失败均为新测试的存档格式假设：过滤数量在 recognitionDiagnostics；JSONSerialization 与 JSONEncoder 的 Float 小数字符表示不同。已按实际 schema 读取并用原值类型解码后比较，保留存档与批量导出原始行的逐字节相等断言；全部果数/尺寸/质量期望未变。修正后重构前基线 **52 项通过、0 失败/跳过，退出码 0**。
+- ScanYieldEstimateHelpers 用单次遍历选择最近可用候选，移除每果实的候选数组、距离元组数组和第二轮筛选数组。保留原候选顺序、等距 UUID 决胜、显式源成员限制、单次消费、品类过滤、严格小于 10 cm 的旧空间回退，以及所有质量公式。时间复杂度仍为果实数×候选数，没有宣称吞吐或真机内存提升。
+
+重构后定向 **345 项通过、0 失败/跳过，退出码 0**；全量模拟器 **987 项通过、0 失败/跳过，退出码 0**；模拟器和设备 SDK 未签名 Release 均成功，退出码 0。最后三份增量验证日志没有编译警告，定向构建仍见既有 XCTest 最低链接版本提示。本轮四项新增测试均为合成证据；真实多果实遮挡、点云/ROI 混合几何质量与强制重分配路径的完整回放仍需补充。
+
+## 迭代 21：候选合并使用轨迹几何值
+
+- 新建 CandidateCombinerTests，增加 6 项合并契约回归：空/单候选身份、点数与球形度加权的中心/直径/颜色/深度支持、最近可合并轨迹、等距保留先生成轨迹、独立点云取得类别后隔离异类、采样上限与原顺序前缀。迁移前基线 **52 项通过、0 失败/跳过，退出码 0**。
+- CandidateCombiner 从 Core/ScanFusionPipelines 移入 Domain/Fusion。Core 保留点云、ROI、融合编排和 ReliableYieldEvidence 的 fileprivate 准入构造；现有外部接口不变，Xcode App 和 XCTest 仍使用原目标。
+- 合并判定直接读取 CandidateTrack 的类别、加权中心与加权直径，保留原 safeWeight 归一化，不再为每次比较创建 FruitCandidate 和 UUID。匹配轨迹用单次遍历记录最近值，去掉临时索引数组，严格小于比较保持等距时原轨迹顺序。最终才为输出轨迹构造候选；空/单候选继续原值返回。
+- 逐段核对确认公开入口、CandidateTrack 累积/输出实现均与迁移前一致；Core 管线部分除移走算法和删除不再使用的 simd 导入外字节一致。阈值、类别、点数权重、点集前缀、独立点云标记、ROI 深度支持以及可靠产量准入没有改动。
+
+迁移后定向 **351 项通过、0 失败/跳过，退出码 0**；全量模拟器 **993 项通过、0 失败/跳过，退出码 0**，模拟器和设备 SDK 未签名 Release 均成功，退出码 0。定向重新编译显示未修改的 DashboardSummaryTests 中 3 处 RunLoop.run 异步调用的 Swift 6 模式警告，以及既有 XCTest 最低链接版本提示；本项目仍使用 Swift 5，最后三份增量验证日志没有警告。此次迁移属于领域职责收敛，不代表已经建立独立 Swift 模块，也未测量设备性能增益。
+
+## 迭代 22：融合评分与决策只依赖值输入
+
+- 先新增 3 项原生观测调用回归，固定拒绝距离配置捕获、拒绝候选的检测框扩展、拒绝证据不跨品类或独立点云来源传播。迁移前基线 **85 项通过、0 失败/跳过，退出码 0**。
+- CandidateMatcher 移入 Domain/Fusion/FusionCandidateMatcher，只保存 FruitScanConfig 和 FusionExperimentConfig，不再反向持有 FusionValidator。原验证器扩展的匹配评分、视锥支持计算与拒绝候选检查归入同一个值服务；原生验证流程直接使用该服务，旧缓冲适配和 validate 入口不变。
+- FusionValidationPolicy 汇集投影上下文/结果、投影服务、决策值与置信度策略。删除 decide 中未消费的 detection 参数；fusedConfidence 继续读取原观测和候选。相关值和无状态服务使用 checked Sendable，不引入像素缓冲或 unchecked 标记。
+- FusionAssignment 单独移入 Domain/Fusion，最大匹配/最小代价实现已与原文逐字节核对一致。保留候选 ID 去重、匹配优先级、深度拒绝与诊断回退、置信度公式和默认阈值。
+- 删除原 Core/FusionValidatorMatching、FusionValidatorServices 两个文件并更新 App 编译引用。两处直接检查匹配评分的测试改为调用 CandidateMatcher，使用相同配置与原断言；未增加只为测试保留的门面转发。ReliableYieldEvidence 的受限构造仍在原融合准入文件。
+
+迁移后融合、去重、产量、实时果数及导出定向 **360 项通过、0 失败/跳过，退出码 0**；全量模拟器 **996 项通过、0 失败/跳过，退出码 0**；模拟器和设备 SDK 未签名 Release 均成功，退出码 0。当前仍是一个 App target 内的职责分离，领域品类、颜色与部分配置尚未完成归属收敛，不能据此宣称独立模块已经成立。
+
+## 迭代 23：混合几何与必须重分配的完整回放
+
+- ScanObservationReplayTests 新增混合点云/ROI 场景，沿实际捕获—冻结—估算—仓储提交—校验读取—批量 JSON 导出执行，并比较观测正序与逆序的规范化输出。30 个轴向点与两帧 9×9 可靠 ROI 合并后，192 点继续使用实测三维椭球路径；不能退回纯 ROI 平面直径或默认球体质量。
+- 独立固定期望来自点位、分位跨度和原公式：x/y 跨度 4.266666667 cm，z 退回原始范围 6 cm，椭球体积 57.190948929 cm³，苹果密度 0.85 得 48.61230659 g；可见质量 0.043751076 kg，遮挡修正后 0.131231352 kg、果数 3。保留 ellipsoid 和 usingEllipsoidBaseline 诊断。
+- 第二项回放使用 60 个点形成 x=0 和 x=0.16 m 两个独立点云候选。观测位置 x=0.04 m 可连两者且左候选分数更低，x=-0.06 m 只能连左候选；必须把第一项重新分配给右候选才能保留两枚果实。正序与逆序均固定左侧置信度 0.85、右侧 0.9、2 fused、0 ROI 候选及空零产量原因。
+- 每候选球拟合后仍按原苹果直径先验取 6 cm，每枚质量固定 96.1327352 g，可见质量固定 0.168232287 kg。该场景的最终遮挡修正结果只验证真实输出的存档/读取一致性，未把它宣称为独立准确率基准；匹配关系和可见质量使用独立期望。
+- 两项回放核对源 PLY 摘要、质量行与融合果实身份及批量导出来源计数。这些是合成证据，不能替代物理 LiDAR 精度。未改生产算法、阈值或存档 schema。
+
+混合几何定向 **59 项通过**。首次重分配定向 **253 项通过** 后，夹具进一步收紧为上述“第一项左边分数最低”的场景；最终夹具由全量模拟器 **998 项通过、0 失败/跳过、退出码 0** 验证。本轮只改测试，不重跑生产 Release；沿用第 22 轮的两项 Release 成功记录并明确其历史性质。
+
+## 迭代 24：品类规则分层与融合子集独立编译
+
+- 先单独编译原数值融合源集。编译器报告 FruitModels 中 4 处找不到 DetectedFruit，退出码 1；这是隔离依赖探针，原 App 构建未失败。品类先验和展示/旧检测入口仍混在同一文件，不能把移入 Domain 目录当成独立性证明。
+- 拆出 Domain/FruitCategory 和 FruitCategoryVerification，分别保存品类编码/物理先验及扫描品类策略/原生 Observation 核对。displayName 移至 Core/FruitCategoryPresentation；原 26 个中文名称不变。旧 DetectedFruit 重载保留在 Infrastructure/Detection/FruitCategoryVerificationLegacyInput，只复制品类、时间和置信度，不读取或采样深度缓冲。
+- FruitCategoryObservation 改为 checked Sendable 值；标量构造及品类证据入口在模块内供适配层使用。未扩大 ReliableYieldEvidence 的受限构造。支持品类列表、逐帧最大置信度、最少 3 帧/平均 0.75、竞争排序与不匹配策略保留原实现。
+- FruitColorModels 和 FruitScanExperimentConfig 按原文迁入 Domain。迁移前后逐字节核对颜色/实验配置、品类物理先验、展示名称及证据排名实现一致；未改变默认阈值、字段或校准 JSON。删除旧 Core/FruitModels 文件，更新 App 源引用，仍使用原 App/XCTest target。
+- 增加 tools/validate_fusion_domain.sh 和工具说明。16 个源文件仅来自品类、颜色、实验/运行配置、观测/保留策略及 Domain/Fusion，实际生成独立 Swift 模块，使用 iOS 16 模拟器 SDK、Swift 5；不包含 App/Core、展示名称、DetectedFruit 或像素缓冲源文件，临时产物自动清理。独立编译退出码 0。
+- 这个门禁只证明数值融合子集的源依赖；ScanPlan、ScanSession、ScanEvidenceIdentity 尚未纳入，生产应用也未改为框架或包。没有声称整个 Domain、生命周期并发或设备精度已经验收。
+
+迁移后定向 **346 项通过**；全量模拟器 **998 项通过、0 失败/跳过**；模拟器和设备 SDK 未签名 Release 均成功，所有退出码为 0。工程结构、脚本语法与差异检查通过。定向构建重编译时仍报告未修改的 DashboardSummaryTests 中 3 处异步 RunLoop 的 Swift 6 未来限制，以及 XCTest 最低系统版本链接警告；本轮不混入这些测试的修改。完整结果及两项 Release 没有新增警告记录。
+
+## 迭代 25：扫描计划值与设置捕获分离
+
+- 将 ScanPlan/ScanSession 纳入隔离编译探针，先确认 5 类外部值的 8 处缺失引用：Season、RendererScanSettings、FruitVarietyParams、YieldCalibrationCorrection、YieldAlgorithmRevision。探针退出码 1；这是数值/计划边界检查，不是 App 编译失败。
+- 迁移前新增 2 项渲染设置捕获回归：三个质量预设、粒子容量与设置上限、深度置信度底线、邻居数及体素边界，且设置和实验值在捕获后变化不能改变已绑定值。另用固定 JSON schema 夹具检查品类参数 ID、定制标记和校准字段的编解码。
+- 首次基线 52 项通过、1 个新增参数夹具失败，原因是预期值经 JSONSerialization 重编码使浮点文本膨胀。改为固定原编码格式字节，未改产品编码或数值期望；迁移前重试 53 项通过、0 失败/跳过，退出码 0。首次失败日志还记录模拟器诊断收集的 simctl 查找失败，实际测试已经执行；重试和后续全量均成功，不据此改变全局 Xcode 选择。
+- Domain/RendererScanSettings 只保留不可变值与可靠置信度下限；原 init(store:particleCapacity:depthConfiguration:) 入口保留在 Application/RendererScanSettingsCapture。应用层读取设置并按原公式构造值，未引入额外读取、主线程重采样或改变渲染阈值。原体素公式按字节核对一致。
+- FruitVarietyParams 迁入 Domain，字段、Codable、ID 创建和品类先验不变；displayName 移至现有 Core/FruitCategoryPresentation 扩展。FruitParametersStore 的完整存储主体按字节核对未变，保留快速连续保存、旧代次拒绝和损坏数据保护。
+- Season 迁入 Domain/ScanConfiguration；校准修正值与算法修订常量迁入 Domain/ScanCalibration。校准消费者、修正值、修订字符串、ScanPlan、ScanSession 均按字节核对未变；结果/诊断模型主体也未变，仅移走 Season 并处理文件末尾空行。App/XCTest target、调用接口与校准上下文字节保持。
+- tools/validate_fusion_domain.sh 扩大为 21 个数值、计划和生命周期源文件，独立生成 iOS 16/Swift 5 模块成功，退出码 0；不包含设置存储、应用捕获、展示或旧缓冲源。ScanSession 独立编译仅证明源依赖，生命周期/迟到证据行为由定向及全量回归另外验证。
+- 对当前整个 Domain 的 22 个源文件另做下一轮探针，仍因 ScanEvidenceIdentity 中 ScanEstimate 的 YieldResult 依赖退出码 1。结果值和质量模型尚未完成归属收敛，不能宣称整个 Domain 已独立。
+
+迁移后计划、生命周期、校准、参数存储、点云、冻结流程及回放定向 **264 项通过**；全量模拟器 **1001 项通过、0 失败/跳过**；模拟器和设备 SDK 未签名 Release 均成功，所有退出码为 0。工程结构、脚本语法与差异检查通过。定向重编译仍有前述未修改的 DashboardSummaryTests/异步 RunLoop 和 XCTest 版本警告；全量及两项 Release 没有新增警告记录。未修改融合算法、存档 schema、可靠证据构造权限或物理验收状态。
+
+## 迭代 26：结果与质量值归属收敛，整个 Domain 独立编译
+
+- 对迁移前整个 Domain 的 22 个源文件执行隔离编译，复现 ScanEstimate 找不到 YieldResult，退出码 1；原 App 编译未失败。冻结身份只有在结果值一并收敛后才能真正摆脱 Core 源依赖。
+- 全仓消费者搜索确认 shortStatus 只有声明，FruitInfo 仅由 LegacyYieldEstimator 测试支持使用。删除无消费者的内部展示辅助属性，将 FruitInfo 按原文移入现有测试支持文件；生产目标不再包含这项旧研究中间值。实际诊断文案和展示消费者未改。
+- YieldResult、ScanYieldDiagnostics 移入 Domain/YieldEstimateModels，结果/诊断声明、字段与默认值按迁移前删除上述两项后的原文字节核对一致。FruitMassEstimate 及形状/警告枚举按原文移入 Domain，Codable、质量字段和时间/ID 均不变。
+- ScanEvidenceIdentity、ScanEstimate 和可靠证据构造权限保持；未修改融合、质量、遮挡、校准公式或元数据编码。工程源引用只调整文件所属组，保留 App/XCTest target、iOS 16 与 Swift 5。
+- 独立编译脚本改为递归发现整个 Domain 的 Swift 源，包括隐藏及忽略路径中的源文件，取消手工子集清单。当前 24 个文件与独立文件系统清点一致，实际生成 iOS 16/Swift 5 模块成功，退出码 0。没有加入 App/Core、设置存储、检测缓冲或展示源来补齐编译。
+- 当前编译门禁证明整个领域源树的依赖闭合；生产仍在原 App target 中，尚未建立跨生产模块的公开 API。并发、证据准入、存档兼容和物理质量各自仍需行为证据。
+
+结果/几何、导出、融合、诊断、冻结及回放定向 **395 项通过**；全量模拟器 **1001 项通过、0 失败/跳过**；模拟器和设备 SDK 未签名 Release 均成功，所有退出码为 0。迁移内容、工程结构、脚本语法与差异检查通过。本轮未新增镜像实现的数值测试，继续使用已有固定质量/匹配/诊断/存档回放和兼容夹具。真实设备性能与估产误差未验证。
+
+## 迭代 27：持续构建接入与工具失败传播
+
+- 检查现有 iOS Build 工作流，确认原先仅对 main 推送和手动运行执行模拟器编译，未运行领域依赖门禁。本轮增加面向 main 的 pull request 触发，两个路径过滤同时纳入 Domain 门禁与构建工具；在模拟器编译前运行完整 Domain 检查。工作流保留 macos-15 runner 和只读仓库权限。
+- CI 通过 job 环境使用 runner 当前选择的 Xcode；所有脚本步骤显式使用 Bash，未修改机器的全局 Xcode 选择。Xcode 选择结果先独立赋值，再写入环境，避免命令替换失败被 printf/export 的成功状态覆盖。实际失败夹具原先返回 0 且继续构建，修正后工作流步骤与本地 helper 均返回原退出码 72，未写入空环境或继续构建。
+- 原完整 Domain 脚本在缺少 rg 的系统 PATH 下复现退出码 1。本轮保留 rg 优先发现，同时增加系统 find 的 NUL 分隔递归发现；两条路径实际独立编译 24 个源文件均成功。外部隔离副本中加入隐藏、被忽略目录下的 DetectedFruit 反向依赖，两条路径均发现并以退出码 1 拒绝；未修改真实 Domain 源。
+- 将 CI 模拟器编译提取为 tools/ci_simulator_build.sh，构建日志与 DerivedData 放在 runner/系统临时目录，支持显式外部输出路径。保留实际编译退出码，摘要限制最多 30 行错误和 10 行警告；删除不参与后续步骤的模拟器列表和 App 路径发现。没有修改 App、XCTest 或工程源引用。
+- 在本机 Bash 3.2 下，初版否定分组重定向未捕获摘要路径为目录的写入失败：编译成功时错误返回 0。改为正向分组判断并串联摘要命令，修正后编译成功/摘要失败返回 1，编译失败/摘要失败仍返回原编译退出码 65。6 个工具替身场景验证成功、编译失败、工具不可用、两种报告失败及 runner Xcode；这些是脚本故障验证，不是 XCTest 或实际编译。
+- 最终脚本另核对显式 Xcode、runner Xcode 和工作流选择成功路径；实测指定本地 Xcode 的通用 iOS 模拟器 Debug 未签名构建成功，退出码 0。工作流结构、脚本语法和差异检查通过。本轮只有工具/工作流/文档改动，未重复运行应用 XCTest；最新应用全量证据仍为第 26 轮的 1001 项和两项 Release。
+
+持续构建的配置和本地失败传播已完成。本轮验证时尚未提交、推送或触发远程 GitHub Actions，不能声称 runner 上通过；后续本地提交见下方检查点。模拟器编译不证明 XCTest、签名 IPA 或物理 LiDAR 质量。领域值、融合可靠来源、诊断、默认阈值及旧存档编码保持。
+
+## 验证记录
+
+日志与 xcresult 位于 `/Users/reece24/Library/Logs/FruitTreeScanner/architecture-reassessment-20260927/`。
+
+| 验证 | 文件 | 结果 |
+|---|---|---|
+| 第一轮定向 | iteration-01.xcresult / iteration-01.log | 120 通过，0 失败，退出码 0 |
+| 第二轮定向 | iteration-02.xcresult / iteration-02.log | 164 通过，0 失败，退出码 0 |
+| 第二轮全量模拟器（历史） | iteration-02-full.xcresult / iteration-02-full.log | 922 通过，0 失败、0 跳过，退出码 0 |
+| 第二轮 Release 模拟器构建（历史） | iteration-02-release.log | 成功，退出码 0 |
+| 第三轮资源/队列 | iteration-03-lifetime.xcresult / iteration-03-lifetime.log | 63 通过，0 失败，退出码 0 |
+| 第三轮导出与流程 | iteration-03-export.xcresult / iteration-03-export.log | 311 通过，0 失败，退出码 0 |
+| 第四轮全量模拟器 | iteration-04-full.xcresult / iteration-04-full.log | 934 通过，0 失败、0 跳过，退出码 0 |
+| 第四轮 Release 模拟器构建 | iteration-04-release.log | 成功，退出码 0 |
+| 第五轮契约迁移 | iteration-05-contract-build.xcresult / iteration-05-contract-build.log | 127 通过，退出码 0 |
+| 第五轮绑定凭证 | iteration-05-bound-evidence.xcresult / iteration-05-bound-evidence.log | 167 通过，退出码 0 |
+| 第五轮全量模拟器 | iteration-05-full.xcresult / iteration-05-full.log | xcresult 确认 939 通过，0 失败/跳过；终端退出码未取回 |
+| 第五轮兼容入口 | iteration-05-compatibility.xcresult / iteration-05-compatibility.log / iteration-05-compatibility.status | 127 通过，退出码 0 |
+| 第六轮初次构建（已修复） | iteration-06-repository.log / iteration-06-repository.status | 缺少 MainActor 回调隔离，退出码 65 |
+| 第六轮定向重试（已修复） | iteration-06-repository-retry.xcresult / iteration-06-repository-retry.log | 129 通过、1 个新夹具 URL 断言失败，退出码 65 |
+| 第六轮全量模拟器 | iteration-06-full.xcresult / iteration-06-full.log / iteration-06-full.status | 942 通过，0 失败/跳过，退出码 0 |
+| 第六轮 Release 模拟器 | iteration-06-release.log / iteration-06-release.status | 成功，退出码 0 |
+| 第七轮初次定向（夹具已修复） | iteration-07-configuration.xcresult / .log / .status | 179 通过、1 个新增夹具断言失败，退出码 65 |
+| 第七轮夹具修正后 | iteration-07-configuration-retry.xcresult / .log / .status | 1 通过，退出码 0 |
+| 第七轮全量模拟器 | iteration-07-full.xcresult / .log / .status | 951 通过，0 失败/跳过，退出码 0 |
+| 第八轮全量模拟器 | iteration-08-domain-full.xcresult / .log / .status | 951 通过，0 失败/跳过，退出码 0 |
+| 第八轮 Release 模拟器 | iteration-08-release.log / .status | 成功，退出码 0 |
+| 第八轮设备 SDK Release 构建 | iteration-08-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第九轮全量模拟器 | iteration-09-calibration-full.xcresult / .log / .status | 952 通过，0 失败/跳过，退出码 0 |
+| 第九轮 Release 模拟器 | iteration-09-release.log / .status | 成功，退出码 0 |
+| 第九轮设备 SDK Release 构建 | iteration-09-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十轮故障复现 | iteration-10-camera-probe.xcresult / .log / .status | 2 个新增回归失败，退出码 65；之后已修复 |
+| 第十轮首次定向构建 | iteration-10-camera-targeted.log / .status | private 方法跨文件访问失败，退出码 65；之后已修复 |
+| 第十轮定向重试 | iteration-10-camera-targeted-retry.xcresult / .log / .status | 41 通过，退出码 0 |
+| 第十轮全量模拟器 | iteration-10-camera-full.xcresult / .log / .status | 957 通过，0 失败/跳过，退出码 0 |
+| 第十一轮配置契约 | iteration-11-config-contract.xcresult / .log / .status | 72 通过，退出码 0 |
+| 第十一轮全量模拟器 | iteration-11-full.xcresult / .log / .status | 958 通过，0 失败/跳过，退出码 0 |
+| 第十一轮 Release 模拟器 | iteration-11-release.log / .status | 成功，退出码 0 |
+| 第十一轮设备 SDK Release 构建 | iteration-11-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十二轮初次回放（夹具已修正） | iteration-12-replay.xcresult / .log / .status | 4 通过、1 个投影采样数断言失败，退出码 65 |
+| 第十二轮首次全量（夹具已修正） | iteration-12-full.xcresult / .log / .status | 962 通过、1 个手算期望遗漏置信度加权，退出码 65 |
+| 第十二轮全量模拟器 | iteration-12-full-retry.xcresult / .log / .status | 963 通过，0 失败/跳过，退出码 0 |
+| 第十二轮 Release 模拟器 | iteration-12-release.log / .status | 成功，退出码 0 |
+| 第十二轮设备 SDK Release 构建 | iteration-12-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十三轮迁移定向 | iteration-13-model-identity.xcresult / .log / .status | 42 通过，退出码 0 |
+| 第十三轮故障注入构建（已修复） | iteration-13-traversal-probe.log / .status | Foundation extension 方法不能覆盖，退出码 65；未执行测试 |
+| 第十三轮定向重试 | iteration-13-model-identity-retry.xcresult / .log / .status | 43 通过，退出码 0 |
+| 第十三轮全量模拟器 | iteration-13-full.xcresult / .log / .status | 968 通过，0 失败/跳过，退出码 0 |
+| 第十三轮 Release 模拟器 | iteration-13-release.log / .status | 成功，退出码 0 |
+| 第十三轮设备 SDK Release 构建 | iteration-13-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十四轮全量模拟器 | iteration-14-full.xcresult / .log / .status | 968 通过，0 失败/跳过，退出码 0 |
+| 第十四轮 Release 模拟器 | iteration-14-release.log / .status | 成功，退出码 0 |
+| 第十四轮设备 SDK Release 构建 | iteration-14-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十四轮测试警告清理 | iteration-14-warning-cleanup.xcresult / .log / .status | 27 通过，0 失败/跳过，退出码 0 |
+| 第十五轮投影迁移定向 | iteration-15-projection.xcresult / .log / .status | 178 通过，0 失败/跳过，退出码 0 |
+| 第十五轮全量模拟器 | iteration-15-full.xcresult / .log / .status | 968 通过，0 失败/跳过，退出码 0 |
+| 第十五轮 Release 模拟器 | iteration-15-release.log / .status | 成功，退出码 0 |
+| 第十五轮设备 SDK Release 构建 | iteration-15-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十六轮观测去重定向 | iteration16-dedup.xcresult / .log / .status | 316 通过，0 失败/跳过，退出码 0 |
+| 第十六轮全量模拟器 | iteration16-full.xcresult / .log / .status | 971 通过，0 失败/跳过，退出码 0 |
+| 第十六轮 Release 模拟器 | iteration16-release.log / .status | 成功，退出码 0 |
+| 第十六轮设备 SDK Release 构建 | iteration16-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十七轮观测链路定向 | iteration17-observations.xcresult / .log / .status | 292 通过，0 失败/跳过，退出码 0 |
+| 第十七轮全量模拟器 | iteration17-full.xcresult / .log / .status | 974 通过，0 失败/跳过，退出码 0 |
+| 第十七轮 Release 模拟器 | iteration17-release.log / .status | 成功，退出码 0 |
+| 第十七轮设备 SDK Release 构建 | iteration17-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十八轮修复前实时计数探针 | iteration18-live-count-probe.xcresult / .log / .status | 1 通过、4 个预期回归失败，退出码 65 |
+| 第十八轮修复后定向 | iteration18-live-count.xcresult / .log / .status | 206 通过，0 失败/跳过，退出码 0 |
+| 第十八轮全量模拟器 | iteration18-full.xcresult / .log / .status | 980 通过，0 失败/跳过，退出码 0 |
+| 第十八轮 Release 模拟器 | iteration18-release.log / .status | 成功，退出码 0 |
+| 第十八轮设备 SDK Release 构建 | iteration18-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第十九轮迁移前校准基线 | iteration19-calibration-baseline.xcresult / .log / .status | 30 通过，0 失败/跳过，退出码 0 |
+| 第十九轮首次配置迁移 | iteration19-config-separation.xcresult / .log / .status | 144 通过、2 个遗漏兼容值的旧调用失败，退出码 65 |
+| 第十九轮补齐调用定向 | iteration19-config-retry.xcresult / .log / .status | 189 通过，0 失败/跳过，退出码 0 |
+| 第十九轮全量模拟器 | iteration19-full.xcresult / .log / .status | 983 通过，0 失败/跳过，退出码 0 |
+| 第十九轮 Release 模拟器 | iteration19-release.log / .status | 成功，退出码 0 |
+| 第十九轮设备 SDK Release 构建 | iteration19-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十轮初次多果实夹具 | iteration20-multifruit-baseline.xcresult / .log / .status | 48 通过、2 个夹具格式假设失败，退出码 65 |
+| 第二十轮修正夹具基线 | iteration20-multifruit-retry.xcresult / .log / .status | 52 通过，0 失败/跳过，退出码 0 |
+| 第二十轮质量关联定向 | iteration20-mass-association.xcresult / .log / .status | 345 通过，0 失败/跳过，退出码 0 |
+| 第二十轮全量模拟器 | iteration20-full.xcresult / .log / .status | 987 通过，0 失败/跳过，退出码 0 |
+| 第二十轮 Release 模拟器 | iteration20-release.log / .status | 成功，退出码 0 |
+| 第二十轮设备 SDK Release 构建 | iteration20-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十一轮迁移前合并基线 | iteration21-combiner-baseline.xcresult / .log / .status | 52 通过，0 失败/跳过，退出码 0 |
+| 第二十一轮领域合并定向 | iteration21-combiner-domain.xcresult / .log / .status | 351 通过，0 失败/跳过，退出码 0 |
+| 第二十一轮全量模拟器 | iteration21-full.xcresult / .log / .status | 993 通过，0 失败/跳过，退出码 0 |
+| 第二十一轮 Release 模拟器 | iteration21-release.log / .status | 成功，退出码 0 |
+| 第二十一轮设备 SDK Release 构建 | iteration21-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十二轮迁移前决策基线 | iteration22-policy-baseline.xcresult / .log / .status | 85 通过，0 失败/跳过，退出码 0 |
+| 第二十二轮值决策定向 | iteration22-policy-domain.xcresult / .log / .status | 360 通过，0 失败/跳过，退出码 0 |
+| 第二十二轮全量模拟器 | iteration22-full.xcresult / .log / .status | 996 通过，0 失败/跳过，退出码 0 |
+| 第二十二轮 Release 模拟器 | iteration22-release.log / .status | 成功，退出码 0 |
+| 第二十二轮设备 SDK Release 构建 | iteration22-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十三轮混合几何回放 | iteration23-mixed-replay.xcresult / .log / .status | 59 通过，0 失败/跳过，退出码 0 |
+| 第二十三轮初版重分配回放 | iteration23-reassignment-replay.xcresult / .log / .status | 253 通过，0 失败/跳过，退出码 0；最终夹具再收紧，由全量验证 |
+| 第二十三轮全量模拟器 | iteration23-full.xcresult / .log / .status | 998 通过，0 失败/跳过，退出码 0 |
+| 第二十四轮隔离依赖探针 | iteration24-domain-baseline.log / .status | 4 处旧检测类型依赖，预期退出码 1；迁移后消除 |
+| 第二十四轮独立融合编译 | iteration24-fusion-module.log / .status | 16 个源文件独立生成模块成功，退出码 0 |
+| 第二十四轮品类/校准/融合定向 | iteration24-category-domain.xcresult / .log / .status | 346 通过，0 失败/跳过，退出码 0 |
+| 第二十四轮全量模拟器 | iteration24-full.xcresult / .log / .status | 998 通过，0 失败/跳过，退出码 0 |
+| 第二十四轮 Release 模拟器 | iteration24-release.log / .status | 成功，退出码 0 |
+| 第二十四轮设备 SDK Release 构建 | iteration24-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十五轮计划依赖探针 | iteration25-plan-baseline.log / .status | 5 类外部值的 8 处引用，预期退出码 1；迁移后消除 |
+| 第二十五轮初次捕获基线 | iteration25-capture-baseline.xcresult / .log / .status | 52 通过、1 个新增夹具失败，退出码 65；后已修正 |
+| 第二十五轮捕获基线重试 | iteration25-capture-baseline-retry.xcresult / .log / .status | 53 通过，0 失败/跳过，退出码 0 |
+| 第二十五轮独立计划/融合编译 | iteration25-plan-module.log / .status | 21 个源文件独立生成模块成功，退出码 0 |
+| 第二十五轮迁移内容核对 | iteration25-move-content-check.json | 存储、校准、计划/会话主体和迁移值核对通过 |
+| 第二十五轮迁移后定向 | iteration25-plan-domain.xcresult / .log / .status | 264 通过，0 失败/跳过，退出码 0 |
+| 第二十五轮下一轮依赖探针 | iteration25-full-domain-next-probe.log / .status | 整个 Domain 仍缺 YieldResult，预期退出码 1；尚待下一轮 |
+| 第二十五轮全量模拟器 | iteration25-full.xcresult / .log / .status | 1001 通过，0 失败/跳过，退出码 0 |
+| 第二十五轮 Release 模拟器 | iteration25-release.log / .status | 成功，退出码 0 |
+| 第二十五轮设备 SDK Release 构建 | iteration25-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十六轮领域基线探针 | iteration26-domain-baseline.log / .status | 22 个源文件仍缺 YieldResult，预期退出码 1；迁移后消除 |
+| 第二十六轮整个领域编译 | iteration26-domain-module.log / .status | 24 个源文件独立生成模块成功，退出码 0 |
+| 第二十六轮完整递归发现 | iteration26-domain-module-discovery.log / .status | 隐藏/忽略路径一并发现；24 文件与独立清点一致，编译成功，退出码 0 |
+| 第二十六轮迁移内容核对 | iteration26-move-content-check.json | 结果/诊断、质量、旧中间值和冻结身份核对通过 |
+| 第二十六轮结果/导出/融合定向 | iteration26-result-domain.xcresult / .log / .status | 395 通过，0 失败/跳过，退出码 0 |
+| 当前全量模拟器 | iteration26-full.xcresult / .log / .status | 1001 通过，0 失败/跳过，退出码 0 |
+| 当前 Release 模拟器 | iteration26-release.log / .status | 成功，退出码 0 |
+| 当前设备 SDK Release 构建 | iteration26-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十七轮无 rg 基线 | iteration27-no-rg-baseline.log / .status | 原脚本工具不可用，退出码 1；已增加发现后备路径 |
+| 第二十七轮领域编译 | iteration27-rg-domain.log / .status；iteration27-no-rg-domain.log / .status | 两种环境均实际编译 24 源文件成功，退出码 0 |
+| 第二十七轮隐藏反向依赖 | iteration27-hidden-dependency-probe.json；iteration27-hidden-dependency-with_rg / without_rg.log / .status | 两条路径均拒绝外部夹具的 Core 类型依赖，预期退出码 1 |
+| 第二十七轮工具故障矩阵 | iteration27-ci-failure-matrix.json | 6 个替身场景通过；不是实际 Xcode 编译或 XCTest |
+| 第二十七轮 Xcode 选择故障 | iteration27-selection-failure-baseline.json / iteration27-selection-failure-retry.json | 初版覆盖失败状态；修正后两个入口返回 72、构建未启动 |
+| 第二十七轮最终选择/结构核对 | iteration27-final-selection-check.json | 显式 Xcode、runner Xcode、工作流选择及结构均通过 |
+| 第二十七轮最终本地 CI 构建 | iteration27-real-ci-build-final.log / .status；iteration27-real-ci-final-summary.md | 通用 iOS 模拟器 Debug 未签名构建成功，退出码 0；非远程 CI |
+| 提交前全量模拟器复核 | commit-20261001-full.xcresult / .log / .status | 1001 通过，0 失败/跳过，退出码 0 |
+| 提交前完整 Domain 复核 | commit-20261001-domain.log / .status | 24 源文件独立编译成功，退出码 0 |
+| 提交内容核对 | commit-20261001-before.json；commit-20261001-content-check.json | 125 个原有改动路径清点；源码与测试暂存内容逐项核对，验证后只删除一处尾空行 |
+| 差异检查 | git diff --check | 通过 |
+
+当前全量验证命令（在仓库根目录执行；日志目录沿用创建日期）：
+
+```sh
+bash tools/validate_fusion_domain.sh
+
+DEVELOPER_DIR=/Users/reece24/Downloads/Xcode-beta.app/Contents/Developer \
+bash tools/ci_simulator_build.sh
+
+DEVELOPER_DIR=/Users/reece24/Downloads/Xcode-beta.app/Contents/Developer \
+xcodebuild test -quiet -project FruitTreeScanner.xcodeproj -scheme FruitTreeScanner \
+  -destination 'platform=iOS Simulator,id=C722B4F0-E16F-4C14-84A1-8C796DB0FE11' \
+  -resultBundlePath /Users/reece24/Library/Logs/FruitTreeScanner/architecture-reassessment-20260927/iteration26-full.xcresult
+
+DEVELOPER_DIR=/Users/reece24/Downloads/Xcode-beta.app/Contents/Developer \
+xcodebuild build -quiet -project FruitTreeScanner.xcodeproj -scheme FruitTreeScanner \
+  -configuration Release -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+
+git diff --check
+```
+
+首次验证已生成上述 xcresult；重跑时需使用新的结果包名称。测试数由 xcresulttool summary 核对，成功以 xcodebuild 终端退出码为准。当前全量继续覆盖跨服务同源串行、不同源并行、历史删除等待提交、失败回滚不覆盖后续修订，以及融合、校准和旧记录解析。
+
+本轮保留 `.fused` 唯一可靠来源、低置信度拒绝、默认融合阈值、zeroYieldReasons、默认校准上下文和存档 schema。自定义实验或预算必须匹配自己的校准上下文。没有对真实用户扫描目录做故障注入。第 1–27 轮迭代期间保留了未提交工作；用户随后要求的本地提交见下方检查点，仍未推送。
+
+2026-09-28 设备查询确认一台 iPhone 17 Pro 物理设备已配对、可连接且开启开发者模式；另一台 iPad Pro 当前不可用。尚未执行实际树冠采集或测量真机内存。本轮已询问操作者能否提供同一棵树的绕拍及人工果数，待回复；设备可连接不代表精度验收已通过。
+
+## 2026-10-01：本地提交检查点
+
+用户明确要求“对此前进行提交”后，按此前清点的架构改动分组提交：
+
+1. `be3de463` — `refactor(scan): isolate scan evidence, lifecycle and archive ownership`：生产架构、工程引用、旧研究路径隔离与回归测试。文件迁移和消费者相互依赖，作为同一可编译检查点提交。
+2. `ec782e82` — `ci(ios): enforce Domain isolation before simulator compilation`：工作流、两个工具脚本及工具说明，独立于产品行为提交。
+3. `docs(architecture): record redesign, validation and iteration checkpoints`：原设计材料、重判读/探针快照、基线、实施与第 1–27 轮记录及本检查点。
+
+提交前重新执行全量模拟器 XCTest，1001 项通过、0 失败/跳过、退出码 0；完整 Domain 独立编译成功。暂存检查首次发现原未跟踪 FruitEvidence.swift 的一处文件尾空行，删除后通过；内容核对确认测试后没有其他源码或测试变化。此前模拟器/设备 SDK Release 和本地 CI 工具验证仍分别保留其证据，不写成此次重新运行。
+
+所有提交留在本地 `codex/scan-architecture-refactor`，没有推送、合并或远程 CI 运行。检查期间新出现的 `tools/code_improvement_workflow.py`、配套 `docs/implementation/CODE_IMPROVEMENT_WORKFLOW.md` 及两份 README 中的新工作流说明不属于此前改动清单，保持未提交；没有将这些新增内容混入本检查点。提交存档不代表整体验收完成，完整 UI、物理设备与后续迭代范围继续保留，整体决策仍为 **needs changes**。
+
+## 下一轮构思与待实施项
+
+根据当前代码，前述扫描/仓储边界、观测链路、质量关联、融合值服务、回放、品类/设置分层和结果/质量/诊断值归属已实施；整个 Domain 的 24 个源文件已通过独立 iOS 模块编译，门禁已接入 CI 并验证本地失败传播。接下来补齐运行证据：
+
+1. **优先补齐完整记录的界面流程。** 在隔离测试数据中构造符合现有存档协议的完整记录，核对历史读取、批量导出和校准导入的实际消费者、导航与错误提示；不污染真实扫描目录，不新增无人使用的生产测试开关。完成/重试的代码回归已有证据，需明确模拟器无 LiDAR 时能验证的 UI 范围。若发现真实断点，再按断点做小步修复；不要为扩大模块数继续搬文件。
+2. **设备回放与物理验收。** 混合几何和必须重分配的合成回放已完成，不重复。下一步设计有采样上限和脱敏规则的真实观测基线，并标明人工果数、采集条件及模型/配置身份。已发现可连接 LiDAR iPhone；实际 30/60/120 秒绕拍需要操作者与场景基准。分别记录物理内存、采集/结束耗时、深度拒绝诊断和人工果数误差，不能用模拟器通过代替。
+3. **持续构建远程验收与模块收益评估。** 第 27 轮已经接入 Domain 门禁、脚本路径触发、runner Xcode 和本地成功/失败检查；远程 GitHub Actions 留待分支提交推送后实测，不重复本地集成。当前只有 App/XCTest 两个 target；Domain 类型仍使用模块内可见性。framework/package 需要按消费者定义公开 API，只有能减少实际依赖复杂度时才启动该迁移。当前维持原蓝图的单 App target 与完整 Domain 编译门禁，保留模型/shader 归属及 ReliableYieldEvidence 准入权限。
+
+这些事项尚未完成，不能用当前定向或全量 XCTest 代替它们的实现与设备验收。目标继续保持 active。
+
+## 下一轮执行提示词
+
+```text
+继续 FruitTreeScanner 的整体架构重构。先读取 AGENTS.md 和本执行记录，
+核对真实工作区，不重做已完成的 25 ms 轮询移除、导出 async 迁移或事务解环。
+
+配置消费者、资源预算和相机规格请求已贯通，Plan 值/工厂/展示模型已分开，
+重复实验默认种子已移除，默认校准上下文字节有固定夹具验证。
+基础观测回放和模型指纹文件边界已经完成；目录读取失败不可生成部分指纹。
+先核对本记录中最后一次验证结果，完成尚未结束的步骤。
+投影/ROI 核心已经移至 Domain/Fusion，像素采样和旧缓冲输入位于
+Infrastructure/Detection。候选/结果值和观测去重也已迁移，最终融合已去除两轮门面往返。
+协调器的活动证据、归档、HUD 输入、品类核对及最终冻结现已贯通为 Observation。
+实时确认计数的计划聚类/融合参数和目标品类过滤也已修复，4 项失败探针及后续回归
+已证明原问题与修复效果，不重做。保留先计算全体对齐观测的最近窗口再筛选目标品类，
+保持最少两帧、最低 0.85；实时计数与全扫描估产无需数量相等。
+保留原 FrameID/观测身份/拒绝原因和 checked Sendable；旧缓冲采样只放在边界，
+避免引入主线程重采样，保留后台归档修订与生命周期迟到结果拒绝。
+品类先验、颜色与实验规则已经归入 Domain；旧品类检测入口只留在检测边界，
+生产调用迁移后才删除无实际消费者的兼容转发。
+Observation 和 Input 的 checked Sendable 约束应保留；不能把平台缓冲重新带进快照。
+保留模型相对路径排序、摘要字节、不可用状态及一次性缓存，不重复迁移已完成代码。
+FruitScanConfig 的无效球形度字段已分离，实际运行配置已经移入 Domain。
+legacyFusionSphericityThreshold 只在设置捕获与校准编码边界保留；底层编码要求显式提供。
+高/中/低预设及默认历史字节已固定，不能重做迁移、删除兼容键或放宽上下文匹配。
+整个 Domain 的 24 个源文件已独立编译为 iOS 16/Swift 5 模块；
+tools/validate_fusion_domain.sh 是当前门禁，不能把 App/Core/UI 来源加入它来掩盖依赖。
+脚本递归发现整个源树，包括隐藏/忽略路径中的 Swift 文件；不维护绕过依赖的子集清单。
+结果、质量、诊断值与冻结身份已经纳入；生产仍使用原 App/XCTest target。
+独立编译不代替并发、证据准入、UI 或物理设备验收。
+ReliableYieldEvidence 构造权限仍须受限。
+多果实不同尺寸/置信度、重叠异类干扰现已通过冻结—估算—存档—批量导出回放，
+显式质量来源缺失/耗尽不得借用附近候选，重复来源/候选 ID 不得放大质量。
+质量关联已移除每果实的三组中间数组，仍按原顺序单次遍历，保留等距 UUID 决胜与
+旧空间入口严格小于 10 cm 的回退，不重复此项重构或声称已测得性能提升。
+CandidateCombiner 已迁入 Domain/Fusion，比较直接使用轨迹几何值；原最近匹配、
+等距顺序、权重、阈值、采样上限和混合点云标记有固定回归，仅最终输出创建候选。
+不重复此项迁移。CandidateMatcher 已只持有运行/实验配置，评分和拒绝检查均在领域层；
+FusionValidationPolicy 仅接收实际使用的值，FusionAssignment 已按原文迁移。
+保持 checked Sendable、匹配优先级、可靠深度拒绝、置信度公式与 legacy 缓冲适配。
+点云与 ROI 混合几何、必须重分配才能保留两枚果实的完整回放也已完成。
+混合场景固定 48.61230659 g 椭球质量和 0.131231352 kg 最终产量；
+重分配场景固定左侧置信度 0.85、右侧 0.9 和 0.168232287 kg 可见质量。
+这些合成基线不得用当前输出更新，也不能代替物理 LiDAR 验收。
+FruitCategory.swift 保存编码和物理先验，FruitCategoryPresentation 保留原名称，
+FruitCategoryVerification 只接收标量/Observation，legacy 适配不采样深度。
+颜色与实验配置迁移按原文字节核对，不重复上述迁移。
+
+ScanPlan 的五类外部值依赖已收敛：RendererScanSettings、FruitVarietyParams、Season、
+YieldCalibrationCorrection 和 YieldAlgorithmRevision 均在 Domain。
+渲染设置的 MainActor 捕获留在 Application/RendererScanSettingsCapture；
+参数存储主体未变，displayName 留在 Core/FruitCategoryPresentation。
+三个质量预设的捕获、深度/体素边界、设置变化后的冻结及参数固定 JSON 夹具已验证。
+不重复这些迁移，保留品类参数 Codable 字段/ID、资源上限、相机请求、校准身份及历史字节。
+YieldResult、ScanYieldDiagnostics 和 FruitMassEstimate 已按原字段/默认值归入 Domain；
+ScanEvidenceIdentity/ScanEstimate 依赖已闭合，相关结果、质量和身份原文字节有核对记录。
+shortStatus 无消费者已删除；FruitInfo 仅供旧研究测试，已隔离至 LegacyYieldEstimator。
+不重复这些迁移，不恢复未使用辅助代码，保留 schema、摘要和可靠证据构造权限。
+第 27 轮已将 Domain 门禁接入 .github/workflows/build-ipa.yml，
+增加 main PR 和工具变更触发；rg/find 两条路径均实际编译成功且拒绝隐藏反向依赖。
+CI helper 保留编译退出码、限制报告行数；报告失败和 Xcode 选择失败有修正后夹具。
+本地最终模拟器编译成功，远程 CI 未执行；不重做该集成，不冒充 XCTest 或 IPA 签名。
+下一轮优先检查完整历史记录、批量导出和校准导入的界面调用链，
+先用隔离测试记录补齐可复现的 UI 验收，保护真实数据，不新增闲置生产测试路径。
+完成/重试已有代码回归；单独说明模拟器无 LiDAR 的 UI 范围与尚缺的物理证据。
+Domain 仍使用模块内访问；framework/package 需另行定义公开 API 并迁移消费者。
+按原蓝图维持当前单 App target，保持模型/shader 归属，评估正式模块的实际收益。
+继续核对完成/重试、完整历史记录、批量导出及校准导入 UI，分别报告证据层级。
+期望值不能通过调用被测算法动态生成。保持自定义配置、入队帧配置
+不漂移和校准隔离的回归；不能降低可靠深度与 confidenceMap 的底线。
+
+不要重做已经完成的冻结绑定、仓储注入和研究 JSON codec 迁移；
+保留跨扫描/计划/观测/源拒绝、原绑定重试和 legacy 活跃草稿保护测试。
+保留 .fused 唯一可靠来源、拒绝原因、诊断、阈值与旧 schema 1–3 字节兼容。
+manifest.scanID 仍是历史文件基名，不能偷换为逻辑 ScanID。
+
+保持研究 JSON 的未知诊断字段、旧记录兼容、字节摘要及批量导出前后验证；
+避免为类型化新增多轮大 JSON 序列化或复制。阶段通过后继续底层职责收敛与回放。
+每阶段更新执行记录和下一轮构思，不以局部通过代替整个目标完成。
+保留其他未提交改动，使用项目指定 iOS 模拟器；高风险阶段跑全量和 Release。
+真机 LiDAR 验收单独报告，最终给出 mergeable / needs changes / do not merge。
+```
+
+整体重构仍有上述必需实施和验收范围，整体决策为 **needs changes**，尚不宣告整个目标完成。

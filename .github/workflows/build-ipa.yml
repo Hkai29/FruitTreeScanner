@@ -8,7 +8,21 @@ on:
       - 'FruitTreeScannerTests/**'
       - 'FruitTreeScanner.xcodeproj/**'
       - '.github/workflows/build-ipa.yml'
+      - 'tools/validate_fusion_domain.sh'
+      - 'tools/ci_simulator_build.sh'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'FruitTreeScanner/**'
+      - 'FruitTreeScannerTests/**'
+      - 'FruitTreeScanner.xcodeproj/**'
+      - '.github/workflows/build-ipa.yml'
+      - 'tools/validate_fusion_domain.sh'
+      - 'tools/ci_simulator_build.sh'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -18,36 +32,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Use runner Xcode
+        shell: bash
+        run: |
+          task_xcode_directory="$(xcode-select -p)"
+          printf 'DEVELOPER_DIR=%s\n' "$task_xcode_directory" >> "$GITHUB_ENV"
+
+      - name: Validate Domain dependencies
+        shell: bash
+        run: bash tools/validate_fusion_domain.sh
+
       - name: Build for iOS Simulator
         id: build
-        run: |
-          xcrun simctl list devices available | grep -E "iPhone|iPad" | head -5
-
-          xcodebuild \
-            -project FruitTreeScanner.xcodeproj \
-            -scheme FruitTreeScanner \
-            -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee /tmp/build_output.txt
-          EXIT=${PIPESTATUS[0]}
-          echo "EXIT_CODE=$EXIT" >> $GITHUB_ENV
-
-          echo "### xcodebuild errors" >> $GITHUB_STEP_SUMMARY
-          grep -E "error:" /tmp/build_output.txt | head -30 >> $GITHUB_STEP_SUMMARY || echo "✅ 无编译错误" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "EXIT CODE: $EXIT" >> $GITHUB_STEP_SUMMARY
-          echo "This workflow verifies simulator compilation. IPA packaging still requires device signing outside CI." >> $GITHUB_STEP_SUMMARY
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Warnings (first 10)" >> $GITHUB_STEP_SUMMARY
-          grep -E "warning:" /tmp/build_output.txt | grep -v "accessibility" | head -10 >> $GITHUB_STEP_SUMMARY || true
-
-          APP=$(find build -name "*.app" -type d 2>/dev/null | head -1)
-          echo "APP_PATH=$APP" >> $GITHUB_ENV
-          if [ -n "$APP" ]; then echo "APP_FOUND=true" >> $GITHUB_ENV; fi
-
-          exit $EXIT
+        shell: bash
+        run: bash tools/ci_simulator_build.sh

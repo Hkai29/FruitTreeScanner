@@ -1,31 +1,16 @@
 import Foundation
-import CryptoKit
 
 enum YieldCalibrationContext {
-    static let bundledModelFingerprint: String? = {
-        guard let resource = ImageDetectorModelLoader.modelURL(named: "FruitsDetector") else { return nil }
-        let root = resource.url
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory) else { return nil }
-        let files: [URL]
-        if isDirectory.boolValue {
-            guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]) else { return nil }
-            files = enumerator.compactMap { $0 as? URL }.filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }.sorted { $0.path < $1.path }
-        } else { files = [root] }
-        guard !files.isEmpty else { return nil }
-        var hash = SHA256()
-        do {
-            for file in files {
-                hash.update(data: Data(file.path.replacingOccurrences(of: root.path, with: "").utf8))
-                let handle = try FileHandle(forReadingFrom: file)
-                defer { try? handle.close() }
-                while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty { hash.update(data: data) }
-            }
-            return hash.finalize().map { String(format: "%02x", $0) }.joined()
-        } catch { return nil }
-    }()
+    /// This seed belongs to the legacy context schema, not runtime fusion.
+    static let legacyDefaultFusionSphericityThreshold: Float = 0.5
+    /// Compatibility for raw estimator callers without a prepared ScanPlan.
+    static var bundledModelIdentity: ScanModelIdentity { ScanModelFingerprint.bundledIdentity }
 
-    static func make(parameters: [String: FruitVarietyParams], cluster: ClusterConfig, fusion: FruitScanConfig, color: ColorFilter?, modelFingerprint: String? = bundledModelFingerprint) -> String? {
+    static var bundledModelFingerprint: String? {
+        bundledModelIdentity.fingerprint
+    }
+
+    static func make(parameters: [String: FruitVarietyParams], cluster: ClusterConfig, fusion: FruitScanConfig, color: ColorFilter?, modelFingerprint: String? = bundledModelFingerprint, experimentConfiguration: FruitScanExperimentConfig = .default, resourceBudget: ScanResourceBudget = .default, legacyFusionSphericityThreshold: Float) -> String? {
         guard let modelFingerprint else { return nil }
         let encoder = JSONEncoder()
         func object<T: Encodable>(_ value: T) throws -> Any { try JSONSerialization.jsonObject(with: encoder.encode(value), options: [.fragmentsAllowed]) }
@@ -35,18 +20,36 @@ enum YieldCalibrationContext {
                 params[key]?.removeValue(forKey: "id")
                 params[key]?.removeValue(forKey: "isCustomized")
             }
-            let payload: [String: Any] = ["algorithm": YieldAlgorithmRevision.current, "modelSHA256": modelFingerprint,
-                "parameters": params, "cluster": try object(cluster), "fusion": try object(fusion),
-                "color": try object(color), "experiment": try object(FruitScanExperimentConfig.default)]
+            // Old contexts included default seeds beside the resolved settings.
+            // Retain those keys only in this compatibility encoding. They are no
+            // longer independently mutable fields of the runtime experiment.
+            var experiment = try object(experimentConfiguration) as? [String: Any] ?? [:]
+            let defaults = try object(FruitScanConfig.default) as? [String: Any] ?? [:]
+            experiment["detector"] = defaults.filter { ["imageDetectionInterval", "minConfidence"].contains($0.key) }
+            experiment["clustering"] = try object(ClusterConfig.default)
+            var fusionDefaults = experiment["fusion"] as? [String: Any] ?? [:]
+            for key in ["sizeTolerance", "stableDetectionTimeWindow"] {
+                fusionDefaults[key] = defaults[key]
+            }
+            fusionDefaults["sphericityThreshold"] = try object(legacyDefaultFusionSphericityThreshold)
+            fusionDefaults["minimumStableDetections"] = defaults["minimumStableDetectionsForYield"]
+            experiment["fusion"] = fusionDefaults
+            var fusionContext = try object(fusion) as? [String: Any] ?? [:]
+            // Encode Float through JSONEncoder, as before; bridging it directly
+            // to JSONSerialization can change its decimal representation.
+            fusionContext["sphericityThreshold"] = try object(legacyFusionSphericityThreshold)
+            var payload: [String: Any] = ["algorithm": YieldAlgorithmRevision.current, "modelSHA256": modelFingerprint,
+                "parameters": params, "cluster": try object(cluster), "fusion": fusionContext,
+                "color": try object(color), "experiment": experiment]
+            // Preserve the established default context bytes. Reduced sampling
+            // budgets define a different calibration population.
+            if resourceBudget != .default { payload["resourceBudget"] = try object(resourceBudget) }
             let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
             return String(data: data, encoding: .utf8)
         } catch { return nil }
     }
 }
 
-enum YieldAlgorithmRevision {
-    static let current = "fusion-geometry-evidence-v2-20260906"
-}
 
 // MARK: - 校准记录
 
@@ -161,23 +164,6 @@ private struct ValidationErrorSample {
     }
 }
 
-struct YieldCalibrationCorrection: Equatable, Sendable {
-    let countFactor: Float
-    let yieldFactor: Float
-    let countSampleCount: Int
-    let yieldSampleCount: Int
-
-    static let neutral = YieldCalibrationCorrection(
-        countFactor: 1,
-        yieldFactor: 1,
-        countSampleCount: 0,
-        yieldSampleCount: 0
-    )
-
-    var hasEvidence: Bool {
-        countSampleCount > 0 || yieldSampleCount > 0
-    }
-}
 
 enum YieldCalibrationCorrector {
     static func correction(

@@ -1,5 +1,10 @@
 import ARKit
 
+struct ScanVideoFormatDescriptor: Equatable {
+    let framesPerSecond: Int
+    let imageWidth: Int
+}
+
 enum ScanSessionConfiguration {
     static func preferredDepthSemantics(
         supports: (ARConfiguration.FrameSemantics) -> Bool = {
@@ -16,42 +21,29 @@ enum ScanSessionConfiguration {
     }
 
     static func preferredVideoFormat(settings: SettingsStore = .shared) -> ARConfiguration.VideoFormat? {
-        let targetFPS = requestedFrameRate(from: settings.cameraFrameRate)
-        let targetWidth = requestedResolutionWidth(from: settings.cameraResolution)
-
-        return ARWorldTrackingConfiguration.supportedVideoFormats
-            .filter { $0.framesPerSecond <= targetFPS }
-            .sorted { lhs, rhs in
-                let lhsScore = videoFormatScore(lhs, targetFPS: targetFPS, targetWidth: targetWidth)
-                let rhsScore = videoFormatScore(rhs, targetFPS: targetFPS, targetWidth: targetWidth)
-                return lhsScore < rhsScore
-            }
-            .first
+        preferredVideoFormat(request: ScanCameraRequest(resolution: settings.cameraResolution, frameRate: settings.cameraFrameRate))
     }
 
-    private static func requestedFrameRate(from option: String) -> Int {
-        switch option {
-        case "30fps": return 30
-        case "120fps": return 120
-        default: return 60
+    static func preferredVideoFormat(request: ScanCameraRequest) -> ARConfiguration.VideoFormat? {
+        let formats = ARWorldTrackingConfiguration.supportedVideoFormats
+        let descriptions = formats.map { format in
+            ScanVideoFormatDescriptor(framesPerSecond: format.framesPerSecond,
+                imageWidth: Int(max(format.imageResolution.width, format.imageResolution.height)))
+        }
+        guard let index = preferredVideoFormatIndex(in: descriptions, request: request) else { return nil }
+        return formats[index]
+    }
+
+    /// Preserve the established policy: respect the FPS ceiling, prioritize FPS,
+    /// then choose the closest resolution. nil leaves ARKit's default unchanged.
+    static func preferredVideoFormatIndex(in formats: [ScanVideoFormatDescriptor], request: ScanCameraRequest) -> Int? {
+        let candidates = formats.indices.filter { formats[$0].framesPerSecond <= request.targetFramesPerSecond }
+        return candidates.min { lhs, rhs in
+            videoFormatScore(formats[lhs], request: request) < videoFormatScore(formats[rhs], request: request)
         }
     }
 
-    private static func requestedResolutionWidth(from option: String) -> Int {
-        switch option {
-        case "720p": return 1280
-        case "4K": return 3840
-        default: return 1920
-        }
-    }
-
-    private static func videoFormatScore(
-        _ format: ARConfiguration.VideoFormat,
-        targetFPS: Int,
-        targetWidth: Int
-    ) -> Int {
-        let resolution = format.imageResolution
-        let width = Int(max(resolution.width, resolution.height))
-        return abs(format.framesPerSecond - targetFPS) * 10_000 + abs(width - targetWidth)
+    private static func videoFormatScore(_ format: ScanVideoFormatDescriptor, request: ScanCameraRequest) -> Int {
+        abs(format.framesPerSecond - request.targetFramesPerSecond) * 10_000 + abs(format.imageWidth - request.targetImageWidth)
     }
 }

@@ -123,7 +123,8 @@ extension ScanCoordinator: ARSessionDelegate {
             medianDepth: medianDepth,
             trackingState: frame.camera.trackingState,
             lightIntensity: frame.lightEstimate?.ambientIntensity,
-            captureDepthQuality: renderer?.captureDiagnosticsPublic.latestDepthQuality
+            captureDepthQuality: renderer?.captureDiagnosticsPublic.latestDepthQuality,
+            depthConfiguration: activeScanPlan?.experimentConfiguration.depth ?? .default
         )
 
         DispatchQueue.main.async { [weak self] in

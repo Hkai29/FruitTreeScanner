@@ -4,6 +4,188 @@ import UIKit
 @testable import FruitTreeScanner
 
 final class CalibrationRecordPersistenceTests: XCTestCase {
+    func testModelPackageFingerprintPreservesSortedPathAndContentBytes() throws {
+        let first = temporaryDirectory()
+        let second = temporaryDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: first)
+            try? FileManager.default.removeItem(at: second)
+        }
+        for (root, paths) in [(first, ["nested/z.bin", "a.bin"]), (second, ["a.bin", "nested/z.bin"])] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent("nested"), withIntermediateDirectories: true)
+            for path in paths {
+                try Data((path == "a.bin" ? "A" : "Z").utf8).write(to: root.appendingPathComponent(path))
+            }
+        }
+        try FileManager.default.createSymbolicLink(at: first.appendingPathComponent("loop"), withDestinationURL: first)
+        // Fixed SHA-256 of UTF-8 "/a.binA/nested/z.binZ", independently calculated.
+        let expected = ScanModelIdentity.verified("7d409d45a7136110413cb6be5bacce7355fa8f025dc591f74651ca3e1b9d32e7")
+        XCTAssertEqual(ScanModelFingerprint.identity(at: first), expected)
+        XCTAssertEqual(ScanModelFingerprint.identity(at: second), expected)
+        try Data("Changed".utf8).write(to: second.appendingPathComponent("nested/z.bin"))
+        XCTAssertEqual(ScanModelFingerprint.identity(at: second),
+                       .verified("b9976584755c98032d2edc01e1a5ffeed16f599a0435a01ffada09f3cecea266"))
+    }
+
+    func testSingleFileModelFingerprintIncludesDataAfterChunkBoundary() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("model.bin")
+        try Data("abc".utf8).write(to: file)
+        XCTAssertEqual(ScanModelFingerprint.identity(at: file),
+                       .verified("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"))
+        try Data(repeating: 0x61, count: 1_048_576 + 33).write(to: file)
+        XCTAssertEqual(ScanModelFingerprint.identity(at: file),
+                       .verified("9d8ef489ef5f6b23d92a0cd62d05751f4c6329badd03290d8f8af2bfc433d444"))
+    }
+
+    func testModelFingerprintFailureDoesNotPublishPartialDigest() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertEqual(ScanModelFingerprint.identity(at: root.appendingPathComponent("missing")), .fingerprintUnavailable)
+        XCTAssertEqual(ScanModelFingerprint.identity(at: root), .fingerprintUnavailable)
+        try Data("A".utf8).write(to: root.appendingPathComponent("a.bin"))
+        try Data("Z".utf8).write(to: root.appendingPathComponent("z.bin"))
+        var opened: [String] = []
+        let identity = ScanModelFingerprint.identity(at: root, openFile: { url in
+            opened.append(url.lastPathComponent)
+            if url.lastPathComponent == "z.bin" { throw CocoaError(.fileReadNoPermission) }
+            return try FileHandle(forReadingFrom: url)
+        })
+        XCTAssertEqual(opened, ["a.bin", "z.bin"])
+        XCTAssertEqual(identity, .fingerprintUnavailable)
+    }
+
+    func testModelTraversalFailureCannotVerifyReadableSubset() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("readable subset".utf8).write(to: root.appendingPathComponent("a.bin"))
+        let unavailable = root.appendingPathComponent("unreadable-subtree", isDirectory: true)
+        try FileManager.default.createDirectory(at: unavailable, withIntermediateDirectories: true)
+        var visited: [String] = []
+        let identity = ScanModelFingerprint.identity(at: root, directoryEntries: { directory in
+            visited.append(directory.lastPathComponent)
+            if directory == unavailable { throw CocoaError(.fileReadNoPermission) }
+            return [root.appendingPathComponent("a.bin"), unavailable]
+        })
+        XCTAssertEqual(visited, [root.lastPathComponent, "unreadable-subtree"])
+        XCTAssertEqual(identity, .fingerprintUnavailable)
+        let disappearedAfterListing = ScanModelFingerprint.identity(at: root, directoryEntries: { _ in
+            [root.appendingPathComponent("a.bin"), root.appendingPathComponent("disappeared.bin")]
+        })
+        XCTAssertEqual(disappearedAfterListing, .fingerprintUnavailable)
+    }
+
+    func testLegacyAndConcurrentModelIdentityConsumersUseSameBundledValue() async {
+        let provider = BundledScanModelIdentityProvider()
+        async let first = provider.modelIdentity()
+        async let second = provider.modelIdentity()
+        let identities = await [first, second]
+        let expected = ScanModelFingerprint.bundledIdentity
+        XCTAssertEqual(identities, [expected, expected])
+        XCTAssertEqual(YieldCalibrationContext.bundledModelIdentity, expected)
+        XCTAssertEqual(YieldCalibrationContext.bundledModelFingerprint, expected.fingerprint)
+        let cached = await provider.modelIdentity()
+        XCTAssertEqual(cached, expected)
+    }
+
+    func testDefaultCalibrationContextRetainsEstablishedCanonicalBytesAfterConfigSimplification() throws {
+        let expected = try canonicalHistoricalContext()
+        let context = try XCTUnwrap(YieldCalibrationContext.make(parameters: [:], cluster: .default,
+            fusion: .default, color: nil, modelFingerprint: "model-fixture",
+            legacyFusionSphericityThreshold: YieldCalibrationContext.legacyDefaultFusionSphericityThreshold))
+        XCTAssertEqual(Data(context.utf8), expected)
+    }
+
+    private func canonicalHistoricalContext(fusionJSON: String? = nil) throws -> Data {
+        // A fixed historical contract, independent of the runtime config encoder.
+        let fixture = #"""
+        {
+          "algorithm":"fusion-geometry-evidence-v2-20260906","modelSHA256":"model-fixture","parameters":{},"color":null,
+          "cluster":{"minPoints":3,"minDiameter":0.015,"maxDiameter":0.2,"baseEps":0.1,"sphericityThreshold":0.5},
+          "fusion":{"imageDetectionInterval":10,"minConfidence":0.5,"sizeTolerance":0.35,"sphericityThreshold":0.5,"minimumStableDetectionsForYield":1,"stableDetectionTimeWindow":3.5},
+          "experiment":{
+            "detector":{"imageDetectionInterval":10,"minConfidence":0.5},
+            "clustering":{"minPoints":3,"minDiameter":0.015,"maxDiameter":0.2,"baseEps":0.1,"sphericityThreshold":0.5},
+            "fusion":{"sizeTolerance":0.35,"sphericityThreshold":0.5,"minimumStableDetections":1,"stableDetectionTimeWindow":3.5,"nearestCandidateDistance":0.15,"frustumSupportRatio":0.25,"projectedBoxExpansionFraction":0.12,"relaxedDistanceMultiplier":3,"relaxedDistanceCap":0.3,"rejectedDepthCandidateMinimumDistance":0.08,"rejectedDepthCandidateMaximumDistance":0.24},
+            "pointCloud":{"denoisingMinPointMultiplier":12,"denoisingMinPointFloor":50,"denoisingNeighborCount":12,"denoisingStdMultiplier":1.5},
+            "depth":{"projectionSampleGrid":9,"minimumReliableConfidence":1,"captureQualitySampleGrid":9,"captureQualitySampleMargin":0.08,"minimumCaptureValidSampleCount":4,"minimumCaptureValidSampleRatio":0.04,"minimumStableDepthNeighborCount":1},
+            "occlusion":{"lidarPenetrationMeters":0.4},
+            "candidateMerge":{"diameterSimilarityThreshold":0.55,"minMergeDistance":0.035,"diameterMergeDistanceMultiplier":0.75,"maxMergeDistance":0.08,"maxPointSamples":256,"minimumCandidateWeightSphericity":0.05}
+          }
+        }
+        """#
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any])
+        if let fusionJSON {
+            object["fusion"] = try JSONSerialization.jsonObject(with: Data(fusionJSON.utf8))
+        }
+        return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    }
+
+    @MainActor
+    func testQualityPresetsKeepHistoricalCalibrationBytes() throws {
+        let suite = "PresetCalibrationBytes-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.minConfidence = 0.58
+        settings.sphericityThreshold = 0.52
+        settings.cameraFrameRate = "30fps"
+        let fixtures = [
+            ("高", #"{"imageDetectionInterval":8,"minConfidence":0.85,"sizeTolerance":0.2,"sphericityThreshold":0.6,"minimumStableDetectionsForYield":2,"stableDetectionTimeWindow":4}"#),
+            ("中", #"{"imageDetectionInterval":8,"minConfidence":0.7,"sizeTolerance":0.2,"sphericityThreshold":0.52,"minimumStableDetectionsForYield":2,"stableDetectionTimeWindow":4}"#),
+            ("低", #"{"imageDetectionInterval":8,"minConfidence":0.55,"sizeTolerance":0.2,"sphericityThreshold":0.4,"minimumStableDetectionsForYield":2,"stableDetectionTimeWindow":4}"#)
+        ]
+        for (preset, fixture) in fixtures {
+            settings.qualityPreset = preset
+            let context = try XCTUnwrap(YieldCalibrationContext.make(parameters: [:], cluster: .default,
+                fusion: settings.fruitScanConfig, color: nil, modelFingerprint: "model-fixture",
+                legacyFusionSphericityThreshold: settings.legacyFusionSphericityThreshold))
+            XCTAssertEqual(Data(context.utf8), try canonicalHistoricalContext(fusionJSON: fixture), preset)
+        }
+    }
+
+    @MainActor
+    func testCapturedCalibrationCompatibilityDoesNotFollowLaterSettingsChanges() throws {
+        let suite = "CapturedCalibrationBytes-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.minConfidence = 0.58
+        settings.sphericityThreshold = 0.52
+        settings.cameraFrameRate = "30fps"
+        settings.qualityPreset = "高"
+        let snapshot = ScanFruitConfigurationSnapshot.capture(selectedCategory: .apple,
+            settings: settings, calibrationRecordsLoader: { [] })
+        settings.qualityPreset = "低"
+        settings.sphericityThreshold = 0.1
+        settings.minConfidence = 0.1
+        let configuration = snapshot.makeConfiguration(modelIdentity: .verified("model-fixture"))
+        let context = try XCTUnwrap(configuration.calibrationContext)
+        let actual = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(context.utf8)) as? [String: Any])
+        let expected = #"{"imageDetectionInterval":8,"minConfidence":0.85,"sizeTolerance":0.2,"sphericityThreshold":0.6,"minimumStableDetectionsForYield":2,"stableDetectionTimeWindow":4}"#
+        XCTAssertEqual(try JSONSerialization.data(withJSONObject: XCTUnwrap(actual["fusion"]), options: [.sortedKeys]),
+            try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: Data(expected.utf8)), options: [.sortedKeys]))
+    }
+
+    func testDifferentLegacyFusionSphericityDoesNotReuseCalibration() throws {
+        let first = try XCTUnwrap(YieldCalibrationContext.make(parameters: [:], cluster: .default,
+            fusion: .default, color: nil, modelFingerprint: "model-fixture", legacyFusionSphericityThreshold: 0.4))
+        let second = try XCTUnwrap(YieldCalibrationContext.make(parameters: [:], cluster: .default,
+            fusion: .default, color: nil, modelFingerprint: "model-fixture", legacyFusionSphericityThreshold: 0.6))
+        XCTAssertNotEqual(first, second)
+        let record = CalibrationRecord(id: UUID(), treeID: "legacy-context", scanDate: Date(),
+            estimatedFruitCount: 10, manualFruitCount: 12, estimatedYieldKg: 1, actualYieldKg: 1.2,
+            fruitType: "apple", algorithmRevision: YieldAlgorithmRevision.current, calibrationContext: first)
+        let same = YieldCalibrationCorrector.correction(from: [record], fruitCategory: .apple, fruitType: "apple",
+            requiredAlgorithmRevision: YieldAlgorithmRevision.current, requiredContext: first)
+        let different = YieldCalibrationCorrector.correction(from: [record], fruitCategory: .apple, fruitType: "apple",
+            requiredAlgorithmRevision: YieldAlgorithmRevision.current, requiredContext: second)
+        XCTAssertEqual(same.countSampleCount, 1)
+        XCTAssertEqual(same.yieldSampleCount, 1)
+        XCTAssertEqual(different, .neutral)
+    }
+
     func testMissingCalibrationRecordFileLoadsAsEmpty() throws {
         let url = temporaryDirectory()
             .appendingPathComponent("missing")

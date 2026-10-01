@@ -17,20 +17,13 @@ private struct ImportedCalibrationMetadata: Sendable {
     let baselineYield: Float
 
     static func load(for record: ScanFileRecord) -> Self? {
-        guard let payload = PLYParserHelper.readValidatedCompanionMetadataPayload(for: record.fileURL),
-              payload["treeID"] as? String == record.treeID,
-              PLYParserHelper.nonNegativeIntValue(payload["fruitCount"]) == record.fruitCount,
-              PLYParserHelper.nonNegativeFloatValue(payload["yieldKg"]) == record.yieldKg,
-              let revision = payload["algorithmRevision"] as? String, !revision.isEmpty,
-              let context = payload["calibrationContext"] as? String, !context.isEmpty,
-              let baselineCount = PLYParserHelper.nonNegativeIntValue(payload["calibrationBaseCount"]),
-              let baselineYield = PLYParserHelper.nonNegativeFloatValue(payload["calibrationBaseYieldKg"])
+        guard let baseline = try? ScanRepository.shared.readCalibrationBaseline(for: record)
         else { return nil }
         return Self(
-            algorithmRevision: revision,
-            calibrationContext: context,
-            baselineCount: baselineCount,
-            baselineYield: baselineYield
+            algorithmRevision: baseline.algorithmRevision,
+            calibrationContext: baseline.calibrationContext,
+            baselineCount: baseline.fruitCount,
+            baselineYield: baseline.yieldKg
         )
     }
 }

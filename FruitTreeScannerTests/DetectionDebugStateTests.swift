@@ -28,12 +28,7 @@ final class DetectionDebugStateTests: XCTestCase {
             settings: settings,
             calibrationRecordsLoader: { [] }
         )
-        let context = try XCTUnwrap(YieldCalibrationContext.make(
-            parameters: baseline.parametersSnapshot,
-            cluster: baseline.clusterConfig,
-            fusion: baseline.fusionConfig,
-            color: baseline.colorFilter
-        ))
+        let context = try XCTUnwrap(baseline.calibrationContext)
         var record = CalibrationRecord(
             id: UUID(),
             treeID: "T-verified",
@@ -567,6 +562,250 @@ final class DetectionDebugStateTests: XCTestCase {
         XCTAssertFalse(detection.hasAlignedDepthContext)
     }
 
+    func testEnrichedDetectionStoresBoundedFrameObservationInsteadOfPixelBuffers() throws {
+        let imageBuffer = try makePixelBuffer(width: 8, height: 8, pixelFormat: kCVPixelFormatType_32BGRA)
+        let depthMap = try makeDepthMap(width: 90, height: 90, fillValue: 2.25)
+        let confidenceMap = try makeConfidenceMap(width: 90, height: 90, fillValue: 2)
+        let packet = ImageDetectorQueue.makeQueuedFrame(
+            pixelBuffer: imageBuffer,
+            timestamp: 4.5,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: matrix_identity_float3x3,
+            imageSize: CGSize(width: 900, height: 900),
+            depthMap: depthMap,
+            depthConfidenceMap: confidenceMap
+        )
+        let frame = try XCTUnwrap(packet.queuedFrame)
+        let detection = try XCTUnwrap(ImageDetectorQueue.enrich(
+            [DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4),
+                confidence: 0.92,
+                timestamp: 4.5
+            )],
+            with: frame
+        ).first)
+        let observation = try XCTUnwrap(detection.observation)
+
+        XCTAssertEqual(observation.frameID, frame.frameID)
+        XCTAssertEqual(observation.id, detection.id)
+        XCTAssertEqual(observation.coordinateConvention, .visionNormalizedLowerLeft)
+        XCTAssertTrue(observation.hasAlignedDepthContext)
+        XCTAssertEqual(observation.roiDepthSamples.count, 81)
+        XCTAssertEqual(
+            observation.projectionDepthSamples.count,
+            FruitScanExperimentConfig.default.depth.projectionSampleGrid * FruitScanExperimentConfig.default.depth.projectionSampleGrid
+        )
+        XCTAssertTrue(observation.roiDepthSamples.allSatisfy { abs($0.depthMeters - 2.25) < 0.001 })
+        XCTAssertTrue(detection.hasAlignedDepthContext)
+    }
+
+    func testQueuedFrameKeepsDepthConfigurationAcrossDetectorUpdates() async throws {
+        let image = try makePixelBuffer(width: 8, height: 8, pixelFormat: kCVPixelFormatType_32BGRA)
+        let depth = try makeDepthMap(width: 90, height: 90, fillValue: 2)
+        let confidence = try makeConfidenceMap(width: 90, height: 90, fillValue: 1)
+        var config = FruitScanConfig.default
+        config.imageDetectionInterval = 1
+        let detector = ImageDetector(config: config)
+        var depthConfig = DepthExperimentConfig.default
+        depthConfig.minimumReliableConfidence = 2
+        depthConfig.projectionSampleGrid = 3
+        detector.updateConfig(config, depthConfiguration: depthConfig)
+        detector.enqueueFrame(image, timestamp: 10, cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: matrix_identity_float3x3, imageSize: CGSize(width: 900, height: 900),
+            depthMap: depth, depthConfidenceMap: confidence)
+        detector.updateConfig(config)
+        let frames = await detector.drainPendingFrames()
+        let frame = try XCTUnwrap(frames.first)
+        XCTAssertEqual(frame.depthConfiguration, depthConfig)
+        let fruit = DetectedFruit(category: .apple, boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4), confidence: 0.9)
+        let observation = try XCTUnwrap(ImageDetectorQueue.observations(from: [fruit], with: frame).first)
+        XCTAssertEqual(observation.frameID, frame.frameID)
+        XCTAssertTrue(observation.roiDepthSamples.isEmpty)
+        XCTAssertTrue(observation.projectionDepthSamples.isEmpty)
+        XCTAssertTrue(observation.rejectionReasons.contains(.noReliableDepthSamples))
+    }
+
+    func testCustomDepthSamplingGridIsBoundedAndCannotAdmitLowConfidence() throws {
+        let depth = try makeDepthMap(width: 90, height: 90, fillValue: 2)
+        let low = try makeConfidenceMap(width: 90, height: 90, fillValue: 0)
+        let medium = try makeConfidenceMap(width: 90, height: 90, fillValue: 1)
+        var config = DepthExperimentConfig.default
+        config.minimumReliableConfidence = 0
+        config.projectionSampleGrid = 3
+        func capture(_ confidence: CVPixelBuffer) -> Observation {
+            Observation.capture(id: UUID(), frameID: FrameID(), category: .apple,
+                boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4), confidence: 0.9, timestamp: 1,
+                cameraTransform: matrix_identity_float4x4, cameraIntrinsics: matrix_identity_float3x3,
+                imageSize: CGSize(width: 900, height: 900), depthMap: depth, depthConfidenceMap: confidence,
+                depthConfidenceProvenance: .available, depthConfiguration: config)
+        }
+        XCTAssertTrue(capture(low).projectionDepthSamples.isEmpty)
+        XCTAssertTrue(capture(low).roiDepthSamples.isEmpty)
+        XCTAssertEqual(capture(medium).projectionDepthSamples.count, 9)
+        XCTAssertEqual(capture(medium).roiDepthSamples.count, 81)
+        config.projectionSampleGrid = Int.max
+        XCTAssertEqual(capture(medium).projectionDepthSamples.count, 81)
+        XCTAssertEqual(RendererScanSettings.reliableConfidenceThreshold(storedThreshold: 0, minimumReliableConfidence: 0), 1)
+    }
+
+    func testEnrichedObservationRecordsWhenConfidenceGateRejectsAllDepthSamples() throws {
+        let imageBuffer = try makePixelBuffer(width: 8, height: 8, pixelFormat: kCVPixelFormatType_32BGRA)
+        let depthMap = try makeDepthMap(width: 90, height: 90, fillValue: 2.0)
+        let confidenceMap = try makeConfidenceMap(width: 90, height: 90, fillValue: 0)
+        let packet = ImageDetectorQueue.makeQueuedFrame(
+            pixelBuffer: imageBuffer,
+            timestamp: 7,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: matrix_identity_float3x3,
+            imageSize: CGSize(width: 900, height: 900),
+            depthMap: depthMap,
+            depthConfidenceMap: confidenceMap
+        )
+        let frame = try XCTUnwrap(packet.queuedFrame)
+        let detection = try XCTUnwrap(ImageDetectorQueue.enrich(
+            [DetectedFruit(category: .apple, boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4), confidence: 0.92)],
+            with: frame
+        ).first)
+        let observation = try XCTUnwrap(detection.observation)
+
+        XCTAssertTrue(observation.hasAlignedDepthContext)
+        XCTAssertTrue(observation.roiDepthSamples.isEmpty)
+        XCTAssertTrue(observation.projectionDepthSamples.isEmpty)
+        XCTAssertTrue(observation.rejectionReasons.contains(.noReliableDepthSamples))
+        XCTAssertTrue(DetectionDepthCandidateBuilder.makeCandidates(
+            from: [detection],
+            clusterConfig: .default
+        ).isEmpty)
+    }
+
+    func testDrainReturnsImmediatelyWhenNoFrameIsBeingPrepared() async {
+        let detector = ImageDetector()
+        let frames = await detector.drainPendingFrames()
+        XCTAssertTrue(frames.isEmpty)
+        XCTAssertEqual(drainWaiterCount(detector), 0)
+    }
+
+    func testDrainWakesWhenPreparedFrameArrives() async throws {
+        let detector = ImageDetector()
+        let generation = beginPreparingFrame(detector)
+        let frame = try makeDrainTestFrame(timestamp: 1)
+        let task = Task { await detector.drainPendingFrames() }
+        await waitForDrainRegistration(detector)
+        detector.finishPreparingFrame(frame, generation: generation)
+        let frames = await task.value
+        XCTAssertEqual(frames.map(\.frameID), [frame.frameID])
+        XCTAssertEqual(ImageDetectorQueue.attachedQueueGeneration(to: frames[0].pixelBuffer), generation)
+        XCTAssertEqual(drainWaiterCount(detector), 0)
+    }
+
+    func testFailedFramePreparationWakesDrainWithoutEvidence() async {
+        let detector = ImageDetector()
+        let generation = beginPreparingFrame(detector)
+        let task = Task { await detector.drainPendingFrames() }
+        await waitForDrainRegistration(detector)
+        detector.cancelPreparingFrame(generation: generation)
+        let frames = await task.value
+        XCTAssertTrue(frames.isEmpty)
+        XCTAssertEqual(drainWaiterCount(detector), 0)
+    }
+
+    func testCancelledDrainLeavesLateFrameForAnotherConsumer() async throws {
+        let detector = ImageDetector()
+        let generation = beginPreparingFrame(detector)
+        let frame = try makeDrainTestFrame(timestamp: 1)
+        let task = Task { await detector.drainPendingFrames() }
+        await waitForDrainRegistration(detector)
+        task.cancel()
+        let cancelledFrames = await task.value
+        XCTAssertTrue(cancelledFrames.isEmpty)
+        XCTAssertEqual(drainWaiterCount(detector), 0)
+        detector.finishPreparingFrame(frame, generation: generation)
+        let frames = await detector.drainPendingFrames()
+        XCTAssertEqual(frames.map(\.frameID), [frame.frameID])
+    }
+
+    func testCancellationBeforeDrainRegistrationDoesNotWaitOrConsume() async throws {
+        let detector = ImageDetector()
+        let generation = beginPreparingFrame(detector)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await detector.drainPendingFrames()
+        }
+        let frames = await task.value
+        XCTAssertTrue(frames.isEmpty)
+        XCTAssertEqual(drainWaiterCount(detector), 0)
+        let frame = try makeDrainTestFrame(timestamp: 1)
+        detector.finishPreparingFrame(frame, generation: generation)
+        let next = await detector.drainPendingFrames()
+        XCTAssertEqual(next.map(\.frameID), [frame.frameID])
+    }
+
+    func testResetWakesOldDrainWithoutConsumingNewGeneration() async throws {
+        let detector = ImageDetector()
+        let originalGeneration = beginPreparingFrame(detector)
+        let task = Task { await detector.drainPendingFrames() }
+        await waitForDrainRegistration(detector)
+        detector.clearQueue()
+        let generation = beginPreparingFrame(detector)
+        detector.finishPreparingFrame(try makeDrainTestFrame(timestamp: 1), generation: originalGeneration)
+        let frame = try makeDrainTestFrame(timestamp: 2)
+        detector.finishPreparingFrame(frame, generation: generation)
+        let oldFrames = await task.value
+        XCTAssertTrue(oldFrames.isEmpty)
+        let newFrames = await detector.drainPendingFrames()
+        XCTAssertEqual(newFrames.map(\.frameID), [frame.frameID])
+        XCTAssertEqual(drainWaiterCount(detector), 0)
+    }
+
+    func testCancellingOneDrainDoesNotCancelAnotherWaitingConsumer() async throws {
+        let detector = ImageDetector()
+        let generation = beginPreparingFrame(detector)
+        let first = Task { await detector.drainPendingFrames() }
+        let second = Task { await detector.drainPendingFrames() }
+        await waitForDrainRegistration(detector, count: 2)
+        first.cancel()
+        let cancelled = await first.value
+        XCTAssertTrue(cancelled.isEmpty)
+        XCTAssertEqual(drainWaiterCount(detector), 1)
+        let frame = try makeDrainTestFrame(timestamp: 1)
+        detector.finishPreparingFrame(frame, generation: generation)
+        let frames = await second.value
+        XCTAssertEqual(frames.map(\.frameID), [frame.frameID])
+        XCTAssertEqual(drainWaiterCount(detector), 0)
+    }
+
+    private func beginPreparingFrame(_ detector: ImageDetector) -> Int {
+        detector.lock.lock()
+        defer { detector.lock.unlock() }
+        detector.preparingFrameGeneration = detector.queueGeneration
+        return detector.queueGeneration
+    }
+
+    private func drainWaiterCount(_ detector: ImageDetector) -> Int {
+        detector.lock.lock()
+        defer { detector.lock.unlock() }
+        return detector.drainWaiters.count
+    }
+
+    private func waitForDrainRegistration(_ detector: ImageDetector, count: Int = 1) async {
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            if drainWaiterCount(detector) == count { return }
+            await Task.yield()
+        }
+        XCTFail("Frame drain did not register before the deadline")
+    }
+
+    private func makeDrainTestFrame(timestamp: TimeInterval) throws -> ImageDetector.QueuedFrame {
+        ImageDetector.QueuedFrame(
+            pixelBuffer: try makePixelBuffer(width: 4, height: 4, pixelFormat: kCVPixelFormatType_32BGRA),
+            depthMap: nil, depthConfidenceMap: nil, depthConfidenceProvenance: .unavailable,
+            timestamp: timestamp, cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: matrix_identity_float3x3, imageSize: CGSize(width: 4, height: 4)
+        )
+    }
+
     func testClearQueueDropsFramePreparedForPreviousGeneration() throws {
         let detector = ImageDetector(
             config: FruitScanConfig(imageDetectionInterval: 1, minConfidence: 0.5)
@@ -692,6 +931,85 @@ final class DetectionDebugStateTests: XCTestCase {
     }
 
     @MainActor
+    func testNativeObservationsKeepFrameEvidenceThroughArchiveTrimAndFreeze() async throws {
+        let suite = "NativeObservationFreeze-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] },
+            resourceBudget: ScanResourceBudget(retainedDetectionFrameLimit: 2))
+        let plan = factory.makePlan(treeID: "native-freeze", season: .mature, selectedCategory: .apple, renderer: nil)
+        let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.startRecording(plan: plan)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        let early = try [1.0, 1.6].map {
+            try makeAlignedAppleDetection(timestamp: $0).resolvedObservation(frameID: FrameID())
+        }
+        await coordinator.appendObservations(early, evidenceToken: token)
+        let late = [3.0, 4.0, 5.0].map {
+            DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.95, timestamp: $0)
+                .resolvedObservation(frameID: FrameID())
+        }
+        await coordinator.appendObservations(late, evidenceToken: token)
+        XCTAssertEqual(coordinator.detectedFruits.map(\.id), Array(late.suffix(2)).map(\.id))
+        XCTAssertEqual(coordinator.archivedFusionEvidenceDetections.map(\.id), early.map(\.id))
+
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        let cloud = FinalPointCloud(identity: RendererSnapshotSignature(pointCount: 0, pointIndex: 0,
+            voxelSize: 0.005, confidenceThreshold: 2), points: [], inputSampleCount: 0, retainedSampleCount: 0,
+            buildDuration: 0, estimatedPeakPayloadBytes: 0)
+        let snapshot = try await coordinator.prepareYieldEstimationSnapshot(season: .mature, finalPointCloud: cloud)
+        let expected = early + Array(late.suffix(2))
+        XCTAssertEqual(snapshot.input.observations.map(\.id), expected.map(\.id))
+        XCTAssertEqual(snapshot.input.observations.map(\.frameID), expected.map(\.frameID))
+        XCTAssertEqual(snapshot.input.observations.map(\.roiDepthSamples), expected.map(\.roiDepthSamples))
+        XCTAssertEqual(snapshot.input.observations.map(\.projectionDepthSamples), expected.map(\.projectionDepthSamples))
+        XCTAssertEqual(snapshot.input.observations.map(\.rejectionReasons), expected.map(\.rejectionReasons))
+        XCTAssertEqual(snapshot.input.categoryVerification?.detectedCategoryCounts, ["apple": 4])
+        XCTAssertTrue(coordinator.detectedFruits.isEmpty)
+        XCTAssertTrue(coordinator.archivedFusionEvidenceDetections.isEmpty)
+    }
+
+    @MainActor
+    func testLegacyCoordinatorSamplingUsesPlanWhileCapturedObservationStaysUnchanged() async throws {
+        let suite = "LegacyObservationPlan-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        var experiment = FruitScanExperimentConfig.default
+        experiment.depth.minimumReliableConfidence = 2
+        experiment.depth.projectionSampleGrid = 3
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] }, experimentConfiguration: experiment)
+        let plan = factory.makePlan(treeID: "legacy-plan", season: .mature, selectedCategory: .apple, renderer: nil)
+        let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.startRecording(plan: plan)
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        let depth = try makeDepthMap(width: 16, height: 16, fillValue: 2)
+        let confidence = try makeConfidenceMap(width: 16, height: 16, fillValue: 1)
+        func detection(at time: TimeInterval) -> DetectedFruit {
+            DetectedFruit(category: .apple, boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.2, height: 0.2),
+                confidence: 0.95, timestamp: time, cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: matrix_identity_float3x3, imageSize: CGSize(width: 16, height: 16),
+                depthMap: depth, depthConfidenceMap: confidence)
+        }
+        await coordinator.appendDetectedFruits([detection(at: 1)], evidenceToken: token)
+        let sampled = try XCTUnwrap(coordinator.detectedFruits.first)
+        XCTAssertTrue(sampled.projectionDepthSamples.isEmpty)
+        XCTAssertTrue(sampled.rejectionReasons.contains(.noReliableDepthSamples))
+
+        let captured = detection(at: 2).resolvedObservation(frameID: FrameID())
+        XCTAssertFalse(captured.projectionDepthSamples.isEmpty)
+        await coordinator.appendDetectedFruits([DetectedFruit(observation: captured)], evidenceToken: token)
+        let retained = try XCTUnwrap(coordinator.detectedFruits.last)
+        XCTAssertEqual(retained.id, captured.id)
+        XCTAssertEqual(retained.frameID, captured.frameID)
+        XCTAssertEqual(retained.projectionDepthSamples, captured.projectionDepthSamples)
+        XCTAssertEqual(retained.rejectionReasons, captured.rejectionReasons)
+    }
+
+    @MainActor
     func testFusionEvidenceArchiveKeepsStableDetectionsAfterRuntimeRetentionTrimsWindow() async throws {
         let coordinator = ScanCoordinator()
         coordinator.imageDetector.updateConfig(
@@ -699,7 +1017,6 @@ final class DetectionDebugStateTests: XCTestCase {
                 imageDetectionInterval: 1,
                 minConfidence: 0.85,
                 sizeTolerance: 0.2,
-                sphericityThreshold: 0.5,
                 minimumStableDetectionsForYield: 2,
                 stableDetectionTimeWindow: 4.0
             )
@@ -741,7 +1058,6 @@ final class DetectionDebugStateTests: XCTestCase {
             imageDetectionInterval: 1,
             minConfidence: 0.85,
             sizeTolerance: 0.2,
-            sphericityThreshold: 0.5,
             minimumStableDetectionsForYield: 2,
             stableDetectionTimeWindow: 4.0
         )
@@ -764,7 +1080,7 @@ final class DetectionDebugStateTests: XCTestCase {
         )
 
         let stableEvidence = DetectionDeduplicator.stableEvidenceDetections(
-            coordinator.archivedFusionEvidenceDetections.filter(\.hasAlignedDepthContext),
+            observations: coordinator.archivedFusionEvidenceDetections.filter(\.hasAlignedDepthContext),
             minimumObservations: max(config.minimumStableDetectionsForYield, 2),
             minimumConfidence: max(config.minConfidence, 0.85),
             timeWindow: config.stableDetectionTimeWindow

@@ -59,26 +59,38 @@ extension ScanCoordinator {
     }
 
     func confirmedLiveFruitCount(detectorConfig: FruitScanConfig) -> Int {
+        let scanConfiguration = activeFruitConfiguration
+        let fusionConfig = scanConfiguration?.fusionConfig ?? detectorConfig
         let stableEvidenceDetections = DetectionDeduplicator.stableEvidenceDetections(
-            detectedFruits.filter(\.hasAlignedDepthContext),
-            minimumObservations: max(detectorConfig.minimumStableDetectionsForYield, 2),
-            minimumConfidence: max(detectorConfig.minConfidence, 0.85),
-            timeWindow: detectorConfig.stableDetectionTimeWindow,
+            observations: detectedFruits.filter(\.hasAlignedDepthContext),
+            minimumObservations: max(fusionConfig.minimumStableDetectionsForYield, 2),
+            minimumConfidence: max(fusionConfig.minConfidence, 0.85),
+            timeWindow: fusionConfig.stableDetectionTimeWindow,
             recentOnly: true
         )
-        guard !stableEvidenceDetections.isEmpty else { return 0 }
 
-        let fruitCategory = FruitCategory(rawValue: settings.fruitType) ?? .apple
-        let clusterConfig = settings.clusterConfig(for: FruitVarietyParams(category: fruitCategory))
+        let fruitCategory = scanConfiguration?.selectedCategory
+            ?? FruitCategory(rawValue: settings.fruitType) ?? .apple
+        // Apply the recent window before the category filter so newer frames
+        // of another category still age out old target-category evidence.
+        let targetEvidence = ScanFusionCategoryFilter.detections(
+            stableEvidenceDetections, targetCategory: fruitCategory
+        )
+        guard !targetEvidence.isEmpty else { return 0 }
+        let clusterConfig = scanConfiguration?.clusterConfig
+            ?? settings.clusterConfig(for: FruitVarietyParams(category: fruitCategory))
         let depthCandidates = DetectionDepthCandidateBuilder.makeCandidates(
-            from: stableEvidenceDetections,
+            from: targetEvidence,
             clusterConfig: clusterConfig
         )
         guard !depthCandidates.isEmpty else { return 0 }
 
-        let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(stableEvidenceDetections)
-        let validatedFruits = FusionValidator(config: detectorConfig).validate(
-            detections: deduplicatedDetections,
+        let deduplicatedDetections = DetectionDeduplicator.deduplicate2D(observations: targetEvidence)
+        let validatedFruits = FusionValidator(
+            config: fusionConfig,
+            experimentConfiguration: activeScanPlan?.experimentConfiguration.fusion ?? .default
+        ).validate(
+            observations: deduplicatedDetections,
             candidates: depthCandidates
         )
         let fusedFruits = validatedFruits.filter { $0.source == ValidationSource.fused }

@@ -3,7 +3,6 @@
 
 import CoreGraphics
 import Foundation
-@preconcurrency import CoreVideo
 import simd
 
 // MARK: - Fusion Validator
@@ -14,76 +13,35 @@ final class FusionValidator: Sendable {
     // MARK: - Properties
 
     let config: FruitScanConfig
+    let experimentConfiguration: FusionExperimentConfig
 
     // MARK: - Initialization
 
-    init(config: FruitScanConfig = .default) {
+    init(config: FruitScanConfig = .default, experimentConfiguration: FusionExperimentConfig = .default) {
         self.config = config
+        self.experimentConfiguration = experimentConfiguration
     }
 
     // MARK: - Validation
 
-    func validate(
-        detections: [DetectedFruit],
-        candidates: [FruitCandidate],
-        depthMap: CVPixelBuffer?,
-        depthConfidenceMap: CVPixelBuffer? = nil,
-        cameraIntrinsics: matrix_float3x3,
-        cameraTransform: simd_float4x4,
-        imageSize: CGSize
-    ) -> [ValidatedFruit] {
-        validate(detections: detections, candidates: candidates) { detection in
-            guard detection.depthConfidenceProvenance != .copyFailed else { return nil }
-            return FusionProjectionContext(
-                depthMap: depthMap,
-                depthConfidenceMap: depthConfidenceMap,
-                cameraIntrinsics: detection.cameraIntrinsics ?? cameraIntrinsics,
-                cameraTransform: detection.cameraTransform ?? cameraTransform,
-                imageSize: detection.imageSize ?? imageSize
-            )
-        }
-    }
-
-    /// Validates live scan detections only when each one carries the depth map
-    /// captured with its RGB frame. This avoids projecting old detections
-    /// through a later ARFrame's depth map after the operator has moved.
-    func validate(
-        detections: [DetectedFruit],
-        candidates: [FruitCandidate]
-    ) -> [ValidatedFruit] {
-        validate(detections: detections, candidates: candidates) { detection in
-            guard detection.hasAlignedDepthContext,
-                  let depthMap = detection.depthMap,
+    func validate(observations: [Observation], candidates: [FruitCandidate]) -> [ValidatedFruit] {
+        let projectionService = DepthProjectionService()
+        let candidateMatcher = CandidateMatcher(config: config, experimentConfiguration: experimentConfiguration)
+        let decisionPolicy = FusionDecisionPolicy()
+        var seenCandidateIDs = Set<UUID>()
+        let matchingCandidates = candidates.filter { seenCandidateIDs.insert($0.id).inserted }
+        var projections: [(detection: Observation, context: FusionProjectionContext, result: DepthProjectionResult)] = []
+        projections.reserveCapacity(observations.count)
+        for detection in observations {
+            guard detection.depthConfidenceProvenance != .copyFailed,
                   let cameraIntrinsics = detection.cameraIntrinsics,
                   let cameraTransform = detection.cameraTransform,
-                  let imageSize = detection.imageSize
-            else {
-                return nil
-            }
-            return FusionProjectionContext(
-                depthMap: depthMap,
-                depthConfidenceMap: detection.depthConfidenceMap,
+                  let imageSize = detection.imageSize else { continue }
+            let context = FusionProjectionContext(
                 cameraIntrinsics: cameraIntrinsics,
                 cameraTransform: cameraTransform,
                 imageSize: imageSize
             )
-        }
-    }
-
-    private func validate(
-        detections: [DetectedFruit],
-        candidates: [FruitCandidate],
-        projectionContext: (DetectedFruit) -> FusionProjectionContext?
-    ) -> [ValidatedFruit] {
-        let projectionService = DepthProjectionService(validator: self)
-        let candidateMatcher = CandidateMatcher(validator: self)
-        let decisionPolicy = FusionDecisionPolicy()
-        var seenCandidateIDs = Set<UUID>()
-        let matchingCandidates = candidates.filter { seenCandidateIDs.insert($0.id).inserted }
-        var projections: [(detection: DetectedFruit, context: FusionProjectionContext, result: DepthProjectionResult)] = []
-        projections.reserveCapacity(detections.count)
-        for detection in detections {
-            guard let context = projectionContext(detection) else { continue }
             projections.append((detection, context, projectionService.project(detection: detection, context: context)))
         }
 
@@ -91,7 +49,7 @@ final class FusionValidator: Sendable {
         for (detectionIndex, item) in projections.enumerated() {
             guard let position = item.result.depthProjectedPosition else { continue }
             for (candidateIndex, candidate) in matchingCandidates.enumerated() {
-                guard let score = matchScore(
+                guard let score = candidateMatcher.matchScore(
                     position: position,
                     candidate: candidate,
                     detection: item.detection,
@@ -122,7 +80,6 @@ final class FusionValidator: Sendable {
             } ?? false
 
             switch decisionPolicy.decide(
-                detection: detection,
                 projectedPosition: item.result.projectedPosition,
                 matchedCandidate: matchedCandidate,
                 rejectedByDepthCandidate: rejectedByDepthCandidate

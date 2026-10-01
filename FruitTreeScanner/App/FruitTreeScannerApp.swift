@@ -13,6 +13,7 @@ enum AppScreen {
 struct FruitTreeScannerApp: App {
     @State private var currentScreen: AppScreen = .launch
     @StateObject private var navigationRouter = NavigationRouter()
+    @StateObject private var appDependencies = AppDependencies()
 
     var body: some Scene {
         WindowGroup {
@@ -35,10 +36,31 @@ struct FruitTreeScannerApp: App {
             }
             .background(Color(hex: "101A10").ignoresSafeArea())
             .animation(.easeInOut(duration: 0.5), value: currentScreen)
+            .environmentObject(appDependencies)
+            .task {
+                await appDependencies.prepareForScanning()
+            }
             .onOpenURL { url in
                 guard let navigation = AppNavigation(url: url) else { return }
                 navigationRouter.handle(navigation)
             }
         }
+    }
+}
+
+@MainActor
+final class AppDependencies: ObservableObject {
+    let settings: SettingsStore
+    let scanPlanFactory: ScanPlanFactory
+    let scanRepository: ScanRepository
+
+    init(settings: SettingsStore = .shared, scanRepository: ScanRepository = .shared) {
+        self.settings = settings
+        self.scanRepository = scanRepository
+        self.scanPlanFactory = ScanPlanFactory(settings: settings)
+    }
+
+    func prepareForScanning() async {
+        await scanPlanFactory.prepareModelIdentity()
     }
 }
