@@ -50,7 +50,7 @@ extension ScanView {
             plan: plan,
             latitude: gpsSnapshot?.latitude ?? 0,
             longitude: gpsSnapshot?.longitude ?? 0,
-            operations: .production(coordinator: coordinator, repository: appDependencies.scanRepository)
+            operations: appDependencies.finalizationOperations(coordinator: coordinator)
         )
         sessionModel.apply(coordinator.lifecycleSnapshot())
     }

@@ -1,5 +1,22 @@
 import Foundation
 
+private final class ScanHistoryEnumerationFailureBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedDescription: String?
+
+    var description: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedDescription
+    }
+
+    func record(_ error: Error) {
+        lock.lock()
+        storedDescription = error.localizedDescription
+        lock.unlock()
+    }
+}
+
 struct ScanAssessment: Sendable {
     let draft: DraftScan
     let exportRequest: ScanResultExportService.ExportRequest
@@ -87,6 +104,98 @@ final class ScanRepository: @unchecked Sendable {
         }
         let directory = try scansDirectoryOverride ?? LocalFileStorage.directoryURL(folder: fallbackFolder)
         return directory.appendingPathComponent(filename, isDirectory: false)
+    }
+
+    /// Read-only query: a missing archive directory remains missing. Callers
+    /// run this blocking file work through their cancellable background worker.
+    func loadHistoryRecords() -> ScanHistoryLoadResult {
+        let directory = scansDirectoryOverride ?? LocalFileStorage.documentsDirectory()
+            .appendingPathComponent("scans")
+        return Self.readHistoryRecords(
+            at: directory,
+            directoryExists: { FileManager.default.fileExists(atPath: $0) },
+            directoryIterator: { directory in
+                let failureBox = ScanHistoryEnumerationFailureBox()
+                guard let enumerator = FileManager.default.enumerator(
+                    at: directory,
+                    includingPropertiesForKeys: [.fileSizeKey],
+                    options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants],
+                    errorHandler: { _, error in
+                        failureBox.record(error)
+                        return false
+                    }
+                ) else {
+                    return nil
+                }
+                return ScanHistoryDirectoryIterator(
+                    nextURL: { enumerator.nextObject() as? URL },
+                    failureDescription: { failureBox.description }
+                )
+            },
+            recordBuilder: { try? self.summary(at: $0) }
+        )
+    }
+
+    static func readHistoryRecords(
+        at scansDirectory: URL,
+        directoryExists: (String) -> Bool,
+        contentsOfDirectory: (URL) throws -> [URL],
+        recordBuilder: (URL) -> ScanFileRecord?
+    ) -> ScanHistoryLoadResult {
+        readHistoryRecords(
+            at: scansDirectory,
+            directoryExists: directoryExists,
+            directoryIterator: { directory in
+                let files = try contentsOfDirectory(directory)
+                var index = files.startIndex
+                return ScanHistoryDirectoryIterator(
+                    nextURL: {
+                        guard index < files.endIndex else { return nil }
+                        defer { files.formIndex(after: &index) }
+                        return files[index]
+                    },
+                    failureDescription: { nil }
+                )
+            },
+            recordBuilder: recordBuilder
+        )
+    }
+
+    static func readHistoryRecords(
+        at scansDirectory: URL,
+        directoryExists: (String) -> Bool,
+        directoryIterator: (URL) throws -> ScanHistoryDirectoryIterator?,
+        recordBuilder: (URL) -> ScanFileRecord?
+    ) -> ScanHistoryLoadResult {
+        guard directoryExists(scansDirectory.path) else {
+            return .success([])
+        }
+        do {
+            guard let files = try directoryIterator(scansDirectory) else {
+                Log.general.error("Failed to create scan history directory enumerator")
+                return .failure(.directoryUnavailable)
+            }
+            var records: [ScanFileRecord] = []
+            while true {
+                guard !Task.isCancelled else { return .cancelled }
+                guard let file = files.next() else { break }
+                guard file.pathExtension == "ply" else { continue }
+                if let record = autoreleasepool(invoking: { recordBuilder(file) }) {
+                    records.append(record)
+                }
+            }
+            guard !Task.isCancelled else { return .cancelled }
+            if let failureDescription = files.failureDescription() {
+                Log.general.error("Failed to read scan history directory: \(failureDescription)")
+                return .failure(.directoryUnavailable)
+            }
+            records.sort { $0.scanDate > $1.scanDate }
+            guard !Task.isCancelled else { return .cancelled }
+            return .success(records)
+        } catch {
+            Log.general.error("Failed to read scan history directory: \(error.localizedDescription)")
+            return .failure(.directoryUnavailable)
+        }
     }
 
     func withScanTransaction<T>(at sourceURL: URL, operation: () throws -> T) throws -> T {

@@ -8,6 +8,7 @@ struct HistorySheetView: View {
     var onStartScan: (() -> Void)? = nil
     var onRescanTree: ((String) -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
+    @ObservedObject var historyStore = ScanHistoryStore.shared
 
     var body: some View {
         NavigationView {
@@ -17,7 +18,8 @@ struct HistorySheetView: View {
                     customTitle: L10n.History.navigationTitle,
                     onStartScan: onStartScan,
                     onRescanTree: onRescanTree,
-                    onImportFile: onImportFile
+                    onImportFile: onImportFile,
+                    historyStore: historyStore
                 )
             }
             .navigationTitle("")

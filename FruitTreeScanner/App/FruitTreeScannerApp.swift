@@ -30,7 +30,7 @@ struct FruitTreeScannerApp: App {
                             }
                         }
                 case .main:
-                    DashboardView(router: navigationRouter)
+                    DashboardView(router: navigationRouter, historyStore: appDependencies.historyStore)
                         .transition(.opacity)
                 }
             }
@@ -53,14 +53,24 @@ final class AppDependencies: ObservableObject {
     let settings: SettingsStore
     let scanPlanFactory: ScanPlanFactory
     let scanRepository: ScanRepository
+    let historyStore: ScanHistoryStore
 
     init(settings: SettingsStore = .shared, scanRepository: ScanRepository = .shared) {
         self.settings = settings
         self.scanRepository = scanRepository
+        self.historyStore = ScanHistoryStore(repository: scanRepository)
         self.scanPlanFactory = ScanPlanFactory(settings: settings)
     }
 
     func prepareForScanning() async {
         await scanPlanFactory.prepareModelIdentity()
+    }
+
+    func finalizationOperations(coordinator: ScanCoordinator) -> ScanFinalizationOperations {
+        .production(
+            coordinator: coordinator,
+            repository: scanRepository,
+            refreshHistory: { [historyStore] in historyStore.notifyRecordsUpdated() }
+        )
     }
 }
