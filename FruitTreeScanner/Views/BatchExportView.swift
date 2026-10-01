@@ -68,6 +68,7 @@ struct BatchExportView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .share(let url):

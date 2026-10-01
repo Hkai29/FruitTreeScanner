@@ -3246,6 +3246,70 @@ final class BatchExportPrimaryButtonLocalizationTests: XCTestCase {
 }
 
 final class BatchExportNavigationChromeLocalizationTests: XCTestCase {
+    @MainActor
+    func testBatchExportGroupingUsesDarkAppearanceWhenSystemIsLight() async throws {
+        let record = ScanFileRecord(
+            id: "appearance-record",
+            treeID: "APPEARANCE",
+            fileURL: URL(fileURLWithPath: "/tmp/appearance-record.ply"),
+            scanDate: Date(timeIntervalSince1970: 1_700_000_000),
+            fruitCount: 12,
+            yieldKg: 3.4
+        )
+        let store = ScanHistoryStore(recordsLoader: { .success([record]) })
+        await store.reloadRecords()
+        let suiteName = "BatchExportAppearanceTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let controller = UIHostingController(rootView:
+            Color.clear.sheet(isPresented: .constant(true)) {
+                BatchExportView(store: store, tagStore: TagStore(defaults: defaults))
+            }
+        )
+        let scene = try XCTUnwrap(
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first { $0.activationState == .foregroundActive }
+        )
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.overrideUserInterfaceStyle = .light
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        defer {
+            controller.presentedViewController?.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+
+        func segmentedControls(in view: UIView) -> [UISegmentedControl] {
+            (view as? UISegmentedControl).map { [$0] } ?? view.subviews.flatMap(segmentedControls)
+        }
+        let sheet = try XCTUnwrap(controller.presentedViewController)
+        let grouping = try XCTUnwrap(segmentedControls(in: sheet.view).first)
+        XCTAssertEqual(grouping.numberOfSegments, 4)
+        XCTAssertEqual(grouping.selectedSegmentIndex, 0)
+        XCTAssertEqual(
+            grouping.traitCollection.userInterfaceStyle, .dark,
+            "System grouping labels must use dark appearance on the fixed dark export surface"
+        )
+
+        var didDraw = false
+        let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            didDraw = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        XCTAssertTrue(didDraw, "The actual export page must render in a foreground scene")
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "BatchExport-LightSystem-Appearance"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testBatchExportNavigationCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [
