@@ -283,24 +283,7 @@ final class ScanHistoryStore: ObservableObject {
     }
 
     nonisolated private static func makeRecord(from url: URL) -> ScanFileRecord? {
-        guard let result = PLYParserHelper.parsePLYFile(at: url) else { return nil }
-        let fileSizeBytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        return ScanFileRecord(
-            id: url.lastPathComponent,
-            treeID: result.treeID,
-            fileURL: url,
-            scanDate: result.scanDate,
-            fruitCount: result.fruitCount,
-            yieldKg: result.yieldKg,
-            gpsLat: result.gpsLat,
-            gpsLon: result.gpsLon,
-            fruitType: result.fruitType,
-            confidence: result.confidence,
-            fileSizeBytes: fileSizeBytes,
-            requiresSourceValidation: true,
-            persistenceState: result.persistenceState,
-            persistenceFailureReason: result.persistenceFailureReason
-        )
+        try? ScanRepository.shared.summary(at: url)
     }
 
     func deleteRecord(_ record: ScanFileRecord) {
@@ -348,70 +331,10 @@ final class ScanHistoryStore: ObservableObject {
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
         removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
     ) -> ScanHistoryRecordDeletionResult {
-        let baseName = record.fileURL.deletingPathExtension().lastPathComponent
-        let companionArtifacts: [(ScanHistoryDeletionArtifact.Kind, URL)] = [
-            (.csv, record.fileURL.deletingPathExtension().appendingPathExtension("csv")),
-            (
-                .resultJSON,
-                record.fileURL.deletingLastPathComponent()
-                    .appendingPathComponent("\(baseName)_result.json")
-            ),
-            (
-                .completionManifest,
-                record.fileURL.deletingLastPathComponent()
-                    .appendingPathComponent("\(baseName)_complete.json")
-            )
-        ]
-        var residualArtifacts: [ScanHistoryDeletionArtifact] = []
-
-        // The history loader discovers records through PLY files. Keep that
-        // anchor until every companion is gone so a partial failure stays visible.
-        for (kind, url) in companionArtifacts where fileExists(url.path) {
-            do {
-                try removeItem(url)
-            } catch {
-                residualArtifacts.append(
-                    ScanHistoryDeletionArtifact(
-                        kind: kind,
-                        url: url,
-                        reason: .removalFailed(error.localizedDescription)
-                    )
-                )
-            }
-        }
-
-        if !residualArtifacts.isEmpty {
-            if fileExists(record.fileURL.path) {
-                residualArtifacts.append(
-                    ScanHistoryDeletionArtifact(
-                        kind: .pointCloud,
-                        url: record.fileURL,
-                        reason: .notAttemptedAfterCompanionFailure
-                    )
-                )
-            }
-            return ScanHistoryRecordDeletionResult(
-                recordID: record.id,
-                residualArtifacts: residualArtifacts
-            )
-        }
-
-        if fileExists(record.fileURL.path) {
-            do {
-                try removeItem(record.fileURL)
-            } catch {
-                residualArtifacts.append(
-                    ScanHistoryDeletionArtifact(
-                        kind: .pointCloud,
-                        url: record.fileURL,
-                        reason: .removalFailed(error.localizedDescription)
-                    )
-                )
-            }
-        }
-        return ScanHistoryRecordDeletionResult(
-            recordID: record.id,
-            residualArtifacts: residualArtifacts
+        ScanRepository.shared.delete(
+            record,
+            fileExists: fileExists,
+            removeItem: removeItem
         )
     }
 

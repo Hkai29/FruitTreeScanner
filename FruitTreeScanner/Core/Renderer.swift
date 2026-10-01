@@ -36,7 +36,18 @@ final class Renderer: NSObject {
     @MainActor
     func applyScanQualitySettings() {
         let settings = RendererScanSettings(store: SettingsStore.shared, particleCapacity: particlesBuffer.count)
-        maxPoints = settings.maxPoints
+        applyScanQualitySettings(settings)
+    }
+
+    @MainActor
+    func applyScanQualitySettings(_ settings: RendererScanSettings, resourceBudget: ScanResourceBudget = .default) {
+        snapshotLock.lock()
+        if snapshotResourceBudget.analysisInputSampleLimit != resourceBudget.analysisInputSampleLimit {
+            fullAnalysisSnapshotSignature = nil
+        }
+        snapshotResourceBudget = resourceBudget
+        snapshotLock.unlock()
+        maxPoints = min(settings.maxPoints, particlesBuffer.count)
         pointCloudUniforms.maxPoints = Int32(maxPoints)
         rgbRadius = settings.rgbRadius
         minDepth = settings.minDepth
@@ -45,6 +56,7 @@ final class Renderer: NSObject {
         confidenceThreshold = settings.confidenceThreshold
         depthEdgeThreshold = settings.depthEdgeThreshold
         minimumStableDepthNeighborCount = settings.minimumStableDepthNeighborCount
+        depthConfiguration = settings.depthConfiguration
     }
 
     // MARK: - 私有属性
@@ -128,6 +140,7 @@ final class Renderer: NSObject {
     public lazy var particlesBuffer: MetalBuffer<ParticleUniforms> = .init(device: device, count: maxPoints, index: kParticleUniforms.rawValue)
     var currentPointIndex = 0
     var currentPointCount = 0
+    var pointBufferRevision: UInt64 = 0
 
     let snapshotLock = NSLock()
     let pointBufferLock = NSLock()
@@ -137,11 +150,20 @@ final class Renderer: NSObject {
     var fullAnalysisSnapshotSignature: RendererSnapshotSignature?
     var lastSnapshotUpdateTime = Date.distantPast
     let baseSnapshotUpdateInterval: TimeInterval = 0.9
-    let liveSnapshotInputSampleLimit = 240_000
+    private var snapshotResourceBudget = ScanResourceBudget.default
+    var liveSnapshotInputSampleLimit: Int {
+        snapshotLock.lock()
+        defer { snapshotLock.unlock() }
+        return snapshotResourceBudget.liveSnapshotSampleLimit
+    }
     /// The final estimation path performs CPU KNN denoising and DBSCAN. Keep
     /// its input bounded on mobile hardware even when capture retains millions
     /// of raw points for display quality.
-    let analysisInputSampleLimit = 120_000
+    var analysisInputSampleLimit: Int {
+        snapshotLock.lock()
+        defer { snapshotLock.unlock() }
+        return snapshotResourceBudget.analysisInputSampleLimit
+    }
 
     // MARK: - 体素网格去重（避免重复扫描）
     var scannedRegions: Set<RendererCameraRegionKey> = []  // 已扫描的区域（相机位置离散化）
@@ -150,6 +172,7 @@ final class Renderer: NSObject {
     var minDepth: Float = 0.5 {
         didSet { pointCloudUniforms.minDepth = minDepth }
     }
+    var depthConfiguration: DepthExperimentConfig = .default
     var maxDepth: Float = 5.0 {
         didSet { pointCloudUniforms.maxDepth = maxDepth }
     }

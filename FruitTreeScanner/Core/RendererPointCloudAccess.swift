@@ -78,22 +78,66 @@ extension Renderer {
         return snapshotPoints
     }
 
-    func makeAnalysisPoints() -> [ColoredPoint] {
-        let analysisVoxelSize = Renderer.finalPointCloudVoxelSizeMeters
-        let signature = currentSnapshotSignature(voxelSize: analysisVoxelSize)
+    /// Builds or reuses the bounded final cloud shared by PLY export and yield
+    /// estimation. A revision check rejects snapshots raced by new GPU writes.
+    func makeFinalPointCloudSnapshot() -> FinalPointCloud? {
+        let buildStart = DispatchTime.now().uptimeNanoseconds
+        let voxelSize = Renderer.finalPointCloudVoxelSizeMeters
+        let sampleLimit = analysisInputSampleLimit
+        let buffer = pointBufferSnapshot()
+        guard buffer.count > 0 else { return nil }
+        let signature = RendererPointCloudSnapshot.makeSignature(
+            pointCount: buffer.count,
+            pointIndex: buffer.index,
+            voxelSize: voxelSize,
+            confidenceThreshold: confidenceThreshold,
+            pointBufferRevision: buffer.revision,
+            analysisInputSampleLimit: sampleLimit
+        )
         if let cachedPoints = cachedAnalysisPoints(for: signature) {
-            return cachedPoints
+            return FinalPointCloud(
+                identity: signature,
+                points: cachedPoints,
+                inputSampleCount: cachedPoints.count,
+                retainedSampleCount: cachedPoints.count,
+                buildDuration: 0,
+                estimatedPeakPayloadBytes: 0
+            )
         }
 
-        let samples = makeFilteredPointSamples(
-            voxelSize: analysisVoxelSize,
-            inputSampleLimit: analysisInputSampleLimit
+        let rawSamples = makeFilteredPointSamples(
+            voxelSize: voxelSize,
+            inputSampleLimit: sampleLimit
         )
-        let denoised = PointCloudDenoiser.statisticalOutlierRemoval(samples: samples)
-        let pts = RendererPointCloudSnapshot.makeColoredPoints(from: denoised)
-        storeSnapshot(points: pts, fullSignature: signature)
+        guard !rawSamples.isEmpty else { return nil }
+        let retainedSamples = PointCloudDenoiser.statisticalOutlierRemoval(samples: rawSamples)
+        guard !retainedSamples.isEmpty else { return nil }
+        let points = RendererPointCloudSnapshot.makeColoredPoints(from: retainedSamples)
+        let afterBuild = pointBufferSnapshot()
+        guard afterBuild.count == buffer.count,
+              afterBuild.index == buffer.index,
+              afterBuild.revision == buffer.revision else {
+            Log.pointCloud.warning("Discarding final point cloud snapshot because the capture buffer changed during sampling")
+            return nil
+        }
 
-        return pts
+        storeSnapshot(points: points, fullSignature: signature)
+        let elapsed = Double(DispatchTime.now().uptimeNanoseconds - buildStart) / 1_000_000_000
+        let estimatedPeakPayloadBytes = rawSamples.count * MemoryLayout<RendererPointSample>.stride
+            + retainedSamples.count * MemoryLayout<RendererPointSample>.stride
+            + points.count * MemoryLayout<ColoredPoint>.stride
+        let finalCloud = FinalPointCloud(
+            identity: signature,
+            points: points,
+            inputSampleCount: rawSamples.count,
+            retainedSampleCount: retainedSamples.count,
+            buildDuration: elapsed,
+            estimatedPeakPayloadBytes: estimatedPeakPayloadBytes
+        )
+        Log.pointCloud.info(
+            "Final point cloud revision \(signature.pointBufferRevision): \(rawSamples.count) sampled → \(retainedSamples.count) retained, estimated transient payload \(estimatedPeakPayloadBytes) bytes, build \(elapsed, format: .fixed(precision: 3))s"
+        )
+        return finalCloud
     }
 
     var exportablePointCountPublic: Int {
@@ -130,7 +174,8 @@ extension Renderer {
             pointCount: pointBuffer.count,
             pointIndex: pointBuffer.index,
             voxelSize: voxelSize ?? snapshotVoxelSize,
-            confidenceThreshold: confidenceThreshold
+            confidenceThreshold: confidenceThreshold,
+            pointBufferRevision: pointBuffer.revision
         )
     }
 

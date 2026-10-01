@@ -114,9 +114,10 @@ extension Renderer {
             confidenceMap: confidenceMap,
             minDepth: minDepth,
             maxDepth: maxDepth,
-            confidenceThreshold: confidenceThreshold
+            confidenceThreshold: confidenceThreshold,
+            configuration: depthConfiguration
         )
-        guard RendererDepthCoverage.acceptsCaptureDepthQuality(depthQuality) else {
+        guard RendererDepthCoverage.acceptsCaptureDepthQuality(depthQuality, configuration: depthConfiguration) else {
             recordCaptureDecision(.rejectedSparseReliableDepth(depthQuality))
             return false
         }
@@ -165,6 +166,7 @@ extension Renderer {
         pointBufferLock.lock()
         currentPointIndex = (currentPointIndex + gridPointsBuffer.count) % maxPoints
         currentPointCount = min(currentPointCount + gridPointsBuffer.count, maxPoints)
+        pointBufferRevision &+= 1
         pointBufferLock.unlock()
         lastCameraTransform = frame.camera.transform
         scannedRegions.insert(RendererDepthCoverage.makeCameraRegionKey(frame: frame))

@@ -11,20 +11,7 @@ import simd
 
 final class ImageDetector: @unchecked Sendable {
 
-    // RGB, depth, and depth-confidence buffers are synchronously copied
-    // (duplicatePixelBuffer) inside enqueueFrame before QueuedFrame is created,
-    // so transferring the frame to detectionQueue does not retain ARKit's
-    // reusable buffers.
-    struct QueuedFrame: @unchecked Sendable {
-        let pixelBuffer: CVPixelBuffer
-        let depthMap: CVPixelBuffer?
-        let depthConfidenceMap: CVPixelBuffer?
-        let depthConfidenceProvenance: DepthConfidenceProvenance
-        let timestamp: TimeInterval
-        let cameraTransform: simd_float4x4
-        let cameraIntrinsics: simd_float3x3
-        let imageSize: CGSize
-    }
+    typealias QueuedFrame = FramePacket
 
     struct SendablePixelBuffer: @unchecked Sendable {
         // CVPixelBuffer 的实际跨队列安全由入队前的深拷贝保证。
@@ -34,6 +21,8 @@ final class ImageDetector: @unchecked Sendable {
     // MARK: - Properties
 
     var config: FruitScanConfig
+    // Protected by lock; copied into FramePacket before leaving the queue gate.
+    var depthConfiguration: DepthExperimentConfig = .default
 
     let detectionQueue = DispatchQueue(label: "com.fruittreescanner.imagedetector", qos: .userInitiated)
     var pendingFrames: [QueuedFrame] = []
@@ -41,6 +30,8 @@ final class ImageDetector: @unchecked Sendable {
     var lastQueuedTimestamp: TimeInterval = 0
     var queueGeneration: Int = 0
     var preparingFrameGeneration: Int?
+    // Waiter state and registration share the frame queue lock.
+    var drainWaiters: [ObjectIdentifier: ImageDetectorQueue.DrainWaiter] = [:]
     let minimumQueueInterval: TimeInterval = 0.45
     let lock = NSLock()
     private let inference = ImageDetectorInference()
@@ -64,11 +55,12 @@ final class ImageDetector: @unchecked Sendable {
         loadCoreMLModel()
     }
 
-    func updateConfig(_ newConfig: FruitScanConfig) {
+    func updateConfig(_ newConfig: FruitScanConfig, depthConfiguration: DepthExperimentConfig = .default) {
         // 配置与诊断阈值在同一把锁内更新，保证推理读取一致快照。
         lock.lock()
         defer { lock.unlock() }
         self.config = newConfig
+        self.depthConfiguration = depthConfiguration
         detectionDebugState.currentThreshold = newConfig.minConfidence
         detectionDebugState.lastUpdatedAt = Date()
     }
@@ -164,13 +156,18 @@ final class ImageDetector: @unchecked Sendable {
 
     // MARK: - Public Methods
 
-    /// Process the queued frames and return detected fruits.
-    /// This method performs detection on a background thread.
+    /// Compatibility facade for callers that still use detection objects.
     func processQueue() async -> [DetectedFruit] {
+        await processObservations().map(DetectedFruit.init(observation:))
+    }
+
+    /// Inference and bounded depth sampling finish before handing checked
+    /// values to the scan coordinator. The frame owns all pixel buffers.
+    func processObservations() async -> [Observation] {
         let framesToProcess = await drainPendingFrames()
         guard !framesToProcess.isEmpty else { return [] }
 
-        var allDetectedFruits: [DetectedFruit] = []
+        var observations: [Observation] = []
 
         for frame in framesToProcess {
             // 检测完成后补回同帧位姿和深度，供融合阶段验证空间证据。
@@ -181,11 +178,10 @@ final class ImageDetector: @unchecked Sendable {
                 imageSize: frame.imageSize,
                 queue: detectionQueue
             )
-            let enriched = ImageDetectorQueue.enrich(fruits, with: frame)
-            allDetectedFruits.append(contentsOf: enriched)
+            observations.append(contentsOf: ImageDetectorQueue.observations(from: fruits, with: frame))
         }
 
-        return allDetectedFruits
+        return observations
     }
 
     func recordCoreMLDetection(

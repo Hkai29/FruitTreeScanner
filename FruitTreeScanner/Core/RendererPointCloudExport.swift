@@ -1,11 +1,26 @@
 import Foundation
 import simd
+import Darwin
+import CryptoKit
 
-struct RendererSnapshotSignature: Equatable {
-    let pointCount: Int
-    let pointIndex: Int
-    let voxelSize: Float
-    let confidenceThreshold: Int
+struct FinalPointCloud: Sendable {
+    let identity: RendererSnapshotSignature
+    let points: [ColoredPoint]
+    let inputSampleCount: Int
+    let retainedSampleCount: Int
+    let buildDuration: TimeInterval
+    let estimatedPeakPayloadBytes: Int
+}
+
+struct StagedPointCloud: Sendable {
+    let draft: DraftScan
+    let pointCloud: FinalPointCloud
+}
+
+enum PointCloudExportError: Error {
+    case rendererUnavailable
+    case gpuDrainTimedOut
+    case emptyPointCloud
 }
 
 struct RendererPointSample {
@@ -31,13 +46,17 @@ enum RendererPointCloudSnapshot {
         pointCount: Int,
         pointIndex: Int,
         voxelSize: Float,
-        confidenceThreshold: Int
+        confidenceThreshold: Int,
+        pointBufferRevision: UInt64 = 0,
+        analysisInputSampleLimit: Int? = nil
     ) -> RendererSnapshotSignature {
         RendererSnapshotSignature(
             pointCount: pointCount,
             pointIndex: pointIndex,
             voxelSize: voxelSize,
-            confidenceThreshold: confidenceThreshold
+            confidenceThreshold: confidenceThreshold,
+            pointBufferRevision: pointBufferRevision,
+            analysisInputSampleLimit: analysisInputSampleLimit
         )
     }
 
@@ -149,8 +168,8 @@ enum RendererPointCloudSnapshot {
 }
 
 enum RendererPLYDataBuilder {
-    static func makeData(
-        samples: [RendererPointSample],
+    static func makeHeader(
+        sampleCount: Int,
         treeID: String,
         scanDate: String,
         gpsLat: Double,
@@ -166,7 +185,7 @@ enum RendererPLYDataBuilder {
             "comment scan_date \(scanDate)",
             "comment gps_lat \(StableDataFormatting.decimal(safeGPSLat, precision: 6))",
             "comment gps_lon \(StableDataFormatting.decimal(safeGPSLon, precision: 6))",
-            "element vertex \(samples.count)",
+            "element vertex \(sampleCount)",
             "property float x",
             "property float y",
             "property float z",
@@ -177,27 +196,42 @@ enum RendererPLYDataBuilder {
             "property list uchar int vertex_indices",
             "end_header"
         ]
+        return Data((headers.joined(separator: "\r\n") + "\r\n").utf8)
+    }
 
-        let header = headers.joined(separator: "\r\n") + "\r\n"
+    static func makeVertexLine(position: SIMD3<Float>, color: SIMD3<Float>) -> Data {
+        let r = Int(color.x * 255.0)
+        let g = Int(color.y * 255.0)
+        let b = Int(color.z * 255.0)
+        let line = [
+            StableDataFormatting.decimal(position.x, precision: 4),
+            StableDataFormatting.decimal(position.y, precision: 4),
+            StableDataFormatting.decimal(position.z, precision: 4),
+            "\(r)",
+            "\(g)",
+            "\(b)"
+        ].joined(separator: " ") + "\r\n"
+        return Data(line.utf8)
+    }
+
+    static func makeData(
+        samples: [RendererPointSample],
+        treeID: String,
+        scanDate: String,
+        gpsLat: Double,
+        gpsLon: Double
+    ) -> Data {
         var data = Data()
-        data.reserveCapacity(header.utf8.count + samples.count * 40)
-        data.append(contentsOf: header.utf8)
-
+        data.reserveCapacity(256 + samples.count * 40)
+        data.append(makeHeader(
+            sampleCount: samples.count,
+            treeID: treeID,
+            scanDate: scanDate,
+            gpsLat: gpsLat,
+            gpsLon: gpsLon
+        ))
         for sample in samples {
-            let position = sample.position
-            let color = sample.color
-            let r = Int(color.x * 255.0)
-            let g = Int(color.y * 255.0)
-            let b = Int(color.z * 255.0)
-            let line = [
-                StableDataFormatting.decimal(position.x, precision: 4),
-                StableDataFormatting.decimal(position.y, precision: 4),
-                StableDataFormatting.decimal(position.z, precision: 4),
-                "\(r)",
-                "\(g)",
-                "\(b)"
-            ].joined(separator: " ") + "\r\n"
-            data.append(contentsOf: line.utf8)
+            data.append(makeVertexLine(position: sample.position, color: sample.color))
         }
 
         return data
@@ -214,6 +248,144 @@ enum RendererPLYDataBuilder {
     }
 }
 
+enum PLYPointCloudWriterError: Error {
+    case invalidDestination
+    case cancelled
+    case systemCall(operation: String, code: Int32)
+}
+
+/// Chunked ASCII PLY publisher. It writes a sibling temporary file and uses
+/// the existing exclusive atomic move primitive so readers see a complete file
+/// and an existing scan cannot be overwritten on a name collision.
+enum PLYPointCloudWriter {
+    static let defaultChunkVertexCount = 1024
+
+    struct Receipt: Sendable {
+        let sourceSHA256: String
+        let fileIdentity: ScanSourceFileIdentity
+    }
+
+    @discardableResult
+    static func write(
+        points: [ColoredPoint],
+        treeID: String,
+        scanDate: String,
+        gpsLat: Double,
+        gpsLon: Double,
+        to destination: URL,
+        chunkVertexCount: Int = defaultChunkVertexCount,
+        isCancelled: () -> Bool = currentTaskIsCancelled
+    ) throws -> Receipt {
+        guard LocalFileStorage.isSafeLeafFilename(destination.lastPathComponent),
+              !destination.lastPathComponent.isEmpty else {
+            throw PLYPointCloudWriterError.invalidDestination
+        }
+        let chunkSize = max(chunkVertexCount, 1)
+        let fileManager = FileManager.default
+        let directory = destination.deletingLastPathComponent()
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let temporary = directory.appendingPathComponent(
+            ".\(destination.lastPathComponent).\(UUID().uuidString).tmp",
+            isDirectory: false
+        )
+        let descriptor = temporary.path.withCString {
+            Darwin.open($0, O_WRONLY | O_CREAT | O_EXCL, mode_t(S_IRUSR | S_IWUSR))
+        }
+        guard descriptor >= 0 else {
+            throw PLYPointCloudWriterError.systemCall(operation: "open", code: errno)
+        }
+
+        var descriptorOpen = true
+        do {
+            try checkCancellation(isCancelled)
+            var hasher = SHA256()
+            let header = RendererPLYDataBuilder.makeHeader(
+                sampleCount: points.count,
+                treeID: treeID,
+                scanDate: scanDate,
+                gpsLat: gpsLat,
+                gpsLon: gpsLon
+            )
+            try writeAll(header, to: descriptor)
+            hasher.update(data: header)
+
+            var start = 0
+            while start < points.count {
+                try checkCancellation(isCancelled)
+                let end = min(start + chunkSize, points.count)
+                var chunk = Data()
+                chunk.reserveCapacity((end - start) * 40)
+                for point in points[start..<end] {
+                    chunk.append(RendererPLYDataBuilder.makeVertexLine(
+                        position: point.pos,
+                        color: SIMD3<Float>(point.r, point.g, point.b)
+                    ))
+                }
+                try writeAll(chunk, to: descriptor)
+                hasher.update(data: chunk)
+                start = end
+            }
+
+            try checkCancellation(isCancelled)
+            guard Darwin.fsync(descriptor) == 0 else {
+                throw PLYPointCloudWriterError.systemCall(operation: "fsync", code: errno)
+            }
+            guard Darwin.close(descriptor) == 0 else {
+                descriptorOpen = false
+                throw PLYPointCloudWriterError.systemCall(operation: "close", code: errno)
+            }
+            descriptorOpen = false
+
+            // Complete every fallible receipt operation before publication.
+            // The exclusive rename preserves this file's identity. Once it
+            // succeeds, even a concurrent cancellation must receive a receipt.
+            let receipt = Receipt(
+                sourceSHA256: hasher.finalize().map { String(format: "%02x", $0) }.joined(),
+                fileIdentity: try ScanSourceFileIdentity.read(at: temporary)
+            )
+            try checkCancellation(isCancelled)
+            try LocalFileStorage.moveItemExclusively(from: temporary, to: destination)
+            return receipt
+        } catch {
+            if descriptorOpen { _ = Darwin.close(descriptor) }
+            try? fileManager.removeItem(at: temporary)
+            throw error
+        }
+    }
+
+    private static func writeAll(_ data: Data, to descriptor: Int32) throws {
+        guard !data.isEmpty else { return }
+        try data.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return }
+            var offset = 0
+            while offset < rawBuffer.count {
+                let written = Darwin.write(
+                    descriptor,
+                    baseAddress.advanced(by: offset),
+                    rawBuffer.count - offset
+                )
+                if written < 0 {
+                    if errno == EINTR { continue }
+                    throw PLYPointCloudWriterError.systemCall(operation: "write", code: errno)
+                }
+                guard written > 0 else {
+                    throw PLYPointCloudWriterError.systemCall(operation: "short write", code: EIO)
+                }
+                offset += written
+            }
+        }
+    }
+
+    private static func checkCancellation(_ isCancelled: () -> Bool) throws {
+        if isCancelled() { throw PLYPointCloudWriterError.cancelled }
+    }
+
+    private static var currentTaskIsCancelled: () -> Bool {
+        { withUnsafeCurrentTask { task in task?.isCancelled ?? false } }
+    }
+}
+
 extension Renderer {
     /// - Parameters:
     ///   - treeID: 树木编号，如 "T001"
@@ -222,50 +394,56 @@ extension Renderer {
     ///   - completion: 保存完成后在主线程回调（成功时 filename 非空）
     func savePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
                         completion: @escaping (String?) -> Void = { _ in }) {
+        stagePointCloud(treeID: treeID, gpsLat: gpsLat, gpsLon: gpsLon) {
+            completion($0?.draft.sourceFilename)
+        }
+    }
+
+    func stagePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
+                         completion: @escaping (StagedPointCloud?) -> Void) {
         Task(priority: .utility) {
-            // `currentPointIndex` advances when work is encoded, not when the
-            // GPU has written the buffer. Drain in-flight rendering first.
-            if !waitForPointCloudWritesToComplete() {
-                Log.pointCloud.error("Timed out waiting for in-flight point cloud writes before export")
-                await MainActor.run {
-                    completion(nil)
-                }
-                return
-            }
-            let rawSamples = makeFilteredPointSamples(
-                voxelSize: Renderer.finalPointCloudVoxelSizeMeters,
-                inputSampleLimit: analysisInputSampleLimit
-            )
-            let pointsCopy = PointCloudDenoiser.statisticalOutlierRemoval(samples: rawSamples)
-            guard !pointsCopy.isEmpty else {
-                await MainActor.run {
-                    completion(nil)
-                }
-                return
-            }
-            let analysisPoints = RendererPointCloudSnapshot.makeColoredPoints(from: pointsCopy)
-            let analysisSignature = currentSnapshotSignature(
-                voxelSize: Renderer.finalPointCloudVoxelSizeMeters
-            )
-            storeSnapshot(points: analysisPoints, fullSignature: analysisSignature)
-
             do {
-                let scanDate = getTimeStr()
-                let data = RendererPLYDataBuilder.makeData(
-                    samples: pointsCopy,
-                    treeID: treeID,
-                    scanDate: scanDate,
-                    gpsLat: gpsLat,
-                    gpsLon: gpsLon
-                )
-
-                let filename = makeTreeFileName(treeID: treeID, lat: gpsLat, lon: gpsLon)
-                try await saveFile(data: data, filename: filename,
-                                   folder: self.currentFolder)
-                await MainActor.run { completion(filename) }
+                let staged = try await stagePointCloud(treeID: treeID, gpsLat: gpsLat, gpsLon: gpsLon)
+                await MainActor.run { completion(staged) }
             } catch {
+                Log.export.error("PLY export failed: \(error.localizedDescription)")
                 await MainActor.run { completion(nil) }
             }
+        }
+    }
+
+    func stagePointCloud(treeID: String, gpsLat: Double, gpsLon: Double,
+                         context: ScanContext? = nil,
+                         repository: ScanRepository = .shared) async throws -> StagedPointCloud {
+        let worker = Task.detached(priority: .utility) { [self] in
+            try Task.checkCancellation()
+            // `currentPointIndex` advances when work is encoded, not when the
+            // GPU has written the buffer. Drain in-flight rendering first.
+            guard waitForPointCloudWritesToComplete() else { throw PointCloudExportError.gpuDrainTimedOut }
+            try Task.checkCancellation()
+            guard let finalPointCloud = makeFinalPointCloudSnapshot(),
+                  !finalPointCloud.points.isEmpty else {
+                throw PointCloudExportError.emptyPointCloud
+            }
+            try Task.checkCancellation()
+            let scanDate = getTimeStr()
+            let filename = makeTreeFileName(treeID: treeID, lat: gpsLat, lon: gpsLon)
+            let destination = try repository.pointCloudDestination(filename: filename, fallbackFolder: currentFolder)
+            let capture = context.map { ScanCaptureIdentity(context: $0, pointCloud: finalPointCloud.identity) }
+            let draft = try repository.stagePointCloud(to: destination, captureIdentity: capture) {
+                try PLYPointCloudWriter.write(
+                    points: finalPointCloud.points, treeID: treeID, scanDate: scanDate,
+                    gpsLat: gpsLat, gpsLon: gpsLon, to: destination
+                )
+            }
+            // No cancellation check after publication: the owner must settle
+            // this receipt even if the UI attempt has already been cancelled.
+            return StagedPointCloud(draft: draft, pointCloud: finalPointCloud)
+        }
+        return try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: {
+            worker.cancel()
         }
     }
 }

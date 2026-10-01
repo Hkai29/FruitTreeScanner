@@ -3,7 +3,6 @@
 
 import Foundation
 import CoreGraphics
-@preconcurrency import CoreVideo
 import simd
 
 // MARK: - 2D IoU 去重
@@ -16,13 +15,13 @@ struct DetectionDeduplicator {
     }
 
     private struct StableDetectionTrack {
-        var representative: DetectedFruit
-        var observations: [DetectedFruit]
+        var representative: Observation
+        var observations: [Observation]
         var observationCount: Int
         var firstTimestamp: TimeInterval
         var lastTimestamp: TimeInterval
 
-        init(seed: DetectedFruit) {
+        init(seed: Observation) {
             representative = seed
             observations = [seed]
             observationCount = 1
@@ -30,7 +29,7 @@ struct DetectionDeduplicator {
             lastTimestamp = seed.timestamp
         }
 
-        mutating func add(_ detection: DetectedFruit) {
+        mutating func add(_ detection: Observation) {
             observations.append(detection)
             observationCount += 1
             firstTimestamp = min(firstTimestamp, detection.timestamp)
@@ -48,7 +47,7 @@ struct DetectionDeduplicator {
             minimumObservations: Int,
             minimumDuration: TimeInterval,
             maxObservations: Int
-        ) -> [DetectedFruit] {
+        ) -> [Observation] {
             let sorted = observations.sorted { $0.timestamp < $1.timestamp }
             let requiredObservations = max(minimumObservations, 1)
             let sampleLimit = max(maxObservations, requiredObservations)
@@ -72,7 +71,7 @@ struct DetectionDeduplicator {
         }
 
         func canAccept(
-            _ detection: DetectedFruit,
+            _ detection: Observation,
             maxGap: TimeInterval,
             centerDistanceThreshold: CGFloat,
             projectedPositions: inout [UUID: SIMD3<Float>]
@@ -97,13 +96,13 @@ struct DetectionDeduplicator {
     }
 
     static func stableDetections(
-        _ detections: [DetectedFruit],
+        observations detections: [Observation],
         minimumObservations: Int = 2,
         minimumConfidence: Float = 0.85,
         timeWindow: TimeInterval = 3.5,
         centerDistanceThreshold: CGFloat = 0.16,
         minimumDuration: TimeInterval = 0.35
-    ) -> [DetectedFruit] {
+    ) -> [Observation] {
         stableTracks(
             detections,
             minimumObservations: minimumObservations,
@@ -116,14 +115,14 @@ struct DetectionDeduplicator {
     }
 
     static func stableEvidenceDetections(
-        _ detections: [DetectedFruit],
+        observations detections: [Observation],
         minimumObservations: Int = 2,
         minimumConfidence: Float = 0.85,
         timeWindow: TimeInterval = 3.5,
         centerDistanceThreshold: CGFloat = 0.16,
         minimumDuration: TimeInterval = 0.35,
         recentOnly: Bool = false
-    ) -> [DetectedFruit] {
+    ) -> [Observation] {
         stableTracks(
             detections,
             minimumObservations: minimumObservations,
@@ -136,14 +135,14 @@ struct DetectionDeduplicator {
     }
 
     static func compactStableEvidenceDetections(
-        _ detections: [DetectedFruit],
+        observations detections: [Observation],
         minimumObservations: Int = 2,
         minimumConfidence: Float = 0.85,
         timeWindow: TimeInterval = 3.5,
         centerDistanceThreshold: CGFloat = 0.16,
         minimumDuration: TimeInterval = 0.35,
         maxObservationsPerTrack: Int? = nil
-    ) -> [DetectedFruit] {
+    ) -> [Observation] {
         let requiredObservations = max(minimumObservations, 1)
         let sampleLimit = max(maxObservationsPerTrack ?? max(requiredObservations, 3), requiredObservations)
         let tracks = stableTracks(
@@ -193,8 +192,8 @@ struct DetectionDeduplicator {
     }
 
     private static func detectionsReferToSameFruit(
-        _ lhs: DetectedFruit,
-        _ rhs: DetectedFruit,
+        _ lhs: Observation,
+        _ rhs: Observation,
         centerDistanceThreshold: CGFloat,
         projectedPositions: inout [UUID: SIMD3<Float>]
     ) -> Bool {
@@ -215,7 +214,7 @@ struct DetectionDeduplicator {
     }
 
     private static func stableTracks(
-        _ detections: [DetectedFruit],
+        _ detections: [Observation],
         minimumObservations: Int,
         minimumConfidence: Float,
         timeWindow: TimeInterval,
@@ -262,7 +261,7 @@ struct DetectionDeduplicator {
     }
 
     static func stableTrackCount(
-        _ detections: [DetectedFruit],
+        observations detections: [Observation],
         minimumObservations: Int = 2,
         minimumConfidence: Float = 0.85,
         timeWindow: TimeInterval = 3.5
@@ -281,16 +280,16 @@ struct DetectionDeduplicator {
     /// 基于 2D 边界框 IoU 去重
     /// 同一果实在连续帧中会被反复检测，边界框高度重叠 → 保留高置信度
     static func deduplicate2D(
-        _ detections: [DetectedFruit],
+        observations detections: [Observation],
         iouThreshold: Float = 0.5,
         centerDistanceThreshold: CGFloat = 0.16,
         timeWindow: TimeInterval = 2.0
-    ) -> [DetectedFruit] {
+    ) -> [Observation] {
         guard !detections.isEmpty else { return [] }
 
         // 按置信度降序排列
         let sorted = detections.sorted { $0.confidence > $1.confidence }
-        var kept: [DetectedFruit] = []
+        var kept: [Observation] = []
         var suppressed = Set<Int>()
         var projectedPositions: [UUID: SIMD3<Float>] = [:]
 
@@ -329,8 +328,8 @@ struct DetectionDeduplicator {
     }
 
     private static func shouldSuppress(
-        _ candidate: DetectedFruit,
-        becauseOf kept: DetectedFruit,
+        _ candidate: Observation,
+        becauseOf kept: Observation,
         iouThreshold: Float,
         centerDistanceThreshold: CGFloat,
         timeWindow: TimeInterval,
@@ -371,8 +370,8 @@ struct DetectionDeduplicator {
     }
 
     private static func spatialRelationshipIn3D(
-        _ lhs: DetectedFruit,
-        _ rhs: DetectedFruit,
+        _ lhs: Observation,
+        _ rhs: Observation,
         projectedPositions: inout [UUID: SIMD3<Float>]
     ) -> DetectionSpatialRelationship {
         guard let lhsPosition = projectedWorldPosition(for: lhs, cache: &projectedPositions),
@@ -395,28 +394,27 @@ struct DetectionDeduplicator {
     }
 
     private static func projectedWorldPosition(
-        for detection: DetectedFruit,
+        for detection: Observation,
         cache: inout [UUID: SIMD3<Float>]
     ) -> SIMD3<Float>? {
         if let cached = cache[detection.id] {
             return cached
         }
 
-        guard detection.hasAlignedDepthContext,
-              let depthMap = detection.depthMap,
-              let cameraIntrinsics = detection.cameraIntrinsics,
-              let cameraTransform = detection.cameraTransform,
-              let imageSize = detection.imageSize else {
+        let observation = detection
+        guard observation.hasAlignedDepthContext,
+              let cameraIntrinsics = observation.cameraIntrinsics,
+              let cameraTransform = observation.cameraTransform,
+              let imageSize = observation.imageSize else {
             return nil
         }
 
-        let position = FusionValidator().projectDetectionTo3DWithValidDepth(
-            detection: detection,
-            depthMap: depthMap,
-            depthConfidenceMap: detection.depthConfidenceMap,
+        let position = ObservationProjection.projectObservationTo3D(
+            detection: observation,
             cameraIntrinsics: cameraIntrinsics,
             cameraTransform: cameraTransform,
-            imageSize: imageSize
+            imageSize: imageSize,
+            fallbackDepth: nil
         )
         guard let position else { return nil }
         guard position.x.isFinite, position.y.isFinite, position.z.isFinite else {
@@ -442,27 +440,6 @@ struct DetectionDeduplicator {
         return min(areaA, areaB) / larger
     }
 
-}
-
-// MARK: - Detection retention
-
-enum DetectionRetentionPolicy {
-    /// Keep a generous window of image-detection frames so long scans cannot
-    /// retain an unbounded number of copied depth maps. Point-cloud capture is
-    /// unaffected; this only bounds RGB/depth evidence held for fusion.
-    static let defaultMaxFrameCount = 360
-
-    static func trimmedByFrameLimit(
-        _ detections: [DetectedFruit],
-        maxFrameCount: Int = defaultMaxFrameCount
-    ) -> [DetectedFruit] {
-        guard maxFrameCount > 0 else { return [] }
-        let frameTimestamps = Array(Set(detections.map(\.timestamp))).sorted()
-        guard frameTimestamps.count > maxFrameCount else { return detections }
-
-        let retainedTimestamps = Set(frameTimestamps.suffix(maxFrameCount))
-        return detections.filter { retainedTimestamps.contains($0.timestamp) }
-    }
 }
 
 // MARK: - 3D 空间去重

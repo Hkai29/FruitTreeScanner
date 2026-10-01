@@ -19,8 +19,35 @@ struct YieldEstimationRequestGate: Sendable {
 }
 
 final class ScanYieldEstimationController {
-    struct Snapshot: @unchecked Sendable {
-        var input: ScanFusionYieldBuilder.Input
+    struct Snapshot: Sendable {
+        let id = UUID()
+        let context: ScanContext?
+        let input: ScanFusionYieldBuilder.Input
+
+        init(context: ScanContext? = nil, input: ScanFusionYieldBuilder.Input) {
+            self.context = context
+            self.input = input
+        }
+    }
+
+    enum PreparationError: Error {
+        case snapshotUnavailable
+    }
+
+    /// The finalization workflow retains this immutable input for retries.
+    /// Cancellation propagates to computation and always has a terminal result.
+    static func estimate(_ evidence: ScanEvidenceSnapshot) async throws -> ScanEstimate {
+        try Task.checkCancellation()
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let (result, _) = await ScanFusionYieldBuilder.build(from: evidence.snapshot.input)
+            try Task.checkCancellation()
+            return ScanEstimate(evidenceIdentity: evidence.identity, result: result)
+        }
+        return try await withTaskCancellationHandler(
+            operation: { try await worker.value },
+            onCancel: { worker.cancel() }
+        )
     }
 
     private var requestGate = YieldEstimationRequestGate()
@@ -49,7 +76,7 @@ final class ScanYieldEstimationController {
                 let input = snapshot.input
                 guard !Task.isCancelled else { return }
 
-                Log.fusion.info("Starting yield estimation: \(input.points.count) points, \(input.savedDetections.count) detections")
+                Log.fusion.info("Starting yield estimation: \(input.points.count) points, \(input.observations.count) detections")
                 let (result, countResult) = await ScanFusionYieldBuilder.build(from: input)
                 guard !Task.isCancelled else { return }
 

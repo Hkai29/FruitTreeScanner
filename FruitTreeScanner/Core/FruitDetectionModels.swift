@@ -1,18 +1,10 @@
 // FruitDetectionModels.swift
-// 图像检测、点云候选和多模态融合共享模型
+// 图像检测的旧缓冲输入与观测值兼容门面
 
 import CoreGraphics
 import Foundation
 @preconcurrency import CoreVideo
 import simd
-
-enum DepthConfidenceProvenance: String, Sendable {
-    case available
-    case unavailable
-    case copyFailed
-
-    static let copyFailureReason = "Depth confidence unavailable because buffer copy failed"
-}
 
 // MARK: - 图像检测结果
 /// A detection and the AR frame data required to place it in world space.
@@ -29,16 +21,54 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
     let cameraTransform: simd_float4x4?
     let cameraIntrinsics: simd_float3x3?
     let imageSize: CGSize?
-    let depthMap: CVPixelBuffer?
-    let depthConfidenceMap: CVPixelBuffer?
+    private let legacyDepthMap: CVPixelBuffer?
+    private let legacyDepthConfidenceMap: CVPixelBuffer?
     let depthConfidenceProvenance: DepthConfidenceProvenance
+    let observation: Observation?
 
     var hasAlignedDepthContext: Bool {
-        depthMap != nil
+        if let observation { return observation.hasAlignedDepthContext }
+        return legacyDepthMap != nil
             && cameraTransform != nil
             && cameraIntrinsics != nil
             && imageSize != nil
             && depthConfidenceProvenance != .copyFailed
+    }
+
+    /// Converts the legacy facade into checked value evidence. Production
+    /// detections already carry an Observation and do not retain pixel buffers.
+    func resolvedObservation(frameID: FrameID = FrameID(), depthConfiguration: DepthExperimentConfig = .default) -> Observation {
+        if let observation { return observation }
+        return Observation.capture(
+            id: id,
+            frameID: frameID,
+            category: category,
+            boundingBox: boundingBox,
+            confidence: confidence,
+            timestamp: timestamp,
+            cameraTransform: cameraTransform,
+            cameraIntrinsics: cameraIntrinsics,
+            imageSize: imageSize,
+            depthMap: legacyDepthMap,
+            depthConfidenceMap: legacyDepthConfidenceMap,
+            depthConfidenceProvenance: depthConfidenceProvenance,
+            depthConfiguration: depthConfiguration
+        )
+    }
+
+    init(observation: Observation) {
+        self.id = observation.id
+        self.category = observation.category
+        self.boundingBox = observation.boundingBox
+        self.confidence = observation.confidence
+        self.timestamp = observation.timestamp
+        self.cameraTransform = observation.cameraTransform
+        self.cameraIntrinsics = observation.cameraIntrinsics
+        self.imageSize = observation.imageSize
+        self.legacyDepthMap = nil
+        self.legacyDepthConfidenceMap = nil
+        self.depthConfidenceProvenance = observation.depthConfidenceProvenance
+        self.observation = observation
     }
 
     init(
@@ -61,182 +91,10 @@ struct DetectedFruit: Identifiable, @unchecked Sendable {
         self.cameraTransform = cameraTransform
         self.cameraIntrinsics = cameraIntrinsics
         self.imageSize = imageSize
-        self.depthMap = depthMap
-        self.depthConfidenceMap = depthConfidenceMap
+        self.legacyDepthMap = depthMap
+        self.legacyDepthConfidenceMap = depthConfidenceMap
         self.depthConfidenceProvenance = depthConfidenceProvenance
             ?? (depthConfidenceMap == nil ? .unavailable : .available)
+        self.observation = nil
     }
-}
-
-// MARK: - 点云聚类候选
-struct FruitCandidate: Identifiable, Sendable {
-    let id: UUID
-    let position: SIMD3<Float>
-    let diameter: Float
-    let sphericity: Float
-    let pointCount: Int
-    let averageColor: SIMD3<Float>
-    let points: [SIMD3<Float>]
-    let sourceCategory: FruitCategory?
-    let depthSupportRatio: Float?
-    let hasPointCloudEvidence: Bool
-
-    init(
-        position: SIMD3<Float>,
-        diameter: Float,
-        sphericity: Float,
-        pointCount: Int,
-        averageColor: SIMD3<Float>,
-        points: [SIMD3<Float>] = [],
-        sourceCategory: FruitCategory? = nil,
-        depthSupportRatio: Float? = nil,
-        hasPointCloudEvidence: Bool? = nil
-    ) {
-        self.id = UUID()
-        self.position = position
-        self.diameter = diameter
-        self.sphericity = sphericity
-        self.pointCount = pointCount
-        self.averageColor = averageColor
-        self.points = points
-        self.sourceCategory = sourceCategory
-        self.depthSupportRatio = depthSupportRatio
-        self.hasPointCloudEvidence = hasPointCloudEvidence ?? (sourceCategory == nil && depthSupportRatio == nil)
-    }
-
-    func isValidFruit(expectedCategory: FruitCategory? = nil) -> Bool {
-        if let expectedCategory, let sourceCategory, sourceCategory != expectedCategory {
-            return false
-        }
-        let threshold = expectedCategory?.sphericityThreshold ?? 0.5
-        let minimumPointCount = sourceCategory != nil && depthSupportRatio != nil ? 3 : 5
-        return sphericity > threshold && pointCount >= minimumPointCount
-    }
-
-    func hasFruitColor() -> Bool {
-        FruitCategory.isFruitColor(averageColor)
-    }
-}
-
-// MARK: - 融合验证结果
-struct ValidatedFruit: Identifiable, Sendable {
-    let id: UUID
-    let category: FruitCategory?
-    let position: SIMD3<Float>
-    let confidence: Float
-    let source: ValidationSource
-    let measuredDiameter: Float?
-    let sourceCandidateIDs: [UUID]
-
-    init(id: UUID = UUID(), category: FruitCategory?, position: SIMD3<Float>, confidence: Float, source: ValidationSource, measuredDiameter: Float? = nil, sourceCandidateIDs: [UUID] = []) {
-        self.id = id
-        self.category = category
-        self.position = position
-        self.confidence = confidence
-        self.source = source
-        self.measuredDiameter = measuredDiameter.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
-        self.sourceCandidateIDs = sourceCandidateIDs
-    }
-}
-
-enum ValidationSource: String, Sendable {
-    case imageOnly = "image_only"
-    case trackedImage = "tracked_image"
-    case cloudOnly = "cloud_only"
-    case fused = "fused"
-
-    var countWeight: Float {
-        switch self {
-        case .fused:
-            return 1.0
-        case .imageOnly:
-            return 0.5
-        case .trackedImage:
-            return 0.75
-        case .cloudOnly:
-            return 0.3
-        }
-    }
-
-    var isImageBased: Bool {
-        switch self {
-        case .imageOnly, .trackedImage, .fused:
-            return true
-        case .cloudOnly:
-            return false
-        }
-    }
-}
-
-// MARK: - 产量结果（用于多模态融合计数）
-struct FruitCountResult: Codable, Sendable {
-    let fruitCounts: [String: Int]
-    let totalCount: Int
-    let validatedFruits: [ValidatedFruitData]
-    let timestamp: Date
-
-    var fruitCountsEnum: [FruitCategory: Int] {
-        var result: [FruitCategory: Int] = [:]
-        for (key, value) in fruitCounts {
-            if let category = FruitCategory(rawValue: key) {
-                result[category] = value
-            }
-        }
-        return result
-    }
-
-    init(fruitCounts: [FruitCategory: Int], validatedFruits: [ValidatedFruit]) {
-        var counts: [String: Int] = [:]
-        for (category, count) in fruitCounts {
-            counts[category.rawValue] = count
-        }
-        self.fruitCounts = counts
-        self.totalCount = fruitCounts.values.reduce(0, +)
-        self.validatedFruits = validatedFruits.map { ValidatedFruitData(from: $0) }
-        self.timestamp = Date()
-    }
-}
-
-// Codable 版本（用于 JSON 序列化）
-struct ValidatedFruitData: Codable, Sendable {
-    let id: String
-    let category: String?
-    let positionX: Float
-    let positionY: Float
-    let positionZ: Float
-    let confidence: Float
-    let source: String
-
-    init(from fruit: ValidatedFruit) {
-        self.id = fruit.id.uuidString
-        self.category = fruit.category?.rawValue
-        self.positionX = fruit.position.x
-        self.positionY = fruit.position.y
-        self.positionZ = fruit.position.z
-        self.confidence = fruit.confidence
-        self.source = fruit.source.rawValue
-    }
-}
-
-// MARK: - 扫描配置
-struct FruitScanConfig: Sendable, Encodable {
-    var imageDetectionInterval: Int = FruitScanExperimentConfig.default.detector.imageDetectionInterval
-    var minConfidence: Float = FruitScanExperimentConfig.default.detector.minConfidence
-    var sizeTolerance: Float = FruitScanExperimentConfig.default.fusion.sizeTolerance
-    var sphericityThreshold: Float = FruitScanExperimentConfig.default.fusion.sphericityThreshold
-    var minimumStableDetectionsForYield: Int = FruitScanExperimentConfig.default.fusion.minimumStableDetections
-    var stableDetectionTimeWindow: TimeInterval = FruitScanExperimentConfig.default.fusion.stableDetectionTimeWindow
-
-    static let `default` = FruitScanConfig()
-}
-
-// MARK: - 聚类配置
-struct ClusterConfig: Sendable, Encodable {
-    var minPoints: Int = FruitScanExperimentConfig.default.clustering.minPoints
-    var minDiameter: Float = FruitScanExperimentConfig.default.clustering.minDiameter
-    var maxDiameter: Float = FruitScanExperimentConfig.default.clustering.maxDiameter
-    var baseEps: Float = FruitScanExperimentConfig.default.clustering.baseEps
-    var sphericityThreshold: Float = FruitScanExperimentConfig.default.clustering.sphericityThreshold
-
-    static let `default` = ClusterConfig()
 }

@@ -21,6 +21,31 @@
 		SCANCOORDHUD001 /* ScanCoordinatorHUDUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */; };
 		SCANYIELDCTRL001 /* ScanYieldEstimationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANYIELDCTRL002 /* ScanYieldEstimationController.swift */; };
 		SCANCONF001 /* ScanSessionConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCONF002 /* ScanSessionConfiguration.swift */; };
+		SCANPLAN001 /* ScanPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANPLAN002 /* ScanPlan.swift */; };
+		SCANFACTORY001 /* ScanPlanFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFACTORY002 /* ScanPlanFactory.swift */; };
+		RENDCAPTURE001 /* RendererScanSettingsCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = RENDCAPTURE002 /* RendererScanSettingsCapture.swift */; };
+		FRUITVARVALUE001 /* FruitVarietyParams.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITVARVALUE002 /* FruitVarietyParams.swift */; };
+		SCANCALVALUE001 /* ScanCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCALVALUE002 /* ScanCalibration.swift */; };
+		SCANFEATURE001 /* ScanFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFEATURE002 /* ScanFeatureModel.swift */; };
+		SCANFINAL001 /* ScanFinalizationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFINAL002 /* ScanFinalizationWorkflow.swift */; };
+		SCANEVIDENCE001 /* ScanEvidenceSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANEVIDENCE002 /* ScanEvidenceSnapshot.swift */; };
+		SCANEVID001 /* ScanEvidenceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANEVID002 /* ScanEvidenceIdentity.swift */; };
+		SCANOBS001 /* Observation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANOBS002 /* Observation.swift */; };
+		OBSNUM001 /* ObservationProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBSNUM002 /* ObservationProjection.swift */; };
+		DEDUPLEG001 /* DetectionDeduplicatorLegacyInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDUPLEG002 /* DetectionDeduplicatorLegacyInput.swift */; };
+		FRUITEVID001 /* FruitEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITEVID002 /* FruitEvidence.swift */; };
+		CANDCOM001 /* CandidateCombiner.swift in Sources */ = {isa = PBXBuildFile; fileRef = CANDCOM002 /* CandidateCombiner.swift */; };
+		OBSRETAIN001 /* DetectionRetentionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBSRETAIN002 /* DetectionRetentionPolicy.swift */; };
+		SCANCONFIG001 /* ScanConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCONFIG002 /* ScanConfiguration.swift */; };
+		DEPTHCAND001 /* DetectionDepthCandidateBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEPTHCAND002 /* DetectionDepthCandidateBuilder.swift */; };
+		OBSCAP001 /* ObservationCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBSCAP002 /* ObservationCapture.swift */; };
+		FUSLEGACY001 /* FusionValidatorLegacyInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSLEGACY002 /* FusionValidatorLegacyInput.swift */; };
+		SCANSESSION001 /* ScanSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANSESSION002 /* ScanSession.swift */; };
+		SCANREPO001 /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANREPO002 /* ScanRepository.swift */; };
+		SCANARCH001 /* ScanArchiveDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANARCH002 /* ScanArchiveDTO.swift */; };
+		SCANRESEARCH001 /* ScanResearchArchiveCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANRESEARCH002 /* ScanResearchArchiveCodec.swift */; };
+		SCANACCESS001 /* ScanArchiveAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANACCESS002 /* ScanArchiveAccess.swift */; };
+		SCANMODELFP001 /* ScanModelFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANMODELFP002 /* ScanModelFingerprint.swift */; };
 		SCANQUALSAMP001 /* ScanQualitySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANQUALSAMP002 /* ScanQualitySampler.swift */; };
 		SCANGUIDHELP001 /* ScanGuidanceHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANGUIDHELP002 /* ScanGuidanceHelper.swift */; };
 		SCANGUIDOVER001 /* ScanGuidanceOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANGUIDOVER002 /* ScanGuidanceOverlay.swift */; };
@@ -102,7 +127,7 @@
 		582D39EDACD586789724BD9D /* MetalBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC6FB757FE2C17F462C0EC /* MetalBuffer.swift */; };
 		60D4C5AFE0DFAE56637E76E4 /* GPSRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */; };
 			67F774B96DE1A898CADC24A9 /* ScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7C3B46C5D77B0D3F5BAA03 /* ScanHistoryView.swift */; };
-				B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */; };
+				B2CD29AD86B41CDD7D8C6B18 /* LegacyYieldEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB9380B7C973C7FBB34C6C /* LegacyYieldEstimator.swift */; };
 				YIELDMODEL001 /* YieldEstimateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = YIELDMODEL002 /* YieldEstimateModels.swift */; };
 				CALREC001 /* CalibrationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALREC002 /* CalibrationRecord.swift */; };
 			CALRECPERSIST001 /* CalibrationRecordPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALRECPERSIST002 /* CalibrationRecordPersistence.swift */; };
@@ -152,7 +177,10 @@
 		DASHSHARED001 /* DashboardSharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHSHARED002 /* DashboardSharedComponents.swift */; };
 		DASHSUMMARY001 /* DashboardSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHSUMMARY002 /* DashboardSummary.swift */; };
 		QUICKSCAN001 /* QuickScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = QUICKSCAN002 /* QuickScanView.swift */; };
-		MODEL279228 /* FruitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL987654321 /* FruitModels.swift */; };
+		MODEL279228 /* FruitCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL987654321 /* FruitCategory.swift */; };
+		CATEGORYVERIFY001 /* FruitCategoryVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = CATEGORYVERIFY002 /* FruitCategoryVerification.swift */; };
+		CATEGORYLABEL001 /* FruitCategoryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = CATEGORYLABEL002 /* FruitCategoryPresentation.swift */; };
+		CATEGORYLEGACY001 /* FruitCategoryVerificationLegacyInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = CATEGORYLEGACY002 /* FruitCategoryVerificationLegacyInput.swift */; };
 		FRUITDETMODEL001 /* FruitDetectionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITDETMODEL002 /* FruitDetectionModels.swift */; };
 		FRUITEXPCONF001 /* FruitScanExperimentConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITEXPCONF002 /* FruitScanExperimentConfig.swift */; };
 		FRUITCOLOR001 /* FruitColorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCOLOR002 /* FruitColorModels.swift */; };
@@ -175,8 +203,9 @@
 		DETDBGSTATE001 /* DetectionDebugState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DETDBGSTATE002 /* DetectionDebugState.swift */; };
 		FUSIONVAL279228 /* FusionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONVAL987654321 /* FusionValidator.swift */; };
 		FUSIONPROJ001 /* FusionValidatorProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONPROJ002 /* FusionValidatorProjection.swift */; };
-		FUSIONMATCH001 /* FusionValidatorMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONMATCH002 /* FusionValidatorMatching.swift */; };
-		FUSIONSVC001 /* FusionValidatorServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONSVC002 /* FusionValidatorServices.swift */; };
+		FUSIONMATCH001 /* FusionCandidateMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONMATCH002 /* FusionCandidateMatcher.swift */; };
+		FUSIONSVC001 /* FusionValidationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONSVC002 /* FusionValidationPolicy.swift */; };
+		FUSIONASSIGN001 /* FusionAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUSIONASSIGN002 /* FusionAssignment.swift */; };
 		FRUITCNT279228 /* FruitCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRUITCNT987654321 /* FruitCounter.swift */; };
 		SETTINGS279228 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGS987654321 /* SettingsStore.swift */; };
 		SETTINGSSUP001 /* SettingsStoreSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSSUP002 /* SettingsStoreSupport.swift */; };
@@ -280,6 +309,8 @@
 			TESTCALPERSIST001 /* CalibrationRecordPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTCALPERSIST002 /* CalibrationRecordPersistenceTests.swift */; };
 			TESTFUSVAL001 /* FusionValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTFUSVAL002 /* FusionValidatorTests.swift */; };
 		TESTFUSYLD001 /* ScanFusionYieldBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTFUSYLD002 /* ScanFusionYieldBuilderTests.swift */; };
+		ABA7920257A14F879AB00001 /* ScanObservationReplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA7920257A14F879AB00002 /* ScanObservationReplayTests.swift */; };
+		CANDCOMTEST001 /* CandidateCombinerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CANDCOMTEST002 /* CandidateCombinerTests.swift */; };
 		TESTDASHSUM001 /* DashboardSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTDASHSUM002 /* DashboardSummaryTests.swift */; };
 		TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTBATCH778899 /* BatchExportServiceTests.swift */; };
 		TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTPCPR778899 /* PointCloudProcessingTests.swift */; };
@@ -316,6 +347,31 @@
 		SCANCOORDHUD002 /* ScanCoordinatorHUDUpdates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoordinatorHUDUpdates.swift; sourceTree = "<group>"; };
 		SCANYIELDCTRL002 /* ScanYieldEstimationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanYieldEstimationController.swift; sourceTree = "<group>"; };
 		SCANCONF002 /* ScanSessionConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSessionConfiguration.swift; sourceTree = "<group>"; };
+		SCANPLAN002 /* ScanPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanPlan.swift; sourceTree = "<group>"; };
+		SCANFACTORY002 /* ScanPlanFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanPlanFactory.swift; sourceTree = "<group>"; };
+		RENDCAPTURE002 /* RendererScanSettingsCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererScanSettingsCapture.swift; sourceTree = "<group>"; };
+		FRUITVARVALUE002 /* FruitVarietyParams.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitVarietyParams.swift; sourceTree = "<group>"; };
+		SCANCALVALUE002 /* ScanCalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCalibration.swift; sourceTree = "<group>"; };
+		SCANFEATURE002 /* ScanFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFeatureModel.swift; sourceTree = "<group>"; };
+		SCANFINAL002 /* ScanFinalizationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFinalizationWorkflow.swift; sourceTree = "<group>"; };
+		SCANEVIDENCE002 /* ScanEvidenceSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanEvidenceSnapshot.swift; sourceTree = "<group>"; };
+		SCANEVID002 /* ScanEvidenceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanEvidenceIdentity.swift; sourceTree = "<group>"; };
+		SCANOBS002 /* Observation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Observation.swift; sourceTree = "<group>"; };
+		OBSNUM002 /* ObservationProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationProjection.swift; sourceTree = "<group>"; };
+		DEDUPLEG002 /* DetectionDeduplicatorLegacyInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDeduplicatorLegacyInput.swift; sourceTree = "<group>"; };
+		FRUITEVID002 /* FruitEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitEvidence.swift; sourceTree = "<group>"; };
+		CANDCOM002 /* CandidateCombiner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateCombiner.swift; sourceTree = "<group>"; };
+		OBSRETAIN002 /* DetectionRetentionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionRetentionPolicy.swift; sourceTree = "<group>"; };
+		SCANCONFIG002 /* ScanConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanConfiguration.swift; sourceTree = "<group>"; };
+		DEPTHCAND002 /* DetectionDepthCandidateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDepthCandidateBuilder.swift; sourceTree = "<group>"; };
+		OBSCAP002 /* ObservationCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationCapture.swift; sourceTree = "<group>"; };
+		FUSLEGACY002 /* FusionValidatorLegacyInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorLegacyInput.swift; sourceTree = "<group>"; };
+		SCANSESSION002 /* ScanSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSession.swift; sourceTree = "<group>"; };
+		SCANREPO002 /* ScanRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepository.swift; sourceTree = "<group>"; };
+		SCANARCH002 /* ScanArchiveDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanArchiveDTO.swift; sourceTree = "<group>"; };
+		SCANRESEARCH002 /* ScanResearchArchiveCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResearchArchiveCodec.swift; sourceTree = "<group>"; };
+		SCANACCESS002 /* ScanArchiveAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanArchiveAccess.swift; sourceTree = "<group>"; };
+		SCANMODELFP002 /* ScanModelFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanModelFingerprint.swift; sourceTree = "<group>"; };
 		SCANQUALSAMP002 /* ScanQualitySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQualitySampler.swift; sourceTree = "<group>"; };
 		SCANGUIDHELP002 /* ScanGuidanceHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanGuidanceHelper.swift; sourceTree = "<group>"; };
 		SCANYIELDHELP002 /* ScanYieldEstimateHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanYieldEstimateHelpers.swift; sourceTree = "<group>"; };
@@ -408,7 +464,7 @@
 		AB1927876412930FC1078524 /* Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Bridging-Header.h"; sourceTree = "<group>"; };
 		LAUNCHV2002 /* LaunchScreenV2.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreenV2.storyboard; sourceTree = "<group>"; };
 		CD9EBAD864179E14E3FA66D1 /* FruitTreeScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitTreeScannerApp.swift; sourceTree = "<group>"; };
-				CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimator.swift; sourceTree = "<group>"; };
+				CDBB9380B7C973C7FBB34C6C /* LegacyYieldEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyYieldEstimator.swift; sourceTree = "<group>"; };
 				YIELDMODEL002 /* YieldEstimateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YieldEstimateModels.swift; sourceTree = "<group>"; };
 				CALREC002 /* CalibrationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecord.swift; sourceTree = "<group>"; };
 			CALRECPERSIST002 /* CalibrationRecordPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecordPersistence.swift; sourceTree = "<group>"; };
@@ -453,7 +509,10 @@
 		DASHSHARED002 /* DashboardSharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSharedComponents.swift; sourceTree = "<group>"; };
 		DASHSUMMARY002 /* DashboardSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSummary.swift; sourceTree = "<group>"; };
 		QUICKSCAN002 /* QuickScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickScanView.swift; sourceTree = "<group>"; };
-		MODEL987654321 /* FruitModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitModels.swift; sourceTree = "<group>"; };
+		MODEL987654321 /* FruitCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCategory.swift; sourceTree = "<group>"; };
+		CATEGORYVERIFY002 /* FruitCategoryVerification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCategoryVerification.swift; sourceTree = "<group>"; };
+		CATEGORYLABEL002 /* FruitCategoryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCategoryPresentation.swift; sourceTree = "<group>"; };
+		CATEGORYLEGACY002 /* FruitCategoryVerificationLegacyInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCategoryVerificationLegacyInput.swift; sourceTree = "<group>"; };
 		FRUITDETMODEL002 /* FruitDetectionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitDetectionModels.swift; sourceTree = "<group>"; };
 		FRUITEXPCONF002 /* FruitScanExperimentConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitScanExperimentConfig.swift; sourceTree = "<group>"; };
 		FRUITCOLOR002 /* FruitColorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitColorModels.swift; sourceTree = "<group>"; };
@@ -476,8 +535,9 @@
 		DETDBGSTATE002 /* DetectionDebugState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionDebugState.swift; sourceTree = "<group>"; };
 		FUSIONVAL987654321 /* FusionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidator.swift; sourceTree = "<group>"; };
 		FUSIONPROJ002 /* FusionValidatorProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorProjection.swift; sourceTree = "<group>"; };
-		FUSIONMATCH002 /* FusionValidatorMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorMatching.swift; sourceTree = "<group>"; };
-		FUSIONSVC002 /* FusionValidatorServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorServices.swift; sourceTree = "<group>"; };
+		FUSIONMATCH002 /* FusionCandidateMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionCandidateMatcher.swift; sourceTree = "<group>"; };
+		FUSIONSVC002 /* FusionValidationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidationPolicy.swift; sourceTree = "<group>"; };
+		FUSIONASSIGN002 /* FusionAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionAssignment.swift; sourceTree = "<group>"; };
 		FRUITCNT987654321 /* FruitCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FruitCounter.swift; sourceTree = "<group>"; };
 		SETTINGS987654321 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		SETTINGSSUP002 /* SettingsStoreSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreSupport.swift; sourceTree = "<group>"; };
@@ -581,6 +641,8 @@
 			TESTCALPERSIST002 /* CalibrationRecordPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationRecordPersistenceTests.swift; sourceTree = "<group>"; };
 			TESTFUSVAL002 /* FusionValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusionValidatorTests.swift; sourceTree = "<group>"; };
 		TESTFUSYLD002 /* ScanFusionYieldBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFusionYieldBuilderTests.swift; sourceTree = "<group>"; };
+		ABA7920257A14F879AB00002 /* ScanObservationReplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanObservationReplayTests.swift; sourceTree = "<group>"; };
+		CANDCOMTEST002 /* CandidateCombinerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateCombinerTests.swift; sourceTree = "<group>"; };
 		TESTDASHSUM002 /* DashboardSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSummaryTests.swift; sourceTree = "<group>"; };
 		TESTBATCH778899 /* BatchExportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportServiceTests.swift; sourceTree = "<group>"; };
 		TESTPCPR778899 /* PointCloudProcessingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudProcessingTests.swift; sourceTree = "<group>"; };
@@ -613,6 +675,9 @@
 					LAUNCHV2002 /* LaunchScreenV2.storyboard */,
 					LOCALSTR0003 /* Localizable.strings */,
 				A6914CF85AB6C624A347CE78 /* App */,
+				ARCHAPPLICATION001 /* Application */,
+				ARCHDOMAIN001 /* Domain */,
+				ARCHINFRA001 /* Infrastructure */,
 				BF8DCD53FFDD11E7060F4A69 /* Core */,
 				DD98D30826CA1066D0905621 /* Design */,
 				COMPONENTS001122 /* Components */,
@@ -621,6 +686,96 @@
 				77FCC2F2178481AB923AC132 /* Views */,
 			);
 			path = FruitTreeScanner;
+			sourceTree = "<group>";
+		};
+		ARCHAPPLICATION001 /* Application */ = {
+			isa = PBXGroup;
+			children = (
+				SCANFACTORY002 /* ScanPlanFactory.swift */,
+				RENDCAPTURE002 /* RendererScanSettingsCapture.swift */,
+				SCANFINAL002 /* ScanFinalizationWorkflow.swift */,
+				SCANEVIDENCE002 /* ScanEvidenceSnapshot.swift */,
+			);
+			path = Application;
+			sourceTree = "<group>";
+		};
+		ARCHDOMAIN001 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				ARCHFUSION001 /* Fusion */,
+				SCANPLAN002 /* ScanPlan.swift */,
+				SCANSESSION002 /* ScanSession.swift */,
+				SCANEVID002 /* ScanEvidenceIdentity.swift */,
+				SCANOBS002 /* Observation.swift */,
+				OBSRETAIN002 /* DetectionRetentionPolicy.swift */,
+				SCANCONFIG002 /* ScanConfiguration.swift */,
+				RENDSETTINGS002 /* RendererScanSettings.swift */,
+				FRUITVARVALUE002 /* FruitVarietyParams.swift */,
+				SCANCALVALUE002 /* ScanCalibration.swift */,
+				MODEL987654321 /* FruitCategory.swift */,
+				CATEGORYVERIFY002 /* FruitCategoryVerification.swift */,
+				FRUITEXPCONF002 /* FruitScanExperimentConfig.swift */,
+				FRUITCOLOR002 /* FruitColorModels.swift */,
+				YIELDMODEL002 /* YieldEstimateModels.swift */,
+				FRUITMASS002 /* FruitMassEstimate.swift */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		ARCHINFRA001 /* Infrastructure */ = {
+			isa = PBXGroup;
+			children = (
+				ARCHDETECTION001 /* Detection */,
+				ARCHCONFIG001 /* Configuration */,
+				ARCHPERSIST001 /* Persistence */,
+			);
+			path = Infrastructure;
+			sourceTree = "<group>";
+		};
+		ARCHFUSION001 /* Fusion */ = {
+			isa = PBXGroup;
+			children = (
+				OBSNUM002 /* ObservationProjection.swift */,
+				DEDUP22334455 /* DetectionDeduplicator.swift */,
+				FRUITEVID002 /* FruitEvidence.swift */,
+				CANDCOM002 /* CandidateCombiner.swift */,
+				FUSIONMATCH002 /* FusionCandidateMatcher.swift */,
+				FUSIONSVC002 /* FusionValidationPolicy.swift */,
+				FUSIONASSIGN002 /* FusionAssignment.swift */,
+				DEPTHCAND002 /* DetectionDepthCandidateBuilder.swift */,
+				IMGCOORD002 /* ImageCameraCoordinateSpace.swift */,
+			);
+			path = Fusion;
+			sourceTree = "<group>";
+		};
+		ARCHDETECTION001 /* Detection */ = {
+			isa = PBXGroup;
+			children = (
+				OBSCAP002 /* ObservationCapture.swift */,
+				FUSLEGACY002 /* FusionValidatorLegacyInput.swift */,
+				DEDUPLEG002 /* DetectionDeduplicatorLegacyInput.swift */,
+				CATEGORYLEGACY002 /* FruitCategoryVerificationLegacyInput.swift */,
+			);
+			path = Detection;
+			sourceTree = "<group>";
+		};
+		ARCHCONFIG001 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				SCANMODELFP002 /* ScanModelFingerprint.swift */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
+		ARCHPERSIST001 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				SCANREPO002 /* ScanRepository.swift */,
+				SCANARCH002 /* ScanArchiveDTO.swift */,
+				SCANRESEARCH002 /* ScanResearchArchiveCodec.swift */,
+				SCANACCESS002 /* ScanArchiveAccess.swift */,
+			);
+			path = Persistence;
 			sourceTree = "<group>";
 		};
 		27C890A81655BD147E0CEE77 = {
@@ -638,6 +793,7 @@
 				TESTPCCL778899 /* PointCloudClusterTests.swift */,
 				TESTOCCL778899 /* OcclusionCorrectorTests.swift */,
 				TESTYIELD778899 /* YieldEstimatorTests.swift */,
+				CDBB9380B7C973C7FBB34C6C /* LegacyYieldEstimator.swift */,
 				TESTSCANDIAG002 /* ScanDiagnosticsBuilderTests.swift */,
 				TESTSCANEXPORTREADY002 /* ScanExportReadinessTests.swift */,
 					TESTSCANREADY002 /* ScanReadinessTests.swift */,
@@ -647,6 +803,8 @@
 				TESTMODEL778899 /* FruitModelsTests.swift */,
 				TESTFUSVAL002 /* FusionValidatorTests.swift */,
 				TESTFUSYLD002 /* ScanFusionYieldBuilderTests.swift */,
+				ABA7920257A14F879AB00002 /* ScanObservationReplayTests.swift */,
+				CANDCOMTEST002 /* CandidateCombinerTests.swift */,
 				TESTDASHSUM002 /* DashboardSummaryTests.swift */,
 				TESTBATCH778899 /* BatchExportServiceTests.swift */,
 				TESTPCPR778899 /* PointCloudProcessingTests.swift */,
@@ -661,6 +819,7 @@
 		77FCC2F2178481AB923AC132 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				SCANFEATURE002 /* ScanFeatureModel.swift */,
 				3B98D430D628A279343A437A /* LaunchScreen.swift */,
 				115AA07F0ADF20776A78BADD /* ResultView.swift */,
 				RESULTFRUIT002 /* FruitVolumeResultSection.swift */,
@@ -845,9 +1004,7 @@
 				RENDPCEXP002 /* RendererPointCloudExport.swift */,
 				RENDPCACC002 /* RendererPointCloudAccess.swift */,
 				RENDDEPTH002 /* RendererDepthCoverage.swift */,
-				IMGCOORD002 /* ImageCameraCoordinateSpace.swift */,
 				RENDPROG002 /* RendererScanProgress.swift */,
-				RENDSETTINGS002 /* RendererScanSettings.swift */,
 				D20D286AA15B66451D7E4867 /* Shaders.metal */,
 				3211BC7EF92CF0073528A047 /* ShaderTypes.h */,
 				L10N00000002 /* L10n.swift */,
@@ -859,16 +1016,12 @@
 				SHEETSAFE002 /* SpreadsheetTextSafety.swift */,
 				PIXELCOPY002 /* PixelBufferCopy.swift */,
 					SIMDCOMPAT002 /* SIMDCompatibility.swift */,
-						CDBB9380B7C973C7FBB34C6C /* YieldEstimator.swift */,
-						YIELDMODEL002 /* YieldEstimateModels.swift */,
 						CALREC002 /* CalibrationRecord.swift */,
 					CALRECPERSIST002 /* CalibrationRecordPersistence.swift */,
 					CALINPUT002 /* CalibrationRecordInputParser.swift */,
 					PCDISPLAY002 /* PointCloudDisplayModels.swift */,
-				MODEL987654321 /* FruitModels.swift */,
+				CATEGORYLABEL002 /* FruitCategoryPresentation.swift */,
 				FRUITDETMODEL002 /* FruitDetectionModels.swift */,
-				FRUITEXPCONF002 /* FruitScanExperimentConfig.swift */,
-				FRUITCOLOR002 /* FruitColorModels.swift */,
 				FRUITMAP002 /* FruitModelMappings.swift */,
 				SCANHIST987654321 /* ScanHistoryStore.swift */,
 				VOXELTREND002 /* VoxelDiscoveryTrend.swift */,
@@ -891,7 +1044,6 @@
 				YIELDCOMP002 /* YieldResultComposer.swift */,
 				SCANRESULTEXP002 /* ScanResultExportService.swift */,
 				CANOPYGEOM002 /* CanopyGeometryEstimator.swift */,
-				FRUITMASS002 /* FruitMassEstimate.swift */,
 				FRUITGEOM002 /* SimpleFruitGeometryEstimator.swift */,
 				FRUITGEOMCAT002 /* SimpleFruitGeometryCategories.swift */,
 				FRUITGEOMMET002 /* SimpleFruitGeometryMetrics.swift */,
@@ -915,8 +1067,6 @@
 				DETDBGSTATE002 /* DetectionDebugState.swift */,
 				FUSIONVAL987654321 /* FusionValidator.swift */,
 				FUSIONPROJ002 /* FusionValidatorProjection.swift */,
-				FUSIONMATCH002 /* FusionValidatorMatching.swift */,
-				FUSIONSVC002 /* FusionValidatorServices.swift */,
 				FRUITCNT987654321 /* FruitCounter.swift */,
 				SETTINGS987654321 /* SettingsStore.swift */,
 				SETTINGSSUP002 /* SettingsStoreSupport.swift */,
@@ -932,7 +1082,6 @@
 				TAGMODELS002 /* TagModels.swift */,
 				USERCODABLE002 /* UserDefaultsCodableStorage.swift */,
 				TAGSTORE77889900 /* TagStore.swift */,
-				DEDUP22334455 /* DetectionDeduplicator.swift */,
 				OCCLCORR778899 /* OcclusionCorrector.swift */,
 				SCANQUAL778899 /* ScanQualityMonitor.swift */,
 				FVARIETYP001122 /* FruitParametersStore.swift */,
@@ -1141,7 +1290,6 @@
 				SHEETSAFE001 /* SpreadsheetTextSafety.swift in Sources */,
 				PIXELCOPY001 /* PixelBufferCopy.swift in Sources */,
 					SIMDCOMPAT001 /* SIMDCompatibility.swift in Sources */,
-						B2CD29AD86B41CDD7D8C6B18 /* YieldEstimator.swift in Sources */,
 						YIELDMODEL001 /* YieldEstimateModels.swift in Sources */,
 						CALREC001 /* CalibrationRecord.swift in Sources */,
 					CALRECPERSIST001 /* CalibrationRecordPersistence.swift in Sources */,
@@ -1184,7 +1332,10 @@
 				DASHSHARED001 /* DashboardSharedComponents.swift in Sources */,
 				DASHSUMMARY001 /* DashboardSummary.swift in Sources */,
 				QUICKSCAN001 /* QuickScanView.swift in Sources */,
-				MODEL279228 /* FruitModels.swift in Sources */,
+				MODEL279228 /* FruitCategory.swift in Sources */,
+				CATEGORYVERIFY001 /* FruitCategoryVerification.swift in Sources */,
+				CATEGORYLABEL001 /* FruitCategoryPresentation.swift in Sources */,
+				CATEGORYLEGACY001 /* FruitCategoryVerificationLegacyInput.swift in Sources */,
 				FRUITDETMODEL001 /* FruitDetectionModels.swift in Sources */,
 				FRUITEXPCONF001 /* FruitScanExperimentConfig.swift in Sources */,
 				FRUITCOLOR001 /* FruitColorModels.swift in Sources */,
@@ -1201,6 +1352,31 @@
 				SCANCOORDHUD001 /* ScanCoordinatorHUDUpdates.swift in Sources */,
 				SCANYIELDCTRL001 /* ScanYieldEstimationController.swift in Sources */,
 				SCANCONF001 /* ScanSessionConfiguration.swift in Sources */,
+				SCANPLAN001 /* ScanPlan.swift in Sources */,
+				SCANFACTORY001 /* ScanPlanFactory.swift in Sources */,
+				RENDCAPTURE001 /* RendererScanSettingsCapture.swift in Sources */,
+				FRUITVARVALUE001 /* FruitVarietyParams.swift in Sources */,
+				SCANCALVALUE001 /* ScanCalibration.swift in Sources */,
+				SCANFEATURE001 /* ScanFeatureModel.swift in Sources */,
+				SCANFINAL001 /* ScanFinalizationWorkflow.swift in Sources */,
+				SCANEVIDENCE001 /* ScanEvidenceSnapshot.swift in Sources */,
+				SCANEVID001 /* ScanEvidenceIdentity.swift in Sources */,
+				SCANOBS001 /* Observation.swift in Sources */,
+				OBSNUM001 /* ObservationProjection.swift in Sources */,
+				DEDUPLEG001 /* DetectionDeduplicatorLegacyInput.swift in Sources */,
+				FRUITEVID001 /* FruitEvidence.swift in Sources */,
+				CANDCOM001 /* CandidateCombiner.swift in Sources */,
+				OBSRETAIN001 /* DetectionRetentionPolicy.swift in Sources */,
+				SCANCONFIG001 /* ScanConfiguration.swift in Sources */,
+				DEPTHCAND001 /* DetectionDepthCandidateBuilder.swift in Sources */,
+				OBSCAP001 /* ObservationCapture.swift in Sources */,
+				FUSLEGACY001 /* FusionValidatorLegacyInput.swift in Sources */,
+				SCANSESSION001 /* ScanSession.swift in Sources */,
+				SCANREPO001 /* ScanRepository.swift in Sources */,
+				SCANARCH001 /* ScanArchiveDTO.swift in Sources */,
+				SCANRESEARCH001 /* ScanResearchArchiveCodec.swift in Sources */,
+				SCANACCESS001 /* ScanArchiveAccess.swift in Sources */,
+				SCANMODELFP001 /* ScanModelFingerprint.swift in Sources */,
 				SCANQUALSAMP001 /* ScanQualitySampler.swift in Sources */,
 				SCANGUIDHELP001 /* ScanGuidanceHelper.swift in Sources */,
 				SCANGUIDOVER001 /* ScanGuidanceOverlay.swift in Sources */,
@@ -1236,8 +1412,9 @@
 				DETDBGSTATE001 /* DetectionDebugState.swift in Sources */,
 				FUSIONVAL279228 /* FusionValidator.swift in Sources */,
 				FUSIONPROJ001 /* FusionValidatorProjection.swift in Sources */,
-				FUSIONMATCH001 /* FusionValidatorMatching.swift in Sources */,
-				FUSIONSVC001 /* FusionValidatorServices.swift in Sources */,
+				FUSIONMATCH001 /* FusionCandidateMatcher.swift in Sources */,
+				FUSIONSVC001 /* FusionValidationPolicy.swift in Sources */,
+				FUSIONASSIGN001 /* FusionAssignment.swift in Sources */,
 				FRUITCNT279228 /* FruitCounter.swift in Sources */,
 				SETTINGS279228 /* SettingsStore.swift in Sources */,
 				SETTINGSSUP001 /* SettingsStoreSupport.swift in Sources */,
@@ -1340,6 +1517,7 @@
 				TESTPCCL001122 /* PointCloudClusterTests.swift in Sources */,
 				TESTOCCL001122 /* OcclusionCorrectorTests.swift in Sources */,
 				TESTYIELD001122 /* YieldEstimatorTests.swift in Sources */,
+				B2CD29AD86B41CDD7D8C6B18 /* LegacyYieldEstimator.swift in Sources */,
 				TESTDEDUP001122 /* DetectionDeduplicatorTests.swift in Sources */,
 				TESTMODEL001122 /* FruitModelsTests.swift in Sources */,
 				TESTSCANDIAG001 /* ScanDiagnosticsBuilderTests.swift in Sources */,
@@ -1349,6 +1527,8 @@
 					TESTCALPERSIST001 /* CalibrationRecordPersistenceTests.swift in Sources */,
 					TESTFUSVAL001 /* FusionValidatorTests.swift in Sources */,
 				TESTFUSYLD001 /* ScanFusionYieldBuilderTests.swift in Sources */,
+				ABA7920257A14F879AB00001 /* ScanObservationReplayTests.swift in Sources */,
+				CANDCOMTEST001 /* CandidateCombinerTests.swift in Sources */,
 				TESTDASHSUM001 /* DashboardSummaryTests.swift in Sources */,
 				TESTBATCH001122 /* BatchExportServiceTests.swift in Sources */,
 				TESTPCPR001122 /* PointCloudProcessingTests.swift in Sources */,

@@ -6,7 +6,8 @@ final class YieldEstimatorTests: XCTestCase {
     func testCalibrationContextTracksParametersAndModelNotRandomIDs() throws {
         let params = FruitVarietyParams(category: .apple)
         func context(_ value: FruitVarietyParams, model: String = "model-A") throws -> String {
-            try XCTUnwrap(YieldCalibrationContext.make(parameters: ["apple": value], cluster: .default, fusion: .default, color: nil, modelFingerprint: model))
+            try XCTUnwrap(YieldCalibrationContext.make(parameters: ["apple": value], cluster: .default, fusion: .default,
+                color: nil, modelFingerprint: model, legacyFusionSphericityThreshold: YieldCalibrationContext.legacyDefaultFusionSphericityThreshold))
         }
         let original = try context(params)
         XCTAssertEqual(original, try context(FruitVarietyParams(category: .apple)))
@@ -79,6 +80,61 @@ final class YieldEstimatorTests: XCTestCase {
         XCTAssertTrue(result.massEstimates.isEmpty)
         XCTAssertEqual(result.meanDiameterCm, 0)
         XCTAssertEqual(quality.confidence, "manual_review")
+    }
+
+    func testUnavailableBoundGeometryDoesNotBorrowNearbyCandidateMass() {
+        let nearbyApple = FruitCandidate(position: .zero, diameter: 0.06, sphericity: 0.9,
+                                          pointCount: 40, averageColor: .zero, sourceCategory: .apple)
+        let wrongCategory = FruitCandidate(position: .zero, diameter: 0.10, sphericity: 0.9,
+                                           pointCount: 40, averageColor: .zero, sourceCategory: .pear)
+        let fruits = [UUID(), wrongCategory.id].map { id in
+            ValidatedFruit(category: .apple, position: .zero, confidence: 0.5,
+                           source: .fused, sourceCandidateIDs: [id])
+        }
+        var params = FruitVarietyParams(category: .apple)
+        params.averageWeightG = 400
+        let estimate = ScanYieldEstimateHelpers.computeYieldFromValidatedFruits(
+            fruits, candidates: [nearbyApple, wrongCategory], paramsByCategory: ["apple": params], defaultParams: params)
+        XCTAssertTrue(estimate.massEstimates.isEmpty)
+        XCTAssertEqual(estimate.fallbackFruitCount, 2)
+        XCTAssertEqual(estimate.yieldKg, 0.4, accuracy: 0.000001)
+        XCTAssertEqual(estimate.meanDiameterCm, 0)
+    }
+
+    func testBoundGeometryIsConsumedOnceBeforeLegacySpatialAssociation() throws {
+        let small = FruitCandidate(position: .zero, diameter: 0.06, sphericity: 0.9,
+                                   pointCount: 40, averageColor: .zero, sourceCategory: .apple)
+        let large = FruitCandidate(position: SIMD3<Float>(0.05, 0, 0), diameter: 0.10, sphericity: 0.9,
+                                   pointCount: 40, averageColor: .zero, sourceCategory: .apple)
+        func fruit(_ ordinal: Int, confidence: Float, sources: [UUID]) -> ValidatedFruit {
+            ValidatedFruit(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", ordinal))!,
+                           category: .apple, position: .zero, confidence: confidence,
+                           source: .fused, sourceCandidateIDs: sources)
+        }
+        let legacy = fruit(1, confidence: 0.25, sources: [])
+        let firstBound = fruit(2, confidence: 0.5, sources: [small.id, small.id])
+        let secondBound = fruit(3, confidence: 0.75, sources: [small.id])
+        var params = FruitVarietyParams(category: .apple)
+        params.density = 1
+        params.averageWeightG = 400
+        for fruits in [[legacy, secondBound, firstBound], [firstBound, secondBound, legacy]] {
+            for candidates in [[small, large, small], [large, small, small]] {
+                let estimate = ScanYieldEstimateHelpers.computeYieldFromValidatedFruits(
+                    fruits, candidates: candidates, paramsByCategory: ["apple": params], defaultParams: params)
+                XCTAssertEqual(estimate.massEstimates.count, 2)
+                XCTAssertEqual(estimate.fallbackFruitCount, 1)
+                // Small: pi/6 * 6^3 g at .5; large: pi/6 * 10^3 g at .25;
+                // the exhausted explicit association falls back to 400 g at .75.
+                XCTAssertEqual(estimate.yieldKg, 0.48744836, accuracy: 0.000001)
+                let masses = estimate.massEstimates.sorted { $0.equivalentDiameterCm < $1.equivalentDiameterCm }
+                let smallMass = try XCTUnwrap(masses.first)
+                let largeMass = try XCTUnwrap(masses.last)
+                XCTAssertEqual(smallMass.equivalentDiameterCm, 6, accuracy: 0.00001)
+                XCTAssertEqual(smallMass.highConfidenceRatio, 0.5)
+                XCTAssertEqual(largeMass.equivalentDiameterCm, 10, accuracy: 0.00001)
+                XCTAssertEqual(largeMass.highConfidenceRatio, 0.25)
+            }
+        }
     }
 
     func testDeepAuditPearMassChangesUnderRigidRotation() {

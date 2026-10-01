@@ -125,6 +125,101 @@ final class DetectionDeduplicatorTests: XCTestCase {
     func testDeduplicate2DEmpty() {
         let result = DetectionDeduplicator.deduplicate2D([])
         XCTAssertTrue(result.isEmpty)
+        XCTAssertTrue(DetectionDeduplicator.deduplicate2D(observations: []).isEmpty)
+    }
+
+    func testObservationStableEvidencePreservesFrameIdentityAndRecentWindow() {
+        let detections = [10.0, 10.6, 30.0, 30.6].enumerated().map { index, time in
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: index < 2 ? 0.2 : 0.6, y: 0.3, width: 0.1, height: 0.1),
+                confidence: index.isMultiple(of: 2) ? 0.91 : 0.96,
+                timestamp: time
+            )
+        }
+        let observations = detections.map { $0.resolvedObservation(frameID: FrameID()) }
+        let all = DetectionDeduplicator.stableEvidenceDetections(observations: observations)
+        XCTAssertEqual(all.map(\.id), observations.map(\.id))
+        XCTAssertEqual(all.map(\.frameID), observations.map(\.frameID))
+        XCTAssertEqual(all.map(\.rejectionReasons), observations.map(\.rejectionReasons))
+        XCTAssertEqual(
+            DetectionDeduplicator.stableDetections(observations: observations).map(\.id),
+            [observations[1].id, observations[3].id]
+        )
+        XCTAssertEqual(
+            DetectionDeduplicator.stableEvidenceDetections(observations: observations, recentOnly: true).map(\.id),
+            [observations[2].id, observations[3].id]
+        )
+        XCTAssertEqual(DetectionDeduplicator.stableTrackCount(observations: observations), 1)
+    }
+
+    func testObservationCompactionKeepsDurationAndDistinctFruitWithinSampleLimit() {
+        // The first pair is too brief. A later visit to the same box must not
+        // expand the archive; the spatially distinct fruit must remain present.
+        let times = [0.0, 0.1, 0.6, 0.7, 1.2, 20.0, 20.7, 25.0, 25.7]
+        let detections = times.enumerated().map { index, time in
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: index < 7 ? 0.2 : 0.7, y: 0.3, width: 0.1, height: 0.1),
+                confidence: 0.99 - Float(index) * 0.01,
+                timestamp: time
+            )
+        }
+        let observations = detections.map { $0.resolvedObservation() }
+        let compacted = DetectionDeduplicator.compactStableEvidenceDetections(
+            observations: observations, maxObservationsPerTrack: 2
+        )
+        let expectedIDs = [observations[1].id, observations[2].id, observations[7].id, observations[8].id]
+        XCTAssertEqual(compacted.map(\.id), expectedIDs)
+        XCTAssertEqual(
+            DetectionDeduplicator.compactStableEvidenceDetections(detections, maxObservationsPerTrack: 2).map(\.id),
+            expectedIDs
+        )
+        let minimumThree = DetectionDeduplicator.compactStableEvidenceDetections(
+            observations: observations, minimumObservations: 3, maxObservationsPerTrack: 1
+        )
+        XCTAssertEqual(minimumThree.map(\.id), Array(observations.prefix(3)).map(\.id))
+    }
+
+    func testLegacySelectionRetainsOriginalBufferFacadesAndRepeatedIdentities() throws {
+        let depth = try XCTUnwrap(makeDepthMap(width: 16, height: 16, fillValue: 2))
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.3, y: 0.3, width: 0.2, height: 0.2),
+            confidence: 0.7,
+            timestamp: 10,
+            cameraTransform: matrix_identity_float4x4,
+            cameraIntrinsics: pinholeIntrinsics(fx: 16, fy: 16, cx: 8, cy: 8),
+            imageSize: CGSize(width: 16, height: 16),
+            depthMap: depth
+        )
+        let repeated = [detection, detection]
+        let stable = DetectionDeduplicator.stableDetections(repeated, minimumObservations: 1, minimumConfidence: 0.6)
+        let evidence = DetectionDeduplicator.stableEvidenceDetections(repeated, minimumObservations: 1, minimumConfidence: 0.6)
+        let compacted = DetectionDeduplicator.compactStableEvidenceDetections(repeated, minimumObservations: 1, minimumConfidence: 0.6)
+        let deduplicated = DetectionDeduplicator.deduplicate2D(repeated)
+        XCTAssertEqual(stable.map(\.id), [detection.id, detection.id])
+        XCTAssertEqual(evidence.map(\.id), [detection.id, detection.id])
+        XCTAssertEqual(compacted.map(\.id), [detection.id])
+        XCTAssertEqual(deduplicated.map(\.id), [detection.id])
+        XCTAssertEqual(DetectionDeduplicator.stableTrackCount(repeated, minimumObservations: 1, minimumConfidence: 0.6), 2)
+
+        // Changing the test-owned buffer after selection distinguishes the
+        // original legacy facade from a newly sampled Observation facade.
+        CVPixelBufferLockBaseAddress(depth, [])
+        let base = try XCTUnwrap(CVPixelBufferGetBaseAddress(depth))
+        for row in 0..<16 {
+            let values = base.advanced(by: row * CVPixelBufferGetBytesPerRow(depth)).assumingMemoryBound(to: Float.self)
+            for column in 0..<16 { values[column] = 4 }
+        }
+        CVPixelBufferUnlockBaseAddress(depth, [])
+        for selected in stable + evidence + compacted + deduplicated {
+            XCTAssertNil(selected.observation)
+            XCTAssertTrue(selected.hasAlignedDepthContext)
+            let samples = selected.resolvedObservation().projectionDepthSamples
+            XCTAssertFalse(samples.isEmpty)
+            XCTAssertTrue(samples.allSatisfy { $0 == 4 })
+        }
     }
 
     func testDeduplicate2DSingleDetection() {
@@ -259,6 +354,9 @@ final class DetectionDeduplicatorTests: XCTestCase {
             evidence.isEmpty,
             "2D 重叠但 3D 空间已分离的果实不能互相凑成稳定轨迹"
         )
+        XCTAssertTrue(DetectionDeduplicator.stableEvidenceDetections(
+            observations: detections.map { $0.resolvedObservation() }
+        ).isEmpty)
     }
 
     func testStableEvidenceDetectionsAccepts3DAssociatedObservationsAcrossViewShift() {
@@ -335,6 +433,10 @@ final class DetectionDeduplicatorTests: XCTestCase {
             1,
             "3D 空间已确认是同一果实时，即使 2D 框相距较远也应去重"
         )
+        XCTAssertEqual(
+            DetectionDeduplicator.deduplicate2D(observations: [d1, d2].map { $0.resolvedObservation() }).map(\.id),
+            [d1.id]
+        )
     }
 
     func testInvalidDepthDoesNotCreate3DAssociationFromFallbackProjection() {
@@ -376,6 +478,9 @@ final class DetectionDeduplicatorTests: XCTestCase {
             2,
             "无有效 ROI 深度时不能借默认投影把远距离 2D 观测合并"
         )
+        let observations = detections.map { $0.resolvedObservation() }
+        XCTAssertTrue(DetectionDeduplicator.stableEvidenceDetections(observations: observations).isEmpty)
+        XCTAssertEqual(DetectionDeduplicator.deduplicate2D(observations: observations).map(\.id), detections.map(\.id))
     }
 
     func testLowConfidenceDepthDoesNotCreate3DAssociation() {
@@ -421,6 +526,9 @@ final class DetectionDeduplicatorTests: XCTestCase {
             2,
             "低置信度 ROI 深度不能把远距离 2D 观测合并"
         )
+        let observations = detections.map { $0.resolvedObservation() }
+        XCTAssertTrue(DetectionDeduplicator.stableEvidenceDetections(observations: observations).isEmpty)
+        XCTAssertEqual(DetectionDeduplicator.deduplicate2D(observations: observations).map(\.id), detections.map(\.id))
     }
 
     func testDeduplicate2DOverlapping() {
@@ -571,6 +679,11 @@ final class DetectionDeduplicatorTests: XCTestCase {
         XCTAssertFalse(retained.contains { $0.timestamp == 1 })
         XCTAssertEqual(retained.filter { $0.timestamp == 2 }.count, 2)
         XCTAssertEqual(retained.filter { $0.timestamp == 3 }.count, 1)
+        let observations = detections.map { $0.resolvedObservation() }
+        let native = DetectionRetentionPolicy.trimmedByFrameLimit(observations: observations, maxFrameCount: 2)
+        XCTAssertEqual(native.map(\.id), Array(observations.suffix(3)).map(\.id))
+        XCTAssertEqual(native.map(\.frameID), Array(observations.suffix(3)).map(\.frameID))
+        XCTAssertTrue(DetectionRetentionPolicy.trimmedByFrameLimit(observations: observations, maxFrameCount: 0).isEmpty)
     }
 
     func testRetentionPolicyDropsAllWhenFrameLimitIsZero() {

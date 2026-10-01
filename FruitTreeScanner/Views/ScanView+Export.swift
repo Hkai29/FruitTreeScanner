@@ -27,11 +27,8 @@ extension ScanView {
     func finishScan() {
         guard !isEstimating else { return }
         switch exportRetryAction {
-        case .exportPointCloud:
-            exportAndEstimate()
-            return
-        case .persistResult:
-            retryResultPersistence()
+        case .exportPointCloud, .estimateYield, .persistResult:
+            finalizationWorkflow.retry()
             return
         case .unavailable:
             break
@@ -40,165 +37,66 @@ extension ScanView {
             showTemporaryNotice(exportBlockedReason)
             return
         }
-        if isRecording {
-            stopRecording()
-        }
-        guard coordinator.beginFinishingScan() else {
+        guard let plan = coordinator.activeScanPlan else {
             showTemporaryNotice(L10n.Scan.interruptionTitle)
             return
         }
-        lifecycleSnapshot = coordinator.lifecycleSnapshot()
-        exportAndEstimate()
-    }
-
-    func exportAndEstimate() {
-        guard !isEstimating else { return }
-        guard lifecycleSnapshot.state == .finishing else {
-            showTemporaryNotice(L10n.Scan.interruptionTitle)
-            return
-        }
-
         clearMeasurementState()
         resultPersistenceState = .idle
-        let scanIdentity = coordinator.lifecycleSnapshot().scanIdentity
-        withAnimation(.easeInOut(duration: 0.2)) { isEstimating = true }
+        yieldResult = nil
         let gpsSnapshot = gps.reliableLocationSnapshot()
-        coordinator.exportPLY(
-            treeID: treeID,
-            lat: gpsSnapshot?.latitude ?? 0,
-            lon: gpsSnapshot?.longitude ?? 0
-        ) { filename in
-            guard self.isViewActive,
-                  self.coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
-                  self.coordinator.lifecycleSnapshot().state == .finishing else {
-                if let filename { self.discardScanArtifacts(filename: filename) }
-                return
-            }
-            guard let filename else {
-                self.isEstimating = false
-                self.showTemporaryNotice(L10n.Scan.exportFailed)
-                return
-            }
-            self.savedFilename = filename
-
-            self.coordinator.runMultiModalYieldEstimate(season: season) { result, _ in
-                Task { @MainActor in
-                    guard self.isViewActive,
-                          self.coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
-                          self.coordinator.lifecycleSnapshot().state == .finishing else { return }
-                    self.resultScanIdentity = scanIdentity
-                    let didPersist = await self.persistScanResult(result: result, filename: filename)
-                    guard self.isViewActive,
-                          self.coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
-                          self.coordinator.lifecycleSnapshot().state == .finishing else { return }
-
-                    if !didPersist {
-                        ScanHistoryStore.shared.notifyRecordsUpdated()
-                    }
-
-                    self.isEstimating = false
-                    self.yieldResult = result
-                    self.resultPersistenceState = .resolved(didPersist: didPersist)
-                    if didPersist {
-                        self.markResultPersistenceComplete()
-                    }
-                    withAnimation(.easeInOut(duration: 0.3)) { self.showResult = true }
-                }
-            }
-        }
+        pauseCoverageCompletion()
+        finalizationWorkflow.finish(
+            plan: plan,
+            latitude: gpsSnapshot?.latitude ?? 0,
+            longitude: gpsSnapshot?.longitude ?? 0,
+            operations: .production(coordinator: coordinator, repository: appDependencies.scanRepository)
+        )
+        sessionModel.apply(coordinator.lifecycleSnapshot())
     }
 
     func retryResultPersistence() {
-        guard resultPersistenceState == .failed,
-              let result = yieldResult,
-              !savedFilename.isEmpty,
-              resultScanIdentity == coordinator.lifecycleSnapshot().scanIdentity,
-              coordinator.lifecycleSnapshot().state == .finishing
-        else { return }
+        finalizationWorkflow.retry()
+    }
 
-        resultPersistenceState = .retrying
-        let filename = savedFilename
-        let scanIdentity = coordinator.lifecycleSnapshot().scanIdentity
-        Task { @MainActor in
-            let didPersist = await persistScanResult(result: result, filename: filename)
-            guard isViewActive,
-                  coordinator.lifecycleSnapshot().scanIdentity == scanIdentity,
-                  resultScanIdentity == scanIdentity,
-                  coordinator.lifecycleSnapshot().state == .finishing else { return }
-
-            resultPersistenceState = .resolved(didPersist: didPersist)
-            if didPersist {
-                markResultPersistenceComplete()
-                showTemporaryNotice(L10n.ScanResultPersistence.text(.successNotice))
-            } else {
-                ScanHistoryStore.shared.notifyRecordsUpdated()
-                showTemporaryNotice(L10n.ScanResultPersistence.text(.failureNotice))
+    func handleFinalizationEvent(_ event: ScanFinalizationWorkflow.Event) {
+        switch event {
+        case .phaseChanged(let phase):
+            if case .exportingPointCloud = phase {
+                pauseCoverageCompletion()
             }
+            if case .persisting = phase, resultPersistenceState == .failed {
+                resultPersistenceState = .retrying
+            }
+        case .pointCloudExported(_, _):
+            resultPersistenceState = .idle
+        case .estimateProduced(_, let result):
+            yieldResult = result
+        case .completed(_, _, let result):
+            sessionModel.apply(coordinator.lifecycleSnapshot())
+            yieldResult = result
+            resultPersistenceState = .saved
+            withAnimation(.easeInOut(duration: 0.3)) { showResult = true }
+        case .failed(_, let failure):
+            switch failure {
+            case .lifecycleRejected:
+                showTemporaryNotice(L10n.Scan.interruptionTitle)
+            case .pointCloudExport:
+                showTemporaryNotice(L10n.Scan.exportFailed)
+            case .yieldEstimation:
+                showTemporaryNotice(L10n.Scan.estimateFailed)
+            case .resultPersistence:
+                yieldResult = finalizationWorkflow.result
+                resultPersistenceState = .failed
+                withAnimation(.easeInOut(duration: 0.3)) { showResult = true }
+            }
+        case .cancelled:
+            break
         }
-    }
-
-    private func markResultPersistenceComplete() {
-        coordinator.markScanCompleted()
-        lifecycleSnapshot = coordinator.lifecycleSnapshot()
-    }
-
-    @MainActor
-    func persistScanResult(result: YieldResult, filename: String) async -> Bool {
-        let includeCSV = SettingsStore.shared.autoExportCSV
-        let scanMetadata = savedScanMetadata(for: filename)
-        let request = ScanResultExportService.ExportRequest(
-            treeID: treeID,
-            fruitType: selectedFruitCategory.rawValue,
-            scanDate: scanMetadata.scanDate,
-            gpsLat: scanMetadata.gpsLat,
-            gpsLon: scanMetadata.gpsLon,
-            sourceFilename: filename,
-            result: result,
-            includeCSV: includeCSV
-        )
-
-        do {
-            _ = try await Task.detached(priority: .utility) {
-                try ScanResultExportService.shared.exportIfNeeded(request)
-            }.value
-            return true
-        } catch {
-            Log.export.error("Failed to persist scan result: \(error.localizedDescription)")
-            return false
-        }
-    }
-
-    func savedScanMetadata(for filename: String) -> (scanDate: Date, gpsLat: Double, gpsLon: Double) {
-        let fileURL = getDocumentsDirectory()
-            .appendingPathComponent("scans", isDirectory: true)
-            .appendingPathComponent(filename)
-        guard let parsed = PLYParserHelper.parsePLYFile(at: fileURL) else {
-            let gpsSnapshot = gps.reliableLocationSnapshot()
-            return (
-                Date(),
-                gpsSnapshot?.latitude ?? 0,
-                gpsSnapshot?.longitude ?? 0
-            )
-        }
-        return (parsed.scanDate, parsed.gpsLat, parsed.gpsLon)
     }
 
     func discardCurrentScanArtifacts() {
-        guard coordinator.lifecycleSnapshot().state != .completed,
-              !savedFilename.isEmpty else { return }
-        discardScanArtifacts(filename: savedFilename)
-        savedFilename = ""
-        resultScanIdentity = nil
-    }
-
-    func discardScanArtifacts(filename: String) {
-        Task.detached(priority: .utility) {
-            do {
-                try ScanResultExportService.shared.discardScanArtifacts(sourceFilename: filename)
-                await ScanHistoryStore.shared.notifyRecordsUpdated()
-            } catch {
-                Log.export.error("Failed to discard scan artifacts for \(filename): \(error.localizedDescription)")
-            }
-        }
+        guard coordinator.lifecycleSnapshot().state != .completed else { return }
+        finalizationWorkflow.cancel()
     }
 }

@@ -3,9 +3,12 @@ import os
 
 enum ScanFusionYieldBuilder {
     /// 一次估算所需的不可变扫描快照，避免后台任务读取活动采集状态。
-    struct Input: @unchecked Sendable {
+    struct Input: Sendable {
         let points: [ColoredPoint]
-        let savedDetections: [DetectedFruit]
+        let observations: [Observation]
+        let finalPointCloudIdentity: RendererSnapshotSignature?
+        /// Legacy projection for display and source-compatible callers.
+        var savedDetections: [DetectedFruit] { observations.map(DetectedFruit.init(observation:)) }
         let imageDiagnostics: ImageDetectionDiagnostics
         let fruitType: String
         let fruitCategory: FruitCategory?
@@ -14,9 +17,85 @@ enum ScanFusionYieldBuilder {
         let clusterConfig: ClusterConfig
         let fusionConfig: FruitScanConfig
         let colorFilter: ColorFilter?
+        let experimentConfiguration: FruitScanExperimentConfig
+        let calibrationIdentity: ScanCalibrationIdentity?
         var season: Season = .mature
         var calibrationCorrection: YieldCalibrationCorrection = .neutral
         var categoryVerification: FruitCategoryVerificationSummary? = nil
+
+        init(
+            points: [ColoredPoint],
+            savedDetections: [DetectedFruit],
+            imageDiagnostics: ImageDetectionDiagnostics,
+            fruitType: String,
+            fruitCategory: FruitCategory?,
+            paramsSnapshot: [String: FruitVarietyParams],
+            defaultParams: FruitVarietyParams,
+            clusterConfig: ClusterConfig,
+            fusionConfig: FruitScanConfig,
+            colorFilter: ColorFilter?,
+            season: Season = .mature,
+            calibrationCorrection: YieldCalibrationCorrection = .neutral,
+            categoryVerification: FruitCategoryVerificationSummary? = nil,
+            finalPointCloudIdentity: RendererSnapshotSignature? = nil,
+            experimentConfiguration: FruitScanExperimentConfig = .default,
+            calibrationIdentity: ScanCalibrationIdentity? = nil
+        ) {
+            self.init(
+                points: points,
+                observations: savedDetections.map { $0.resolvedObservation(depthConfiguration: experimentConfiguration.depth) },
+                imageDiagnostics: imageDiagnostics,
+                fruitType: fruitType,
+                fruitCategory: fruitCategory,
+                paramsSnapshot: paramsSnapshot,
+                defaultParams: defaultParams,
+                clusterConfig: clusterConfig,
+                fusionConfig: fusionConfig,
+                colorFilter: colorFilter,
+                season: season,
+                calibrationCorrection: calibrationCorrection,
+                categoryVerification: categoryVerification,
+                finalPointCloudIdentity: finalPointCloudIdentity,
+                experimentConfiguration: experimentConfiguration,
+                calibrationIdentity: calibrationIdentity
+            )
+        }
+
+        init(
+            points: [ColoredPoint],
+            observations: [Observation],
+            imageDiagnostics: ImageDetectionDiagnostics,
+            fruitType: String,
+            fruitCategory: FruitCategory?,
+            paramsSnapshot: [String: FruitVarietyParams],
+            defaultParams: FruitVarietyParams,
+            clusterConfig: ClusterConfig,
+            fusionConfig: FruitScanConfig,
+            colorFilter: ColorFilter?,
+            season: Season = .mature,
+            calibrationCorrection: YieldCalibrationCorrection = .neutral,
+            categoryVerification: FruitCategoryVerificationSummary? = nil,
+            finalPointCloudIdentity: RendererSnapshotSignature? = nil,
+            experimentConfiguration: FruitScanExperimentConfig = .default,
+            calibrationIdentity: ScanCalibrationIdentity? = nil
+        ) {
+            self.points = points
+            self.observations = observations
+            self.finalPointCloudIdentity = finalPointCloudIdentity
+            self.imageDiagnostics = imageDiagnostics
+            self.fruitType = fruitType
+            self.fruitCategory = fruitCategory
+            self.paramsSnapshot = paramsSnapshot
+            self.defaultParams = defaultParams
+            self.clusterConfig = clusterConfig
+            self.fusionConfig = fusionConfig
+            self.colorFilter = colorFilter
+            self.experimentConfiguration = experimentConfiguration
+            self.calibrationIdentity = calibrationIdentity
+            self.season = season
+            self.calibrationCorrection = calibrationCorrection
+            self.categoryVerification = categoryVerification
+        }
     }
 
     static func build(from input: Input) async -> (YieldResult, FruitCountResult) {
@@ -38,7 +117,8 @@ enum ScanFusionYieldBuilder {
         let detectionDepthOutput = DetectionDepthCandidatePipeline().run(input)
         let candidates = CandidateCombiner.combine(
             pointCloudCandidates: pointCloudOutput.candidates,
-            detectionDepthCandidates: detectionDepthOutput.fusionCandidates
+            detectionDepthCandidates: detectionDepthOutput.fusionCandidates,
+            configuration: input.experimentConfiguration.candidateMerge
         )
         ScanFusionDiagnosticsUpdater.applyDetectionDepthOutput(
             detectionDepthOutput,
@@ -49,13 +129,16 @@ enum ScanFusionYieldBuilder {
         Log.fusion.info("Clustering: \(input.points.count) raw points / \(pointCloudOutput.colorFilteredPoints.count) color-filtered / \(pointCloudOutput.denoising.stats.retainedCount) SOR-retained → \(pointCloudOutput.candidates.count) cloud candidates + \(detectionDepthOutput.rawCandidates.count) ROI-depth observations / \(detectionDepthOutput.candidates.count) merged ROI-depth candidates")
 
         let detectionFilterResult = ScanFusionCategoryFilter.detectionFilterResult(
-            input.savedDetections,
+            input.observations,
             targetCategory: input.fruitCategory
         )
         diagnostics.filteredBySelectedFruitTypeCount = detectionFilterResult.filteredBySelectedFruitTypeCount
         // FusionEvidencePipeline 是可靠产量的唯一准入边界。
-        let fusionOutput = FusionEvidencePipeline(fusionConfig: input.fusionConfig).run(
-            detections: detectionFilterResult.detections,
+        let fusionOutput = FusionEvidencePipeline(
+            fusionConfig: input.fusionConfig,
+            experimentConfiguration: input.experimentConfiguration.fusion
+        ).run(
+            observations: detectionFilterResult.detections,
             candidates: candidates
         )
         ScanFusionDiagnosticsUpdater.applyFusionOutput(fusionOutput, to: &diagnostics)

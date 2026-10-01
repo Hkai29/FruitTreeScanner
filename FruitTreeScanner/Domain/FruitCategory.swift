@@ -1,0 +1,161 @@
+// FruitCategory.swift
+// 品类编码与物理先验
+
+import Foundation
+
+// MARK: - 水果类别
+enum FruitCategory: String, CaseIterable, Codable, Sendable {
+    case apple = "apple"
+    case orange = "orange"
+    case mandarin = "mandarin"
+    case pomelo = "pomelo"
+    case pear = "pear"
+    case peach = "peach"
+    case cherry = "cherry"
+    case grape = "grape"
+    case persimmon = "persimmon"
+    case mango = "mango"
+    case kiwi = "kiwi"
+    case plum = "plum"
+    case pomegranate = "pomegranate"
+    case loquat = "loquat"
+    case lychee = "lychee"
+    case longan = "longan"
+    case bayberry = "bayberry"
+    case jujube = "jujube"
+    case hawthorn = "hawthorn"
+    case fig = "fig"
+    case papaya = "papaya"
+    case chestnut = "chestnut"
+    case mulberry = "mulberry"
+    case blueberry = "blueberry"
+    case strawberry = "strawberry"
+    case coconut = "coconut"
+
+    var sizeRange: ClosedRange<Float> {
+        switch self {
+        case .grape: return 0.015...0.03
+        case .blueberry: return 0.012...0.025
+        case .mulberry: return 0.02...0.04
+        case .bayberry: return 0.015...0.03
+        case .cherry: return 0.02...0.04
+        case .strawberry: return 0.02...0.05
+        case .jujube: return 0.02...0.04
+        case .hawthorn: return 0.02...0.04
+        case .loquat: return 0.03...0.05
+        case .lychee: return 0.03...0.05
+        case .longan: return 0.02...0.035
+        case .plum: return 0.04...0.07
+        case .kiwi: return 0.05...0.08
+        case .apple: return 0.06...0.10
+        case .mandarin: return 0.05...0.09
+        case .orange: return 0.06...0.11
+        case .peach: return 0.06...0.10
+        case .persimmon: return 0.06...0.12
+        case .fig: return 0.04...0.08
+        case .chestnut: return 0.03...0.05
+        case .pomegranate: return 0.08...0.14
+        case .pear: return 0.07...0.12
+        case .mango: return 0.08...0.18
+        case .papaya: return 0.10...0.30
+        case .pomelo: return 0.10...0.25
+        case .coconut: return 0.12...0.25
+        }
+    }
+
+    var density: Float {
+        switch self {
+        case .apple:  return 0.85
+        case .orange: return 0.88
+        case .mandarin: return 0.86
+        case .pomelo: return 0.75
+        case .pear:   return 0.93
+        case .peach:  return 0.91
+        case .cherry: return 0.82
+        case .grape:  return 0.95
+        case .persimmon: return 0.80
+        case .mango:  return 0.92
+        case .kiwi:   return 0.96
+        case .plum:   return 0.90
+        case .pomegranate: return 0.87
+        case .loquat: return 0.88
+        case .lychee: return 0.93
+        case .longan: return 0.90
+        case .bayberry: return 0.85
+        case .jujube: return 0.82
+        case .hawthorn: return 0.84
+        case .fig: return 0.88
+        case .papaya: return 0.90
+        case .chestnut: return 0.95
+        case .mulberry: return 0.80
+        case .blueberry: return 0.83
+        case .strawberry: return 0.85
+        case .coconut: return 0.70
+        }
+    }
+
+    var averageWeightG: Float {
+        switch self {
+        case .apple:  return 200
+        case .orange: return 280
+        case .mandarin: return 150
+        case .pomelo: return 1000
+        case .pear:   return 180
+        case .peach:  return 150
+        case .cherry: return 8
+        case .grape:  return 5
+        case .persimmon: return 200
+        case .mango:  return 300
+        case .kiwi:   return 80
+        case .plum:   return 50
+        case .pomegranate: return 350
+        case .loquat: return 40
+        case .lychee: return 25
+        case .longan: return 12
+        case .bayberry: return 15
+        case .jujube: return 10
+        case .hawthorn: return 10
+        case .fig: return 60
+        case .papaya: return 500
+        case .chestnut: return 15
+        case .mulberry: return 3
+        case .blueberry: return 2
+        case .strawberry: return 15
+        case .coconut: return 1500
+        }
+    }
+
+    var sphericityThreshold: Float {
+        switch self {
+        case .apple, .orange, .mandarin, .cherry, .grape, .plum,
+             .pomegranate, .lychee, .longan, .blueberry, .coconut: return 0.5
+        case .pear: return 0.3
+        case .peach, .persimmon, .pomelo: return 0.4
+        case .mango, .papaya: return 0.25
+        case .kiwi, .loquat, .bayberry, .jujube, .hawthorn,
+             .chestnut, .mulberry, .strawberry: return 0.45
+        case .fig: return 0.35
+        }
+    }
+
+    var clusterEps: Float { 0.05 }
+
+    var diamMin: Float {
+        switch self {
+        case .grape, .cherry, .blueberry, .mulberry, .bayberry: return 0.012
+        case .longan, .jujube, .hawthorn, .chestnut: return 0.018
+        case .loquat, .lychee: return 0.025
+        case .plum: return 0.03
+        default: return 0.03
+        }
+    }
+
+    var diamMax: Float {
+        switch self {
+        case .mango, .papaya: return 0.20
+        case .pomegranate: return 0.16
+        case .pomelo, .coconut: return 0.25
+        default: return 0.15
+        }
+    }
+}

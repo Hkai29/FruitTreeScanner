@@ -970,6 +970,63 @@ final class ScanLifecycleControllerTests: XCTestCase {
     }
 }
 
+final class ScanSessionSnapshotTests: XCTestCase {
+    @MainActor
+    func testFeatureModelRejectsAnOlderQueuedLifecycleSnapshot() {
+        let identity = UUID()
+        let starting = ScanLifecycleSnapshot(
+            state: .recording,
+            scanIdentity: identity,
+            generation: 4,
+            interruptionCount: 0,
+            lastInterruptionTimestamp: nil
+        )
+        let model = ScanFeatureModel(initialSnapshot: starting)
+        let finishing = ScanLifecycleSnapshot(
+            state: .finishing,
+            scanIdentity: identity,
+            generation: 5,
+            interruptionCount: 0,
+            lastInterruptionTimestamp: nil
+        )
+        let completed = ScanLifecycleSnapshot(
+            state: .completed,
+            scanIdentity: identity,
+            generation: 6,
+            interruptionCount: 0,
+            lastInterruptionTimestamp: nil
+        )
+
+        model.apply(completed)
+        model.apply(finishing)
+
+        XCTAssertEqual(model.lifecycleSnapshot, completed)
+        XCTAssertFalse(model.isRecording)
+    }
+
+    func testCaptureAdmissionGateSeparatesPauseFromInvalidationEpoch() {
+        let gate = CaptureAdmissionGate()
+        let scanIdentity = UUID()
+        let bindingID = gate.snapshot().bindingID
+        _ = gate.setOpen(true)
+        let token = gate.makeToken(scanIdentity: scanIdentity, bindingID: bindingID)
+        let tokenEpoch = token?.invalidationEpoch
+
+        _ = gate.setOpen(false)
+        XCTAssertEqual(gate.snapshot().invalidationEpoch, tokenEpoch)
+        XCTAssertFalse(gate.snapshot().isOpen)
+
+        gate.invalidate()
+        XCTAssertGreaterThan(gate.snapshot().invalidationEpoch, tokenEpoch ?? 0)
+        XCTAssertFalse(gate.snapshot().isOpen)
+
+        gate.bind(to: ScanBindingID())
+        _ = gate.setOpen(true)
+        XCTAssertNil(gate.makeToken(scanIdentity: scanIdentity, bindingID: bindingID))
+        XCTAssertNotNil(gate.makeToken(scanIdentity: scanIdentity, bindingID: gate.snapshot().bindingID))
+    }
+}
+
 @MainActor
 final class ScanCoordinatorSessionRestartTests: XCTestCase {
     func testCameraUnauthorizedFailureRequiresCameraReadinessRecovery() {
@@ -1609,6 +1666,7 @@ final class ScanCoordinatorCameraTrackingTests: XCTestCase {
 
 private final class ScanSessionRuntimeRecorder {
     var runOptions: [ARSession.RunOptions] = []
+    var cameraRequests: [ScanCameraRequest] = []
     var beforeRun: (() -> Void)?
     private let isSupported: Bool
 
@@ -1621,6 +1679,10 @@ private final class ScanSessionRuntimeRecorder {
         run: { [weak self] _, _, options in
             self?.beforeRun?()
             self?.runOptions.append(options)
+        },
+        preferredVideoFormat: { [weak self] request in
+            self?.cameraRequests.append(request)
+            return nil
         }
     )
 }
@@ -1645,7 +1707,7 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
         let inFlightTask = Task {
             await gate.wait()
             defer { coordinator.finishDetectionProcessing() }
-            await coordinator.appendDetectedFruits(
+            await coordinator.appendObservations(
                 [detection],
                 evidenceToken: token
             )
@@ -1659,6 +1721,8 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
 
         XCTAssertEqual(coordinator.lifecycleSnapshot().state, .finishing)
         XCTAssertEqual(coordinator.detectedFruits.count, 1)
+        XCTAssertEqual(coordinator.detectedFruits.first?.id, detection.id)
+        XCTAssertEqual(coordinator.detectedFruits.first?.frameID, detection.frameID)
     }
 
     func testCapturedEvidenceCanCommitDuringUserPause() async throws {
@@ -1667,7 +1731,7 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
         let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
 
         coordinator.stopRecording()
-        await coordinator.appendDetectedFruits(
+        await coordinator.appendObservations(
             [makeDetection(timestamp: 2)],
             evidenceToken: token
         )
@@ -1683,7 +1747,7 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
 
         coordinator.stopRecording()
         coordinator.resumeRecordingPreservingCapture()
-        await coordinator.appendDetectedFruits(
+        await coordinator.appendObservations(
             [makeDetection(timestamp: 3)],
             evidenceToken: token
         )
@@ -1699,7 +1763,7 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
         coordinator.stopRecording()
 
         coordinator.invalidateReliableEvidenceImmediately()
-        await coordinator.appendDetectedFruits(
+        await coordinator.appendObservations(
             [makeDetection(timestamp: 4)],
             evidenceToken: token
         )
@@ -1714,7 +1778,7 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
         let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
 
         coordinator.startRecording(selectedCategory: .apple)
-        await coordinator.appendDetectedFruits(
+        await coordinator.appendObservations(
             [makeDetection(timestamp: 5)],
             evidenceToken: token
         )
@@ -1729,7 +1793,7 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
         let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
 
         coordinator.teardown()
-        await coordinator.appendDetectedFruits(
+        await coordinator.appendObservations(
             [makeDetection(timestamp: 6)],
             evidenceToken: token
         )
@@ -1737,13 +1801,13 @@ final class ScanCapturedEvidenceConcurrencyTests: XCTestCase {
         XCTAssertTrue(coordinator.detectedFruits.isEmpty)
     }
 
-    private func makeDetection(timestamp: TimeInterval) -> DetectedFruit {
+    private func makeDetection(timestamp: TimeInterval) -> Observation {
         DetectedFruit(
             category: .apple,
             boundingBox: CGRect(x: 0.1, y: 0.1, width: 0.2, height: 0.2),
             confidence: 0.95,
             timestamp: timestamp
-        )
+        ).resolvedObservation(frameID: FrameID())
     }
 }
 
@@ -1916,6 +1980,30 @@ final class ScanCompletionEvaluatorTests: XCTestCase {
 }
 
 final class ScanSessionConfigurationTests: XCTestCase {
+    func testVideoFormatSelectionRespectsRequestedCeilingAndPrioritizesFrameRate() {
+        let formats = [
+            ScanVideoFormatDescriptor(framesPerSecond: 30, imageWidth: 1280),
+            ScanVideoFormatDescriptor(framesPerSecond: 60, imageWidth: 1920),
+            ScanVideoFormatDescriptor(framesPerSecond: 60, imageWidth: 3840),
+            ScanVideoFormatDescriptor(framesPerSecond: 120, imageWidth: 1280)
+        ]
+        XCTAssertEqual(ScanSessionConfiguration.preferredVideoFormatIndex(in: formats,
+            request: ScanCameraRequest(resolution: "4K", frameRate: "30fps")), 0)
+        XCTAssertEqual(ScanSessionConfiguration.preferredVideoFormatIndex(in: formats,
+            request: ScanCameraRequest(resolution: "4K", frameRate: "60fps")), 2)
+        XCTAssertEqual(ScanSessionConfiguration.preferredVideoFormatIndex(in: formats,
+            request: ScanCameraRequest(resolution: "4K", frameRate: "120fps")), 3)
+        XCTAssertEqual(ScanSessionConfiguration.preferredVideoFormatIndex(in: formats,
+            request: ScanCameraRequest(resolution: "720p", frameRate: "60fps")), 1)
+    }
+
+    func testVideoFormatSelectionKeepsARKitFallbackWhenNoEligibleFormatExists() {
+        let request = ScanCameraRequest(resolution: "1080p", frameRate: "30fps")
+        XCTAssertNil(ScanSessionConfiguration.preferredVideoFormatIndex(in: [], request: request))
+        XCTAssertNil(ScanSessionConfiguration.preferredVideoFormatIndex(
+            in: [ScanVideoFormatDescriptor(framesPerSecond: 60, imageWidth: 1920)], request: request))
+    }
+
     func testPreferredDepthSemanticsPrefersSmoothedDepthWhenAvailable() {
         let semantics = ScanSessionConfiguration.preferredDepthSemantics { requested in
             requested == .sceneDepth || requested == .smoothedSceneDepth
@@ -2232,5 +2320,1212 @@ final class ScanCompletionPresentationTests: XCTestCase {
     private func localizedBundle(language: String) throws -> Bundle {
         let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"))
         return try XCTUnwrap(Bundle(path: path))
+    }
+}
+
+private actor FixedScanModelIdentityProvider: ScanModelIdentityProviding {
+    private let identity: ScanModelIdentity
+
+    init(identity: ScanModelIdentity) {
+        self.identity = identity
+    }
+
+    func modelIdentity() async -> ScanModelIdentity {
+        identity
+    }
+}
+
+final class ScanPlanTests: XCTestCase {
+    @MainActor
+    func testRendererSettingsCapturePreservesPresetAndFrozenValues() throws {
+        let suite = "RendererCapture-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsStore(defaults: defaults)
+        let presets: [(String, Float, Float)] = [("高", 0.007, 0.08), ("中", 0.01, 0.12), ("低", 0.015, 0.16)]
+        for (preset, expectedVoxel, expectedEdge) in presets {
+            store.qualityPreset = preset
+            store.maxPointCount = 500_000
+            store.rgbRadius = 4.25
+            store.depthRangeMax = 4.2
+            store.depthRangeMin = 0.8
+            store.confidenceThreshold = 0
+            store.scanPrecision = 0.01
+            var depth = DepthExperimentConfig.default
+            depth.minimumReliableConfidence = 2
+            depth.minimumStableDepthNeighborCount = 9
+            depth.projectionSampleGrid = 5
+            let capturedDepth = depth
+            let captured = RendererScanSettings(store: store, particleCapacity: 12_345, depthConfiguration: depth)
+
+            // Both settings and experiment values may change after a scan is bound.
+            store.qualityPreset = "高"
+            store.maxPointCount = 900_000
+            store.rgbRadius = 7
+            store.depthRangeMin = 1
+            store.depthRangeMax = 6
+            store.confidenceThreshold = 1
+            store.scanPrecision = 0.04
+            depth.minimumStableDepthNeighborCount = 0
+            depth.projectionSampleGrid = 3
+
+            XCTAssertEqual(captured.maxPoints, 12_345)
+            XCTAssertEqual(captured.rgbRadius, 4.25)
+            XCTAssertEqual(captured.minDepth, 0.8, accuracy: 0.00001)
+            XCTAssertEqual(captured.maxDepth, 4.2, accuracy: 0.00001)
+            XCTAssertEqual(captured.confidenceThreshold, 2)
+            XCTAssertEqual(captured.minimumStableDepthNeighborCount, 4)
+            XCTAssertEqual(captured.snapshotVoxelSize, expectedVoxel, accuracy: 0.000001, preset)
+            XCTAssertEqual(captured.depthEdgeThreshold, expectedEdge, preset)
+            XCTAssertEqual(captured.depthConfiguration, capturedDepth)
+        }
+    }
+
+    @MainActor
+    func testRendererSettingsCaptureKeepsDepthAndVoxelBounds() throws {
+        let suite = "RendererCaptureBounds-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsStore(defaults: defaults)
+        store.maxPointCount = 200_000
+        store.confidenceThreshold = 0
+        var depth = DepthExperimentConfig.default
+        depth.minimumReliableConfidence = 0
+        depth.minimumStableDepthNeighborCount = -5
+        for (preset, precision, expectedVoxel) in [("高", 0.001, Float(0.001)), ("低", 0.05, Float(0.06))] {
+            store.qualityPreset = preset
+            store.scanPrecision = precision
+            let captured = RendererScanSettings(store: store, particleCapacity: 300_000, depthConfiguration: depth)
+            XCTAssertEqual(captured.maxPoints, 200_000)
+            XCTAssertEqual(captured.confidenceThreshold, 1, "Unavailable/low confidence cannot loosen the reliable depth floor")
+            XCTAssertEqual(captured.minimumStableDepthNeighborCount, 0)
+            XCTAssertEqual(captured.snapshotVoxelSize, expectedVoxel, accuracy: 0.000001)
+        }
+    }
+
+    @MainActor
+    func testNewScanReconfiguresPreviewToFrozenCameraRequestAndWaitsForTracking() async throws {
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: "CameraPlan-\(UUID())")!)
+        settings.cameraResolution = "720p"
+        settings.cameraFrameRate = "30fps"
+        let recorder = ScanSessionRuntimeRecorder()
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let session = ARSession()
+        let view = MTKView(frame: .zero, device: device)
+        let renderer = Renderer(session: session, metalDevice: device, renderDestination: view)
+        let coordinator = ScanCoordinator(settings: settings, sessionRuntime: recorder.runtime, calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.bind(session: session, renderer: renderer, mtkView: view)
+        XCTAssertEqual(recorder.cameraRequests, [ScanCameraRequest(resolution: "720p", frameRate: "30fps")])
+        settings.cameraResolution = "4K"
+        settings.cameraFrameRate = "60fps"
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("camera-test")),
+            resourceBudget: ScanResourceBudget(liveSnapshotSampleLimit: 200, analysisInputSampleLimit: 100))
+        await factory.prepareModelIdentity()
+        let plan = factory.makePlan(treeID: "camera", season: .mature, selectedCategory: .apple, renderer: renderer)
+        settings.cameraResolution = "1080p"
+        settings.cameraFrameRate = "120fps"
+        coordinator.handleCameraTrackingState(.normal)
+        coordinator.startRecording(plan: plan)
+        XCTAssertEqual(recorder.cameraRequests.last, plan.cameraRequest)
+        XCTAssertEqual(recorder.runOptions.count, 2)
+        XCTAssertEqual(recorder.runOptions.last, [])
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        coordinator.handleCameraTrackingState(.normal)
+        await Task.yield()
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        let token = try XCTUnwrap(coordinator.capturedEvidenceToken())
+        coordinator.stopRecording()
+        coordinator.resumeRecordingPreservingCapture()
+        XCTAssertEqual(recorder.runOptions.count, 2, "Same-scan resume must not restart the camera")
+        XCTAssertTrue(coordinator.acceptsCapturedEvidence(token))
+        try await Task.sleep(nanoseconds: 650_000_000)
+        XCTAssertEqual(renderer.analysisInputSampleLimit, 100, "Deferred binding setup must not overwrite the active plan")
+        XCTAssertEqual(renderer.liveSnapshotInputSampleLimit, 200)
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        coordinator.markScanCompleted()
+        settings.cameraResolution = plan.requestedCameraResolution
+        settings.cameraFrameRate = plan.requestedCameraFrameRate
+        let matchingPlan = factory.makePlan(treeID: "same-camera", season: .mature, selectedCategory: .apple, renderer: renderer)
+        coordinator.startRecording(plan: matchingPlan)
+        XCTAssertEqual(recorder.runOptions.count, 2, "An unchanged camera request must not reset healthy tracking")
+        XCTAssertTrue(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.acceptsCapturedEvidence(token), "The next scan must reject the previous scan's accepted work")
+    }
+
+    @MainActor
+    func testPlannedScanStartFailsClosedWhenBoundARSessionIsUnsupported() {
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: "UnsupportedPlan-\(UUID())")!)
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] })
+        let plan = factory.makePlan(treeID: "unsupported", season: .mature, selectedCategory: .apple, renderer: nil)
+        let recorder = ScanSessionRuntimeRecorder(isSupported: false)
+        let coordinator = ScanCoordinator(settings: settings, sessionRuntime: recorder.runtime, calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.session = ARSession()
+        coordinator.startRecording(plan: plan)
+        XCTAssertTrue(recorder.runOptions.isEmpty)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        guard case .failed(.sessionFailed) = coordinator.lifecycleSnapshot().state else {
+            return XCTFail("An unsupported camera must not leave the planned scan recording")
+        }
+    }
+
+    @MainActor
+    func testInterruptedRestartSelectsIncomingPlanBeforeReplacingOldPlan() async {
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: "CameraRestart-\(UUID())")!)
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("camera-test")))
+        await factory.prepareModelIdentity()
+        let old = factory.makePlan(treeID: "old", season: .mature, selectedCategory: .apple, renderer: nil)
+        settings.cameraResolution = "720p"
+        settings.cameraFrameRate = "30fps"
+        let next = factory.makePlan(treeID: "next", season: .mature, selectedCategory: .apple, renderer: nil)
+        settings.cameraResolution = "4K"
+        settings.cameraFrameRate = "120fps"
+        let recorder = ScanSessionRuntimeRecorder()
+        let coordinator = ScanCoordinator(settings: settings, sessionRuntime: recorder.runtime, calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.session = ARSession()
+        coordinator.startRecording(plan: old)
+        coordinator.handleSessionFailure(ScanSessionTestError.camera)
+        let beforeRestart = recorder.runOptions.count
+        recorder.beforeRun = {
+            XCTAssertEqual(coordinator.activeScanPlan?.id, old.id, "Old failed scan remains the owner until session restart succeeds")
+            XCTAssertEqual(recorder.cameraRequests.last, next.cameraRequest)
+            XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        }
+        XCTAssertTrue(coordinator.restartInterruptedScan(plan: next))
+        XCTAssertEqual(recorder.runOptions.count, beforeRestart + 1, "Applying the new plan must not run the session twice")
+        XCTAssertEqual(coordinator.activeScanPlan?.id, next.id)
+        XCTAssertEqual(recorder.cameraRequests.last, next.cameraRequest)
+        XCTAssertTrue(recorder.runOptions.last?.contains(.resetTracking) == true)
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        recorder.beforeRun = nil
+    }
+
+    @MainActor
+    func testCustomPlanConfigurationReachesFrozenEstimateAfterSettingsReload() async throws {
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: "PlanExperiment-\(UUID())")!)
+        var experiment = FruitScanExperimentConfig.default
+        experiment.fusion.nearestCandidateDistance = 0.07
+        experiment.pointCloud.denoisingNeighborCount = 8
+        experiment.depth.minimumReliableConfidence = 2
+        experiment.depth.projectionSampleGrid = 3
+        let capturedExperiment = experiment
+        let budget = ScanResourceBudget(liveSnapshotSampleLimit: 200, analysisInputSampleLimit: 100, retainedDetectionFrameLimit: 2)
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("model-config")),
+            experimentConfiguration: experiment, resourceBudget: budget)
+        await factory.prepareModelIdentity()
+        let plan = factory.makePlan(treeID: "config", season: .mature, selectedCategory: .apple, renderer: nil)
+        experiment.fusion.nearestCandidateDistance = 0.9
+        let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.startRecording(plan: plan)
+        settings.minConfidence = 0.99
+        coordinator.loadSettings()
+        XCTAssertEqual(plan.rendererSettings.confidenceThreshold, 2)
+        XCTAssertEqual(plan.rendererSettings.depthConfiguration, capturedExperiment.depth)
+        for timestamp in 1...3 {
+            await coordinator.appendDetectedFruits([DetectedFruit(category: .apple, boundingBox: .zero,
+                confidence: 0.9, timestamp: Double(timestamp))])
+        }
+        XCTAssertEqual(Set(coordinator.detectedFruits.map(\.timestamp)), Set([2.0, 3.0]))
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        let cloud = FinalPointCloud(identity: RendererSnapshotSignature(pointCount: 0, pointIndex: 0,
+            voxelSize: 0.005, confidenceThreshold: 2), points: [], inputSampleCount: 0, retainedSampleCount: 0,
+            buildDuration: 0, estimatedPeakPayloadBytes: 0)
+        let snapshot = try await coordinator.prepareYieldEstimationSnapshot(season: .mature, finalPointCloud: cloud)
+        XCTAssertEqual(snapshot.input.experimentConfiguration, capturedExperiment)
+        XCTAssertEqual(snapshot.input.calibrationIdentity?.context, plan.fruitConfiguration.calibrationContext)
+        XCTAssertEqual(snapshot.input.calibrationIdentity?.algorithmRevision, plan.algorithmRevision)
+        XCTAssertEqual(snapshot.input.fusionConfig.minConfidence, plan.fruitConfiguration.fusionConfig.minConfidence)
+        XCTAssertEqual(snapshot.input.observations.count, 2)
+    }
+
+    @MainActor
+    func testChangedExperimentOrSamplingBudgetDoesNotReuseCalibration() throws {
+        let empty = ScanFruitConfigurationSnapshot.capture(selectedCategory: .apple, settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [] })
+        let original = empty.makeConfiguration(modelIdentity: .verified("same-model"))
+        let context = try XCTUnwrap(original.calibrationContext)
+        let record = CalibrationRecord(id: UUID(), treeID: "config", scanDate: Date(), estimatedFruitCount: 10,
+            manualFruitCount: 8, estimatedYieldKg: 5, actualYieldKg: 4, fruitType: FruitCategory.apple.rawValue,
+            algorithmRevision: YieldAlgorithmRevision.current, calibrationContext: context)
+        let snapshot = ScanFruitConfigurationSnapshot.capture(selectedCategory: .apple, settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [record] })
+        let same = snapshot.makeConfiguration(modelIdentity: .verified("same-model"))
+        var experiment = FruitScanExperimentConfig.default
+        experiment.occlusion.lidarPenetrationMeters = 0.2
+        let changed = snapshot.makeConfiguration(modelIdentity: .verified("same-model"), experimentConfiguration: experiment)
+        let reduced = snapshot.makeConfiguration(modelIdentity: .verified("same-model"),
+            resourceBudget: ScanResourceBudget(analysisInputSampleLimit: 100))
+        XCTAssertEqual(same.calibrationContext, context)
+        XCTAssertFalse(context.contains("resourceBudget"), "Default calibration context retains its existing shape")
+        XCTAssertEqual(same.calibrationCorrection.yieldFactor, 0.8, accuracy: 0.001)
+        XCTAssertNotEqual(changed.calibrationContext, context)
+        XCTAssertNotEqual(reduced.calibrationContext, context)
+        XCTAssertEqual(changed.calibrationCorrection, .neutral)
+        XCTAssertEqual(reduced.calibrationCorrection, .neutral)
+    }
+
+    @MainActor
+    func testRendererAppliesBoundedBudgetAndInvalidatesPreviousAnalysisCache() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let view = MTKView(frame: .zero, device: device)
+        let renderer = Renderer(session: ARSession(), metalDevice: device, renderDestination: view)
+        let settings = RendererScanSettings(store: SettingsStore.shared, particleCapacity: renderer.particlesBuffer.count)
+        renderer.fullAnalysisSnapshotSignature = RendererSnapshotSignature(pointCount: 10, pointIndex: 10,
+            voxelSize: 0.005, confidenceThreshold: 1)
+        renderer.applyScanQualitySettings(settings,
+            resourceBudget: ScanResourceBudget(liveSnapshotSampleLimit: 20, analysisInputSampleLimit: 10))
+        XCTAssertEqual(renderer.liveSnapshotInputSampleLimit, 20)
+        XCTAssertEqual(renderer.analysisInputSampleLimit, 10)
+        XCTAssertNil(renderer.fullAnalysisSnapshotSignature)
+        XCTAssertEqual(ScanResourceBudget(liveSnapshotSampleLimit: Int.max, analysisInputSampleLimit: Int.max,
+            retainedDetectionFrameLimit: Int.max), .default)
+        XCTAssertEqual(ScanResourceBudget(analysisInputSampleLimit: 0).analysisInputSampleLimit, 1)
+    }
+
+    @MainActor
+    func testPlanKeepsScanConfigurationAndBudgetsAfterSettingsChange() async {
+        let suiteName = "ScanPlanTests-\(UUID().uuidString)"
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: suiteName)!)
+        settings.autoExportCSV = true
+        settings.maxPointCount = 250_000
+        settings.minConfidence = 0.62
+        settings.clusterMinPoints = 8
+
+        let factory = ScanPlanFactory(
+            settings: settings,
+            calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("model-a"))
+        )
+        await factory.prepareModelIdentity()
+
+        let plan = factory.makePlan(
+            treeID: "T-plan",
+            season: .mature,
+            selectedCategory: .apple,
+            renderer: nil
+        )
+        let capturedConfidence = plan.fruitConfiguration.fusionConfig.minConfidence
+        let capturedClusterMinPoints = plan.fruitConfiguration.clusterConfig.minPoints
+
+        settings.autoExportCSV = false
+        settings.maxPointCount = 400_000
+        settings.minConfidence = 0.91
+        settings.clusterMinPoints = 15
+
+        XCTAssertEqual(plan.treeID, "T-plan")
+        XCTAssertEqual(plan.season, .mature)
+        XCTAssertEqual(plan.fruitConfiguration.selectedCategory, .apple)
+        XCTAssertEqual(plan.modelIdentity, .verified("model-a"))
+        XCTAssertEqual(plan.autoExportCSV, true)
+        XCTAssertEqual(plan.rendererSettings.maxPoints, 250_000)
+        XCTAssertEqual(plan.resourceBudget.liveSnapshotSampleLimit, 240_000)
+        XCTAssertEqual(plan.resourceBudget.analysisInputSampleLimit, 120_000)
+        XCTAssertEqual(plan.resourceBudget.retainedDetectionFrameLimit, 360)
+        XCTAssertEqual(plan.fruitConfiguration.fusionConfig.minConfidence, capturedConfidence)
+        XCTAssertEqual(plan.fruitConfiguration.clusterConfig.minPoints, capturedClusterMinPoints)
+        XCTAssertNotEqual(settings.fruitScanConfig.minConfidence, capturedConfidence)
+    }
+
+    @MainActor
+    func testCoordinatorUsesScanPlanAfterSettingsChangeAndReload() async {
+        let suiteName = "ScanPlanCoordinatorTests-\(UUID().uuidString)"
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: suiteName)!)
+        settings.minConfidence = 0.58
+        settings.clusterMinPoints = 7
+
+        let factory = ScanPlanFactory(
+            settings: settings,
+            calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("model-a"))
+        )
+        await factory.prepareModelIdentity()
+        let plan = factory.makePlan(
+            treeID: "T-coordinator-plan",
+            season: .off,
+            selectedCategory: .pear,
+            renderer: nil
+        )
+        let capturedClusterMinPoints = plan.fruitConfiguration.clusterConfig.minPoints
+        let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
+
+        coordinator.startRecording(plan: plan)
+        settings.minConfidence = 0.93
+        settings.clusterMinPoints = 17
+        coordinator.loadSettings()
+
+        XCTAssertEqual(coordinator.activeScanPlan?.id, plan.id)
+        XCTAssertEqual(coordinator.imageDetector.configSnapshot().minConfidence, plan.fruitConfiguration.fusionConfig.minConfidence)
+        XCTAssertEqual(coordinator.activeFruitConfiguration?.clusterConfig.minPoints, capturedClusterMinPoints)
+        XCTAssertNotEqual(
+            settings.clusterConfig(for: plan.fruitConfiguration.defaultParams).minPoints,
+            capturedClusterMinPoints
+        )
+
+        coordinator.teardown()
+    }
+
+    @MainActor
+    func testMissingModelAndUnverifiedIdentityDisableCalibrationWithSpecificReasons() {
+        let snapshot = ScanFruitConfigurationSnapshot.capture(
+            selectedCategory: .apple,
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [] }
+        )
+
+        let missingModel = snapshot.makeConfiguration(modelIdentity: .modelMissing)
+        XCTAssertNil(missingModel.calibrationContext)
+        XCTAssertEqual(missingModel.calibrationCorrection, .neutral)
+        XCTAssertEqual(missingModel.calibrationWarning, .modelMissing)
+
+        let unavailableIdentity = snapshot.makeConfiguration(modelIdentity: .fingerprintUnavailable)
+        XCTAssertNil(unavailableIdentity.calibrationContext)
+        XCTAssertEqual(unavailableIdentity.calibrationCorrection, .neutral)
+        XCTAssertEqual(unavailableIdentity.calibrationWarning, .modelIdentityUnavailable)
+    }
+
+    @MainActor
+    func testChangedModelIdentityDoesNotReuseCalibrationForPreviousModel() throws {
+        let snapshotWithoutRecords = ScanFruitConfigurationSnapshot.capture(
+            selectedCategory: .apple,
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [] }
+        )
+        let oldContext = try XCTUnwrap(snapshotWithoutRecords.makeConfiguration(
+            modelIdentity: .verified("model-a")
+        ).calibrationContext)
+        var record = CalibrationRecord(
+            id: UUID(),
+            treeID: "T-model-identity",
+            scanDate: Date(timeIntervalSince1970: 1_780_000_000),
+            estimatedFruitCount: 10,
+            manualFruitCount: 8,
+            estimatedYieldKg: 5,
+            actualYieldKg: 4,
+            fruitType: FruitCategory.apple.rawValue
+        )
+        record.algorithmRevision = YieldAlgorithmRevision.current
+        record.calibrationContext = oldContext
+
+        let snapshot = ScanFruitConfigurationSnapshot.capture(
+            selectedCategory: .apple,
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [record] }
+        )
+        let sameModel = snapshot.makeConfiguration(modelIdentity: .verified("model-a"))
+        let changedModel = snapshot.makeConfiguration(modelIdentity: .verified("model-b"))
+
+        XCTAssertEqual(sameModel.calibrationCorrection.countFactor, 0.8, accuracy: 0.001)
+        XCTAssertEqual(sameModel.calibrationCorrection.yieldFactor, 0.8, accuracy: 0.001)
+        XCTAssertNotEqual(sameModel.calibrationContext, changedModel.calibrationContext)
+        XCTAssertEqual(changedModel.calibrationCorrection, .neutral)
+    }
+
+    @MainActor
+    func testPlanCreatedWhileModelIdentityIsPreparingFailsClosed() {
+        let factory = ScanPlanFactory(
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("model-a"))
+        )
+
+        let plan = factory.makePlan(
+            treeID: "T-pending-model",
+            season: .mature,
+            selectedCategory: .apple,
+            renderer: nil
+        )
+
+        XCTAssertEqual(plan.modelIdentity, .preparing)
+        XCTAssertNil(plan.fruitConfiguration.calibrationContext)
+        XCTAssertEqual(plan.fruitConfiguration.calibrationCorrection, .neutral)
+        XCTAssertEqual(plan.fruitConfiguration.calibrationWarning, .modelIdentityUnavailable)
+    }
+}
+
+@MainActor
+private final class ScanFinalizationTestHarness {
+    private(set) var snapshot: ScanLifecycleSnapshot
+    private(set) var exportCompletions: [(String?) -> Void] = []
+    private(set) var estimateCompletions: [(YieldResult, FruitCountResult?) -> Void] = []
+    private(set) var exportCount = 0
+    private(set) var estimateCount = 0
+    private(set) var preparationCount = 0
+    private(set) var estimatedSnapshotIDs: [UUID] = []
+    private(set) var estimatedEvidence: [ScanEvidenceIdentity] = []
+    private var captureContext: ScanContext?
+    private(set) var persistenceCount = 0
+    private(set) var persistedInputs: [(UUID, String, Float)] = []
+    private(set) var markCompletedCount = 0
+    private(set) var historyRefreshCount = 0
+    private(set) var discardedFilenames: [String] = []
+    private(set) var committedRecordCount = 0
+    private(set) var completedPersistenceOperationCount = 0
+    var shouldFailFirstPersistence = false
+    var shouldSuspendPersistence = false
+    var shouldFailFirstEstimation = false
+    var shouldFailPreparation = false
+    var preparedContextOverride: ScanContext?
+    var resultEvidenceOverride: ((ScanEvidenceIdentity) -> ScanEvidenceIdentity)?
+    private var persistenceContinuation: CheckedContinuation<Void, Never>?
+
+    init(state: ScanLifecycleState = .recording) {
+        snapshot = ScanLifecycleSnapshot(
+            state: state,
+            scanIdentity: UUID(),
+            generation: 1,
+            interruptionCount: 0,
+            lastInterruptionTimestamp: nil
+        )
+    }
+
+    var operations: ScanFinalizationOperations {
+        ScanFinalizationOperations(
+            lifecycleSnapshot: { self.snapshot },
+            beginFinishing: {
+                guard self.snapshot.state == .recording || self.snapshot.state == .userPaused else { return false }
+                self.setState(.finishing)
+                return true
+            },
+            exportPointCloud: { plan, _, _ in
+                self.exportCount += 1
+                let context = ScanContext(scanID: self.snapshot.scanIdentity, planID: plan.id)
+                self.captureContext = context
+                return try await withCheckedThrowingContinuation { continuation in
+                    self.exportCompletions.append { filename in
+                        if let filename {
+                            continuation.resume(returning: Self.stagedPointCloud(filename: filename, context: context))
+                        } else {
+                            continuation.resume(throwing: CocoaError(.fileWriteUnknown))
+                        }
+                    }
+                }
+            },
+            prepareSnapshot: { season, staged in
+                self.preparationCount += 1
+                if self.shouldFailPreparation {
+                    throw ScanYieldEstimationController.PreparationError.snapshotUnavailable
+                }
+                let cloud = staged.pointCloud
+                let params = FruitVarietyParams(category: .apple)
+                let input = ScanYieldEstimationController.Snapshot(context: self.preparedContextOverride ?? self.captureContext, input: .init(
+                    points: cloud.points, observations: [], imageDiagnostics: ImageDetectionDiagnostics(),
+                    fruitType: "apple", fruitCategory: .apple, paramsSnapshot: ["apple": params],
+                    defaultParams: params, clusterConfig: .default, fusionConfig: .default,
+                    colorFilter: nil, season: season, finalPointCloudIdentity: cloud.identity
+                ))
+                return try await ScanEvidenceSnapshot.freeze(snapshot: input, draft: staged.draft)
+            },
+            estimateYield: { snapshot in
+                self.estimateCount += 1
+                self.estimatedSnapshotIDs.append(snapshot.snapshot.id)
+                self.estimatedEvidence.append(snapshot.identity)
+                if self.shouldFailFirstEstimation && self.estimateCount == 1 {
+                    throw CocoaError(.coderInvalidValue)
+                }
+                return await withCheckedContinuation { continuation in
+                    self.estimateCompletions.append { result, _ in
+                        let identity = self.resultEvidenceOverride?(snapshot.identity) ?? snapshot.identity
+                        continuation.resume(returning: ScanEstimate(evidenceIdentity: identity, result: result))
+                    }
+                }
+            },
+            persistResult: { plan, receipt, estimate, _, _ in
+                XCTAssertEqual(receipt.identity, estimate.evidenceIdentity)
+                let draft = receipt.draft
+                let result = estimate.result
+                self.persistenceCount += 1
+                self.persistedInputs.append((plan.id, draft.sourceFilename, result.yieldFinalKg))
+                if self.shouldFailFirstPersistence && self.persistenceCount == 1 {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                self.committedRecordCount += 1
+                if self.shouldSuspendPersistence {
+                    await withCheckedContinuation { self.persistenceContinuation = $0 }
+                }
+                self.completedPersistenceOperationCount += 1
+                try ScanArchiveAccess.shared.withTransaction(at: draft.sourceURL) {
+                    ScanArchiveAccess.shared.releaseDraft(draft)
+                }
+            },
+            markCompleted: {
+                self.markCompletedCount += 1
+                self.setState(.completed)
+            },
+            refreshHistory: { self.historyRefreshCount += 1 },
+            discardArtifacts: {
+                self.discardedFilenames.append($0.sourceFilename)
+                let draft = $0
+                await Task.detached {
+                    try? ScanArchiveAccess.shared.withTransaction(at: draft.sourceURL) {
+                        ScanArchiveAccess.shared.releaseDraft(draft)
+                    }
+                }.value
+                return .discarded
+            }
+        )
+    }
+
+    private static func stagedPointCloud(filename: String, context: ScanContext) -> StagedPointCloud {
+        let signature = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005,
+                                                   confidenceThreshold: 1, pointBufferRevision: 1)
+        let staged = StagedPointCloud(
+            draft: DraftScan(sourceURL: URL(fileURLWithPath: "/test-fixtures/\(filename)"),
+                             sourceSHA256: "fixture-digest",
+                             fileIdentity: ScanSourceFileIdentity(device: 1, inode: 1),
+                             ownershipID: UUID(),
+                             captureIdentity: ScanCaptureIdentity(context: context, pointCloud: signature)),
+            pointCloud: FinalPointCloud(
+                identity: signature,
+                points: [], inputSampleCount: 0, retainedSampleCount: 0,
+                buildDuration: 0, estimatedPeakPayloadBytes: 0
+            )
+        )
+        try? ScanArchiveAccess.shared.withTransaction(at: staged.draft.sourceURL) {
+            ScanArchiveAccess.shared.registerDraft(staged.draft)
+        }
+        return staged
+    }
+
+    func setState(_ state: ScanLifecycleState) {
+        snapshot = ScanLifecycleSnapshot(
+            state: state,
+            scanIdentity: snapshot.scanIdentity,
+            generation: snapshot.generation + 1,
+            interruptionCount: snapshot.interruptionCount,
+            lastInterruptionTimestamp: snapshot.lastInterruptionTimestamp
+        )
+    }
+
+    func releasePersistence() {
+        persistenceContinuation?.resume()
+        persistenceContinuation = nil
+    }
+}
+
+final class ScanFinalizationWorkflowTests: XCTestCase {
+    @MainActor
+    func testProductionFinalizationUsesInjectedRepositoryAndHistoryCallback() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repository = ScanRepository(scansDirectory: directory)
+        let dependencies = AppDependencies(scanRepository: repository)
+        XCTAssertTrue(dependencies.scanRepository === repository)
+        let coordinator = ScanCoordinator(calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        let plan = makePlan()
+        coordinator.startRecording(plan: plan)
+        var refreshes = 0
+        let production = ScanFinalizationOperations.production(coordinator: coordinator, repository: repository,
+                                                               refreshHistory: { refreshes += 1 })
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: production.lifecycleSnapshot,
+            beginFinishing: production.beginFinishing,
+            exportPointCloud: { plan, latitude, longitude in
+                // Synthetic capture replaces only the unavailable physical LiDAR boundary.
+                let context = ScanContext(scanID: coordinator.lifecycleSnapshot().scanIdentity, planID: plan.id)
+                let signature = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005, confidenceThreshold: 1)
+                let points = [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)]
+                let source = try repository.pointCloudDestination(filename: "production-injected.ply")
+                let draft = try repository.stagePointCloud(to: source, captureIdentity: ScanCaptureIdentity(context: context, pointCloud: signature)) {
+                    try PLYPointCloudWriter.write(points: points, treeID: plan.treeID, scanDate: "2026-09-28 00:00:00",
+                                                  gpsLat: latitude, gpsLon: longitude, to: source)
+                }
+                return StagedPointCloud(draft: draft, pointCloud: FinalPointCloud(
+                    identity: signature, points: points, inputSampleCount: 1, retainedSampleCount: 1,
+                    buildDuration: 0, estimatedPeakPayloadBytes: 0
+                ))
+            },
+            prepareSnapshot: production.prepareSnapshot,
+            estimateYield: production.estimateYield,
+            persistResult: production.persistResult,
+            markCompleted: production.markCompleted,
+            refreshHistory: production.refreshHistory,
+            discardArtifacts: production.discardArtifacts
+        )
+        let workflow = ScanFinalizationWorkflow()
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
+        await waitUntil { workflow.phase == .completed }
+        XCTAssertEqual(refreshes, 1)
+        let source = try repository.pointCloudDestination(filename: "production-injected.ply")
+        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+        XCTAssertEqual(record.summary.treeID, plan.treeID)
+        XCTAssertEqual(record.summary.yieldKg, workflow.result?.yieldFinalKg)
+        XCTAssertEqual(record.manifest?.scanID, "production-injected")
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .completed)
+    }
+
+    @MainActor
+    func testPreparedEvidenceFromAnotherSourceWithSameCaptureIsRejected() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var otherDraft: DraftScan?
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            exportPointCloud: original.exportPointCloud,
+            prepareSnapshot: { season, staged in
+                let prepared = try await original.prepareSnapshot(season, staged)
+                let originalDraft = staged.draft
+                let replacement = DraftScan(
+                    sourceURL: originalDraft.sourceURL.deletingLastPathComponent().appendingPathComponent("other-source.ply"),
+                    sourceSHA256: originalDraft.sourceSHA256, fileIdentity: originalDraft.fileIdentity,
+                    ownershipID: UUID(), captureIdentity: originalDraft.captureIdentity
+                )
+                otherDraft = replacement
+                try ScanArchiveAccess.shared.withTransaction(at: replacement.sourceURL) {
+                    ScanArchiveAccess.shared.registerDraft(replacement)
+                }
+                return try await ScanEvidenceSnapshot.freeze(snapshot: prepared.snapshot, draft: replacement)
+            },
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("original-source.ply")
+        await waitUntil { workflow.retryAction == .estimateYield }
+        XCTAssertEqual(harness.estimateCount, 0)
+        XCTAssertEqual(harness.persistenceCount, 0)
+        workflow.cancel()
+        await waitUntil { workflow.cancellationSettlement != nil }
+        if let otherDraft {
+            try? ScanArchiveAccess.shared.withTransaction(at: otherDraft.sourceURL) {
+                ScanArchiveAccess.shared.releaseDraft(otherDraft)
+            }
+        }
+    }
+
+    @MainActor
+    func testSnapshotFromAnotherScanOrPlanCannotReachEstimation() async {
+        for mismatch in ["scan", "plan"] {
+            let workflow = ScanFinalizationWorkflow()
+            let harness = ScanFinalizationTestHarness()
+            let plan = makePlan()
+            harness.preparedContextOverride = ScanContext(
+                scanID: mismatch == "scan" ? UUID() : harness.snapshot.scanIdentity,
+                planID: mismatch == "plan" ? UUID() : plan.id
+            )
+            workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: harness.operations)
+            await waitUntil { harness.exportCompletions.count == 1 }
+            harness.exportCompletions[0]("mismatched-\(mismatch).ply")
+            await waitUntil { workflow.retryAction == .estimateYield }
+            XCTAssertEqual(harness.estimateCount, 0, mismatch)
+            XCTAssertEqual(harness.persistenceCount, 0, mismatch)
+            workflow.cancel()
+            await waitUntil { workflow.cancellationSettlement != nil }
+        }
+    }
+
+    @MainActor
+    func testEstimateFromAnotherObservationSnapshotIsRejectedAndCanRetryOriginalInput() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        harness.resultEvidenceOverride = { identity in
+            ScanEvidenceIdentity(capture: identity.capture, snapshotID: UUID(),
+                                 sourceOwnershipID: identity.sourceOwnershipID, sourceSHA256: identity.sourceSHA256)
+        }
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("foreign-result.ply")
+        await waitUntil { harness.estimateCompletions.count == 1 }
+        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 99), nil)
+        await waitUntil { workflow.retryAction == .estimateYield }
+        XCTAssertEqual(harness.persistenceCount, 0)
+        XCTAssertNil(workflow.result)
+        XCTAssertNotNil(workflow.estimationSnapshot)
+        harness.resultEvidenceOverride = nil
+        workflow.retry()
+        await waitUntil { harness.estimateCompletions.count == 2 }
+        harness.estimateCompletions[1](YieldResult(yieldFinalKg: 3), nil)
+        await waitUntil { workflow.phase == .completed }
+        XCTAssertEqual(harness.preparationCount, 1)
+        XCTAssertEqual(harness.estimatedEvidence[0], harness.estimatedEvidence[1])
+        XCTAssertEqual(harness.persistedInputs.map(\.2), [3])
+    }
+
+    @MainActor
+    func testProductionSnapshotEstimateAndRepositoryPreserveOneEvidenceIdentity() async throws {
+        let plan = makePlan()
+        let coordinator = ScanCoordinator(calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.startRecording(plan: plan)
+        XCTAssertTrue(coordinator.beginFinishingScan())
+        let context = ScanContext(scanID: coordinator.lifecycleSnapshot().scanIdentity, planID: plan.id)
+        let signature = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005,
+                                                   confidenceThreshold: 1, pointBufferRevision: 7)
+        let points = [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)]
+        let cloud = FinalPointCloud(identity: signature, points: points, inputSampleCount: 1,
+                                   retainedSampleCount: 1, buildDuration: 0, estimatedPeakPayloadBytes: 0)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("identity-integration.ply")
+        let draft = try ScanRepository.shared.stagePointCloud(
+            to: source, captureIdentity: ScanCaptureIdentity(context: context, pointCloud: signature)
+        ) {
+            try PLYPointCloudWriter.write(points: points, treeID: plan.treeID, scanDate: "2026-09-28 00:00:00",
+                                          gpsLat: 0, gpsLon: 0, to: source)
+        }
+        let input = try await coordinator.prepareYieldEstimationSnapshot(season: plan.season, finalPointCloud: cloud)
+        XCTAssertEqual(input.context, context)
+        XCTAssertEqual(input.input.points.count, points.count)
+        let frozen = try await ScanEvidenceSnapshot.freeze(snapshot: input, draft: draft)
+        let estimate = try await ScanYieldEstimationController.estimate(frozen)
+        XCTAssertEqual(estimate.evidenceIdentity, frozen.identity)
+        XCTAssertEqual(estimate.evidenceIdentity.snapshotID, input.id)
+        let assessment = ScanAssessment(receipt: frozen.receipt, estimate: estimate,
+                                        treeID: plan.treeID, fruitType: plan.fruitConfiguration.selectedCategory.rawValue,
+                                        scanDate: Date(timeIntervalSince1970: 1), gpsLat: 0, gpsLon: 0, includeCSV: true)
+        let service = ScanResultExportService(scansDirectory: directory)
+        let otherSnapshot = ScanYieldEstimationController.Snapshot(context: context, input: input.input)
+        do {
+            _ = try await ScanEvidenceSnapshot.freeze(snapshot: otherSnapshot, draft: draft)
+            XCTFail("A different observation snapshot must not replace the first binding")
+        } catch {
+            XCTAssertTrue(error is ScanEvidenceError)
+        }
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["identity-integration.ply"])
+        let committed = try ScanRepository.shared.commit(assessment, using: service)
+        let manifest = try XCTUnwrap(ScanLegacyArchiveCodec.readManifest(at: committed.manifestURL))
+        XCTAssertEqual(manifest.scanID, "identity-integration")
+        XCTAssertEqual(manifest.sourcePLYSHA256, frozen.identity.sourceSHA256)
+        let verified = try XCTUnwrap(ScanRepository.shared.readVerifiedRecord(at: source))
+        XCTAssertEqual(verified.summary.yieldKg, estimate.result.yieldFinalKg)
+        XCTAssertEqual(verified.manifest?.sourcePLYSHA256, draft.sourceSHA256)
+        let retried = try ScanRepository.shared.commit(assessment, using: service)
+        XCTAssertEqual(retried.exportRevision, committed.exportRevision)
+    }
+
+    @MainActor
+    func testCancelPropagatesToTheInFlightExportTask() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var started = false
+        var cancelled = false
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            exportPointCloud: { _, _, _ in
+                started = true
+                do {
+                    try await Task.sleep(nanoseconds: 30_000_000_000)
+                    throw PointCloudExportError.emptyPointCloud
+                } catch {
+                    cancelled = Task.isCancelled
+                    throw error
+                }
+            },
+            prepareSnapshot: original.prepareSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { started }
+        workflow.cancel()
+        await waitUntil { cancelled }
+        XCTAssertEqual(workflow.phase, .cancelled)
+        XCTAssertEqual(harness.estimateCount, 0)
+        XCTAssertEqual(harness.discardedFilenames, [])
+    }
+
+    @MainActor
+    func testLateExportSettlesOldScanWithoutChangingNewScan() async {
+        let workflow = ScanFinalizationWorkflow()
+        let original = ScanFinalizationTestHarness()
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: original.operations)
+        await waitUntil { original.exportCompletions.count == 1 }
+        workflow.cancel()
+        workflow.resetForNewScan()
+        let replacement = ScanFinalizationTestHarness()
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: replacement.operations)
+        await waitUntil { replacement.exportCompletions.count == 1 }
+        original.exportCompletions[0]("late-original.ply")
+        await waitUntil { original.historyRefreshCount == 1 }
+        XCTAssertEqual(original.discardedFilenames, ["late-original.ply"])
+        XCTAssertEqual(workflow.scanIdentity, replacement.snapshot.scanIdentity)
+        XCTAssertEqual(workflow.phase, .exportingPointCloud)
+        XCTAssertNil(workflow.filename)
+        XCTAssertNil(workflow.cancellationSettlement)
+        workflow.cancel()
+        replacement.exportCompletions[0](nil)
+    }
+
+    @MainActor
+    func testDuplicateFinishIsRejectedAndFailedExportCanRetryWithSameScanIdentity() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        let plan = makePlan()
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: harness.operations)
+        let scanIdentity = workflow.scanIdentity
+
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: harness.operations)
+        await waitUntil { harness.exportCount == 1 }
+        XCTAssertEqual(harness.exportCount, 1)
+        XCTAssertTrue(workflow.isWorking)
+
+        harness.exportCompletions[0](nil)
+        await waitUntil { workflow.retryAction == .exportPointCloud }
+        guard case .failed(.pointCloudExport) = workflow.phase else {
+            XCTFail("Expected the PLY export failure to remain retryable")
+            return
+        }
+
+        workflow.retry()
+        await waitUntil { harness.exportCount == 2 }
+        XCTAssertEqual(harness.exportCount, 2)
+        XCTAssertEqual(workflow.scanIdentity, scanIdentity)
+        workflow.cancel()
+        harness.exportCompletions[1]("late.ply")
+        await waitUntil { workflow.cancellationSettlement != nil }
+
+        XCTAssertEqual(workflow.phase, .cancelled)
+        XCTAssertEqual(harness.estimateCount, 0)
+        XCTAssertEqual(harness.discardedFilenames, ["late.ply"])
+    }
+
+    @MainActor
+    func testPersistenceRetryReusesResultAndRefreshesHistoryOnlyAfterCommit() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        harness.shouldFailFirstPersistence = true
+        let plan = makePlan()
+        let expected = YieldResult(yieldFinalKg: 3.25)
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: harness.operations)
+        let scanIdentity = workflow.scanIdentity
+
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("tree_scan.ply")
+        await waitUntil { harness.estimateCompletions.count == 1 }
+        harness.estimateCompletions[0](expected, nil)
+        await waitUntil { workflow.phase.isPersistenceFailure }
+
+        XCTAssertEqual(workflow.scanIdentity, scanIdentity)
+        XCTAssertEqual(workflow.filename, "tree_scan.ply")
+        XCTAssertEqual(workflow.result?.yieldFinalKg, expected.yieldFinalKg)
+        XCTAssertEqual(harness.historyRefreshCount, 0)
+        XCTAssertEqual(workflow.retryAction, .persistResult)
+        XCTAssertNil(workflow.stagedPointCloud, "Persistence retry must not retain the point cloud")
+        XCTAssertNil(workflow.estimationSnapshot, "Persistence retry only needs the completed result")
+
+        workflow.retry()
+        await waitUntil { workflow.phase == .completed }
+
+        XCTAssertEqual(harness.exportCount, 1)
+        XCTAssertEqual(harness.estimateCount, 1)
+        XCTAssertEqual(harness.persistenceCount, 2)
+        XCTAssertEqual(harness.persistedInputs.map(\.0), [plan.id, plan.id])
+        XCTAssertEqual(harness.persistedInputs.map(\.1), ["tree_scan.ply", "tree_scan.ply"])
+        XCTAssertEqual(harness.persistedInputs.map(\.2), [expected.yieldFinalKg, expected.yieldFinalKg])
+        XCTAssertEqual(harness.markCompletedCount, 1)
+        XCTAssertEqual(harness.historyRefreshCount, 1)
+
+        workflow.cancel()
+        XCTAssertEqual(workflow.phase, .completed)
+        XCTAssertEqual(harness.discardedFilenames, [])
+    }
+
+    @MainActor
+    func testCancelRacingWithCommittedPersistencePreservesTheRecord() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        harness.shouldSuspendPersistence = true
+        let plan = makePlan()
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: harness.operations)
+
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("committed_scan.ply")
+        await waitUntil { harness.estimateCompletions.count == 1 }
+        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 2.5), nil)
+        await waitUntil { harness.persistenceCount == 1 }
+
+        workflow.cancel()
+        harness.releasePersistence()
+        await waitUntil { harness.completedPersistenceOperationCount == 1 }
+
+        XCTAssertEqual(workflow.phase, .cancelled)
+        XCTAssertEqual(harness.committedRecordCount, 1)
+        XCTAssertEqual(harness.discardedFilenames, [])
+        XCTAssertEqual(harness.markCompletedCount, 0)
+        XCTAssertEqual(harness.historyRefreshCount, 1)
+        XCTAssertEqual(workflow.cancellationSettlement, .preservedCommitted)
+    }
+
+    @MainActor
+    func testCancelledFailedPersistenceSettlesTheDraft() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var pending: CheckedContinuation<Void, Error>?
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            exportPointCloud: original.exportPointCloud,
+            prepareSnapshot: original.prepareSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: { _, _, _, _, _ in
+                try await withCheckedThrowingContinuation { pending = $0 }
+            },
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("cancelled_failure.ply")
+        await waitUntil { harness.estimateCount == 1 }
+        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 2.5), nil)
+        await waitUntil { pending != nil }
+        workflow.cancel()
+        pending?.resume(throwing: CocoaError(.fileWriteUnknown))
+        await waitUntil { workflow.cancellationSettlement != nil }
+        XCTAssertEqual(workflow.phase, .cancelled)
+        XCTAssertEqual(workflow.cancellationSettlement, .discarded)
+        XCTAssertEqual(harness.discardedFilenames, ["cancelled_failure.ply"])
+        XCTAssertEqual(harness.historyRefreshCount, 1)
+    }
+
+    @MainActor
+    func testEstimationFailureRetriesTheSameFrozenInputWithoutReexportOrRedrain() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        harness.shouldFailFirstEstimation = true
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("estimate_retry.ply")
+        await waitUntil { workflow.retryAction == .estimateYield }
+        XCTAssertFalse(workflow.isWorking)
+        XCTAssertNotNil(workflow.stagedPointCloud)
+        XCTAssertNotNil(workflow.estimationSnapshot)
+        workflow.retry()
+        await waitUntil { harness.estimateCompletions.count == 1 }
+        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 2.75), nil)
+        await waitUntil { workflow.phase == .completed }
+        XCTAssertEqual(harness.exportCount, 1)
+        XCTAssertEqual(harness.preparationCount, 1)
+        XCTAssertEqual(harness.estimateCount, 2)
+        XCTAssertEqual(Set(harness.estimatedSnapshotIDs).count, 1)
+        XCTAssertEqual(harness.persistedInputs.first?.2, 2.75)
+    }
+
+    @MainActor
+    func testUnavailableSnapshotHasAnExplicitRetryableFailure() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        harness.shouldFailPreparation = true
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("snapshot_retry.ply")
+        await waitUntil { workflow.retryAction == .estimateYield }
+        XCTAssertFalse(workflow.isWorking)
+        XCTAssertEqual(harness.estimateCount, 0)
+        XCTAssertEqual(harness.persistenceCount, 0)
+        workflow.cancel()
+        await waitUntil { workflow.cancellationSettlement != nil }
+        XCTAssertEqual(harness.discardedFilenames, ["snapshot_retry.ply"])
+    }
+
+    @MainActor
+    func testCancelledEstimationCannotPersistLateResult() async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("cancelled_estimate.ply")
+        await waitUntil { harness.estimateCompletions.count == 1 }
+        workflow.cancel()
+        XCTAssertNil(workflow.stagedPointCloud)
+        XCTAssertNil(workflow.estimationSnapshot)
+        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 9), nil)
+        await waitUntil { workflow.cancellationSettlement != nil }
+        XCTAssertEqual(workflow.phase, .cancelled)
+        XCTAssertEqual(harness.persistenceCount, 0)
+        XCTAssertNil(workflow.result)
+    }
+
+    @MainActor
+    func testCancelledWorkflowIsReleasedWhileEstimatorIsStillSuspended() async {
+        var workflow: ScanFinalizationWorkflow? = ScanFinalizationWorkflow()
+        weak let weakWorkflow = workflow
+        let harness = ScanFinalizationTestHarness()
+        workflow?.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("released_estimate.ply")
+        await waitUntil { harness.estimateCompletions.count == 1 }
+        workflow?.cancel()
+        workflow = nil
+        XCTAssertNil(weakWorkflow)
+        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 9), nil)
+        await waitUntil { harness.discardedFilenames == ["released_estimate.ply"] }
+        XCTAssertEqual(harness.persistenceCount, 0)
+    }
+
+    @MainActor
+    private func makePlan() -> ScanPlan {
+        ScanPlanFactory(
+            settings: SettingsStore.shared,
+            calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("model-a"))
+        ).makePlan(
+            treeID: "T-finalization",
+            season: .mature,
+            selectedCategory: .apple,
+            renderer: nil
+        )
+    }
+
+    @MainActor
+    private func waitUntil(
+        _ predicate: @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            if predicate() { return }
+            await Task.yield()
+        }
+        XCTFail("Timed out waiting for workflow state")
+    }
+}
+
+private extension ScanFinalizationWorkflow.Phase {
+    var isPersistenceFailure: Bool {
+        guard case .failed(.resultPersistence(_)) = self else { return false }
+        return true
+    }
+}
+
+@MainActor
+final class ScanLiveFruitCountTests: XCTestCase {
+    func testLiveCountExcludesOtherFruitCategories() async throws {
+        let (coordinator, _) = try makeCoordinator()
+        await coordinator.appendObservations(observations(category: .apple) + observations(category: .pear),
+            evidenceToken: try XCTUnwrap(coordinator.capturedEvidenceToken()))
+        XCTAssertEqual(coordinator.confirmedLiveFruitCount(detectorConfig: .default), 1,
+            "A stable pear must not enter an apple scan's confirmed count")
+    }
+
+    func testLiveCountKeepsScanConfigurationWhenSettingsChange() async throws {
+        let (coordinator, settings) = try makeCoordinator()
+        await coordinator.appendObservations(observations(),
+            evidenceToken: try XCTUnwrap(coordinator.capturedEvidenceToken()))
+        XCTAssertEqual(coordinator.confirmedLiveFruitCount(detectorConfig: .default), 1)
+        settings.fruitType = FruitCategory.grape.rawValue
+        settings.qualityPreset = "高"
+        settings.minConfidence = 0.99
+        coordinator.loadSettings()
+        XCTAssertEqual(settings.fruitType, FruitCategory.grape.rawValue)
+        XCTAssertEqual(coordinator.activeFruitConfiguration?.selectedCategory, .apple)
+        XCTAssertEqual(coordinator.confirmedLiveFruitCount(detectorConfig: coordinator.imageDetector.configSnapshot()), 1,
+            "Changing settings cannot change the already captured scan's cluster geometry")
+    }
+
+    func testLiveCountUsesPlanClusterSizeLimit() async throws {
+        var cluster = ClusterConfig.default
+        cluster.maxDiameter = 0.04
+        let (coordinator, _) = try makeCoordinator(cluster: cluster)
+        await coordinator.appendObservations(observations(),
+            evidenceToken: try XCTUnwrap(coordinator.capturedEvidenceToken()))
+        XCTAssertEqual(coordinator.confirmedLiveFruitCount(detectorConfig: .default), 0,
+            "A 4 cm candidate is outside the apple's 8 cm size prior and allowed tolerance")
+    }
+
+    func testLiveCountUsesPlanFusionDistanceLimits() async throws {
+        var experiment = FruitScanExperimentConfig.default
+        experiment.fusion.nearestCandidateDistance = 0.01
+        experiment.fusion.relaxedDistanceMultiplier = 0.1
+        experiment.fusion.relaxedDistanceCap = 0.02
+        let (coordinator, _) = try makeCoordinator(experiment: experiment)
+        // The projection lies 6 cm behind the ROI candidate. Default 15 cm
+        // matching accepts it, while this plan's 1 cm gate must reject it.
+        await coordinator.appendObservations(observations(projectionDepth: 2.06),
+            evidenceToken: try XCTUnwrap(coordinator.capturedEvidenceToken()))
+        XCTAssertEqual(coordinator.confirmedLiveFruitCount(detectorConfig: .default), 0)
+    }
+
+    func testLiveCountKeepsStricterPlanConfidenceThanCallerConfiguration() async throws {
+        var fusion = FruitScanConfig.default
+        fusion.minConfidence = 0.96
+        let (coordinator, _) = try makeCoordinator(fusion: fusion)
+        await coordinator.appendObservations(observations(),
+            evidenceToken: try XCTUnwrap(coordinator.capturedEvidenceToken()))
+        XCTAssertEqual(coordinator.confirmedLiveFruitCount(detectorConfig: .default), 0,
+            "An older detector snapshot cannot loosen the active scan's confidence gate")
+    }
+
+    func testNewerOtherCategoryFramesStillExpireOldTargetEvidence() async throws {
+        let (coordinator, _) = try makeCoordinator()
+        await coordinator.appendObservations(observations() + observations(category: .pear, timestamp: 30),
+            evidenceToken: try XCTUnwrap(coordinator.capturedEvidenceToken()))
+        XCTAssertEqual(coordinator.confirmedLiveFruitCount(detectorConfig: .default), 0,
+            "Filtering pears must not make a 20-second-old apple track recent again")
+    }
+
+    private func makeCoordinator(
+        cluster: ClusterConfig = .default,
+        fusion: FruitScanConfig = .default,
+        experiment: FruitScanExperimentConfig = .default
+    ) throws -> (ScanCoordinator, SettingsStore) {
+        let suite = "LiveCountPlan-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let settings = SettingsStore(defaults: defaults)
+        settings.fruitType = FruitCategory.apple.rawValue
+        settings.qualityPreset = "中"
+        settings.clusterMinPoints = 3
+        let parameters = FruitVarietyParams(category: .apple)
+        let fruitConfiguration = ScanFruitConfiguration(selectedCategory: .apple,
+            parametersSnapshot: ["apple": parameters], defaultParams: parameters,
+            clusterConfig: cluster, fusionConfig: fusion, colorFilter: FruitCategory.apple.colorFilter,
+            calibrationCorrection: .neutral, calibrationWarning: nil, calibrationContext: nil,
+            modelIdentity: .modelMissing)
+        let plan = ScanPlan(treeID: "live-count-fixture", season: .mature, fruitConfiguration: fruitConfiguration,
+            rendererSettings: RendererScanSettings(store: settings, particleCapacity: 100), resourceBudget: .default,
+            requestedCameraResolution: "1080p", requestedCameraFrameRate: "60fps", autoExportCSV: false,
+            modelIdentity: .modelMissing, experimentConfiguration: experiment)
+        let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
+        addTeardownBlock {
+            await MainActor.run {
+                coordinator.teardown()
+                UserDefaults.standard.removePersistentDomain(forName: suite)
+            }
+        }
+        coordinator.startRecording(plan: plan)
+        return (coordinator, settings)
+    }
+
+    private func observations(
+        category: FruitCategory = .apple,
+        projectionDepth: Float = 2,
+        timestamp: TimeInterval = 10
+    ) -> [Observation] {
+        // A fixed 9 x 9 grid spans 4.8 cm at 2 m. It represents one compact
+        // ROI candidate near (0, 0, -2), observed twice more than 0.35 s apart.
+        let samples = (0..<9).flatMap { row in
+            (0..<9).map { column in
+                ObservationDepthSample(normalizedImageX: 0.488 + (Float(column) + 0.5) * 0.024 / 9,
+                    normalizedImageY: 0.488 + (Float(row) + 0.5) * 0.024 / 9,
+                    depthMeters: 2, row: row, column: column)
+            }
+        }
+        return (0..<2).map { index in
+            Observation(id: UUID(), frameID: FrameID(), category: category,
+                boundingBox: CGRect(x: 0.488, y: 0.488, width: 0.024, height: 0.024), confidence: 0.9,
+                timestamp: timestamp + Double(index) * 0.6, cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: simd_float3x3(SIMD3<Float>(1000, 0, 0), SIMD3<Float>(0, 1000, 0), SIMD3<Float>(500, 500, 1)),
+                imageSize: CGSize(width: 1000, height: 1000), coordinateConvention: .visionNormalizedLowerLeft,
+                depthConfidenceProvenance: .available, hasDepthMap: true, roiDepthSamples: samples,
+                projectionDepthSamples: Array(repeating: projectionDepth, count: 81), rejectionReasons: [])
+        }
     }
 }

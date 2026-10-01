@@ -3,6 +3,11 @@ import SwiftUI
 extension ScanView {
     func handleAppear() {
         isViewActive = true
+        sessionModel.apply(coordinator.lifecycleSnapshot())
+        finalizationWorkflow.onEvent = { [weak workflow = finalizationWorkflow] event in
+            guard workflow != nil else { return }
+            self.handleFinalizationEvent(event)
+        }
         refreshScanReadiness()
         coordinator.hudState = hudState
         coordinator.onCoveragePercentChange = handleCoveragePercentChange
@@ -15,21 +20,23 @@ extension ScanView {
             switch warning {
             case .recordsUnavailable:
                 showTemporaryNotice(L10n.Scan.calibrationUnavailable)
+            case .modelMissing:
+                showTemporaryNotice(L10n.Scan.modelMissing)
+            case .modelIdentityUnavailable:
+                showTemporaryNotice(L10n.Scan.modelIdentityUnavailable)
             }
         }
         coordinator.onLifecycleStateChange = { snapshot in
             guard isViewActive else { return }
-            lifecycleSnapshot = snapshot
+            sessionModel.apply(snapshot)
             switch snapshot.state {
             case .systemInterrupted:
-                isRecording = false
-                isEstimating = false
+                finalizationWorkflow.cancel()
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 showLifecycleRecovery = true
             case .failed(let reason):
-                isRecording = false
-                isEstimating = false
+                finalizationWorkflow.cancel()
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 if reason.requiresCameraReadinessRecovery {
@@ -39,8 +46,7 @@ extension ScanView {
                     showLifecycleRecovery = true
                 }
             case .recovering:
-                isRecording = false
-                isEstimating = false
+                finalizationWorkflow.cancel()
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 refreshScanReadiness()
@@ -61,8 +67,8 @@ extension ScanView {
 
     func handleDisappear() {
         isViewActive = false
+        finalizationWorkflow.onEvent = nil
         cancelScanReadinessRequest(clearRecoveryRequest: true)
-        isEstimating = false
         invalidateTemporaryNotice()
         invalidateCoverageCompletion()
         if coordinator.lifecycleSnapshot().state != .completed {
@@ -112,11 +118,18 @@ extension ScanView {
                 if shouldRecoverLifecycle {
                     showLifecycleRecovery = false
                 }
-                isRecording = false
+                let scanWasActive = lifecycleSnapshot.state == .recording
+                    || lifecycleSnapshot.state == .userPaused
+                    || lifecycleSnapshot.state == .finishing
+                if scanWasActive {
+                    pendingLifecycleRecoveryAfterReadiness = true
+                }
+                finalizationWorkflow.cancel()
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 measurementController.renderer = nil
                 coordinator.teardownForReadinessBlock()
+                sessionModel.apply(coordinator.lifecycleSnapshot())
             }
         }
     }

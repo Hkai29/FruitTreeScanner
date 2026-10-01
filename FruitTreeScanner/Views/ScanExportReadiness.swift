@@ -2,7 +2,7 @@ import Foundation
 
 struct ScanExportReadiness {
     enum RetryAction: Equatable {
-        case unavailable, exportPointCloud, persistResult
+        case unavailable, exportPointCloud, estimateYield, persistResult
     }
 
     static func retryAction(

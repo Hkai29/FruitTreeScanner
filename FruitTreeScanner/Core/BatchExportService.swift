@@ -270,42 +270,9 @@ final class BatchExportService {
     /// History rows are snapshots. Check their source and companions before
     /// and after writing every batch format.
     nonisolated private static func validateCurrentRecords(_ records: [ScanFileRecord]) throws {
-        let fileManager = FileManager.default
         for record in records {
             try Task.checkCancellation()
-            let baseURL = record.fileURL.deletingPathExtension()
-            let directory = record.fileURL.deletingLastPathComponent()
-            let sidecarExists = [
-                baseURL.appendingPathExtension("csv"),
-                directory.appendingPathComponent("\(baseURL.lastPathComponent)_result.json"),
-                directory.appendingPathComponent("\(baseURL.lastPathComponent)_complete.json")
-            ].contains { fileManager.fileExists(atPath: $0.path) }
-            // History rows always require source validation. Callers may also
-            // supply synthetic records without a source for summary exports.
-            if !record.requiresSourceValidation &&
-                (!sidecarExists || !fileManager.fileExists(atPath: record.fileURL.path)) {
-                continue
-            }
-            guard let current = PLYParserHelper.readCompanionResult(for: record.fileURL).result,
-                  current.fruitCount == record.fruitCount,
-                  current.yieldKg == record.yieldKg,
-                  current.fruitType == record.fruitType
-            else { throw BatchExportError.inconsistentRecord }
-            if record.requiresSourceValidation {
-                guard fileManager.fileExists(atPath: record.fileURL.path),
-                      let size = try? record.fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-                      size == record.fileSizeBytes,
-                      current.confidence == record.confidence
-                else { throw BatchExportError.inconsistentRecord }
-                let metadata = PLYParserHelper.parseHeaderMetadata(from: record.fileURL)
-                    ?? PLYParserHelper.parseFilenameMetadata(from: record.fileURL)
-                    ?? PLYParserHelper.fallbackMetadata(from: record.fileURL)
-                guard metadata.treeID == record.treeID,
-                      metadata.scanDate == record.scanDate,
-                      metadata.gpsLat == record.gpsLat,
-                      metadata.gpsLon == record.gpsLon
-                else { throw BatchExportError.inconsistentRecord }
-            }
+            try ScanRepository.shared.validateBatchRecord(record)
         }
     }
 }

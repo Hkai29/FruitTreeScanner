@@ -127,6 +127,76 @@ final class FusionValidatorTests: XCTestCase {
 
     // MARK: - B.1 nil depthMap → imageOnly
 
+    func testConfiguredMatchingDistanceIsUsedWithoutChangingDefaultPolicy() {
+        let candidate = appleCandidate(at: SIMD3<Float>(0.1, 0, -2))
+        let observation = appleDetection().resolvedObservation()
+        var strict = FusionExperimentConfig.default
+        strict.nearestCandidateDistance = 0.05
+        let baseline = CandidateMatcher()
+        let configured = CandidateMatcher(experimentConfiguration: strict)
+        XCTAssertNotNil(baseline.matchScore(position: SIMD3<Float>(0, 0, -2), candidate: candidate,
+            detection: observation, cameraIntrinsics: nil, cameraTransform: nil, imageSize: nil))
+        XCTAssertNil(configured.matchScore(position: SIMD3<Float>(0, 0, -2), candidate: candidate,
+            detection: observation, cameraIntrinsics: nil, cameraTransform: nil, imageSize: nil))
+    }
+
+    func testRejectedDepthDistanceUsesCapturedConfiguration() throws {
+        let observation = try rejectionPolicyObservation()
+        let rejected = FruitCandidate(position: SIMD3<Float>(0.1, 0, -2), diameter: 0.08,
+            sphericity: 0.1, pointCount: 20, averageColor: .zero,
+            sourceCategory: .apple, depthSupportRatio: 1)
+        var strict = FusionExperimentConfig.default
+        strict.rejectedDepthCandidateMinimumDistance = 0.01
+        strict.rejectedDepthCandidateMaximumDistance = 0.02
+        strict.relaxedDistanceMultiplier = 0.1
+        let configured = FusionValidator(experimentConfiguration: strict)
+        strict.rejectedDepthCandidateMinimumDistance = 1
+        XCTAssertTrue(FusionValidator().validate(observations: [observation], candidates: [rejected]).isEmpty)
+        let result = configured.validate(observations: [observation], candidates: [rejected])
+        XCTAssertEqual(result.map(\.source), [.imageOnly])
+        XCTAssertEqual(try XCTUnwrap(result.first).position.z, -2, accuracy: 0.00001)
+    }
+
+    func testRejectedDepthFrustumUsesConfiguredBoxExpansion() throws {
+        let observation = try rejectionPolicyObservation()
+        // At 5 m this projects to x=.518: outside the default expanded box,
+        // inside the .5 expansion, and beyond every 3D rejection distance.
+        let rejected = FruitCandidate(position: SIMD3<Float>(0.09, 0, -5), diameter: 0.08,
+            sphericity: 0.1, pointCount: 20, averageColor: .zero,
+            sourceCategory: .apple, depthSupportRatio: 1)
+        var expanded = FusionExperimentConfig.default
+        expanded.projectedBoxExpansionFraction = 0.5
+        XCTAssertEqual(FusionValidator().validate(observations: [observation], candidates: [rejected]).map(\.source), [.imageOnly])
+        XCTAssertTrue(FusionValidator(experimentConfiguration: expanded)
+            .validate(observations: [observation], candidates: [rejected]).isEmpty)
+    }
+
+    func testRejectedDepthEvidenceDoesNotCrossCategoryOrCloudProvenance() throws {
+        let observation = try rejectionPolicyObservation()
+        let pear = FruitCandidate(position: SIMD3<Float>(0, 0, -2), diameter: 0.08,
+            sphericity: 0.1, pointCount: 20, averageColor: .zero,
+            sourceCategory: .pear, depthSupportRatio: 1)
+        let cloud = FruitCandidate(position: SIMD3<Float>(0, 0, -2), diameter: 0.08,
+            sphericity: 0.1, pointCount: 20, averageColor: .zero)
+        let apple = FruitCandidate(position: SIMD3<Float>(0, 0, -2), diameter: 0.08,
+            sphericity: 0.1, pointCount: 20, averageColor: .zero,
+            sourceCategory: .apple, depthSupportRatio: 1)
+        let validator = FusionValidator()
+        XCTAssertEqual(validator.validate(observations: [observation], candidates: [pear, cloud]).map(\.source), [.imageOnly])
+        XCTAssertTrue(validator.validate(observations: [observation], candidates: [pear, cloud, apple]).isEmpty)
+    }
+
+    private func rejectionPolicyObservation() throws -> Observation {
+        let depth = try XCTUnwrap(makeDepthMap(width: 32, height: 32, fillValue: 2))
+        let confidence = try XCTUnwrap(makeConfidenceMap(width: 32, height: 32, fillValue: 2))
+        return Observation.capture(id: UUID(), frameID: FrameID(), category: .apple,
+            boundingBox: CGRect(x: 0.49, y: 0.49, width: 0.02, height: 0.02),
+            confidence: 0.9, timestamp: 10, cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 1000, fy: 1000, cx: 500, cy: 500),
+            imageSize: CGSize(width: 1000, height: 1000), depthMap: depth,
+            depthConfidenceMap: confidence, depthConfidenceProvenance: .available)
+    }
+
     func testValidateNilDepthMapReturnsImageOnly() {
         let validator = FusionValidator(config: .default)
         let detections = [appleDetection()]
@@ -748,6 +818,44 @@ final class FusionValidatorTests: XCTestCase {
 
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.source, .fused)
+    }
+
+    func testLegacyBufferAdapterAndObservationFusionStayEquivalent() throws {
+        let depthMap = try XCTUnwrap(makeDepthMap(width: 256, height: 192, fillValue: 2.0))
+        let intrinsics = pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540)
+        let imageSize = CGSize(width: 1920, height: 1080)
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.93,
+            timestamp: 10,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: intrinsics,
+            imageSize: imageSize,
+            depthMap: depthMap
+        )
+        let observation = detection.resolvedObservation(frameID: FrameID())
+        let candidate = appleCandidate(at: SIMD3<Float>(0, 0, -2))
+        let validator = FusionValidator(config: .default)
+
+        let legacyResult = validator.validate(detections: [detection], candidates: [candidate])
+        let observationResult = validator.validate(observations: [observation], candidates: [candidate])
+        let legacyROIDCandidates = DetectionDepthCandidateBuilder.makeCandidates(
+            from: [detection],
+            clusterConfig: .default
+        )
+        let observationROIDCandidates = DetectionDepthCandidateBuilder.makeCandidates(
+            from: [DetectedFruit(observation: observation)],
+            clusterConfig: .default
+        )
+
+        XCTAssertEqual(legacyResult.map(\.source), observationResult.map(\.source))
+        XCTAssertEqual(legacyResult.map(\.position), observationResult.map(\.position))
+        XCTAssertEqual(legacyResult.map(\.sourceCandidateIDs), observationResult.map(\.sourceCandidateIDs))
+        XCTAssertEqual(legacyROIDCandidates.count, observationROIDCandidates.count)
+        XCTAssertEqual(legacyROIDCandidates.first?.position, observationROIDCandidates.first?.position)
+        XCTAssertEqual(legacyROIDCandidates.first?.diameter, observationROIDCandidates.first?.diameter)
+        XCTAssertEqual(legacyROIDCandidates.first?.points, observationROIDCandidates.first?.points)
     }
 
     // MARK: - B.3 candidate beyond distance threshold → imageOnly

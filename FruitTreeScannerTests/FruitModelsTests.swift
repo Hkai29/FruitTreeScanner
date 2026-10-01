@@ -8,6 +8,28 @@ import UIKit
 
 final class FruitModelsTests: XCTestCase {
 
+    func testNativeCategoryVerificationCountsFramesWithoutCountingEveryBoxAsAFrame() throws {
+        let detections = (0..<3).map {
+            DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.9, timestamp: Double($0))
+        } + [
+            DetectedFruit(category: .apple, boundingBox: .zero, confidence: 0.1, timestamp: 0),
+            DetectedFruit(category: .pear, boundingBox: .zero, confidence: 0.99, timestamp: 0),
+            DetectedFruit(category: .pear, boundingBox: .zero, confidence: 0.99, timestamp: 1)
+        ]
+        let observations = detections.map { $0.resolvedObservation() }
+        let summary = FruitCategoryVerificationSummary.make(selectedCategory: .pear, observations: observations)
+        XCTAssertEqual(summary, FruitCategoryVerificationSummary.make(selectedCategory: .pear, detections: detections))
+        XCTAssertEqual(summary.detectedCategoryCounts, ["apple": 4, "pear": 2])
+        XCTAssertEqual(summary.nonTargetDetectionCount, 4)
+        XCTAssertTrue(summary.categoryMismatchDetected)
+        XCTAssertEqual(summary.dominantNonTargetCategory, .apple)
+        let suggestion = try XCTUnwrap(FruitCategoryVerification.suggestion(observations: observations))
+        XCTAssertEqual(suggestion, summary.automaticSuggestion)
+        XCTAssertEqual(suggestion.supportingFrameCount, 3)
+        XCTAssertEqual(suggestion.confidence, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(suggestion.competingCategory, .pear)
+    }
+
     func testFruitCategorySuggestionRequiresStableDominantFrames() {
         let stableApple = (0..<3).map { offset in
             DetectedFruit(

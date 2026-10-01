@@ -17,28 +17,23 @@ final class PointCloudCluster: Sendable {
 
     /// 处理 ColoredPoint 数组（异步）
     func process(points: [ColoredPoint]) async -> [FruitCandidate] {
-        let positions = points.map { $0.pos }
-        let colors = points.map { SIMD3<Float>($0.r, $0.g, $0.b) }
-        return await processInMemory(position: positions, colors: colors)
-    }
-
-    /// 处理 ColoredPoint 数组（同步，用于 YieldEstimator）
-    func processSync(points: [ColoredPoint]) -> [FruitCandidate] {
-        let positions = points.map { $0.pos }
-        let colors = points.map { SIMD3<Float>($0.r, $0.g, $0.b) }
-        return dbscanClustering(positions: positions, colors: colors)
-    }
-
-    /// 处理内存中的点云数据（异步）
-    func processInMemory(position: [SIMD3<Float>], colors: [SIMD3<Float>]) async -> [FruitCandidate] {
-        guard position.count >= config.minPoints else { return [] }
-
+        guard points.count >= config.minPoints else { return [] }
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                let candidates = self.dbscanClustering(positions: position, colors: colors)
-                continuation.resume(returning: candidates)
+                let clusterPoints = points.map {
+                    ClusterPoint(pos: $0.pos, color: SIMD3<Float>($0.r, $0.g, $0.b))
+                }
+                continuation.resume(returning: self.dbscanClustering(points: clusterPoints))
             }
         }
+    }
+
+    /// Synchronous entry point retained for algorithm regression tests.
+    func processSync(points: [ColoredPoint]) -> [FruitCandidate] {
+        let clusterPoints = points.map {
+            ClusterPoint(pos: $0.pos, color: SIMD3<Float>($0.r, $0.g, $0.b))
+        }
+        return dbscanClustering(points: clusterPoints)
     }
 
     func debugRangeQuery(points: [SIMD3<Float>], center: SIMD3<Float>, radius: Float) -> [Int] {
@@ -63,9 +58,8 @@ final class PointCloudCluster: Sendable {
         var clusterId: Int = -1
     }
 
-    private func dbscanClustering(positions: [SIMD3<Float>], colors: [SIMD3<Float>]) -> [FruitCandidate] {
-        var points = zip(positions, colors).map { ClusterPoint(pos: $0.0, color: $0.1) }
-
+    private func dbscanClustering(points inputPoints: [ClusterPoint]) -> [FruitCandidate] {
+        var points = inputPoints
         // 第一步：噪声过滤 - 移除孤立点和边界噪声
         points = applyNoiseFilter(points)
         guard points.count >= config.minPoints else { return [] }

@@ -545,6 +545,93 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         XCTAssertTrue(calibratedYield.note.contains("本地校准"))
     }
 
+    func testCustomDenoisingAndOcclusionConfigurationReachYieldBuilder() async throws {
+        let points = makeAppleSphere(center: SIMD3<Float>(0, 0, 2))
+            + makeAppleSphere(center: SIMD3<Float>(0.002, 0, 2))
+            + [ColoredPoint(pos: SIMD3<Float>(4, 0, 2), r: 0.70, g: 0.25, b: 0.15)]
+        let depth = try XCTUnwrap(makeDepthMap(width: 256, height: 192, fillValue: 2))
+        let detection = DetectedFruit(category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1), confidence: 0.9,
+            cameraTransform: identityTransform, cameraIntrinsics: pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540),
+            imageSize: CGSize(width: 1920, height: 1080), depthMap: depth)
+        func input(_ configuration: FruitScanExperimentConfig, cloud: [ColoredPoint]? = nil) -> ScanFusionYieldBuilder.Input {
+            .init(points: cloud ?? points, savedDetections: [detection], imageDiagnostics: emptyImageDiagnostics(),
+                fruitType: "苹果", fruitCategory: .apple, paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()],
+                defaultParams: appleParams(), clusterConfig: .default, fusionConfig: .default,
+                colorFilter: FruitCategory.apple.colorFilter, experimentConfiguration: configuration)
+        }
+        let (baseline, _) = await ScanFusionYieldBuilder.build(from: input(.default))
+        var skipDenoising = FruitScanExperimentConfig.default
+        skipDenoising.pointCloud.denoisingMinPointFloor = points.count + 1
+        let (unfiltered, _) = await ScanFusionYieldBuilder.build(from: input(skipDenoising))
+        XCTAssertGreaterThan(baseline.diagnostics.pointCloudOutlierPointCount, 0)
+        XCTAssertEqual(unfiltered.diagnostics.pointCloudOutlierPointCount, 0)
+        XCTAssertEqual(unfiltered.diagnostics.pointCloudDenoisedPointCount, points.count)
+        let canopy = ringPoints(angleStart: 0, angleEnd: 2 * .pi, count: 360, radius: 0.3,
+            color: SIMD3<Float>(0.7, 0.2, 0.1)).map {
+                ColoredPoint(pos: $0.pos + SIMD3<Float>(0, 0, 2), r: $0.r, g: $0.g, b: $0.b)
+            }
+        let (coveredBaseline, _) = await ScanFusionYieldBuilder.build(from: input(.default, cloud: canopy))
+        var shallow = FruitScanExperimentConfig.default
+        shallow.occlusion.lidarPenetrationMeters = 0.001
+        let (changed, _) = await ScanFusionYieldBuilder.build(from: input(shallow, cloud: canopy))
+        XCTAssertGreaterThan(coveredBaseline.diagnostics.fusedFruitCount, 0)
+        XCTAssertLessThan(coveredBaseline.correctionK, 2.5, "The baseline must be below the correction cap")
+        XCTAssertEqual(changed.diagnostics.fusedFruitCount, coveredBaseline.diagnostics.fusedFruitCount)
+        XCTAssertGreaterThan(changed.correctionK, coveredBaseline.correctionK)
+        XCTAssertGreaterThan(changed.yieldFinalKg, coveredBaseline.yieldFinalKg)
+        var rejectMatching = FruitScanExperimentConfig.default
+        rejectMatching.fusion.nearestCandidateDistance = 0
+        rejectMatching.fusion.relaxedDistanceCap = 0
+        let (rejected, _) = await ScanFusionYieldBuilder.build(from: input(rejectMatching, cloud: canopy))
+        XCTAssertEqual(rejected.diagnostics.fusedFruitCount, 0)
+        XCTAssertEqual(rejected.yieldFinalKg, 0)
+        XCTAssertFalse(rejected.diagnostics.zeroYieldReasons.isEmpty)
+    }
+
+    func testConfiguredCandidateMergeDistanceAndPointRetentionAreUsed() {
+        func candidate(_ x: Float) -> FruitCandidate {
+            FruitCandidate(position: SIMD3<Float>(x, 0, -2), diameter: 0.08, sphericity: 0.85,
+                pointCount: 10, averageColor: SIMD3<Float>(0.7, 0.2, 0.1),
+                points: [SIMD3<Float>(x, 0, -2), SIMD3<Float>(x, 0.01, -2), SIMD3<Float>(x, 0.02, -2)])
+        }
+        let candidates = [candidate(0), candidate(0.01)]
+        XCTAssertEqual(CandidateCombiner.mergeDetectionDepthCandidates(candidates).count, 1)
+        var strict = CandidateMergeExperimentConfig.default
+        strict.minMergeDistance = 0.005
+        strict.maxMergeDistance = 0.005
+        XCTAssertEqual(CandidateCombiner.mergeDetectionDepthCandidates(candidates, configuration: strict).count, 2)
+        var small = CandidateMergeExperimentConfig.default
+        small.maxPointSamples = 2
+        let merged = CandidateCombiner.mergeDetectionDepthCandidates(candidates, configuration: small)
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged.first?.points.count, 2)
+        XCTAssertEqual(merged.first?.pointCount, 20)
+    }
+
+    func testYieldResultKeepsCapturedCalibrationIdentityIncludingUnavailableContext() async throws {
+        let depth = try XCTUnwrap(makeDepthMap(width: 256, height: 192, fillValue: 2))
+        let detection = DetectedFruit(category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1), confidence: 0.9,
+            cameraTransform: identityTransform, cameraIntrinsics: pinholeIntrinsics(fx: 500, fy: 500, cx: 960, cy: 540),
+            imageSize: CGSize(width: 1920, height: 1080), depthMap: depth)
+        func input(context: String?) -> ScanFusionYieldBuilder.Input {
+            .init(points: makeAppleSphere(center: SIMD3<Float>(0, 0, 2)), savedDetections: [detection],
+                imageDiagnostics: emptyImageDiagnostics(), fruitType: "苹果", fruitCategory: .apple,
+                paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()], defaultParams: appleParams(),
+                clusterConfig: .default, fusionConfig: .default, colorFilter: FruitCategory.apple.colorFilter,
+                calibrationIdentity: ScanCalibrationIdentity(algorithmRevision: "captured-revision", context: context))
+        }
+        let (captured, _) = await ScanFusionYieldBuilder.build(from: input(context: "captured-model-and-configuration"))
+        XCTAssertGreaterThan(captured.yieldFinalKg, 0)
+        XCTAssertEqual(captured.algorithmRevision, "captured-revision")
+        XCTAssertEqual(captured.calibrationContext, "captured-model-and-configuration")
+        let (unavailable, _) = await ScanFusionYieldBuilder.build(from: input(context: nil))
+        XCTAssertGreaterThan(unavailable.yieldFinalKg, 0)
+        XCTAssertEqual(unavailable.algorithmRevision, "captured-revision")
+        XCTAssertNil(unavailable.calibrationContext, "An unavailable scan model identity must never be filled from a later bundled model")
+    }
+
     func testOcclusionPointCoverageUsesTargetFruitColorInsteadOfBackgroundCanopy() async throws {
         guard let depthMap = makeDepthMap(width: 256, height: 192, fillValue: 2.0) else {
             XCTFail("depth map should be created")
@@ -649,8 +736,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -722,7 +808,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
                 sizeTolerance: 0.35,
-                sphericityThreshold: 0.5,
                 minimumStableDetectionsForYield: 2
             ),
             colorFilter: nil
@@ -775,8 +860,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -826,8 +910,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.001,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.001
             ),
             colorFilter: nil
         )
@@ -888,8 +971,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -999,8 +1081,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -1067,8 +1148,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -1127,8 +1207,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
                 fusionConfig: FruitScanConfig(
                     imageDetectionInterval: 10,
                     minConfidence: 0.5,
-                    sizeTolerance: 0.35,
-                    sphericityThreshold: 0.5
+                    sizeTolerance: 0.35
                 ),
                 colorFilter: nil
             )
@@ -1217,8 +1296,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
                 fusionConfig: FruitScanConfig(
                     imageDetectionInterval: 10,
                     minConfidence: 0.5,
-                    sizeTolerance: 0.35,
-                    sphericityThreshold: 0.5
+                    sizeTolerance: 0.35
                 ),
                 colorFilter: nil
             )
@@ -1282,8 +1360,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -1352,8 +1429,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -1427,8 +1503,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
                 fusionConfig: FruitScanConfig(
                     imageDetectionInterval: 10,
                     minConfidence: 0.5,
-                    sizeTolerance: 0.35,
-                    sphericityThreshold: 0.5
+                    sizeTolerance: 0.35
                 ),
                 colorFilter: nil
             )
@@ -1491,8 +1566,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -1565,8 +1639,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -1618,7 +1691,6 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             imageDetectionInterval: 10,
             minConfidence: 0.5,
             sizeTolerance: 0.35,
-            sphericityThreshold: 0.5,
             minimumStableDetectionsForYield: 1,
             stableDetectionTimeWindow: 4.0
         )
@@ -1667,6 +1739,57 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             singleEvidenceYield.yieldBVisibleKg,
             accuracy: 0.0001,
             "imageOnly 观测不能进入可靠可见产量权重"
+        )
+    }
+
+    func testReliableYieldBoundaryProducesOnlyFusedEvidence() {
+        let configuration = FruitScanConfig(
+            imageDetectionInterval: 1,
+            minConfidence: 0.5,
+            sizeTolerance: 0.35,
+            minimumStableDetectionsForYield: 1
+        )
+        let imageOnly = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.95
+        )
+        let candidate = FruitCandidate(
+            position: SIMD3<Float>(0, 0, -2),
+            diameter: 0.08,
+            sphericity: 0.85,
+            pointCount: 20,
+            averageColor: SIMD3<Float>(0.6, 0.25, 0.18),
+            sourceCategory: .apple
+        )
+        let rejected = FusionEvidencePipeline(fusionConfig: configuration).run(
+            detections: [imageOnly],
+            candidates: [candidate]
+        )
+        XCTAssertTrue(rejected.reliableEvidence.isEmpty)
+        XCTAssertTrue(rejected.validatedFruits.isEmpty)
+
+        let depthMap = makeDepthMap(width: 90, height: 90, fillValue: 2.0)
+        XCTAssertNotNil(depthMap)
+        let aligned = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.95,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 1000, fy: 1000, cx: 450, cy: 450),
+            imageSize: CGSize(width: 900, height: 900),
+            depthMap: depthMap
+        )
+        let admitted = FusionEvidencePipeline(fusionConfig: configuration).run(
+            detections: [aligned],
+            candidates: [candidate]
+        )
+
+        XCTAssertFalse(admitted.reliableEvidence.isEmpty)
+        XCTAssertTrue(admitted.reliableEvidence.allSatisfy { $0.validatedFruit.source == ValidationSource.fused })
+        XCTAssertEqual(
+            admitted.reliableEvidence.map { $0.validatedFruit.id },
+            admitted.validatedFruits.map { $0.id }
         )
     }
 
@@ -1726,8 +1849,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )
@@ -1777,8 +1899,7 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
             fusionConfig: FruitScanConfig(
                 imageDetectionInterval: 10,
                 minConfidence: 0.5,
-                sizeTolerance: 0.35,
-                sphericityThreshold: 0.5
+                sizeTolerance: 0.35
             ),
             colorFilter: nil
         )

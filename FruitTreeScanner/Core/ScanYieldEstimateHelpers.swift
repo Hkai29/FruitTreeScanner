@@ -106,19 +106,9 @@ enum ScanYieldEstimateHelpers {
             return $0.id.uuidString < $1.id.uuidString
         }
         for fruit in orderedFruits {
-            let availableCandidates = candidates.filter {
-                !usedCandidateIDs.contains($0.id) &&
-                candidate($0, isCompatibleWith: fruit) &&
-                (fruit.sourceCandidateIDs.isEmpty || fruit.sourceCandidateIDs.contains($0.id))
-            }
-            let distances: [(candidate: FruitCandidate, dist: Float)] = availableCandidates.map {
-                (candidate: $0, dist: simd_distance($0.position, fruit.position))
-            }
-            let eligible = distances.filter { !fruit.sourceCandidateIDs.isEmpty || $0.dist < 0.1 }
-            let matchedCandidate = eligible.min { lhs, rhs in
-                if lhs.dist == rhs.dist { return lhs.candidate.id.uuidString < rhs.candidate.id.uuidString }
-                return lhs.dist < rhs.dist
-            }?.candidate
+            let matchedCandidate = nearestAvailableCandidate(
+                for: fruit, in: candidates, excluding: usedCandidateIDs
+            )
 
             if let candidate = matchedCandidate {
                 let params = fruit.category.flatMap { paramsByCategory[$0.rawValue] } ?? defaultParams
@@ -154,10 +144,53 @@ enum ScanYieldEstimateHelpers {
         )
     }
 
+    /// Production yield estimation starts from fusion-admitted evidence. The
+    /// validated-fruit overload remains for compatibility and diagnostics.
+    static func computeYieldFromReliableEvidence(
+        _ evidence: [ReliableYieldEvidence],
+        candidates: [FruitCandidate],
+        paramsByCategory: [String: FruitVarietyParams],
+        defaultParams: FruitVarietyParams
+    ) -> VisibleYieldEstimate {
+        computeYieldFromValidatedFruits(
+            evidence.map(\.validatedFruit),
+            candidates: candidates,
+            paramsByCategory: paramsByCategory,
+            defaultParams: defaultParams
+        )
+    }
+
     private static func weightedEvidence(for validatedFruits: [ValidatedFruit]) -> Float {
         validatedFruits.reduce(0) { total, fruit in
             total + FruitCounter.evidenceWeight(for: fruit)
         }
+    }
+
+    /// Keep explicit fusion membership authoritative. Legacy fruit values without
+    /// membership retain the strict 10 cm spatial fallback. A single pass avoids
+    /// allocating candidate and distance arrays for each fruit.
+    private static func nearestAvailableCandidate(
+        for fruit: ValidatedFruit,
+        in candidates: [FruitCandidate],
+        excluding usedCandidateIDs: Set<UUID>
+    ) -> FruitCandidate? {
+        var best: (candidate: FruitCandidate, distance: Float)?
+        for value in candidates {
+            guard !usedCandidateIDs.contains(value.id),
+                  candidate(value, isCompatibleWith: fruit),
+                  fruit.sourceCandidateIDs.isEmpty || fruit.sourceCandidateIDs.contains(value.id) else { continue }
+            let distance = simd_distance(value.position, fruit.position)
+            guard !fruit.sourceCandidateIDs.isEmpty || distance < 0.1 else { continue }
+            if let current = best {
+                if distance == current.distance {
+                    guard value.id.uuidString < current.candidate.id.uuidString else { continue }
+                } else {
+                    guard distance < current.distance else { continue }
+                }
+            }
+            best = (value, distance)
+        }
+        return best?.candidate
     }
 
     private static func candidate(

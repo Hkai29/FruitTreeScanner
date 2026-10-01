@@ -14,6 +14,7 @@ enum L10n {
         static let recording = NSLocalizedString("scan.recording", value: "录制中", comment: "Recording status")
         static let noPointCloud = NSLocalizedString("scan.no_point_cloud", value: "请先录制一段点云后再测量", comment: "No point cloud notice")
         static let exportFailed = NSLocalizedString("scan.export_failed", value: "点云导出失败（文件写入错误），请检查存储空间后重试", comment: "PLY export failure")
+        static let estimateFailed = NSLocalizedString("scan.estimate_failed", value: "本次产量计算未完成，请重试。已保存的点云将继续保留。", comment: "Retryable yield estimation failure")
         static var coverageComplete: String { coverageCompleteTitle() }
         static var coverageCompleteHint: String { coverageCompleteMessage() }
         static let scanning = NSLocalizedString("scan.scanning", value: "扫描中", comment: "Scanning status")
@@ -22,6 +23,8 @@ enum L10n {
         static let interruptionMessage = NSLocalizedString("scan.interruption_message", value: "相机或 AR 跟踪在扫描过程中被中断。为避免混合不连续的扫描数据，请重新开始本次扫描。", comment: "Scan interruption alert message")
         static let sessionFailureTitle = NSLocalizedString("scan.session_failure_title", value: "扫描会话发生错误", comment: "AR session failure alert title")
         static let calibrationUnavailable = NSLocalizedString("scan.calibration_unavailable", value: "本地校准记录无法读取，本次扫描将不应用本地校正", comment: "Calibration records unavailable warning")
+        static let modelMissing = NSLocalizedString("scan.model_missing", value: "未找到果实检测模型，本次扫描将不应用本地校准", comment: "Bundled model missing warning")
+        static let modelIdentityUnavailable = NSLocalizedString("scan.model_identity_unavailable", value: "无法确认果实模型身份，本次扫描将不应用本地校准", comment: "Model identity unavailable warning")
         static let restartAfterInterruption = NSLocalizedString("scan.restart_after_interruption", value: "重新开始", comment: "Restart interrupted scan action")
         static let discardAfterInterruption = NSLocalizedString("scan.discard_after_interruption", value: "放弃扫描", comment: "Discard interrupted scan action")
         static let interruptionAccessibilityHint = NSLocalizedString("scan.interruption_accessibility_hint", value: "重新开始会清除本次扫描数据；放弃不会生成扫描结果。", comment: "Scan interruption recovery accessibility hint")

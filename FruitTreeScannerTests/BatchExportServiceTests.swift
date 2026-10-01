@@ -5,6 +5,236 @@ import UIKit
 
 final class BatchExportServiceTests: XCTestCase {
 
+    func testInjectedRepositoryUsesItsDirectoryAndRejectsCrossDirectoryCommit() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let otherDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            try? FileManager.default.removeItem(at: otherDirectory)
+        }
+        let repository = ScanRepository(scansDirectory: directory)
+        let other = ScanRepository(scansDirectory: otherDirectory)
+        let source = try repository.pointCloudDestination(filename: "injected.ply")
+        XCTAssertEqual(source.deletingLastPathComponent(), directory)
+        XCTAssertThrowsError(try repository.pointCloudDestination(filename: "../escape.ply"))
+        let draft = try repository.stagePointCloud(to: source) {
+            try PLYPointCloudWriter.write(points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                                          treeID: "T-injected", scanDate: "2026-09-28 00:00:00", gpsLat: 0, gpsLon: 0, to: source)
+        }
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-injected", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: source.lastPathComponent, result: makeYieldResult()
+        )
+        let assessment = ScanAssessment(draft: draft, exportRequest: request)
+        XCTAssertThrowsError(try other.commit(assessment))
+        let committed = try repository.commit(assessment)
+        XCTAssertEqual(committed.metadataURL.deletingLastPathComponent(), directory)
+        XCTAssertEqual(try repository.readVerifiedRecord(at: source)?.summary.fruitCount, 12)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: otherDirectory.appendingPathComponent("injected_complete.json").path))
+    }
+
+    func testVerifiedRecordRejectsMissingOrMalformedSourceAndPreservesLegacyMetadata() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("legacy.ply")
+        let metadata = directory.appendingPathComponent("legacy_result.json")
+        try JSONSerialization.data(withJSONObject: ["fruitCount": 12, "yieldKg": 3.45, "fruitType": "apple"])
+            .write(to: metadata)
+        let repository = ScanRepository(scansDirectory: directory)
+        XCTAssertNil(try repository.readVerifiedRecord(at: source))
+        try Data("malformed PLY".utf8).write(to: source)
+        let unverified = try XCTUnwrap(repository.summary(at: source))
+        XCTAssertEqual(unverified.persistenceState, .complete)
+        XCTAssertNil(try repository.readVerifiedRecord(at: source))
+        XCTAssertThrowsError(try repository.validateBatchRecord(unverified))
+        try minimalPointCloud.write(to: source)
+        let verified = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+        XCTAssertEqual(verified.summary.fruitCount, 12)
+        XCTAssertNil(verified.manifest, "Legacy metadata must not acquire invented manifest provenance")
+        XCTAssertNoThrow(try repository.validateBatchRecord(verified.summary))
+    }
+
+    func testRepositoryRejectsMismatchedEvidenceBeforePublishingCompanions() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appendingPathComponent("evidence.ply")
+        let context = ScanContext(scanID: UUID(), planID: UUID())
+        let cloud = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005,
+                                              confidenceThreshold: 1, pointBufferRevision: 1)
+        let capture = ScanCaptureIdentity(context: context, pointCloud: cloud)
+        let draft = try ScanRepository.shared.stagePointCloud(to: sourceURL, captureIdentity: capture) {
+            try PLYPointCloudWriter.write(
+                points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                treeID: "T-evidence", scanDate: "2026-09-28 00:00:00", gpsLat: 0, gpsLon: 0, to: sourceURL
+            )
+        }
+        let identity = ScanEvidenceIdentity(capture: capture, snapshotID: UUID(),
+                                            sourceOwnershipID: draft.ownershipID, sourceSHA256: draft.sourceSHA256)
+        let receipt = try ScanRepository.shared.bindEvidence(identity, to: draft)
+        let service = ScanResultExportService(scansDirectory: directory)
+        func assessment(actual: ScanEvidenceIdentity) -> ScanAssessment {
+            ScanAssessment(receipt: receipt,
+                           estimate: ScanEstimate(evidenceIdentity: actual, result: makeYieldResult()),
+                           treeID: "T-evidence", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+                           gpsLat: 0, gpsLon: 0, includeCSV: true)
+        }
+        for mismatch in ["scan", "plan", "observations", "cloud", "owner", "digest"] {
+            let wrongContext = ScanContext(scanID: mismatch == "scan" ? UUID() : context.scanID,
+                                           planID: mismatch == "plan" ? UUID() : context.planID)
+            let wrongCloud = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005,
+                                                       confidenceThreshold: 1, pointBufferRevision: 2)
+            let wrong = ScanEvidenceIdentity(
+                capture: ScanCaptureIdentity(context: wrongContext, pointCloud: mismatch == "cloud" ? wrongCloud : cloud),
+                snapshotID: mismatch == "observations" ? UUID() : identity.snapshotID,
+                sourceOwnershipID: mismatch == "owner" ? UUID() : identity.sourceOwnershipID,
+                sourceSHA256: mismatch == "digest" ? "wrong-digest" : identity.sourceSHA256
+            )
+            XCTAssertThrowsError(try ScanRepository.shared.commit(assessment(actual: wrong), using: service), mismatch) {
+                XCTAssertTrue($0 is ScanEvidenceError)
+            }
+            // Neither changing the expected identity nor recapturing another
+            // observation snapshot may rebind an already frozen draft.
+            XCTAssertThrowsError(try ScanRepository.shared.bindEvidence(wrong, to: draft), mismatch)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["evidence.ply"])
+        }
+        XCTAssertEqual(try ScanRepository.shared.bindEvidence(identity, to: draft).identity, identity)
+        let valid = assessment(actual: identity)
+        XCTAssertThrowsError(try ScanRepository.shared.commit(
+            ScanAssessment(draft: draft, exportRequest: valid.exportRequest), using: service
+        ))
+        XCTAssertThrowsError(try service.exportIfNeeded(valid.exportRequest, expectedSource: draft))
+        XCTAssertThrowsError(try service.exportIfNeeded(valid.exportRequest))
+        XCTAssertThrowsError(try service.discardScanArtifacts(sourceFilename: draft.sourceFilename))
+        XCTAssertThrowsError(try ScanRepository.shared.draft(at: sourceURL))
+        let committed = try ScanRepository.shared.commit(valid, using: service)
+        XCTAssertEqual(ScanLegacyArchiveCodec.readManifest(at: committed.manifestURL)?.scanID, "evidence")
+    }
+
+    func testCancellationAfterPLYPublicationStillReturnsAnOwnedReceipt() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appendingPathComponent("published-before-cancel.ply")
+        let draft = try await Task.detached {
+            try ScanRepository.shared.stagePointCloud(to: sourceURL) {
+                let receipt = try PLYPointCloudWriter.write(
+                    points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 0.1, g: 0.2, b: 0.3)],
+                    treeID: "T-receipt", scanDate: "2026-09-28 00:00:00", gpsLat: 0, gpsLon: 0, to: sourceURL
+                )
+                withUnsafeCurrentTask { $0?.cancel() }
+                return receipt
+            }
+        }.value
+        XCTAssertEqual(draft.sourceSHA256, try ScanCompanionIntegrity.digestFile(at: sourceURL))
+        XCTAssertEqual(draft.fileIdentity, try ScanSourceFileIdentity.read(at: sourceURL))
+        XCTAssertEqual(ScanRepository.shared.settleCancelledDraft(draft), .discarded)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
+    }
+
+    func testFirstCommitRejectsSourceReplacedAfterStaging() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appendingPathComponent("scan.ply")
+        let draft = try ScanRepository.shared.stagePointCloud(to: sourceURL) {
+            try PLYPointCloudWriter.write(
+                points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 0.1, g: 0.2, b: 0.3)],
+                treeID: "T-review", scanDate: "2026-09-27 00:00:00", gpsLat: 0, gpsLon: 0, to: sourceURL
+            )
+        }
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-review", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+        let original = try Data(contentsOf: sourceURL)
+        let replacement = Data(String(decoding: original, as: UTF8.self)
+            .replacingOccurrences(of: "T-review", with: "T-edited").utf8)
+        XCTAssertNotEqual(original, replacement)
+        XCTAssertEqual(original.count, replacement.count)
+        // In-place replacement preserves inode and length: the staged digest,
+        // not only the path, inode or size, must reject this assessment.
+        let handle = try FileHandle(forWritingTo: sourceURL)
+        try handle.write(contentsOf: replacement)
+        try handle.close()
+        XCTAssertEqual(try ScanSourceFileIdentity.read(at: sourceURL), draft.fileIdentity)
+        XCTAssertThrowsError(try ScanRepository.shared.commit(
+            ScanAssessment(draft: draft, exportRequest: request),
+            using: ScanResultExportService(scansDirectory: directory)
+        ))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("scan_complete.json").path))
+    }
+
+    func testCancelledDraftPreservesReplacedSourceAndNewOwner() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let original = try ScanRepository.shared.draft(at: source)
+        let adopted = try ScanRepository.shared.draft(at: source)
+        guard case .requiresRecovery = ScanRepository.shared.settleCancelledDraft(original) else {
+            return XCTFail("An older owner must preserve a newer draft")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        try minimalPointCloud.write(to: source, options: .atomic)
+        guard case .requiresRecovery = ScanRepository.shared.settleCancelledDraft(adopted) else {
+            return XCTFail("A replacement file must be preserved even when bytes match")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+    }
+
+    func testCommittedDraftRetryIsIdempotentButCannotChangeTheResult() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let draft = try ScanRepository.shared.draft(at: source)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-retry", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let assessment = ScanAssessment(draft: draft, exportRequest: request)
+        let first = try ScanRepository.shared.commit(assessment, using: service)
+        let retried = try ScanRepository.shared.commit(assessment, using: service)
+        XCTAssertEqual(first.exportRevision, retried.exportRevision)
+        let changed = ScanResultExportService.ExportRequest(
+            treeID: "T-retry", fruitType: "apple", scanDate: request.scanDate,
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(nLidar: 99)
+        )
+        XCTAssertThrowsError(try ScanRepository.shared.commit(
+            ScanAssessment(draft: draft, exportRequest: changed), using: service
+        ))
+        XCTAssertEqual(try ScanRepository.shared.readRecord(at: source)?.fruitCount, 12)
+    }
+
+    func testCancelledDraftPreservesCommittedRecordAndReportsCleanupFailure() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let draft = try ScanRepository.shared.draft(at: source)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-review", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+        _ = try ScanRepository.shared.commit(ScanAssessment(draft: draft, exportRequest: request),
+                                            using: ScanResultExportService(scansDirectory: directory))
+        XCTAssertEqual(ScanRepository.shared.settleCancelledDraft(draft), .preservedCommitted)
+        XCTAssertEqual(try ScanRepository.shared.readRecord(at: source)?.persistenceState, .complete)
+
+        let failedSource = try writeMinimalPointCloud(in: directory, filename: "failed.ply")
+        let failedDraft = try ScanRepository.shared.draft(at: failedSource)
+        let sidecar = directory.appendingPathComponent("failed_result.json")
+        try Data("{}".utf8).write(to: sidecar)
+        guard case .requiresRecovery = ScanRepository.shared.settleCancelledDraft(failedDraft, removeItem: { _ in
+            throw CocoaError(.fileWriteNoPermission)
+        }) else { return XCTFail("Cleanup failure must remain recoverable") }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: failedSource.path))
+        XCTAssertEqual(ScanRepository.shared.settleCancelledDraft(failedDraft), .discarded)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: failedSource.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sidecar.path))
+    }
+
     private final class LockedErrorBox: @unchecked Sendable {
         private let lock = NSLock()
         private var storedError: Error?
@@ -19,6 +249,40 @@ final class BatchExportServiceTests: XCTestCase {
             lock.lock()
             defer { lock.unlock() }
             return storedError
+        }
+    }
+
+    private final class LockedDeletionBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storedResult: ScanHistoryRecordDeletionResult?
+
+        func store(_ result: ScanHistoryRecordDeletionResult) {
+            lock.lock()
+            storedResult = result
+            lock.unlock()
+        }
+
+        var result: ScanHistoryRecordDeletionResult? {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedResult
+        }
+    }
+
+    private final class LockedSummaryBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storedSummary: ScanFileRecord?
+
+        func store(_ summary: ScanFileRecord?) {
+            lock.lock()
+            storedSummary = summary
+            lock.unlock()
+        }
+
+        var summary: ScanFileRecord? {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedSummary
         }
     }
 
@@ -744,6 +1008,7 @@ final class BatchExportServiceTests: XCTestCase {
                     "imageOnlyFruitCount": 1,
                     "cloudOnlyFruitCount": 0,
                     "pointCloudPointCount": 1200,
+                    "futureDiagnostic": ["nested": ["counter": Int64.max, "reason": "preserved"]],
                     "imageDetectionCount": 3,
                     "imageFramesProcessed": 8,
                     "imageObservationCount": 6,
@@ -796,6 +1061,10 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(diagnostics["pointCloudPointCount"] as? Int, 1200)
         XCTAssertNil(diagnostics["rawPredictions"])
         XCTAssertNil(diagnostics["filteredPredictions"])
+        let future = try XCTUnwrap(diagnostics["futureDiagnostic"] as? [String: Any])
+        let nested = try XCTUnwrap(future["nested"] as? [String: Any])
+        XCTAssertEqual((nested["counter"] as? NSNumber)?.int64Value, Int64.max)
+        XCTAssertEqual(nested["reason"] as? String, "preserved")
         let imageDiagnostics = try XCTUnwrap(first["imageDiagnostics"] as? [String: Any])
         XCTAssertEqual(imageDiagnostics["imageFramesProcessed"] as? Int, 8)
         XCTAssertEqual(imageDiagnostics["imageModelName"] as? String, "mock-detector")
@@ -2051,7 +2320,7 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertEqual(restored.result?.fruitType, "apple")
     }
 
-    func testScanResultExportRemovesObsoleteCSVBeforeNoCSVRevisionBecomesComplete() throws {
+    func testScanResultExportRemovesObsoleteCSVBeforeNoCSVManifestPublishes() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -2070,7 +2339,7 @@ final class BatchExportServiceTests: XCTestCase {
             result: makeYieldResult(nLidar: 21, yieldKg: 4.5), includeCSV: false
         )
         try ScanResultExportService(scansDirectory: directory).exportIfNeeded(original)
-        var obsoleteCSVExistsWhenComplete: Bool?
+        var obsoleteCSVExistsDuringCommit: Bool?
         let interruptedService = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
             if FileManager.default.fileExists(atPath: destination.path) {
                 try FileManager.default.removeItem(at: destination)
@@ -2078,14 +2347,14 @@ final class BatchExportServiceTests: XCTestCase {
             try FileManager.default.moveItem(at: source, to: destination)
             if destination.lastPathComponent == "scan_result.json" {
                 let read = PLYParserHelper.readCompanionResult(for: plyURL)
-                XCTAssertEqual(read.state, .complete)
-                obsoleteCSVExistsWhenComplete = FileManager.default.fileExists(atPath: csvURL.path)
+                XCTAssertEqual(read.state, .invalid)
+                obsoleteCSVExistsDuringCommit = FileManager.default.fileExists(atPath: csvURL.path)
                 throw CocoaError(.fileWriteNoPermission)
             }
         })
 
         XCTAssertThrowsError(try interruptedService.exportIfNeeded(replacement))
-        XCTAssertEqual(obsoleteCSVExistsWhenComplete, false)
+        XCTAssertEqual(obsoleteCSVExistsDuringCommit, false)
         let restored = PLYParserHelper.readCompanionResult(for: plyURL)
         XCTAssertEqual(restored.state, .complete)
         XCTAssertEqual(restored.result?.fruitCount, 7)
@@ -2596,6 +2865,221 @@ final class BatchExportServiceTests: XCTestCase {
         let read = PLYParserHelper.readCompanionResult(for: plyURL)
         XCTAssertEqual(read.state, .complete)
         XCTAssertEqual(read.result?.fruitCount, 12)
+    }
+
+    func testHistoryDeletionWaitsForResultCommitAndRemovesWholeScan() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+        let record = ScanFileRecord(id: "scan.ply", treeID: "T-01", fileURL: plyURL, scanDate: request.scanDate)
+        let writeStarted = DispatchSemaphore(value: 0)
+        let allowWrite = DispatchSemaphore(value: 0)
+        let exportFinished = DispatchSemaphore(value: 0)
+        let deletionFinished = DispatchSemaphore(value: 0)
+        let exportError = LockedErrorBox()
+        let deletion = LockedDeletionBox()
+        let service = ScanResultExportService(scansDirectory: directory, writeData: { data, url in
+            if url.lastPathComponent == "scan_result.json" {
+                writeStarted.signal()
+                _ = allowWrite.wait(timeout: .now() + 5)
+            }
+            try data.write(to: url, options: .atomic)
+        })
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { exportFinished.signal() }
+            do { _ = try service.exportIfNeeded(request) }
+            catch { exportError.store(error) }
+        }
+        XCTAssertEqual(writeStarted.wait(timeout: .now() + 5), .success)
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { deletionFinished.signal() }
+            deletion.store(ScanHistoryStore.deleteFilesWithResult(for: record))
+        }
+        XCTAssertEqual(deletionFinished.wait(timeout: .now() + 0.2), .timedOut)
+        allowWrite.signal()
+        XCTAssertEqual(exportFinished.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(deletionFinished.wait(timeout: .now() + 5), .success)
+        XCTAssertNil(exportError.error)
+        XCTAssertTrue(deletion.result?.isComplete == true)
+        for filename in ["scan.ply", "scan.csv", "scan_result.json", "scan_complete.json"] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(filename).path))
+        }
+    }
+
+    func testRepositorySummaryWaitsForRevisionChangeAndReadsCommittedRecord() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let original = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(nLidar: 7)
+        )
+        _ = try ScanResultExportService(scansDirectory: directory).exportIfNeeded(original)
+        let revised = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 2),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(nLidar: 21)
+        )
+        let metadataPublished = DispatchSemaphore(value: 0)
+        let finishPublish = DispatchSemaphore(value: 0)
+        let exportFinished = DispatchSemaphore(value: 0)
+        let summaryFinished = DispatchSemaphore(value: 0)
+        let exportError = LockedErrorBox()
+        let summary = LockedSummaryBox()
+        let service = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: source, to: destination)
+            if destination.lastPathComponent == "scan_result.json" {
+                metadataPublished.signal()
+                _ = finishPublish.wait(timeout: .now() + 5)
+            }
+        })
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { exportFinished.signal() }
+            do { _ = try service.exportIfNeeded(revised) }
+            catch { exportError.store(error) }
+        }
+        XCTAssertEqual(metadataPublished.wait(timeout: .now() + 5), .success)
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { summaryFinished.signal() }
+            summary.store(try? ScanRepository.shared.summary(at: plyURL))
+        }
+        XCTAssertEqual(summaryFinished.wait(timeout: .now() + 0.2), .timedOut)
+        finishPublish.signal()
+        XCTAssertEqual(exportFinished.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(summaryFinished.wait(timeout: .now() + 5), .success)
+        XCTAssertNil(exportError.error)
+        XCTAssertEqual(summary.summary?.persistenceState, .complete)
+        XCTAssertEqual(summary.summary?.fruitCount, 21)
+    }
+
+    func testManifestPublishesAfterMetadataAndCSVOnRevisionChange() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let original = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+        _ = try ScanResultExportService(scansDirectory: directory).exportIfNeeded(original)
+        var published: [String] = []
+        let manifestURL = directory.appendingPathComponent("scan_complete.json")
+        let service = ScanResultExportService(scansDirectory: directory, publishFile: { source, destination in
+            if destination != manifestURL {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: manifestURL.path))
+            }
+            published.append(destination.lastPathComponent)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        let revised = ScanResultExportService.ExportRequest(
+            treeID: "T-02", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 2),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult(nLidar: 13)
+        )
+        _ = try service.exportIfNeeded(revised)
+        XCTAssertEqual(published, ["scan_result.json", "scan.csv", "scan_complete.json"])
+        XCTAssertEqual(PLYParserHelper.readCompanionResult(for: plyURL).result?.fruitCount, 13)
+    }
+
+    func testSourceChangeDuringStagingPreventsCompanionCommit() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+        let service = ScanResultExportService(scansDirectory: directory, writeData: { data, url in
+            try data.write(to: url, options: .atomic)
+            if url.lastPathComponent == "scan_result.json" {
+                try Data("ply\nformat ascii 1.0\nelement vertex 0\nend_header\n".utf8).write(to: plyURL)
+            }
+        })
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) { error in
+            XCTAssertTrue(error is ScanResultExportService.SourcePointCloudError)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("scan_complete.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("scan_result.json").path))
+    }
+
+    func testRepositoryCommitConfirmsManifestAndCalibrationRejectsUnknownSourceIdentity() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        var result = makeYieldResult()
+        result.algorithmRevision = "algorithm-1"
+        result.calibrationContext = "context-1"
+        result.calibrationBaseCount = 10
+        result.calibrationBaseYieldKg = 2.5
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "T-01", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: result
+        )
+        let draft = try ScanRepository.shared.draft(at: plyURL)
+        let committed = try ScanRepository.shared.commit(
+            ScanAssessment(draft: draft, exportRequest: request),
+            using: ScanResultExportService(scansDirectory: directory)
+        )
+        XCTAssertEqual(committed.exportRevision, ScanLegacyArchiveCodec.readManifest(at: committed.manifestURL)?.exportRevision)
+        XCTAssertEqual(try ScanRepository.shared.readRecord(at: plyURL)?.persistenceState, .complete)
+
+        let record = ScanFileRecord(
+            id: "scan.ply", treeID: "T-01", fileURL: plyURL, scanDate: request.scanDate,
+            fruitCount: 12, yieldKg: 3.45, fruitType: "apple"
+        )
+        XCTAssertEqual(try ScanRepository.shared.readCalibrationBaseline(for: record)?.fruitCount, 10)
+
+        var legacyManifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: committed.manifestURL)) as? [String: Any]
+        )
+        legacyManifest["schemaVersion"] = 2
+        legacyManifest.removeValue(forKey: "sourcePLYFilename")
+        legacyManifest.removeValue(forKey: "sourcePLYSHA256")
+        try JSONSerialization.data(withJSONObject: legacyManifest, options: [.sortedKeys])
+            .write(to: committed.manifestURL)
+        XCTAssertEqual(try ScanRepository.shared.readRecord(at: plyURL)?.persistenceState, .complete)
+        XCTAssertNil(try ScanRepository.shared.readCalibrationBaseline(for: record))
+    }
+
+    func testRepositoryConfirmationRejectsRevisionReplacedAfterExport() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plyURL = try writeMinimalPointCloud(in: directory, filename: "scan.ply")
+        let draft = try ScanRepository.shared.draft(at: plyURL)
+        let service = ScanResultExportService(scansDirectory: directory)
+        let firstRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-first", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+        let secondRequest = ScanResultExportService.ExportRequest(
+            treeID: "T-second", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: "scan.ply", result: makeYieldResult()
+        )
+
+        let first = try XCTUnwrap(service.exportIfNeeded(firstRequest))
+        XCTAssertNoThrow(try ScanRepository.shared.confirm(first, for: draft))
+        let second = try XCTUnwrap(service.exportIfNeeded(secondRequest))
+        XCTAssertThrowsError(try ScanRepository.shared.confirm(first, for: draft)) { error in
+            XCTAssertTrue(error is ScanResultExportService.SourcePointCloudError)
+        }
+        XCTAssertEqual(
+            try ScanRepository.shared.confirm(second, for: draft).exportRevision,
+            second.exportRevision
+        )
     }
 
     func testFailedConcurrentPublishCannotRollbackLaterSuccessfulRevision() throws {

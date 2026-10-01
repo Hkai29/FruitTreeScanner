@@ -6,22 +6,17 @@ import Foundation
 extension SettingsStore {
     var fruitScanConfig: FruitScanConfig {
         let baseConfidence = Float(minConfidence)
-        let baseSphericity = Float(sphericityThreshold)
 
-        let (presetConfidence, presetSphericity): (Float, Float)
+        let presetConfidence: Float
         switch qualityPreset {
         case "高":
             presetConfidence = max(baseConfidence, 0.85)
-            presetSphericity = max(baseSphericity, 0.6)
         case "中":
             presetConfidence = max(baseConfidence, 0.7)
-            presetSphericity = baseSphericity
         case "低":
             presetConfidence = max(min(baseConfidence, 0.55), 0.5)
-            presetSphericity = min(baseSphericity, 0.4)
         default:
             presetConfidence = baseConfidence
-            presetSphericity = baseSphericity
         }
 
         let detectionIntervalFromFps: Int
@@ -35,10 +30,20 @@ extension SettingsStore {
             imageDetectionInterval: detectionIntervalFromFps,
             minConfidence: presetConfidence,
             sizeTolerance: 0.2,
-            sphericityThreshold: presetSphericity,
             minimumStableDetectionsForYield: 2,
             stableDetectionTimeWindow: 4.0
         )
+    }
+
+    /// Historical fusion context only. Runtime shape gates use category and
+    /// cluster configuration; retaining this value preserves old calibration scope.
+    var legacyFusionSphericityThreshold: Float {
+        let value = Float(sphericityThreshold)
+        switch qualityPreset {
+        case "高": return max(value, 0.6)
+        case "低": return min(value, 0.4)
+        default: return value
+        }
     }
 
     var clusterConfig: ClusterConfig {

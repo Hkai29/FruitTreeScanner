@@ -1,8 +1,20 @@
-// YieldEstimator.swift
-// 产量估算引擎（Swift 原生实现，对应 Python 双路线）
-// 无第三方依赖，全部跑在 iPad 本地
+// LegacyYieldEstimator.swift
+// The older dual-route estimator is retained for research regression tests.
+// Production yield is composed from validated fused evidence elsewhere.
 
 import Foundation
+@testable import FruitTreeScanner
+
+// Only the legacy research estimator consumes this intermediate result.
+struct FruitInfo {
+    let center: SIMD3<Float>
+    let radiusM: Float
+    let diameterCm: Float
+    let volumeCm3: Float
+    let weightG: Float
+    let pointCount: Int
+    let massEstimate: FruitMassEstimate?
+}
 
 // MARK: - 主估算器
 

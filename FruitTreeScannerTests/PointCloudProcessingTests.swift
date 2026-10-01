@@ -512,6 +512,16 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(depthConfig.minimumStableDepthNeighborCount, 1)
     }
 
+    func testCaptureQualityGuidanceUsesTheSameConfiguredAcceptanceRule() {
+        let quality = RendererDepthQuality(validSampleCount: 7, totalSampleCount: 81, medianDepth: 2)
+        var strict = DepthExperimentConfig.default
+        strict.minimumCaptureValidSampleCount = 8
+        XCTAssertTrue(RendererDepthCoverage.acceptsCaptureDepthQuality(quality))
+        XCTAssertFalse(RendererDepthCoverage.acceptsCaptureDepthQuality(quality, configuration: strict))
+        XCTAssertEqual(ScanGuidanceHelper.evaluate(speed: 0.1, medianDepth: 2, trackingState: .normal,
+            lightIntensity: 1_000, captureDepthQuality: quality, depthConfiguration: strict), .sparseDepth)
+    }
+
     func testGuidanceReportsSparseCanopyDepthAndClearsAfterRecovery() {
         let sparse = RendererDepthQuality(validSampleCount: 2, totalSampleCount: 81, medianDepth: 2.2)
         let recovered = RendererDepthQuality(validSampleCount: 8, totalSampleCount: 81, medianDepth: 2.2)
@@ -1729,12 +1739,36 @@ final class PointCloudProcessingTests: XCTestCase {
 
     func testMakeSignature_ProducesDeterministicSignature() {
         let sig = RendererPointCloudSnapshot.makeSignature(
-            pointCount: 1000, pointIndex: 42, voxelSize: 0.05, confidenceThreshold: 30
+            pointCount: 1000, pointIndex: 42, voxelSize: 0.05, confidenceThreshold: 30,
+            pointBufferRevision: 9
         )
         XCTAssertEqual(sig.pointCount, 1000)
         XCTAssertEqual(sig.pointIndex, 42)
         XCTAssertEqual(sig.voxelSize, 0.05)
         XCTAssertEqual(sig.confidenceThreshold, 30)
+        XCTAssertEqual(sig.pointBufferRevision, 9)
+    }
+
+    func testSnapshotSignatureChangesWhenRingBufferRevisionChanges() {
+        let first = RendererPointCloudSnapshot.makeSignature(
+            pointCount: 1_000,
+            pointIndex: 42,
+            voxelSize: 0.05,
+            confidenceThreshold: 30,
+            pointBufferRevision: 100
+        )
+        let afterRingWrap = RendererPointCloudSnapshot.makeSignature(
+            pointCount: 1_000,
+            pointIndex: 42,
+            voxelSize: 0.05,
+            confidenceThreshold: 30,
+            pointBufferRevision: 101
+        )
+
+        XCTAssertNotEqual(first, afterRingWrap)
+        let reducedBudget = RendererPointCloudSnapshot.makeSignature(pointCount: 1_000, pointIndex: 42,
+            voxelSize: 0.05, confidenceThreshold: 30, pointBufferRevision: 100, analysisInputSampleLimit: 100)
+        XCTAssertNotEqual(first, reducedBudget, "An analysis cache cannot be reused across sampling budgets")
     }
 
     // MARK: - RendererScanProgress
@@ -2072,6 +2106,123 @@ final class PointCloudProcessingTests: XCTestCase {
         XCTAssertEqual(Double(x!), 1.2345, accuracy: 0.001)
         XCTAssertEqual(Double(y!), -2.3456, accuracy: 0.001)
         XCTAssertEqual(Double(z!), 3.4567, accuracy: 0.001)
+    }
+
+    func testChunkedPLYWriterMatchesCompatibilityBuilderBytes() throws {
+        let points = [
+            ColoredPoint(pos: SIMD3<Float>(1.25, -2.5, 3.75), r: 0.1, g: 0.2, b: 0.3),
+            ColoredPoint(pos: SIMD3<Float>(-4, 5, 6), r: 0.4, g: 0.5, b: 0.6),
+            ColoredPoint(pos: SIMD3<Float>(7, 8.125, 9), r: 1, g: 0, b: 0.5)
+        ]
+        let samples = points.map {
+            RendererPointSample(
+                position: $0.pos,
+                color: SIMD3<Float>($0.r, $0.g, $0.b),
+                confidence: 1
+            )
+        }
+        let expected = RendererPLYDataBuilder.makeData(
+            samples: samples,
+            treeID: "T004",
+            scanDate: "2026-09-27 00:00:00",
+            gpsLat: 35.123456,
+            gpsLon: 139.654321
+        )
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fts-ply-writer-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("T004.ply")
+
+        let receipt = try PLYPointCloudWriter.write(
+            points: points,
+            treeID: "T004",
+            scanDate: "2026-09-27 00:00:00",
+            gpsLat: 35.123456,
+            gpsLon: 139.654321,
+            to: destination,
+            chunkVertexCount: 1
+        )
+
+        XCTAssertEqual(try Data(contentsOf: destination), expected)
+        XCTAssertEqual(receipt.sourceSHA256, try ScanCompanionIntegrity.digestFile(at: destination))
+        XCTAssertEqual(receipt.fileIdentity, try ScanSourceFileIdentity.read(at: destination))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .allSatisfy { !$0.hasSuffix(".tmp") })
+    }
+
+    func testCancelledChunkedPLYWriteKeepsPriorFileAndRemovesTemporaryFile() throws {
+        let points = (0..<4).map { index in
+            ColoredPoint(pos: SIMD3<Float>(Float(index), 1, 2), r: 0.2, g: 0.3, b: 0.4)
+        }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fts-ply-cancel-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let destination = directory.appendingPathComponent("existing.ply")
+        let original = Data("prior-complete-file".utf8)
+        try original.write(to: destination)
+        var cancellationChecks = 0
+
+        XCTAssertThrowsError(try PLYPointCloudWriter.write(
+            points: points,
+            treeID: "T004",
+            scanDate: "2026-09-27 00:00:00",
+            gpsLat: 35,
+            gpsLon: 139,
+            to: destination,
+            chunkVertexCount: 1,
+            isCancelled: {
+                cancellationChecks += 1
+                return cancellationChecks >= 3
+            }
+        ))
+
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["existing.ply"])
+    }
+
+    func testPLYCancelledAfterReceiptPreparationPublishesNothing() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("cancel-before-publish.ply")
+        var checks = 0
+        XCTAssertThrowsError(try PLYPointCloudWriter.write(
+            points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 0.1, g: 0.2, b: 0.3)],
+            treeID: "T-last-check", scanDate: "2026-09-28 00:00:00", gpsLat: 0, gpsLon: 0,
+            to: destination,
+            isCancelled: {
+                checks += 1
+                return checks == 4 // Header, vertex chunk, fsync, then publication.
+            }
+        )) { error in
+            guard case PLYPointCloudWriterError.cancelled = error else {
+                return XCTFail("Expected cancellation before publication, got \(error)")
+            }
+        }
+        XCTAssertEqual(checks, 4)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), [])
+    }
+
+    func testChunkedPLYPublishNeverReplacesAnExistingScan() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fts-ply-collision-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let destination = directory.appendingPathComponent("existing.ply")
+        let original = Data("preserve-existing-scan".utf8)
+        try original.write(to: destination)
+
+        XCTAssertThrowsError(try PLYPointCloudWriter.write(
+            points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 0.1, g: 0.2, b: 0.3)],
+            treeID: "T004",
+            scanDate: "2026-09-27 00:00:00",
+            gpsLat: 35,
+            gpsLon: 139,
+            to: destination
+        ))
+
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["existing.ply"])
     }
 
     func testPLYParserReadsRendererCRLFExport() throws {

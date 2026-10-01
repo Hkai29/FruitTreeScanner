@@ -13,6 +13,8 @@
 "scan.interruption_message" = "Camera or AR tracking was interrupted during the scan. Restart the scan to avoid combining discontinuous scan data.";
 "scan.session_failure_title" = "Scan Session Error";
 "scan.calibration_unavailable" = "Local calibration records couldn’t be read. This scan will continue without local correction.";
+"scan.model_missing" = "The bundled fruit detection model is missing. This scan will continue without local calibration.";
+"scan.model_identity_unavailable" = "The bundled fruit model identity could not be verified. This scan will continue without local calibration.";
 "scan.restart_after_interruption" = "Restart Scan";
 "scan.discard_after_interruption" = "Discard Scan";
 "scan.result_persistence.failure.title" = "Result Files Not Saved";
@@ -1305,3 +1307,4 @@
 "historical_compare.trend.unavailable" = "Change unavailable";
 "historical_compare.picker.selected" = "Selected";
 "historical_compare.picker.not_selected" = "Not selected";
+"scan.estimate_failed" = "Yield estimation did not finish. Retry to continue using the saved point cloud.";

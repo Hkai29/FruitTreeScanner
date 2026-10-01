@@ -2,62 +2,6 @@ import Foundation
 import CryptoKit
 import os
 
-private final class ScanResultExportCoordinator: @unchecked Sendable {
-    private struct Entry {
-        let semaphore: DispatchSemaphore
-        var users: Int
-    }
-
-    private let registryLock = NSLock()
-    private var entries: [String: Entry] = [:]
-
-    func withTransaction<T>(for key: String, operation: () throws -> T) throws -> T {
-        let semaphore = retainSemaphore(for: key)
-        var acquired = false
-        defer {
-            if acquired {
-                semaphore.signal()
-            }
-            releaseSemaphore(for: key)
-        }
-
-        while semaphore.wait(timeout: .now() + .milliseconds(50)) == .timedOut {
-            try Task.checkCancellation()
-        }
-        acquired = true
-        try Task.checkCancellation()
-        return try operation()
-    }
-
-    private func retainSemaphore(for key: String) -> DispatchSemaphore {
-        registryLock.lock()
-        defer { registryLock.unlock() }
-
-        if var entry = entries[key] {
-            entry.users += 1
-            entries[key] = entry
-            return entry.semaphore
-        }
-
-        let semaphore = DispatchSemaphore(value: 1)
-        entries[key] = Entry(semaphore: semaphore, users: 1)
-        return semaphore
-    }
-
-    private func releaseSemaphore(for key: String) {
-        registryLock.lock()
-        defer { registryLock.unlock() }
-
-        guard var entry = entries[key] else { return }
-        if entry.users == 1 {
-            entries.removeValue(forKey: key)
-        } else {
-            entry.users -= 1
-            entries[key] = entry
-        }
-    }
-}
-
 enum ScanCompanionIntegrity {
     static func digest(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
@@ -77,7 +21,6 @@ enum ScanCompanionIntegrity {
 
 final class ScanResultExportService: @unchecked Sendable {
     static let shared = ScanResultExportService()
-    private static let transactionCoordinator = ScanResultExportCoordinator()
 
     struct ExportRequest: Sendable {
         let treeID: String
@@ -94,15 +37,12 @@ final class ScanResultExportService: @unchecked Sendable {
         let csvURL: URL?
         let metadataURL: URL?
         let manifestURL: URL?
+        let exportRevision: String
+        let metadataSHA256: String
+        let sourcePLYSHA256: String
     }
 
-    enum SourcePointCloudError: LocalizedError {
-        case invalidOrChanged
-
-        var errorDescription: String? {
-            "点云文件缺失、损坏或保存后发生变化，不能将当前结果标记为完整。"
-        }
-    }
+    typealias SourcePointCloudError = ScanSourceFileError
 
     private let fileManager: FileManager
     private let scansDirectoryOverride: URL?
@@ -137,9 +77,18 @@ final class ScanResultExportService: @unchecked Sendable {
     }
 
     @discardableResult
-    func exportIfNeeded(_ request: ExportRequest) throws -> ExportedFiles? {
-        try exportQueue.sync {
-            try exportIfNeededOnQueue(request)
+    func exportIfNeeded(_ request: ExportRequest, expectedSource: DraftScan? = nil) throws -> ExportedFiles? {
+        guard expectedSource?.captureIdentity == nil else { throw ScanEvidenceError.mismatchedInput }
+        return try exportQueue.sync {
+            try exportIfNeededOnQueue(request, expectedSource: expectedSource, evidenceReceipt: nil)
+        }
+    }
+
+    func exportAssessment(_ assessment: ScanAssessment) throws -> ExportedFiles? {
+        try assessment.validateEvidence()
+        return try exportQueue.sync {
+            try exportIfNeededOnQueue(assessment.exportRequest, expectedSource: assessment.draft,
+                                      evidenceReceipt: assessment.evidenceReceipt)
         }
     }
 
@@ -149,12 +98,14 @@ final class ScanResultExportService: @unchecked Sendable {
                   (sourceFilename as NSString).pathExtension.lowercased() == "ply" else {
                 throw LocalFileStorageError.invalidFilename
             }
-            discardedFilenames.insert(sourceFilename)
             let directory = try scansDirectory()
             let baseName = (sourceFilename as NSString).deletingPathExtension
-            let manifestURL = directory.appendingPathComponent("\(baseName)_complete.json")
-            let transactionKey = manifestURL.standardizedFileURL.resolvingSymlinksInPath().path
-            try Self.transactionCoordinator.withTransaction(for: transactionKey) {
+            let sourceURL = directory.appendingPathComponent(sourceFilename)
+            try ScanArchiveAccess.shared.withTransaction(at: sourceURL) {
+                guard !ScanArchiveAccess.shared.requiresEvidenceReceipt(at: sourceURL) else {
+                    throw ScanEvidenceError.mismatchedInput
+                }
+                discardedFilenames.insert(sourceFilename)
                 for filename in ["\(baseName)_complete.json", "\(baseName)_result.json", "\(baseName).csv", sourceFilename] {
                     let url = directory.appendingPathComponent(filename)
                     if fileManager.fileExists(atPath: url.path) { try fileManager.removeItem(at: url) }
@@ -164,7 +115,8 @@ final class ScanResultExportService: @unchecked Sendable {
     }
 
     @discardableResult
-    private func exportIfNeededOnQueue(_ request: ExportRequest) throws -> ExportedFiles? {
+    private func exportIfNeededOnQueue(_ request: ExportRequest, expectedSource: DraftScan?,
+                                       evidenceReceipt: ScanEvidenceReceipt?) throws -> ExportedFiles? {
         try Task.checkCancellation()
         guard !discardedFilenames.contains(request.sourceFilename) else { throw CancellationError() }
         let scansDir = try scansDirectory()
@@ -178,16 +130,37 @@ final class ScanResultExportService: @unchecked Sendable {
         let csvURL = scansDir.appendingPathComponent("\(baseName).csv")
         let metadataURL = scansDir.appendingPathComponent("\(baseName)_result.json")
         let manifestURL = scansDir.appendingPathComponent("\(baseName)_complete.json")
-        let transactionKey = manifestURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let sourceURL = scansDir.appendingPathComponent(request.sourceFilename)
 
-        return try Self.transactionCoordinator.withTransaction(for: transactionKey) {
-            try exportTransactionIfNeeded(
+        return try ScanArchiveAccess.shared.withTransaction(at: sourceURL) {
+            if ScanArchiveAccess.shared.requiresEvidenceReceipt(at: sourceURL), evidenceReceipt == nil {
+                throw ScanEvidenceError.mismatchedInput
+            }
+            if let expectedSource {
+                if let capture = expectedSource.captureIdentity {
+                    guard let evidenceReceipt else { throw ScanEvidenceError.mismatchedInput }
+                    let expectedEvidence = evidenceReceipt.identity
+                    guard evidenceReceipt.draft == expectedSource,
+                          expectedEvidence.capture == capture,
+                          expectedEvidence.sourceOwnershipID == expectedSource.ownershipID,
+                          expectedEvidence.sourceSHA256 == expectedSource.sourceSHA256 else {
+                        throw ScanEvidenceError.mismatchedInput
+                    }
+                }
+                guard sourceURL.standardizedFileURL.resolvingSymlinksInPath() ==
+                        expectedSource.sourceURL.standardizedFileURL.resolvingSymlinksInPath(),
+                      try ScanSourceFileIdentity.read(at: sourceURL) == expectedSource.fileIdentity else {
+                    throw SourcePointCloudError.invalidOrChanged
+                }
+            }
+            return try exportTransactionIfNeeded(
                 request,
                 scansDirectory: scansDir,
                 baseName: baseName,
                 csvURL: csvURL,
                 metadataURL: metadataURL,
-                manifestURL: manifestURL
+                manifestURL: manifestURL,
+                expectedSource: expectedSource
             )
         }
     }
@@ -198,22 +171,25 @@ final class ScanResultExportService: @unchecked Sendable {
         baseName: String,
         csvURL: URL,
         metadataURL: URL,
-        manifestURL: URL
+        manifestURL: URL,
+        expectedSource: DraftScan?
     ) throws -> ExportedFiles? {
         let sourceURL = scansDirectory.appendingPathComponent(request.sourceFilename)
         guard fileManager.fileExists(atPath: sourceURL.path),
               PLYParserHelper.hasValidPointCloudHeader(at: sourceURL) else {
             throw SourcePointCloudError.invalidOrChanged
         }
-        if let previousManifest = try? Data(contentsOf: manifestURL),
-           let payload = try? JSONSerialization.jsonObject(with: previousManifest) as? [String: Any],
-           payload["schemaVersion"] as? Int == 3 {
-            guard let previousDigest = payload["sourcePLYSHA256"] as? String,
+        if let previousManifest = ScanLegacyArchiveCodec.readManifest(at: manifestURL),
+           previousManifest.schemaVersion == 3 {
+            guard let previousDigest = previousManifest.sourcePLYSHA256,
                   (try? ScanCompanionIntegrity.digestFile(at: sourceURL)) == previousDigest else {
                 throw SourcePointCloudError.invalidOrChanged
             }
         }
         let sourceDigest = try ScanCompanionIntegrity.digestFile(at: sourceURL)
+        if let expectedSource, sourceDigest != expectedSource.sourceSHA256 {
+            throw SourcePointCloudError.invalidOrChanged
+        }
         let revision: String
         do {
             let unsignedMetadata = try makeMetadataData(
@@ -238,18 +214,20 @@ final class ScanResultExportService: @unchecked Sendable {
         let requiredFiles = request.includeCSV
             ? [metadataURL.lastPathComponent, csvURL.lastPathComponent]
             : [metadataURL.lastPathComponent]
-        var manifestPayload: [String: Any] = [
-            "schemaVersion": 3,
-            "scanID": baseName,
-            "exportRevision": revision,
-            "requiredFiles": requiredFiles
-        ]
-        var digests = [metadataURL.lastPathComponent: ScanCompanionIntegrity.digest(metadataData)]
+        let metadataDigest = ScanCompanionIntegrity.digest(metadataData)
+        var digests = [metadataURL.lastPathComponent: metadataDigest]
         if let csvData { digests[csvURL.lastPathComponent] = ScanCompanionIntegrity.digest(csvData) }
-        manifestPayload["fileSHA256"] = digests
-        manifestPayload["sourcePLYFilename"] = request.sourceFilename
-        manifestPayload["sourcePLYSHA256"] = sourceDigest
-        let manifestData = try JSONSerialization.data(withJSONObject: manifestPayload, options: [.prettyPrinted, .sortedKeys])
+        let manifestData = try ScanLegacyArchiveCodec.encodeManifest(
+            CompletionManifestDTO(
+                schemaVersion: 3,
+                scanID: baseName,
+                exportRevision: revision,
+                requiredFiles: requiredFiles,
+                fileSHA256: digests,
+                sourcePLYFilename: request.sourceFilename,
+                sourcePLYSHA256: sourceDigest
+            )
+        )
         try Task.checkCancellation()
         let stagingDirectory = scansDirectory.appendingPathComponent(
             ".\(baseName).\(revision).staging",
@@ -277,8 +255,17 @@ final class ScanResultExportService: @unchecked Sendable {
             return ExportedFiles(
                 csvURL: request.includeCSV ? csvURL : nil,
                 metadataURL: metadataURL,
-                manifestURL: manifestURL
+                manifestURL: manifestURL,
+                exportRevision: revision,
+                metadataSHA256: metadataDigest,
+                sourcePLYSHA256: sourceDigest
             )
+        }
+
+        // A retired receipt can acknowledge the exact committed revision above,
+        // but cannot overwrite it or a draft adopted by a newer operation.
+        if let expectedSource, !ScanArchiveAccess.shared.ownsDraft(expectedSource) {
+            throw SourcePointCloudError.invalidOrChanged
         }
 
         // Process termination can bypass the transaction's deferred cleanup.
@@ -298,6 +285,13 @@ final class ScanResultExportService: @unchecked Sendable {
         }
         try writeData(manifestData, stagedManifest)
         try Task.checkCancellation()
+        guard try ScanCompanionIntegrity.digestFile(at: sourceURL) == sourceDigest else {
+            throw SourcePointCloudError.invalidOrChanged
+        }
+        if let expectedSource,
+           try ScanSourceFileIdentity.read(at: sourceURL) != expectedSource.fileIdentity {
+            throw SourcePointCloudError.invalidOrChanged
+        }
         try publishTransaction(
             stagedMetadata: stagedMetadata,
             stagedCSV: request.includeCSV ? stagedCSV : nil,
@@ -312,7 +306,10 @@ final class ScanResultExportService: @unchecked Sendable {
         return ExportedFiles(
             csvURL: request.includeCSV ? csvURL : nil,
             metadataURL: metadataURL,
-            manifestURL: manifestURL
+            manifestURL: manifestURL,
+            exportRevision: revision,
+            metadataSHA256: metadataDigest,
+            sourcePLYSHA256: sourceDigest
         )
     }
 
@@ -574,8 +571,8 @@ final class ScanResultExportService: @unchecked Sendable {
             if fileManager.fileExists(atPath: manifestURL.path) {
                 try fileManager.removeItem(at: manifestURL)
             }
-            // Readers fail closed until every required file matches this revision.
-            try publishFile(stagedManifest, manifestURL)
+            // Readers fail closed while the manifest is absent. Publish it only
+            // after both companion files are at the committed revision.
             if stagedCSV == nil, fileManager.fileExists(atPath: csvURL.path) {
                 try fileManager.removeItem(at: csvURL)
             }
@@ -583,6 +580,7 @@ final class ScanResultExportService: @unchecked Sendable {
             if let stagedCSV {
                 try publishFile(stagedCSV, csvURL)
             }
+            try publishFile(stagedManifest, manifestURL)
         } catch {
             for destination in destinations where fileManager.fileExists(atPath: destination.path) {
                 try? fileManager.removeItem(at: destination)

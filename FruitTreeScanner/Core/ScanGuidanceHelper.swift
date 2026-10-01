@@ -9,7 +9,8 @@ enum ScanGuidanceHelper {
         medianDepth: Float,
         trackingState: ARCamera.TrackingState,
         lightIntensity: CGFloat?,
-        captureDepthQuality: RendererDepthQuality? = nil
+        captureDepthQuality: RendererDepthQuality? = nil,
+        depthConfiguration: DepthExperimentConfig = .default
     ) -> ScanGuidanceHint {
         // 优先级：追踪丢失 > 光线 > 速度 > 距离 > 正常
         if let trackingHint = trackingHint(
@@ -24,7 +25,7 @@ enum ScanGuidanceHelper {
         }
 
         if let captureDepthQuality,
-           !RendererDepthCoverage.acceptsCaptureDepthQuality(captureDepthQuality) {
+           !RendererDepthCoverage.acceptsCaptureDepthQuality(captureDepthQuality, configuration: depthConfiguration) {
             return .sparseDepth
         }
 

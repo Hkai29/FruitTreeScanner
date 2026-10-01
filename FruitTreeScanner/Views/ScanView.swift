@@ -8,23 +8,22 @@ struct ScanView: View {
     @ObservedObject var gps: GPSRecorder
     let season: Season
     let selectedFruitCategory: FruitCategory
+    let appDependencies: AppDependencies
     let onScanNextTree: () -> Void
 
     @State var coordinator = ScanCoordinator()
+    @StateObject var sessionModel = ScanFeatureModel()
+    @StateObject var finalizationWorkflow = ScanFinalizationWorkflow()
     @StateObject var hudState = ScanHUDState()
     @StateObject var qualityMonitor = ScanQualityMonitor()
     @StateObject var measurementController = MetalMeasurementController()
     @Environment(\.dismiss) var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    @State var isRecording = false
     @State var showGuide = true
-    @State var savedFilename = ""
-    @State var resultScanIdentity: UUID?
     @State var yieldResult: YieldResult? = nil
     @State var resultPersistenceState: ScanResultPersistenceState = .idle
     @State var showResult = false
-    @State var isEstimating = false
     @StateObject private var coverageCompletionPresentation = ScanCoverageCompletionPresentationController()
     #if DEBUG
     @State var showDebugView = false
@@ -40,14 +39,13 @@ struct ScanView: View {
     @StateObject var readinessRequestController = ScanReadinessRequestController()
     @State var showCancelConfirmation = false
     @State var categoryMismatch: FruitCategoryMismatch?
-    @State var lifecycleSnapshot = ScanLifecycleSnapshot(
-        state: .idle,
-        scanIdentity: UUID(),
-        generation: 0,
-        interruptionCount: 0,
-        lastInterruptionTimestamp: nil
-    )
     @State var showLifecycleRecovery = false
+
+    var lifecycleSnapshot: ScanLifecycleSnapshot { sessionModel.lifecycleSnapshot }
+    var isRecording: Bool {
+        sessionModel.isRecording && scanReadiness == .ready && !showLifecycleRecovery
+    }
+    var isEstimating: Bool { finalizationWorkflow.isWorking }
 
     var body: some View {
         ZStack {

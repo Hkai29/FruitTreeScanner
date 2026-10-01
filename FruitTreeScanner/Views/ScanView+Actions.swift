@@ -102,16 +102,20 @@ extension ScanView {
             coordinator.discardInterruptedScan()
             discardCurrentScanArtifacts()
         }
-        savedFilename = ""
-        resultScanIdentity = nil
+        finalizationWorkflow.resetForNewScan()
         yieldResult = nil
         showResult = false
         clearMeasurementState()
         createDirectory(folder: "scans")
         beginCoverageCompletionForNewScan()
-        coordinator.startRecording(selectedCategory: selectedFruitCategory)
-        lifecycleSnapshot = coordinator.lifecycleSnapshot()
-        isRecording = true
+        let plan = appDependencies.scanPlanFactory.makePlan(
+            treeID: treeID,
+            season: season,
+            selectedCategory: selectedFruitCategory,
+            renderer: coordinator.renderer
+        )
+        coordinator.startRecording(plan: plan)
+        sessionModel.apply(coordinator.lifecycleSnapshot())
         showGuide = false
     }
 
@@ -132,15 +136,13 @@ extension ScanView {
         clearMeasurementState()
         createDirectory(folder: "scans")
         coordinator.resumeRecordingPreservingCapture()
-        lifecycleSnapshot = coordinator.lifecycleSnapshot()
-        isRecording = true
+        sessionModel.apply(coordinator.lifecycleSnapshot())
         showGuide = false
     }
 
     func stopRecording() {
         coordinator.stopRecording()
-        lifecycleSnapshot = coordinator.lifecycleSnapshot()
-        isRecording = false
+        sessionModel.apply(coordinator.lifecycleSnapshot())
         pauseCoverageCompletion()
     }
 
@@ -154,7 +156,6 @@ extension ScanView {
     }
 
     func cancelScan() {
-        isEstimating = false
         if isRecording {
             stopRecording()
         }
@@ -170,28 +171,29 @@ extension ScanView {
             showTemporaryNotice(scanReadiness.title)
             return
         }
-        coordinator.discardInterruptedScan()
         discardCurrentScanArtifacts()
         clearMeasurementState()
-        let restarted = coordinator.restartInterruptedScan(
-            selectedCategory: selectedFruitCategory
+        finalizationWorkflow.resetForNewScan()
+        let plan = appDependencies.scanPlanFactory.makePlan(
+            treeID: treeID,
+            season: season,
+            selectedCategory: selectedFruitCategory,
+            renderer: coordinator.renderer
         )
-        lifecycleSnapshot = coordinator.lifecycleSnapshot()
+        let restarted = coordinator.restartInterruptedScan(plan: plan)
+        sessionModel.apply(coordinator.lifecycleSnapshot())
         guard restarted else {
-            isRecording = false
             showLifecycleRecovery = true
             showTemporaryNotice(L10n.Scan.sessionFailureTitle)
             return
         }
         beginCoverageCompletionForNewScan()
-        isRecording = true
         showGuide = false
         showLifecycleRecovery = false
     }
 
     func discardAfterInterruption() {
         showLifecycleRecovery = false
-        isEstimating = false
         coordinator.discardInterruptedScan()
         discardCurrentScanArtifacts()
         coordinator.teardown()

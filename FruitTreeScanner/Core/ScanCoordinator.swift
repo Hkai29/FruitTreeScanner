@@ -3,22 +3,6 @@ import MetalKit
 import os
 import UIKit
 
-enum ScanInterruptionReason: String, Equatable, Sendable {
-    case appInactive, appBackgrounded, arSessionInterrupted, trackingFailure, cameraUnavailable
-}
-
-enum ScanFailureReason: Equatable, Sendable {
-    case cameraUnavailable(String)
-    case sessionFailed(String)
-
-    var requiresCameraReadinessRecovery: Bool {
-        if case .cameraUnavailable = self {
-            return true
-        }
-        return false
-    }
-}
-
 enum ScanSessionFailureClassifier {
     static func reason(for error: Error) -> ScanFailureReason {
         let error = error as NSError
@@ -28,25 +12,6 @@ enum ScanSessionFailureClassifier {
         }
         return .cameraUnavailable(error.localizedDescription)
     }
-}
-
-enum ScanLifecycleState: Equatable, Sendable {
-    case idle, recording, userPaused, systemInterrupted(ScanInterruptionReason)
-    case recovering, finishing, completed, failed(ScanFailureReason), cancelled
-}
-
-struct ScanLifecycleSnapshot: Equatable, Sendable {
-    let state: ScanLifecycleState
-    let scanIdentity: UUID
-    let generation: Int
-    let interruptionCount: Int
-    let lastInterruptionTimestamp: Date?
-    var acceptsReliableEvidence: Bool { state == .recording }
-}
-
-struct ScanCapturedEvidenceToken: Equatable, Sendable {
-    let scanIdentity: UUID
-    let invalidationEpoch: UInt64
 }
 
 struct ScanCameraTrackingStatus: Equatable, Sendable {
@@ -73,57 +38,6 @@ struct ScanCameraTrackingStatus: Equatable, Sendable {
     }
 }
 
-/// Serializes scan-local lifecycle transitions and deliberately never resumes
-/// a system-interrupted scan without a new identity.
-final class ScanLifecycleController {
-    private let lock = NSLock()
-    private var state: ScanLifecycleState = .idle
-    private var scanIdentity = UUID()
-    private var generation = 0
-    private var interruptionCount = 0
-    private var lastInterruptionTimestamp: Date?
-
-    func snapshot() -> ScanLifecycleSnapshot { withLock { makeSnapshot() } }
-    func startNewScan() -> ScanLifecycleSnapshot {
-        withLock { generation &+= 1; scanIdentity = UUID(); state = .recording; interruptionCount = 0; lastInterruptionTimestamp = nil; return makeSnapshot() }
-    }
-    func userPaused() -> ScanLifecycleSnapshot {
-        withLock { if state == .recording { generation &+= 1; state = .userPaused }; return makeSnapshot() }
-    }
-    func resumeUserPaused() -> ScanLifecycleSnapshot {
-        withLock { if state == .userPaused { generation &+= 1; state = .recording }; return makeSnapshot() }
-    }
-    func interrupt(_ reason: ScanInterruptionReason) -> ScanLifecycleSnapshot {
-        withLock {
-            switch state {
-            case .recording, .userPaused, .finishing:
-                generation &+= 1; interruptionCount += 1; lastInterruptionTimestamp = Date(); state = .systemInterrupted(reason)
-            default: break
-            }
-            return makeSnapshot()
-        }
-    }
-    func interruptionEnded() -> ScanLifecycleSnapshot {
-        withLock { if case .systemInterrupted = state { state = .recovering }; return makeSnapshot() }
-    }
-    func beginFinishing() -> ScanLifecycleSnapshot {
-        withLock { if state == .recording || state == .userPaused { generation &+= 1; state = .finishing }; return makeSnapshot() }
-    }
-    func complete() -> ScanLifecycleSnapshot {
-        withLock { if state == .finishing { state = .completed }; return makeSnapshot() }
-    }
-    func fail(_ reason: ScanFailureReason) -> ScanLifecycleSnapshot {
-        withLock { if state != .completed && state != .cancelled { generation &+= 1; state = .failed(reason) }; return makeSnapshot() }
-    }
-    func cancel() -> ScanLifecycleSnapshot {
-        withLock { if state != .completed { generation &+= 1; state = .cancelled }; return makeSnapshot() }
-    }
-    private func withLock<T>(_ body: () -> T) -> T { lock.lock(); defer { lock.unlock() }; return body() }
-    private func makeSnapshot() -> ScanLifecycleSnapshot {
-        ScanLifecycleSnapshot(state: state, scanIdentity: scanIdentity, generation: generation, interruptionCount: interruptionCount, lastInterruptionTimestamp: lastInterruptionTimestamp)
-    }
-}
-
 // MARK: - ScanCoordinator
 enum ScanDepthRuntimeStatus: String {
     case unsupportedAR = "NoAR"
@@ -135,6 +49,9 @@ enum ScanDepthRuntimeStatus: String {
 struct ScanSessionRuntime {
     let isWorldTrackingSupported: () -> Bool
     let run: (ARSession, ARWorldTrackingConfiguration, ARSession.RunOptions) -> Void
+    var preferredVideoFormat: (ScanCameraRequest) -> ARConfiguration.VideoFormat? = {
+        ScanSessionConfiguration.preferredVideoFormat(request: $0)
+    }
 
     static let live = ScanSessionRuntime(
         isWorldTrackingSupported: { ARWorldTrackingConfiguration.isSupported },
@@ -144,72 +61,6 @@ struct ScanSessionRuntime {
     )
 }
 
-struct ScanFruitConfiguration {
-    let selectedCategory: FruitCategory
-    let parametersSnapshot: [String: FruitVarietyParams]
-    let defaultParams: FruitVarietyParams
-    let clusterConfig: ClusterConfig
-    let fusionConfig: FruitScanConfig
-    let colorFilter: ColorFilter
-    let calibrationCorrection: YieldCalibrationCorrection
-    let calibrationWarning: ScanCalibrationWarning?
-
-    @MainActor
-    /// 固化一次扫描使用的类别、阈值与校准快照，避免扫描途中设置变化污染结果。
-    static func capture(
-        selectedCategory: FruitCategory,
-        settings: ScanSettingsProviding,
-        calibrationRecordsLoader: ScanCalibrationRecordsLoader = {
-            try CalibrationRecordPersistence.load()
-        }
-    ) -> ScanFruitConfiguration {
-        let parametersSnapshot = FruitParametersStore.shared.parameterSnapshot()
-        let defaultParams = parametersSnapshot[selectedCategory.rawValue]
-            ?? FruitVarietyParams(category: selectedCategory)
-        let clusterConfig = settings.clusterConfig(for: defaultParams)
-        let fusionConfig = settings.fruitScanConfig
-        let colorFilter = settings.colorFilter(for: selectedCategory)
-        let calibrationContext = YieldCalibrationContext.make(
-            parameters: parametersSnapshot,
-            cluster: clusterConfig,
-            fusion: fusionConfig,
-            color: colorFilter
-        )
-        let calibrationRecords: [CalibrationRecord]
-        let calibrationWarning: ScanCalibrationWarning?
-        do {
-            calibrationRecords = try calibrationRecordsLoader()
-            calibrationWarning = nil
-        } catch {
-            calibrationRecords = []
-            calibrationWarning = .recordsUnavailable
-            Log.scan.error("Calibration records unavailable at scan start: \(error.localizedDescription)")
-        }
-        return ScanFruitConfiguration(
-            selectedCategory: selectedCategory,
-            parametersSnapshot: parametersSnapshot,
-            defaultParams: defaultParams,
-            clusterConfig: clusterConfig,
-            fusionConfig: fusionConfig,
-            colorFilter: colorFilter,
-            calibrationCorrection: calibrationContext.map { context in
-                YieldCalibrationCorrector.correction(
-                    from: calibrationRecords,
-                    fruitCategory: selectedCategory,
-                    fruitType: selectedCategory.rawValue,
-                    requiredAlgorithmRevision: YieldAlgorithmRevision.current,
-                    requiredContext: context
-                )
-            } ?? .neutral,
-            calibrationWarning: calibrationWarning
-        )
-    }
-}
-
-enum ScanCalibrationWarning: Equatable, Sendable {
-    case recordsUnavailable
-}
-
 typealias ScanCalibrationRecordsLoader = () throws -> [CalibrationRecord]
 
 /// 协调 AR 会话、点云采集、图像检测与产量估算的扫描级生命周期。
@@ -217,6 +68,9 @@ class ScanCoordinator: NSObject {
     let settings: ScanSettingsProviding
     private let sessionRuntime: ScanSessionRuntime
     let calibrationRecordsLoader: ScanCalibrationRecordsLoader
+    let scanSession: ScanSession
+    private let captureAdmissionGate: CaptureAdmissionGate
+    var scanLifecycle: ScanLifecycleController { scanSession }
 
     var renderer: Renderer?
     var session: ARSession?
@@ -232,6 +86,11 @@ class ScanCoordinator: NSObject {
         self.settings = settings
         self.sessionRuntime = sessionRuntime
         self.calibrationRecordsLoader = calibrationRecordsLoader
+        let scanSession = ScanSession()
+        self.scanSession = scanSession
+        self.captureAdmissionGate = CaptureAdmissionGate(
+            bindingID: scanSession.sessionSnapshot().bindingID
+        )
         super.init()
     }
 
@@ -243,10 +102,13 @@ class ScanCoordinator: NSObject {
     // 扫描完成度相关
     var scanCompletion: ScanCompletion = ScanCompletion()
 
-    var detectedFruits: [DetectedFruit] = []
-    var archivedFusionEvidenceDetections: [DetectedFruit] = []
+    var detectedFruits: [Observation] = []
+    var archivedFusionEvidenceDetections: [Observation] = []
     @MainActor var evidenceArchiveRevision: UInt64 = 0
-    var activeFruitConfiguration: ScanFruitConfiguration?
+    var activeScanPlan: ScanPlan? { scanSession.activePlan }
+    var activeFruitConfiguration: ScanFruitConfiguration? {
+        scanSession.activeFruitConfiguration
+    }
     var hasPublishedCategoryMismatch = false
 
     var onMeasurementReady: ((Renderer) -> Void)?
@@ -262,7 +124,7 @@ class ScanCoordinator: NSObject {
 
     #if DEBUG
         func debugSnapshot() -> [DetectedFruit] {
-            detectedFruits
+            detectedFruits.map(DetectedFruit.init(observation:))
         }
 
         func detectionDebugSnapshot() -> DetectionDebugState {
@@ -280,6 +142,7 @@ class ScanCoordinator: NSObject {
     var lastQualitySampleTime: TimeInterval = 0
     var hasPublishedCameraResolution = false
     var requestedSceneDepth = false
+    private var configuredCameraRequest: ScanCameraRequest?
     private var depthRuntimeStatus: ScanDepthRuntimeStatus?
     var isTornDown = false
     let activeHUDUpdateInterval: TimeInterval = 0.1
@@ -290,11 +153,6 @@ class ScanCoordinator: NSObject {
     let completionEvaluator = ScanCompletionEvaluator()
     let detectionProcessingLock = NSLock()
     var isDetectionProcessing = false
-    let scanLifecycle = ScanLifecycleController()
-    private let evidenceGateLock = NSLock()
-    private var reliableEvidenceGeneration = 0
-    private var acceptsReliableEvidence = false
-    private var capturedEvidenceInvalidationEpoch: UInt64 = 0
     private let cameraTrackingLock = NSLock()
     // Unbound coordinators are treated as an already-running session so unit
     // workflows remain deterministic. bind/reset always moves production to
@@ -313,7 +171,6 @@ class ScanCoordinator: NSObject {
             imageDetectionInterval: 10,
             minConfidence: 0.85,
             sizeTolerance: 0.2,
-            sphericityThreshold: 0.5,
             minimumStableDetectionsForYield: 2,
             stableDetectionTimeWindow: 4.0
         )
@@ -340,7 +197,7 @@ class ScanCoordinator: NSObject {
         // Install the observer first so initial sessions cannot lose the callback
         // that closes reliable-evidence capture.
         session.delegate = self
-        let depthStatus = configureAndRunSession(session)
+        let depthStatus = configureAndRunSession(session, cameraRequest: activeScanPlan?.cameraRequest ?? currentCameraRequest())
         publishDepthRuntimeStatus(depthStatus)
 
         publishImageDetectorStatus()
@@ -369,6 +226,7 @@ class ScanCoordinator: NSObject {
 
     private func configureAndRunSession(
         _ session: ARSession,
+        cameraRequest: ScanCameraRequest,
         options: ARSession.RunOptions = []
     ) -> ScanDepthRuntimeStatus {
         requestedSceneDepth = false
@@ -382,9 +240,11 @@ class ScanCoordinator: NSObject {
             config.frameSemantics = depthSemantics
             requestedSceneDepth = true
         }
-        if let videoFormat = ScanSessionConfiguration.preferredVideoFormat() {
+        if let videoFormat = sessionRuntime.preferredVideoFormat(cameraRequest) {
             config.videoFormat = videoFormat
         }
+        configuredCameraRequest = cameraRequest
+        hasPublishedCameraResolution = false
         // 实时产量估计依赖 sceneDepth 点云，避免开启高负载的 ARKit mesh 重建。
         sessionRuntime.run(session, config, options)
 
@@ -392,17 +252,34 @@ class ScanCoordinator: NSObject {
     }
 
     @MainActor
-    func restartBoundSessionWithResetTracking() -> Bool {
+    func restartBoundSessionWithResetTracking(cameraRequest: ScanCameraRequest? = nil) -> Bool {
         guard !isTornDown, let session else { return false }
         // Reassert ownership before starting a replacement run as well.
         session.delegate = self
         resetCameraTrackingForSessionRun()
         let depthStatus = configureAndRunSession(
             session,
+            cameraRequest: cameraRequest ?? activeScanPlan?.cameraRequest ?? currentCameraRequest(),
             options: [.resetTracking, .removeExistingAnchors]
         )
         publishDepthRuntimeStatus(depthStatus)
         return depthStatus != .unsupportedAR
+    }
+
+    func currentCameraRequest() -> ScanCameraRequest {
+        ScanCameraRequest(resolution: settings.cameraResolution, frameRate: settings.cameraFrameRate)
+    }
+
+    @MainActor
+    func applyCameraRequestForNewScan(_ request: ScanCameraRequest) -> Bool {
+        // Unbound algorithm/test workflows have no physical session to configure.
+        guard let session else { return true }
+        guard configuredCameraRequest != request else { return true }
+        session.delegate = self
+        resetCameraTrackingForSessionRun()
+        let status = configureAndRunSession(session, cameraRequest: request)
+        publishDepthRuntimeStatus(status)
+        return status != .unsupportedAR
     }
 
     @MainActor
@@ -418,6 +295,13 @@ class ScanCoordinator: NSObject {
     @MainActor
     func teardownForReadinessBlock() {
         Log.scan.info("Tearing down scan runtime for readiness block")
+        let state = scanSession.snapshot().state
+        switch state {
+        case .recording, .userPaused, .finishing:
+            _ = scanSession.fail(.cameraUnavailable("Scan readiness became unavailable"))
+        default:
+            break
+        }
         isTornDown = true
         invalidateReliableEvidenceGate()
         stopRuntimeServices()
@@ -439,8 +323,10 @@ class ScanCoordinator: NSObject {
 
     private func resetRuntimeState() {
         isTornDown = false
+        configuredCameraRequest = nil
         hasPublishedCameraResolution = false
-        invalidateReliableEvidenceGate()
+        let bindingID = scanSession.beginBinding()
+        captureAdmissionGate.bind(to: bindingID)
         resetCameraTrackingForSessionRun()
     }
 
@@ -476,7 +362,6 @@ class ScanCoordinator: NSObject {
                       mtkView: mtkView
                   ) else { return }
             self.loadSettings()
-            self.renderer?.applyScanQualitySettings()
         }
     }
 
@@ -507,6 +392,7 @@ class ScanCoordinator: NSObject {
         session = nil
         depthRuntimeStatus = nil
         requestedSceneDepth = false
+        configuredCameraRequest = nil
         resetCameraTrackingForSessionRun()
     }
 
@@ -533,12 +419,12 @@ class ScanCoordinator: NSObject {
     private func clearScanReferences() {
         detectedFruits.removeAll()
         archivedFusionEvidenceDetections.removeAll()
-        activeFruitConfiguration = nil
+        scanSession.clearConfiguration()
         hasPublishedCategoryMismatch = false
     }
 
     func lifecycleSnapshot() -> ScanLifecycleSnapshot {
-        scanLifecycle.snapshot()
+        scanSession.snapshot()
     }
 
     // A coordinator can outlive the UIView that created its ARSession. Reject
@@ -686,54 +572,39 @@ class ScanCoordinator: NSObject {
     }
 
     func evidenceGenerationSnapshot() -> Int {
-        evidenceGateLock.lock()
-        defer { evidenceGateLock.unlock() }
-        return reliableEvidenceGeneration
+        captureAdmissionGate.snapshot().generation
     }
 
     func acceptsReliableEvidence(generation: Int? = nil) -> Bool {
-        evidenceGateLock.lock()
-        defer { evidenceGateLock.unlock() }
-        guard acceptsReliableEvidence else { return false }
-        // generation 可阻止异步推理完成后把旧扫描证据写入新扫描。
-        return generation.map { $0 == reliableEvidenceGeneration } ?? true
+        captureAdmissionGate.accepts(generation: generation)
     }
 
     @discardableResult
     func setReliableEvidenceAcceptance(_ accepted: Bool) -> Int {
-        evidenceGateLock.lock()
         // 每次开关证据门都推进代次，使已在途的任务自然失效。
-        reliableEvidenceGeneration &+= 1
-        acceptsReliableEvidence = accepted
-        let generation = reliableEvidenceGeneration
-        evidenceGateLock.unlock()
-        return generation
+        captureAdmissionGate.setOpen(accepted)
     }
 
     func capturedEvidenceToken() -> ScanCapturedEvidenceToken? {
-        let lifecycle = lifecycleSnapshot()
-        guard lifecycle.state == .recording else { return nil }
-
-        evidenceGateLock.lock()
-        defer { evidenceGateLock.unlock() }
-        guard acceptsReliableEvidence else { return nil }
-        return ScanCapturedEvidenceToken(
-            scanIdentity: lifecycle.scanIdentity,
-            invalidationEpoch: capturedEvidenceInvalidationEpoch
+        let sessionSnapshot = scanSession.sessionSnapshot()
+        guard sessionSnapshot.lifecycle.state == .recording else { return nil }
+        return captureAdmissionGate.makeToken(
+            scanIdentity: sessionSnapshot.lifecycle.scanIdentity,
+            bindingID: sessionSnapshot.bindingID
         )
     }
 
     @MainActor
     func acceptsCapturedEvidence(_ token: ScanCapturedEvidenceToken) -> Bool {
         guard !isTornDown else { return false }
-        let lifecycle = lifecycleSnapshot()
-        guard lifecycle.scanIdentity == token.scanIdentity else { return false }
+        let sessionSnapshot = scanSession.sessionSnapshot()
+        let lifecycle = sessionSnapshot.lifecycle
+        guard lifecycle.scanIdentity == token.scanIdentity,
+              sessionSnapshot.bindingID == token.bindingID else { return false }
 
-        evidenceGateLock.lock()
-        let invalidationEpochMatches =
-            token.invalidationEpoch == capturedEvidenceInvalidationEpoch
-        let acceptsActiveEvidence = acceptsReliableEvidence
-        evidenceGateLock.unlock()
+        let admission = captureAdmissionGate.snapshot()
+        let invalidationEpochMatches = token.invalidationEpoch == admission.invalidationEpoch
+            && token.bindingID == admission.bindingID
         guard invalidationEpochMatches else { return false }
         let acceptsTrackingSuspendedEvidence =
             isCaptureSuspendedForCameraTracking(
@@ -745,7 +616,7 @@ class ScanCoordinator: NSObject {
             // A frame captured while tracking was normal remains valid if its
             // inference finishes during a transient tracking pause. No new
             // token can be issued while the capture gate is closed.
-            return acceptsActiveEvidence || acceptsTrackingSuspendedEvidence
+            return admission.isOpen || acceptsTrackingSuspendedEvidence
         case .userPaused, .finishing:
             return true
         default:
@@ -753,12 +624,8 @@ class ScanCoordinator: NSObject {
         }
     }
 
-    private func invalidateReliableEvidenceGate() {
-        evidenceGateLock.lock()
-        reliableEvidenceGeneration &+= 1
-        acceptsReliableEvidence = false
-        capturedEvidenceInvalidationEpoch &+= 1
-        evidenceGateLock.unlock()
+    func invalidateReliableEvidenceGate() {
+        captureAdmissionGate.invalidate()
     }
 
     func publishLifecycleSnapshot(_ snapshot: ScanLifecycleSnapshot) {

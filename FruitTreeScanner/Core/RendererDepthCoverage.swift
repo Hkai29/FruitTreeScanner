@@ -58,8 +58,7 @@ struct RendererCaptureDiagnostics: Equatable, Sendable {
 }
 
 enum RendererDepthCoverage {
-    static func acceptsCaptureDepthQuality(_ quality: RendererDepthQuality) -> Bool {
-        let config = FruitScanExperimentConfig.default.depth
+    static func acceptsCaptureDepthQuality(_ quality: RendererDepthQuality, configuration config: DepthExperimentConfig = .default) -> Bool {
         return quality.validSampleCount >= config.minimumCaptureValidSampleCount
             && quality.validRatio >= config.minimumCaptureValidSampleRatio
     }
@@ -238,10 +237,10 @@ enum RendererDepthCoverage {
         confidenceMap: CVPixelBuffer,
         minDepth: Float,
         maxDepth: Float,
-        confidenceThreshold: Int
+        confidenceThreshold: Int,
+        configuration config: DepthExperimentConfig = .default
     ) -> RendererDepthQuality {
-        let config = FruitScanExperimentConfig.default.depth
-        let sampleGrid = max(config.captureQualitySampleGrid, 2)
+        let sampleGrid = config.boundedCaptureGrid
         let sampleCount = sampleGrid * sampleGrid
         let width = CVPixelBufferGetWidth(depthMap)
         let height = CVPixelBufferGetHeight(depthMap)
@@ -309,7 +308,7 @@ enum RendererDepthCoverage {
                 if depth >= minDepth,
                    depth <= maxDepth,
                    depth.isFinite,
-                   confidence >= UInt8(confidenceThreshold) {
+                   Int(confidence) >= max(confidenceThreshold, Int(config.reliableConfidence)) {
                     validDepths.append(depth)
                 }
             }
