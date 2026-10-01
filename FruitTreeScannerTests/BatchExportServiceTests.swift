@@ -867,6 +867,46 @@ final class BatchExportServiceTests: XCTestCase {
         })
     }
 
+    @MainActor
+    func testBatchExportViewClearsManagedSessionFile() async throws {
+        let result = try await BatchExportService.shared.export(
+            records: [makeRecord()], format: .csv, options: .init()
+        )
+        defer { BatchExportService.removeTemporaryExport(at: result.url) }
+        let view = BatchExportView(exportedURL: result.url)
+
+        view.clearExportedFile()
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: result.url.path),
+            "Dismissing the result must remove the file in the service's managed session directory"
+        )
+    }
+
+    @MainActor
+    func testBatchExportViewTeardownPreservesUnownedTemporaryFiles() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("UnownedExport-\(UUID().uuidString)", isDirectory: true)
+        let otherSession = BatchExportService.temporaryStorage.rootDirectory
+            .appendingPathComponent("unowned-view-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: root)
+            try? fileManager.removeItem(at: otherSession)
+        }
+        for directory in [root, otherSession] {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            let url = directory.appendingPathComponent("keep.csv")
+            let bytes = Data("belongs to another owner".utf8)
+            try bytes.write(to: url)
+            let view = BatchExportView(exportedURL: url)
+
+            view.handleDisappear()
+
+            XCTAssertEqual(try Data(contentsOf: url), bytes, "View teardown must preserve unowned data")
+        }
+    }
+
     // MARK: - (2) CSV default options: UTF-8 BOM, Chinese headers, formatted yield/GPS/date, summary totals
 
     func testCSVStartsWithUTF8BOM() async throws {
