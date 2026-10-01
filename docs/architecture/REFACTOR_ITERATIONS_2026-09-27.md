@@ -299,6 +299,55 @@
 
 持续构建的配置和本地失败传播已完成。本轮验证时尚未提交、推送或触发远程 GitHub Actions，不能声称 runner 上通过；后续本地提交见下方检查点。模拟器编译不证明 XCTest、签名 IPA 或物理 LiDAR 质量。领域值、融合可靠来源、诊断、默认阈值及旧存档编码保持。
 
+## 迭代 28：完整档案消费者走查与工作台状态修复
+
+以下第 28–30 轮的“未提交、未推送”表示各轮结束时的状态；用户随后授权的提交见下方“后续修复提交检查点”。
+
+隔离模拟器 `FruitTreeScanner-ArchitectureUI-20261001` 中使用两条 schema 3 完整档案、一条缺失结果档案及一条损坏 JSON 档案。源 PLY 和元数据摘要均按当前协议生成，校准上下文明确标为 `synthetic-ui-only-20261001`；这些数据不证明真实采集质量或估产精度。
+
+- 历史页正确显示完整、待恢复、结果损坏状态；工作台每日汇总只计入两条完整档案。
+- 实际工作台的最近扫描卡片却给缺失结果档案显示成功勾选、0 个果实及 0.0 kg。根因是卡片直接消费 `ScanFileRecord` 的兼容数值，忽略 `persistenceState`。新增回归使用 `UIHostingController` 读取实际 SwiftUI 辅助阅读内容，修改前退出 65，确认缺失结果被呈现为零产量。
+- 最近扫描卡片改为消费已有 `ScanHistoryRecordPresentation` 的可选数值；状态标题和图标集中于该展示模型，历史页复用相同规则。完整零产量仍显示 0；未完成及损坏结果隐藏数值。外层按钮显式携带状态值，修复按钮标签覆盖读屏内容的问题，点云查看入口保持。
+- 四项新增回归覆盖缺失结果、损坏记录的紧凑卡片、有效零产量及外层按钮。第一次补充测试存在缺失参数的编译错误，修正后另发现按钮状态缺失，均已修复。最终 `ui full` 实际执行 **1005 项通过、0 失败/跳过/预期失败，退出 0**，59 个 XCTest 类均执行；完整 Domain 编译和 unsigned Release 模拟器构建退出 0。开始/结束工作区摘要一致。
+- 校准 UI 从 A 档案导入并保存 6 个、0.42 kg 的未校准基线；保存 JSON 的算法版本、合成上下文、品类和日期已核对。批量导出深链接入口实际选择两条完整记录，排除另两条；CSV 为 7 + 11 = 18 个、汇总 3.93 kg，分享面板取消后文件可继续使用。
+- 收起导出结果后，临时 CSV 仍在会话目录内，暴露下一轮清理边界缺陷：`BatchExportView.clearExportedFile` 的旧根目录检查与服务的会话目录不一致。保留失败现场，下一轮先建立生产 UI action 回归，再让服务统一判断所有权。
+
+本轮证据位于 `/private/tmp/fruit-iteration28/`，最终自动门禁报告为 `fruit-code-improvement-y4dguri6/report.json`。初始夹具和历史截图仍在仓库外的原验收日志目录。独立复审未发现估产、存档格式、导航或参数变化；保留既有工作流 dirty work。Mac 解锁后已安装最新验证版本，`recent-state-after.png` 确认未完整记录显示“待恢复／果数与产量不可用”，两条完整记录数值保持。删除确认说明已显示，取消后 9 个夹具文件摘要未变；实际永久删除待用户确认。卡片状态修复本身无阻塞发现，结论为 **mergeable**；完整 UI 与物理 LiDAR 验收仍待补，整体为 **needs changes**。本轮未提交、未推送。
+
+### 第二十九轮：导出文件所有权统一由服务检查
+
+- 真实 UI 收起完成面板后，CSV 仍留在 `tmp/FruitTreeScannerBatchExports/<session>/`。根因是 `BatchExportView.clearExportedFile` 的旧检查要求父目录等于临时根目录，而服务已经使用会话子目录；生产 action 回归在原实现失败，其他所有者文件保护回归通过，退出 65。
+- 删除 UI 的两行过时检查，调用现有 `BatchExportService.removeTemporaryExport`。服务只接受当前会话目录中的文件，拒绝其他会话与无关临时文件；未修改清理策略、分享取消、导出生成检查或存档文件。
+- `storage ui full` 在最后一次源码修改后实际执行 **1007 项通过、0 失败/跳过/预期失败，退出 0**，59 个测试类均执行；两个关键回归通过。Domain 24 源独立编译及 unsigned Release 模拟器构建退出 0；验证开始/结束摘要一致。6 个原有工作流文件摘要保持。
+- 隔离模拟器安装这份 Debug 构建后，实际 UI 生成 CSV、研究 JSON、Excel XML；逐个读取产物，与固定夹具核对两条完整记录、18 个果实及格式对应的产量/诊断/身份，排除未完整和损坏记录。分享取消保留产物；CSV 收起、JSON 格式切换、Excel 页面关闭分别清理对应文件。9 个源与伴随夹具文件摘要未变。
+
+证据在 `/private/tmp/fruit-iteration29/`：失败回归 `cleanup-before.xcresult`，最终报告 `fruit-code-improvement-jp19bunp/report.json`，人工证据 `ui-cleanup-after.json`、`ui-formats-validation.json`、`cleanup-after.png` 及三种导出副本。独立复审未发现阻塞项，结论 **mergeable**；整体设备验收仍未完成。本轮未提交、未推送。下一轮候选来自真实页面：固定深色背景上的批量导出标题和未选分组文字继承浅色系统样式，呈现黑色文字，需核对颜色环境与平台控件的实际渲染。
+
+### 第三十轮：在实际呈现边界声明深色外观
+
+- UI 走查确认批量导出标题与未选分组文字为黑色，背景为固定深色。调用链为 Dashboard 的 SwiftUI sheet → `BatchExportView` → 标题及系统分组控件；原代码只声明导航栏为深色，内容继承系统方案。此前渲染测试主动注入深色，遗漏浅色系统入口。
+- 新增回归在前台场景的浅色窗口中，通过 SwiftUI sheet 呈现实际生产页面，检查四个分组、默认选择及系统控件外观并保存渲染附件。最初夹具使用无前台场景窗口，随后改为 UIKit 直接呈现；这些条件与实际路由不一致，保留失败日志并修正夹具。最终真实 sheet 基线仍为浅色控件，1 项失败、退出 65；增加页面级 `.preferredColorScheme(.dark)` 后同一回归通过、退出 0。沿用其他固定深色页面的本地模式，未修改系统设置或全局 `UIAppearance`。
+- 最后一次源码修改后的 `ui full` 为 **1008 项通过、0 失败/跳过/预期失败，退出 0**；59 个测试类均执行，关键颜色回归与第 28/29 轮回归均通过。Domain 编译、unsigned Release 模拟器构建成功，开始/结束工作区摘要一致。
+- 实际模拟器页面确认标题与所有分组文字清晰显示，分享页采用深色外观且可正常取消、关闭。CSV 与第 29 轮产物逐字节一致；取消保留文件，关闭页面删除临时文件。9 个源与伴随文件摘要保持，已保存校准记录的所有字段与此前副本相同；此前副本为格式化 JSON，不能将空白差异报告为数据变化。
+
+证据在 `/private/tmp/fruit-iteration30/`：`appearance-sheet-before.xcresult`、`appearance-sheet-after.xcresult`、`appearance-after.png`、`ui-appearance-validation.json`；最终报告 `fruit-code-improvement-1xa5prr5/report.json`。独立复审未发现阻塞项，结论 **mergeable**。本轮未提交、未推送；原有工作流文件与前两轮修复保留。下一步补齐已准备的合成完整记录永久删除验收：确认/取消已核对，实际删除等待用户在操作时确认。完整物理采集、结束/重试、资源与人工果数证据仍缺操作者，整体为 **needs changes**，目标继续 active。
+
+### 2026-10-01 远程合并核对
+
+此前 125 项架构改动已按用户要求分为 `be3de463`、`ec782e82`、`fe19a165` 三个提交，推送至 `codex/scan-architecture-refactor`。PR #10 已合并，远端 main 为 `3b4c65a9`，其代码树与此前验证分支相同。GitHub Actions run `36801712785` 成功，日志确认 Domain 24 源独立编译和通用模拟器编译成功；合并前本地全量 1001 项通过。该远程证据不覆盖本轮未提交的 UI 修复。
+
+### 2026-10-01 后续修复提交检查点
+
+用户再次要求推送并合并后，第 28–30 轮按根因分别提交：
+
+- `f9eb6aa6`：最近记录展示档案完整性，包含四项实际渲染/读屏回归。
+- `d9f91c8d`：临时导出清理由服务统一检查所有权，包含管理文件删除及无关文件保护回归。
+- `d6e81362`：批量导出在实际呈现边界声明深色外观，包含浅色系统 sheet 回归。
+
+六个源码/测试文件的 SHA-256 与第三十轮最终全量报告逐项一致，1008 项测试、Domain 编译及 Release 模拟器构建证据适用于这些提交。提交前重新执行 preflight 和差异检查，并核对远端 main 与 PR #10 合并树一致。推送后的远程 CI 与合并状态需另行在 GitHub 核对；本地测试不替代远程结果。
+
+既有 `AGENTS.md`、两个 README、工作流文档、runner 及 runner 测试共六个改动继续保留在本地，不纳入本次提交。永久删除人工验收及物理 LiDAR 验收仍待补齐；本次三个修复无阻塞项，结论 **mergeable**，整体重构验收仍为 **needs changes**。
+
 ## 验证记录
 
 日志与 xcresult 位于 `/Users/reece24/Library/Logs/FruitTreeScanner/architecture-reassessment-20260927/`。
@@ -416,9 +465,9 @@
 | 第二十六轮完整递归发现 | iteration26-domain-module-discovery.log / .status | 隐藏/忽略路径一并发现；24 文件与独立清点一致，编译成功，退出码 0 |
 | 第二十六轮迁移内容核对 | iteration26-move-content-check.json | 结果/诊断、质量、旧中间值和冻结身份核对通过 |
 | 第二十六轮结果/导出/融合定向 | iteration26-result-domain.xcresult / .log / .status | 395 通过，0 失败/跳过，退出码 0 |
-| 当前全量模拟器 | iteration26-full.xcresult / .log / .status | 1001 通过，0 失败/跳过，退出码 0 |
-| 当前 Release 模拟器 | iteration26-release.log / .status | 成功，退出码 0 |
-| 当前设备 SDK Release 构建 | iteration26-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
+| 第二十六轮全量模拟器 | iteration26-full.xcresult / .log / .status | 1001 通过，0 失败/跳过，退出码 0 |
+| 第二十六轮 Release 模拟器 | iteration26-release.log / .status | 成功，退出码 0 |
+| 第二十六轮设备 SDK Release 构建 | iteration26-device-build.log / .status | 未签名编译成功，退出码 0；不是设备运行证据 |
 | 第二十七轮无 rg 基线 | iteration27-no-rg-baseline.log / .status | 原脚本工具不可用，退出码 1；已增加发现后备路径 |
 | 第二十七轮领域编译 | iteration27-rg-domain.log / .status；iteration27-no-rg-domain.log / .status | 两种环境均实际编译 24 源文件成功，退出码 0 |
 | 第二十七轮隐藏反向依赖 | iteration27-hidden-dependency-probe.json；iteration27-hidden-dependency-with_rg / without_rg.log / .status | 两条路径均拒绝外部夹具的 Core 类型依赖，预期退出码 1 |
@@ -429,9 +478,19 @@
 | 提交前全量模拟器复核 | commit-20261001-full.xcresult / .log / .status | 1001 通过，0 失败/跳过，退出码 0 |
 | 提交前完整 Domain 复核 | commit-20261001-domain.log / .status | 24 源文件独立编译成功，退出码 0 |
 | 提交内容核对 | commit-20261001-before.json；commit-20261001-content-check.json | 125 个原有改动路径清点；源码与测试暂存内容逐项核对，验证后只删除一处尾空行 |
+| 第二十八轮 UI / full | /private/tmp/fruit-iteration28/fruit-code-improvement-y4dguri6/report.json | 1005 通过，0 失败/跳过/预期失败，退出 0；Domain / Release 成功 |
+| 第二十九轮 storage / UI / full | /private/tmp/fruit-iteration29/fruit-code-improvement-jp19bunp/report.json | 1007 通过，0 失败/跳过/预期失败，退出 0；Domain / Release 成功 |
+| 第三十轮 UI / full（最新源码） | /private/tmp/fruit-iteration30/fruit-code-improvement-1xa5prr5/report.json | 1008 通过，0 失败/跳过/预期失败，退出 0；Domain / Release 成功 |
 | 差异检查 | git diff --check | 通过 |
 
-当前全量验证命令（在仓库根目录执行；日志目录沿用创建日期）：
+本地工作区的默认验证入口（runner 尚未纳入本次提交；需要保留的本地工作流文件，证据自动保存在仓库外）：
+
+```sh
+python3 tools/code_improvement_workflow.py preflight
+python3 tools/code_improvement_workflow.py ui full
+```
+
+此前手工验证命令（日志目录沿用创建日期；重新运行须使用新结果包名称）：
 
 ```sh
 bash tools/validate_fusion_domain.sh
@@ -453,7 +512,7 @@ git diff --check
 
 首次验证已生成上述 xcresult；重跑时需使用新的结果包名称。测试数由 xcresulttool summary 核对，成功以 xcodebuild 终端退出码为准。当前全量继续覆盖跨服务同源串行、不同源并行、历史删除等待提交、失败回滚不覆盖后续修订，以及融合、校准和旧记录解析。
 
-本轮保留 `.fused` 唯一可靠来源、低置信度拒绝、默认融合阈值、zeroYieldReasons、默认校准上下文和存档 schema。自定义实验或预算必须匹配自己的校准上下文。没有对真实用户扫描目录做故障注入。第 1–27 轮迭代期间保留了未提交工作；用户随后要求的本地提交见下方检查点，仍未推送。
+本轮保留 `.fused` 唯一可靠来源、低置信度拒绝、默认融合阈值、zeroYieldReasons、默认校准上下文和存档 schema。自定义实验或预算必须匹配自己的校准上下文。没有对真实用户扫描目录做故障注入。第 1–27 轮已按用户后续要求提交、推送并合并 PR #10；第 28–30 轮后续提交见上方检查点，既有工作流 dirty work 继续保留在本地。
 
 2026-09-28 设备查询确认一台 iPhone 17 Pro 物理设备已配对、可连接且开启开发者模式；另一台 iPad Pro 当前不可用。尚未执行实际树冠采集或测量真机内存。本轮已询问操作者能否提供同一棵树的绕拍及人工果数，待回复；设备可连接不代表精度验收已通过。
 
@@ -473,9 +532,9 @@ git diff --check
 
 根据当前代码，前述扫描/仓储边界、观测链路、质量关联、融合值服务、回放、品类/设置分层和结果/质量/诊断值归属已实施；整个 Domain 的 24 个源文件已通过独立 iOS 模块编译，门禁已接入 CI 并验证本地失败传播。接下来补齐运行证据：
 
-1. **优先补齐完整记录的界面流程。** 在隔离测试数据中构造符合现有存档协议的完整记录，核对历史读取、批量导出和校准导入的实际消费者、导航与错误提示；不污染真实扫描目录，不新增无人使用的生产测试开关。完成/重试的代码回归已有证据，需明确模拟器无 LiDAR 时能验证的 UI 范围。若发现真实断点，再按断点做小步修复；不要为扩大模块数继续搬文件。
+1. **补齐完整记录删除流程的剩余证据。** 隔离夹具的历史读取、三种批量格式、取消/清理、校准基线导入及保存已实际核对；第 28–30 轮发现的状态、临时目录所有权和颜色问题已修复。删除确认与取消通过，永久删除尚待用户在操作时确认；得到确认后只删已备份的 UI-FIXTURE-B，核对 PLY/结果 JSON/完成清单消失、其他源摘要保持及历史刷新。不污染真实目录，不新增闲置生产开关。物理完成/重试仍需另行验收，不用模拟器无 LiDAR 的页面替代。
 2. **设备回放与物理验收。** 混合几何和必须重分配的合成回放已完成，不重复。下一步设计有采样上限和脱敏规则的真实观测基线，并标明人工果数、采集条件及模型/配置身份。已发现可连接 LiDAR iPhone；实际 30/60/120 秒绕拍需要操作者与场景基准。分别记录物理内存、采集/结束耗时、深度拒绝诊断和人工果数误差，不能用模拟器通过代替。
-3. **持续构建远程验收与模块收益评估。** 第 27 轮已经接入 Domain 门禁、脚本路径触发、runner Xcode 和本地成功/失败检查；远程 GitHub Actions 留待分支提交推送后实测，不重复本地集成。当前只有 App/XCTest 两个 target；Domain 类型仍使用模块内可见性。framework/package 需要按消费者定义公开 API，只有能减少实际依赖复杂度时才启动该迁移。当前维持原蓝图的单 App target 与完整 Domain 编译门禁，保留模型/shader 归属及 ReliableYieldEvidence 准入权限。
+3. **持续构建远程验收与模块收益评估。** 第 27 轮已接入的 Domain 门禁、脚本路径触发及 runner Xcode，已在 PR #10 的 GitHub Actions run `36801712785` 实测成功，PR 已合并；该证据覆盖第 1–27 轮提交，不覆盖第 28–30 轮修复，后续提交需核对自己的远程检查点。当前只有 App/XCTest 两个 target；Domain 类型仍使用模块内可见性。framework/package 需要按消费者定义公开 API，只有能减少实际依赖复杂度时才启动该迁移。当前维持原蓝图的单 App target 与完整 Domain 编译门禁，保留模型/shader 归属及 ReliableYieldEvidence 准入权限。
 
 这些事项尚未完成，不能用当前定向或全量 XCTest 代替它们的实现与设备验收。目标继续保持 active。
 
@@ -540,7 +599,9 @@ shortStatus 无消费者已删除；FruitInfo 仅供旧研究测试，已隔离�
 第 27 轮已将 Domain 门禁接入 .github/workflows/build-ipa.yml，
 增加 main PR 和工具变更触发；rg/find 两条路径均实际编译成功且拒绝隐藏反向依赖。
 CI helper 保留编译退出码、限制报告行数；报告失败和 Xcode 选择失败有修正后夹具。
-本地最终模拟器编译成功，远程 CI 未执行；不重做该集成，不冒充 XCTest 或 IPA 签名。
+本地最终模拟器编译成功；PR #10 的远程 CI 已实测通过并合并，第 28–30 轮后续修复需核对自己的远程检查点。不重做该集成，不冒充 XCTest 或 IPA 签名。
+第 28 轮已修复最近记录默认 0 被呈现为可靠结果的问题，第 29 轮已移除 UI 过时临时目录检查，由导出服务统一判断所有权。第 30 轮在实际 SwiftUI sheet 边界声明深色方案，修复固定深色背景上的黑色标题与分组文字；浅色系统入口有失败回归与修复后证据。最新全量 1008 项通过；真实 UI 已核对三种批量产物与取消、收起、切换格式及页面关闭后的清理。不要重做这些修复或把合成夹具当真实精度证据。
+完整历史读取、校准未校准基线导入和删除确认/取消已有证据；永久删除尚待用户确认，物理验收仍缺操作者采集。下一步在已确认授权后完成隔离模拟器 UI-FIXTURE-B 的删除，检查关联文件与历史刷新并保护其他夹具。未收到确认时保留该记录；继续补充真实设备采集条件、人工果数及资源测量，不制造无关重构来代替尚缺的证据。
 下一轮优先检查完整历史记录、批量导出和校准导入的界面调用链，
 先用隔离测试记录补齐可复现的 UI 验收，保护真实数据，不新增闲置生产测试路径。
 完成/重试已有代码回归；单独说明模拟器无 LiDAR 的 UI 范围与尚缺的物理证据。
