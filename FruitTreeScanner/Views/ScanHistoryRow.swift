@@ -30,6 +30,40 @@ struct ScanHistoryRecordPresentation: Equatable, Sendable {
         !hasReliableResult
     }
 
+    var statusTitle: String {
+        switch integrity {
+        case .complete:
+            return NSLocalizedString("history.integrity.complete.title", value: "Result Complete", comment: "")
+        case .incomplete:
+            return NSLocalizedString("history.integrity.incomplete.title", value: "Recovery Needed", comment: "")
+        case .invalid:
+            return NSLocalizedString("history.integrity.invalid.title", value: "Result Damaged", comment: "")
+        }
+    }
+
+    var statusIcon: String {
+        switch integrity {
+        case .complete:
+            return "checkmark.circle.fill"
+        case .incomplete:
+            return "exclamationmark.triangle.fill"
+        case .invalid:
+            return "xmark.octagon.fill"
+        }
+    }
+
+    var accessibilityValue: String {
+        guard let fruitCount, let yieldKg else {
+            let unavailable = NSLocalizedString("history.row.metrics_unavailable", value: "Metrics Unavailable", comment: "")
+            return "\(statusTitle), \(unavailable)"
+        }
+        let yieldText = String.localizedStringWithFormat(
+            NSLocalizedString("history.row.yield_format", value: "%.1f kg", comment: ""),
+            Double(yieldKg)
+        )
+        return "\(statusTitle), \(L10n.Dashboard.fruitCountLabel(fruitCount)), \(yieldText)"
+    }
+
     init(record: ScanFileRecord) {
         switch record.persistenceState {
         case .complete:
@@ -311,14 +345,7 @@ struct ScanHistoryRow: View {
     }
 
     private var statusTitle: String {
-        switch presentation.integrity {
-        case .complete:
-            return localized("history.integrity.complete.title", value: "Result Complete")
-        case .incomplete:
-            return localized("history.integrity.incomplete.title", value: "Recovery Needed")
-        case .invalid:
-            return localized("history.integrity.invalid.title", value: "Result Damaged")
-        }
+        presentation.statusTitle
     }
 
     private var statusMessage: String? {
@@ -359,14 +386,7 @@ struct ScanHistoryRow: View {
     }
 
     private var statusIcon: String {
-        switch presentation.integrity {
-        case .complete:
-            return "checkmark.circle.fill"
-        case .incomplete:
-            return "exclamationmark.triangle.fill"
-        case .invalid:
-            return "xmark.octagon.fill"
-        }
+        presentation.statusIcon
     }
 
     private var statusColor: Color {

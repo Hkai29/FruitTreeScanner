@@ -8,6 +8,106 @@ import UIKit
 
 final class DashboardSummaryTests: XCTestCase {
     @MainActor
+    func testRecentScanCardDoesNotPresentMissingResultAsZeroYield() {
+        let record = makeRecord(
+            id: "missing-result",
+            treeID: "UI-INCOMPLETE",
+            scanDate: Date(),
+            fruitCount: 0,
+            yieldKg: 0,
+            persistenceState: .incomplete
+        )
+        let text = recentScanCardAccessibilityText(record: record)
+
+        XCTAssertTrue(
+            text.contains(NSLocalizedString("history.integrity.incomplete.title", value: "Recovery Needed", comment: "")),
+            "An incomplete archive must expose its recovery state: \(text)"
+        )
+        XCTAssertFalse(text.contains("0.0 kg"), "Missing results must not be shown as a measured zero")
+    }
+
+    @MainActor
+    func testRecentScanCardHidesDamagedResultMetricsInCompactLayout() {
+        let record = makeRecord(
+            id: "damaged-result",
+            treeID: "UI-INVALID",
+            scanDate: Date(),
+            fruitCount: 99,
+            yieldKg: 42.5,
+            persistenceState: .invalid
+        )
+        let text = accessibilityText(in: RecentScanCard(record: record, compactLandscape: true))
+
+        XCTAssertTrue(text.contains(NSLocalizedString("history.integrity.invalid.title", value: "Result Damaged", comment: "")))
+        XCTAssertFalse(text.contains("42.5 kg"), "Unverified stored values must remain unavailable")
+        XCTAssertFalse(text.contains(L10n.Dashboard.fruitCountLabel(99)))
+    }
+
+    @MainActor
+    func testRecentScanCardPreservesCompleteZeroYield() {
+        let record = makeRecord(id: "complete-zero", treeID: "ZERO", scanDate: Date(), fruitCount: 0, yieldKg: 0)
+        let text = recentScanCardAccessibilityText(record: record)
+
+        XCTAssertTrue(text.contains("0.0 kg"), "A verified zero result must remain visible")
+        XCTAssertTrue(text.contains(L10n.Dashboard.fruitCountLabel(0)))
+        XCTAssertFalse(text.contains(NSLocalizedString("history.row.metrics_unavailable", value: "Metrics Unavailable", comment: "")))
+    }
+
+    @MainActor
+    func testRecentScansButtonExposesIncompleteState() {
+        let record = makeRecord(id: "missing-button", treeID: "MISSING", scanDate: Date(), yieldKg: 0, persistenceState: .incomplete)
+        let text = accessibilityText(in: RecentScansSection(scans: [record]))
+
+        XCTAssertTrue(
+            text.contains(NSLocalizedString("history.integrity.incomplete.title", value: "Recovery Needed", comment: "")),
+            "The actionable dashboard row must retain its integrity state: \(text)"
+        )
+        XCTAssertTrue(text.contains(NSLocalizedString("history.row.metrics_unavailable", value: "Metrics Unavailable", comment: "")))
+        XCTAssertFalse(text.contains("0.0 kg"))
+    }
+
+    @MainActor
+    private func recentScanCardAccessibilityText(record: ScanFileRecord) -> String {
+        accessibilityText(in: RecentScanCard(record: record))
+    }
+
+    @MainActor
+    private func accessibilityText<Content: View>(in content: Content) -> String {
+        let controller = UIHostingController(rootView: content)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 220))
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.frame = window.bounds
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var visited = Set<ObjectIdentifier>()
+        func text(in object: NSObject, depth: Int = 0) -> [String] {
+            guard depth < 12, visited.insert(ObjectIdentifier(object)).inserted else { return [] }
+            var values = [object.accessibilityLabel, object.accessibilityValue].compactMap { $0 }
+            let count = object.accessibilityElementCount()
+            if count > 0 && count < 100 {
+                for index in 0..<count {
+                    if let child = object.accessibilityElement(at: index) as? NSObject {
+                        values += text(in: child, depth: depth + 1)
+                    }
+                }
+            }
+            if let view = object as? UIView {
+                for child in view.subviews {
+                    values += text(in: child, depth: depth + 1)
+                }
+            }
+            return values
+        }
+        let result = text(in: window).joined(separator: " | ")
+        window.resignKey()
+        XCTAssertFalse(result.isEmpty, "The rendered card must expose accessible content")
+        return result
+    }
+
+    @MainActor
     func testSharedDashboardToolPresentationRendersAtAccessibilityTextSize() {
         let rootView = ScrollView {
             VStack(spacing: 16) {
