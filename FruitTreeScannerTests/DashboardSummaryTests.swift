@@ -8,6 +8,106 @@ import UIKit
 
 final class DashboardSummaryTests: XCTestCase {
     @MainActor
+    func testRecentScanCardDoesNotPresentMissingResultAsZeroYield() {
+        let record = makeRecord(
+            id: "missing-result",
+            treeID: "UI-INCOMPLETE",
+            scanDate: Date(),
+            fruitCount: 0,
+            yieldKg: 0,
+            persistenceState: .incomplete
+        )
+        let text = recentScanCardAccessibilityText(record: record)
+
+        XCTAssertTrue(
+            text.contains(NSLocalizedString("history.integrity.incomplete.title", value: "Recovery Needed", comment: "")),
+            "An incomplete archive must expose its recovery state: \(text)"
+        )
+        XCTAssertFalse(text.contains("0.0 kg"), "Missing results must not be shown as a measured zero")
+    }
+
+    @MainActor
+    func testRecentScanCardHidesDamagedResultMetricsInCompactLayout() {
+        let record = makeRecord(
+            id: "damaged-result",
+            treeID: "UI-INVALID",
+            scanDate: Date(),
+            fruitCount: 99,
+            yieldKg: 42.5,
+            persistenceState: .invalid
+        )
+        let text = accessibilityText(in: RecentScanCard(record: record, compactLandscape: true))
+
+        XCTAssertTrue(text.contains(NSLocalizedString("history.integrity.invalid.title", value: "Result Damaged", comment: "")))
+        XCTAssertFalse(text.contains("42.5 kg"), "Unverified stored values must remain unavailable")
+        XCTAssertFalse(text.contains(L10n.Dashboard.fruitCountLabel(99)))
+    }
+
+    @MainActor
+    func testRecentScanCardPreservesCompleteZeroYield() {
+        let record = makeRecord(id: "complete-zero", treeID: "ZERO", scanDate: Date(), fruitCount: 0, yieldKg: 0)
+        let text = recentScanCardAccessibilityText(record: record)
+
+        XCTAssertTrue(text.contains("0.0 kg"), "A verified zero result must remain visible")
+        XCTAssertTrue(text.contains(L10n.Dashboard.fruitCountLabel(0)))
+        XCTAssertFalse(text.contains(NSLocalizedString("history.row.metrics_unavailable", value: "Metrics Unavailable", comment: "")))
+    }
+
+    @MainActor
+    func testRecentScansButtonExposesIncompleteState() {
+        let record = makeRecord(id: "missing-button", treeID: "MISSING", scanDate: Date(), yieldKg: 0, persistenceState: .incomplete)
+        let text = accessibilityText(in: RecentScansSection(scans: [record]))
+
+        XCTAssertTrue(
+            text.contains(NSLocalizedString("history.integrity.incomplete.title", value: "Recovery Needed", comment: "")),
+            "The actionable dashboard row must retain its integrity state: \(text)"
+        )
+        XCTAssertTrue(text.contains(NSLocalizedString("history.row.metrics_unavailable", value: "Metrics Unavailable", comment: "")))
+        XCTAssertFalse(text.contains("0.0 kg"))
+    }
+
+    @MainActor
+    private func recentScanCardAccessibilityText(record: ScanFileRecord) -> String {
+        accessibilityText(in: RecentScanCard(record: record))
+    }
+
+    @MainActor
+    private func accessibilityText<Content: View>(in content: Content) -> String {
+        let controller = UIHostingController(rootView: content)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 220))
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.frame = window.bounds
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        var visited = Set<ObjectIdentifier>()
+        func text(in object: NSObject, depth: Int = 0) -> [String] {
+            guard depth < 12, visited.insert(ObjectIdentifier(object)).inserted else { return [] }
+            var values = [object.accessibilityLabel, object.accessibilityValue].compactMap { $0 }
+            let count = object.accessibilityElementCount()
+            if count > 0 && count < 100 {
+                for index in 0..<count {
+                    if let child = object.accessibilityElement(at: index) as? NSObject {
+                        values += text(in: child, depth: depth + 1)
+                    }
+                }
+            }
+            if let view = object as? UIView {
+                for child in view.subviews {
+                    values += text(in: child, depth: depth + 1)
+                }
+            }
+            return values
+        }
+        let result = text(in: window).joined(separator: " | ")
+        window.resignKey()
+        XCTAssertFalse(result.isEmpty, "The rendered card must expose accessible content")
+        return result
+    }
+
+    @MainActor
     func testSharedDashboardToolPresentationRendersAtAccessibilityTextSize() {
         let rootView = ScrollView {
             VStack(spacing: 16) {
@@ -3146,6 +3246,70 @@ final class BatchExportPrimaryButtonLocalizationTests: XCTestCase {
 }
 
 final class BatchExportNavigationChromeLocalizationTests: XCTestCase {
+    @MainActor
+    func testBatchExportGroupingUsesDarkAppearanceWhenSystemIsLight() async throws {
+        let record = ScanFileRecord(
+            id: "appearance-record",
+            treeID: "APPEARANCE",
+            fileURL: URL(fileURLWithPath: "/tmp/appearance-record.ply"),
+            scanDate: Date(timeIntervalSince1970: 1_700_000_000),
+            fruitCount: 12,
+            yieldKg: 3.4
+        )
+        let store = ScanHistoryStore(recordsLoader: { .success([record]) })
+        await store.reloadRecords()
+        let suiteName = "BatchExportAppearanceTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let controller = UIHostingController(rootView:
+            Color.clear.sheet(isPresented: .constant(true)) {
+                BatchExportView(store: store, tagStore: TagStore(defaults: defaults))
+            }
+        )
+        let scene = try XCTUnwrap(
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first { $0.activationState == .foregroundActive }
+        )
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.overrideUserInterfaceStyle = .light
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        defer {
+            controller.presentedViewController?.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+
+        func segmentedControls(in view: UIView) -> [UISegmentedControl] {
+            (view as? UISegmentedControl).map { [$0] } ?? view.subviews.flatMap(segmentedControls)
+        }
+        let sheet = try XCTUnwrap(controller.presentedViewController)
+        let grouping = try XCTUnwrap(segmentedControls(in: sheet.view).first)
+        XCTAssertEqual(grouping.numberOfSegments, 4)
+        XCTAssertEqual(grouping.selectedSegmentIndex, 0)
+        XCTAssertEqual(
+            grouping.traitCollection.userInterfaceStyle, .dark,
+            "System grouping labels must use dark appearance on the fixed dark export surface"
+        )
+
+        var didDraw = false
+        let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            didDraw = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        XCTAssertTrue(didDraw, "The actual export page must render in a foreground scene")
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "BatchExport-LightSystem-Appearance"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testBatchExportNavigationCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [

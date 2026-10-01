@@ -156,8 +156,6 @@ extension BatchExportView {
         exportedURL = nil
         presentedSheet = nil
 
-        let tempDirectory = FileManager.default.temporaryDirectory.standardizedFileURL
-        guard url.deletingLastPathComponent().standardizedFileURL == tempDirectory else { return }
         BatchExportService.removeTemporaryExport(at: url)
     }
 

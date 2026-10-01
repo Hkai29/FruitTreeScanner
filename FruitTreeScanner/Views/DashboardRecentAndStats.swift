@@ -29,6 +29,7 @@ struct RecentScansSection: View {
                         .accessibilityLabel(
                             L10n.Dashboard.viewPointCloudAccessibilityLabel(treeID: record.treeID)
                         )
+                        .accessibilityValue(ScanHistoryRecordPresentation(record: record).accessibilityValue)
                     }
                 }
             }
@@ -91,6 +92,18 @@ struct RecentScanCard: View {
     let record: ScanFileRecord
     var compactLandscape: Bool = false
 
+    private var presentation: ScanHistoryRecordPresentation {
+        ScanHistoryRecordPresentation(record: record)
+    }
+
+    private var statusColor: Color {
+        switch presentation.integrity {
+        case .complete: return Design.Colors.harvestLight
+        case .incomplete: return Design.Colors.Dark.warning
+        case .invalid: return Design.Colors.Dark.error
+        }
+    }
+
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -105,11 +118,12 @@ struct RecentScanCard: View {
         HStack(spacing: compactLandscape ? 10 : 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 9)
-                    .fill(Design.Colors.harvest.opacity(0.14))
+                    .fill((presentation.hasReliableResult ? Design.Colors.harvest : statusColor).opacity(0.14))
                     .frame(width: compactLandscape ? 34 : 44, height: compactLandscape ? 34 : 44)
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: presentation.statusIcon)
                     .font(.system(size: compactLandscape ? 15 : 19))
-                    .foregroundColor(Design.Colors.harvestLight)
+                    .foregroundColor(statusColor)
+                    .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.treeID)
@@ -122,12 +136,23 @@ struct RecentScanCard: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text(String(format: "%.1f kg", record.yieldKg))
-                    .font(.system(size: compactLandscape ? 12 : 13, weight: .medium, design: .monospaced))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                Text(L10n.Dashboard.fruitCountLabel(record.fruitCount))
-                    .font(.system(size: compactLandscape ? 10 : 11))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                if let yieldKg = presentation.yieldKg, let fruitCount = presentation.fruitCount {
+                    Text(String(format: "%.1f kg", yieldKg))
+                        .font(.system(size: compactLandscape ? 12 : 13, weight: .medium, design: .monospaced))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                    Text(L10n.Dashboard.fruitCountLabel(fruitCount))
+                        .font(.system(size: compactLandscape ? 10 : 11))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                } else {
+                    Text(presentation.statusTitle)
+                        .font(.system(size: compactLandscape ? 12 : 13, weight: .semibold))
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                    Text(NSLocalizedString("history.row.metrics_unavailable", value: "Metrics Unavailable", comment: ""))
+                        .font(.system(size: compactLandscape ? 10 : 11))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(compactLandscape ? 9 : 12)
