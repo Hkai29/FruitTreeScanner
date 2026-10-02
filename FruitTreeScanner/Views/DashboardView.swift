@@ -27,6 +27,10 @@ struct DashboardView: View {
         appDependencies.calibrationScanSource()
     }
 
+    var settingsStore: SettingsStore {
+        appDependencies.settings
+    }
+
     private var recentScans: [ScanFileRecord] {
         Array(historyStore.scanFiles.prefix(3))
     }

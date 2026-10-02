@@ -9,6 +9,267 @@ import UIKit
 
 final class DashboardSummaryTests: XCTestCase {
     @MainActor
+    func testDashboardSettingsRoutesEditRootAndPreserveFrozenPlan() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suite = "RootSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let shared = SettingsStore.shared
+        await FruitParametersStore.shared.waitForPendingSave()
+        let protectedKeys = [SettingsStoreKey.autoExportCSV, SettingsStoreKey.fruitType,
+                             SettingsStoreKey.cameraResolution, SettingsStoreKey.cameraFrameRate,
+                             SettingsStoreKey.qualityPreset, SettingsStoreKey.maxPointCount,
+                             SettingsStoreKey.scanPrecision, FruitParametersStore.userDefaultsKey]
+        let sharedValues = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        let settings = SettingsStore(defaults: defaults)
+        let initialCategory: FruitCategory = shared.fruitType == "pear" ? .orange : .pear
+        let initialCSV = !shared.autoExportCSV
+        settings.fruitType = initialCategory.rawValue
+        settings.autoExportCSV = initialCSV
+        settings.maxPointCount = 1_400_000
+        settings.scanPrecision = 0.017
+        settings.cameraResolution = shared.cameraResolution == "4K" ? "720p" : "4K"
+        settings.cameraFrameRate = shared.cameraFrameRate == "120fps" ? "30fps" : "120fps"
+        let initialResolution = settings.cameraResolution
+        let initialFrameRate = settings.cameraFrameRate
+        let dependencies = AppDependencies(settings: settings, scanRepository: ScanRepository(scansDirectory: directory))
+        let frozen = dependencies.scanPlanFactory.makePlan(
+            treeID: "ROOT-SETTINGS", season: .mature, selectedCategory: initialCategory, renderer: nil
+        )
+        let controller = UIHostingController(rootView:
+            DashboardView(router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+                          historyStore: dependencies.historyStore)
+                .environmentObject(dependencies)
+        )
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        window.layoutIfNeeded()
+        defer {
+            controller.presentedViewController?.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        func elements(in root: NSObject) -> [NSObject] {
+            var seen = Set<ObjectIdentifier>()
+            var result: [NSObject] = []
+            func visit(_ object: NSObject, depth: Int = 0) {
+                guard depth < 32, seen.insert(ObjectIdentifier(object)).inserted else { return }
+                result.append(object)
+                let count = object.accessibilityElementCount()
+                if count > 0 && count < 100 {
+                    for index in 0..<count {
+                        if let child = object.accessibilityElement(at: index) as? NSObject { visit(child, depth: depth + 1) }
+                    }
+                }
+                if let view = object as? UIView { for child in view.subviews { visit(child, depth: depth + 1) } }
+            }
+            visit(root)
+            return result
+        }
+        func element(_ label: String, in root: NSObject) -> NSObject? {
+            let candidates = elements(in: root)
+            return candidates.first { $0.accessibilityLabel == label && $0.accessibilityTraits.contains(.button) } ??
+                candidates.first { $0.accessibilityLabel == label } ?? candidates.first {
+                $0.accessibilityLabel?.hasPrefix(label) == true && $0.accessibilityValue != nil
+            }
+        }
+        func waitFor(_ condition: () -> Bool) async throws -> Bool {
+            func settled(_ current: UIViewController) -> Bool {
+                current.transitionCoordinator == nil && !current.isBeingPresented && !current.isBeingDismissed &&
+                    current.children.allSatisfy(settled) && (current.presentedViewController.map(settled) ?? true)
+            }
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                window.layoutIfNeeded()
+                controller.presentedViewController?.view.layoutIfNeeded()
+                if settled(controller) && condition() { return true }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            } while Date() < deadline
+            return false
+        }
+        func attach(_ phase: String) {
+            let image = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            image.name = "RootSettings-\(phase)"
+            image.lifetime = .keepAlways
+            add(image)
+            let text = XCTAttachment(string: elements(in: window).compactMap {
+                guard let label = $0.accessibilityLabel else { return nil }
+                return String(describing: type(of: $0)) + " [" + String($0.accessibilityTraits.rawValue) + "] " +
+                    label + " = " + ($0.accessibilityValue ?? "")
+            }.joined(separator: "\n"))
+            text.name = "RootSettings-\(phase)-accessibility"
+            text.lifetime = .keepAlways
+            add(text)
+        }
+        func scrollTo(_ label: String, in view: UIView) async throws -> NSObject {
+            if let current = element(label, in: view), current.accessibilityFrame.intersects(window.bounds) { return current }
+            let scroll = try XCTUnwrap(elements(in: view).compactMap { $0 as? UIScrollView }.first {
+                $0.bounds.height > 150 && $0.contentSize.height > $0.bounds.height
+            })
+            let maximum = max(0, scroll.contentSize.height - scroll.bounds.height)
+            for offset in stride(from: CGFloat(0), through: maximum, by: max(100, scroll.bounds.height / 2)) {
+                scroll.setContentOffset(CGPoint(x: 0, y: offset), animated: false)
+                try await Task.sleep(nanoseconds: 20_000_000)
+                if let current = element(label, in: view), current.accessibilityFrame.intersects(window.bounds) { return current }
+            }
+            scroll.setContentOffset(CGPoint(x: 0, y: maximum), animated: false)
+            try await Task.sleep(nanoseconds: 20_000_000)
+            return try XCTUnwrap(element(label, in: view))
+        }
+        func openSettings() async throws -> UIViewController {
+            let ready = try await waitFor { element(L10n.Dashboard.settingsAccessibilityLabel, in: controller.view) != nil }
+            XCTAssertTrue(ready)
+            XCTAssertTrue(try XCTUnwrap(element(L10n.Dashboard.settingsAccessibilityLabel, in: controller.view)).accessibilityActivate())
+            let presented = try await waitFor {
+                guard let sheet = controller.presentedViewController else { return false }
+                return !sheet.isBeingPresented && sheet.transitionCoordinator == nil &&
+                    element(L10n.Settings.autoExportCSV, in: sheet.view) != nil
+            }
+            XCTAssertTrue(presented)
+            return try XCTUnwrap(controller.presentedViewController)
+        }
+        func returnToSettings(in sheet: UIViewController) throws {
+            func navigation(in current: UIViewController) -> UINavigationController? {
+                if let navigation = current as? UINavigationController, navigation.viewControllers.count > 1 {
+                    return navigation
+                }
+                return current.children.lazy.compactMap { navigation(in: $0) }.first
+            }
+            let navigation = try XCTUnwrap(navigation(in: sheet))
+            XCTAssertNotNil(navigation.popViewController(animated: true))
+        }
+        let sheet = try await openSettings()
+        attach("presented")
+        let category = try await scrollTo(L10n.Settings.currentFruitType, in: sheet.view)
+        attach("initial")
+        XCTAssertEqual(category.accessibilityValue, L10n.Fruit.name(for: initialCategory),
+                       "Actual Dashboard settings must display the injected root category")
+        guard category.accessibilityValue == L10n.Fruit.name(for: initialCategory) else { return }
+        let pointControl = try await scrollTo(L10n.Settings.maxPoints, in: sheet.view)
+        let points = try XCTUnwrap(pointControl as? UISlider)
+        XCTAssertEqual(points.accessibilityValue, L10n.Settings.maxPointCountValue(1_400_000))
+        points.sendActions(for: .touchDown)
+        points.value += (points.maximumValue - points.minimumValue) / 29
+        points.sendActions(for: .valueChanged)
+        let pointDraftChanged = try await waitFor { points.accessibilityValue == L10n.Settings.maxPointCountValue(1_500_000) }
+        XCTAssertTrue(pointDraftChanged)
+        XCTAssertEqual(settings.maxPointCount, 1_400_000, "Dragging must keep edits in the draft")
+        points.sendActions(for: .touchUpInside)
+        let pointCommitted = try await waitFor { settings.maxPointCount == 1_500_000 }
+        XCTAssertTrue(pointCommitted)
+        let precisionControl = try await scrollTo(L10n.Settings.precision, in: sheet.view)
+        let precision = try XCTUnwrap(precisionControl as? UISlider)
+        XCTAssertEqual(precision.accessibilityValue, L10n.Settings.precisionValue(1.7))
+        precision.sendActions(for: .touchDown)
+        precision.value += (precision.maximumValue - precision.minimumValue) / 49
+        precision.sendActions(for: .valueChanged)
+        let precisionDraftChanged = try await waitFor { precision.accessibilityValue == L10n.Settings.precisionValue(1.8) }
+        XCTAssertTrue(precisionDraftChanged)
+        XCTAssertEqual(settings.scanPrecision, 0.017, accuracy: 0.00001)
+        let csv = try await scrollTo(L10n.Settings.autoExportCSV, in: sheet.view)
+        XCTAssertTrue(csv.accessibilityActivate())
+        let toggled = try await waitFor { settings.autoExportCSV == !initialCSV }
+        XCTAssertTrue(toggled, "Actual toggle must write the same root used by ScanPlanFactory")
+        let camera = try await scrollTo(L10n.Settings.cameraSettings, in: sheet.view)
+        XCTAssertTrue(camera.accessibilityActivate())
+        let cameraReady = try await waitFor { element(L10n.Settings.targetResolution, in: sheet.view) != nil }
+        XCTAssertTrue(cameraReady)
+        let precisionCommitted = try await waitFor { abs(settings.scanPrecision - 0.018) < 0.00001 }
+        XCTAssertTrue(precisionCommitted, "Leaving Settings must commit the precision draft")
+        attach("camera")
+        let resolution = try XCTUnwrap(element(L10n.Settings.targetResolution, in: sheet.view))
+        let fps = try XCTUnwrap(element(L10n.Settings.captureFrameRate, in: sheet.view))
+        XCTAssertEqual(resolution.accessibilityValue, initialResolution, "Nested camera must observe the same root")
+        XCTAssertEqual(fps.accessibilityValue, initialFrameRate)
+        guard resolution.accessibilityValue == initialResolution && fps.accessibilityValue == initialFrameRate else { return }
+        let changedResolution = initialResolution == "4K" ? "720p" : "4K"
+        XCTAssertTrue(resolution.accessibilityActivate())
+        let menuReady = try await waitFor { element(changedResolution, in: window) != nil }
+        XCTAssertTrue(menuReady)
+        attach("resolution-menu")
+        let resolutionButton = try XCTUnwrap(resolution as? UIButton)
+        func actions(in menu: UIMenu) -> [UIAction] {
+            menu.children.flatMap { child -> [UIAction] in
+                if let action = child as? UIAction { return [action] }
+                if let submenu = child as? UIMenu { return actions(in: submenu) }
+                return []
+            }
+        }
+        let option = try XCTUnwrap(actions(in: try XCTUnwrap(resolutionButton.menu)).first { $0.title == changedResolution })
+        resolutionButton.sendAction(option)
+        resolutionButton.contextMenuInteraction?.dismissMenu()
+        let resolutionChanged = try await waitFor { settings.cameraResolution == changedResolution }
+        XCTAssertTrue(resolutionChanged)
+        try returnToSettings(in: sheet)
+        let returned = try await waitFor { element(L10n.Settings.varietyDatabase, in: sheet.view) != nil }
+        XCTAssertTrue(returned)
+        let variety = try await scrollTo(L10n.Settings.varietyDatabase, in: sheet.view)
+        XCTAssertTrue(variety.accessibilityActivate())
+        let currentLabel = L10n.VarietyDatabase.currentAccessibility(L10n.Fruit.name(for: initialCategory))
+        let varietyReady = try await waitFor { element(currentLabel, in: sheet.view) != nil }
+        attach("variety")
+        XCTAssertTrue(varietyReady, "Nested variety current category must observe the injected root")
+        guard varietyReady else { return }
+        let appleName = L10n.Fruit.name(for: .apple)
+        let appleLabel = try XCTUnwrap(elements(in: sheet.view).first {
+            $0.accessibilityTraits.contains(.button) && $0.accessibilityHint == L10n.VarietyDatabase.useHint &&
+                $0.accessibilityLabel?.contains(appleName) == true
+        }?.accessibilityLabel)
+        let apple = try await scrollTo(appleLabel, in: sheet.view)
+        XCTAssertTrue(apple.accessibilityFrame.intersects(window.bounds))
+        XCTAssertTrue(apple.accessibilityActivate())
+        let applied = try await waitFor { settings.fruitType == "apple" }
+        XCTAssertTrue(applied, "Variety use must update root settings without changing the parameter database")
+        try returnToSettings(in: sheet)
+        let rootReturned = try await waitFor { element(L10n.Settings.currentFruitType, in: sheet.view)?.accessibilityValue == appleName }
+        XCTAssertTrue(rootReturned)
+        attach("changed")
+        XCTAssertTrue(try XCTUnwrap(element(L10n.Common.done, in: sheet.view)).accessibilityActivate())
+        let closed = try await waitFor { controller.presentedViewController == nil }
+        XCTAssertTrue(closed)
+        XCTAssertEqual(settings.maxPointCount, 1_500_000)
+        XCTAssertEqual(settings.scanPrecision, 0.018, accuracy: 0.00001)
+        let reopened = try await openSettings()
+        let reopenedCategory = try await scrollTo(L10n.Settings.currentFruitType, in: reopened.view)
+        XCTAssertEqual(reopenedCategory.accessibilityValue, appleName)
+        attach("reopened")
+        XCTAssertTrue(try XCTUnwrap(element(L10n.Common.done, in: reopened.view)).accessibilityActivate())
+        let closedAgain = try await waitFor { controller.presentedViewController == nil }
+        XCTAssertTrue(closedAgain)
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.fruitType, "apple")
+        XCTAssertEqual(reloaded.autoExportCSV, !initialCSV)
+        XCTAssertEqual(reloaded.cameraResolution, changedResolution)
+        XCTAssertEqual(reloaded.maxPointCount, 1_500_000)
+        XCTAssertEqual(reloaded.scanPrecision, 0.018, accuracy: 0.00001)
+        let plan = dependencies.scanPlanFactory.makePlan(treeID: "ROOT-SETTINGS-NEXT", season: .mature,
+                                                        selectedCategory: .apple, renderer: nil)
+        XCTAssertEqual(plan.requestedCameraResolution, changedResolution)
+        XCTAssertEqual(plan.requestedCameraFrameRate, initialFrameRate)
+        XCTAssertEqual(plan.autoExportCSV, !initialCSV)
+        XCTAssertEqual(plan.rendererSettings.maxPoints, 1_500_000)
+        XCTAssertEqual(plan.fruitConfiguration.selectedCategory, .apple)
+        XCTAssertEqual(frozen.requestedCameraResolution, initialResolution)
+        XCTAssertEqual(frozen.requestedCameraFrameRate, initialFrameRate)
+        XCTAssertEqual(frozen.autoExportCSV, initialCSV)
+        XCTAssertEqual(frozen.rendererSettings.maxPoints, 1_400_000)
+        XCTAssertEqual(frozen.fruitConfiguration.selectedCategory, initialCategory)
+        let currentShared = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        XCTAssertTrue(NSDictionary(dictionary: currentShared).isEqual(to: sharedValues))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    @MainActor
     func testDashboardComparisonCloseReturnsToRootAndAllowsReopening() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

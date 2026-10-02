@@ -2,13 +2,17 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
-    @ObservedObject private var settings = SettingsStore.shared
+    @ObservedObject private var settings: SettingsStore
     @State private var deviceExpanded = true
     @State private var dataExpanded = true
     @State private var scanExpanded = true
     @State private var maxPointCountDraft: Double = 1_000_000
     @State private var scanPrecisionDraft: Double = 0.01
     @State private var selectedFruitCategory: FruitCategory = .apple
+
+    init(settings: SettingsStore = .shared) {
+        self.settings = settings
+    }
 
     private var maxPointCountBinding: Binding<Double> {
         Binding(
@@ -38,7 +42,7 @@ struct SettingsView: View {
                             isExpanded: $deviceExpanded
                         ) {
                             NavigationLink {
-                                CameraSettingsView()
+                                CameraSettingsView(settings: settings)
                             } label: {
                                 SettingsNavigationRow(
                                     icon: "camera.metering.center.weighted",
@@ -85,7 +89,7 @@ struct SettingsView: View {
                             GlassDivider()
 
                             NavigationLink {
-                                VarietyDatabaseView()
+                                VarietyDatabaseView(settings: settings)
                             } label: {
                                 SettingsNavigationRow(
                                     icon: "leaf.circle",
