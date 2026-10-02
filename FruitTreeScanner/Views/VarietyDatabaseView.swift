@@ -13,10 +13,15 @@ enum VarietySearchMatcher {
 
 struct VarietyDatabaseView: View {
     @ObservedObject private var store = FruitParametersStore.shared
-    @ObservedObject private var settings = SettingsStore.shared
+    @ObservedObject private var settings: SettingsStore
     @State private var editingSheet: VarietyEditSheet?
     @State private var showResetConfirm = false
     @State private var searchText = ""
+
+    @MainActor
+    init(settings: SettingsStore = .shared) {
+        self.settings = settings
+    }
     
     private var filteredCategories: [FruitCategory] {
         if searchText.isEmpty {

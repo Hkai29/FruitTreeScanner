@@ -5,18 +5,23 @@ import SwiftUI
 
 // MARK: - HistoricalCompareView
 struct HistoricalCompareView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ObservedObject var historyStore = ScanHistoryStore.shared
+    @ObservedObject var historyStore: ScanHistoryStore
     private let onStartScan: (() -> Void)?
     private let presentation: HistoricalComparePresentation
+    private let doneTitle: String
     @State private var selectedScan1: ScanItem?
     @State private var selectedScan2: ScanItem?
     @State private var activePicker: HistoricalComparePicker?
 
-    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+    @MainActor
+    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main, historyStore: ScanHistoryStore? = nil) {
         self.onStartScan = onStartScan
         self.presentation = HistoricalComparePresentation(bundle: bundle)
+        self.doneTitle = bundle.localizedString(forKey: "common.done", value: L10n.Common.done, table: nil)
+        self.historyStore = historyStore ?? .shared
     }
 
     private var availableScans: [ScanItem] {
@@ -24,6 +29,53 @@ struct HistoricalCompareView: View {
     }
 
     var body: some View {
+        NavigationStack {
+            comparisonContent
+                .navigationTitle(presentation.navigationTitle)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(doneTitle) { dismiss() }
+                            .foregroundColor(Design.Colors.harvest)
+                    }
+                }
+        }
+        .preferredColorScheme(.dark)
+        .environment(\.historicalComparePresentation, presentation)
+        .sheet(item: $activePicker) { picker in
+            switch picker {
+            case .first:
+                ScanPickerView(
+                    scans: HistoricalCompareSelectionPolicy.selectableItems(
+                        from: availableScans,
+                        excluding: selectedScan2
+                    ),
+                    selectedScan: $selectedScan1,
+                    slot: presentation.scanA,
+                    presentation: presentation
+                )
+            case .second:
+                ScanPickerView(
+                    scans: HistoricalCompareSelectionPolicy.selectableItems(
+                        from: availableScans,
+                        excluding: selectedScan1
+                    ),
+                    selectedScan: $selectedScan2,
+                    slot: presentation.scanB,
+                    presentation: presentation
+                )
+            }
+        }
+        .onAppear {
+            historyStore.loadRecords()
+        }
+        .onChange(of: availableScans, perform: reconcileSelections)
+    }
+
+    private var comparisonContent: some View {
         ZStack {
             Design.Colors.Dark.bgDeep
                 .ignoresSafeArea()
@@ -57,38 +109,6 @@ struct HistoricalCompareView: View {
                 .padding(.top, Design.Space.md)
             }
         }
-        .preferredColorScheme(.dark)
-        .navigationTitle(presentation.navigationTitle)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .environment(\.historicalComparePresentation, presentation)
-        .sheet(item: $activePicker) { picker in
-            switch picker {
-            case .first:
-                ScanPickerView(
-                    scans: HistoricalCompareSelectionPolicy.selectableItems(
-                        from: availableScans,
-                        excluding: selectedScan2
-                    ),
-                    selectedScan: $selectedScan1,
-                    slot: presentation.scanA,
-                    presentation: presentation
-                )
-            case .second:
-                ScanPickerView(
-                    scans: HistoricalCompareSelectionPolicy.selectableItems(
-                        from: availableScans,
-                        excluding: selectedScan1
-                    ),
-                    selectedScan: $selectedScan2,
-                    slot: presentation.scanB,
-                    presentation: presentation
-                )
-            }
-        }
-        .onChange(of: availableScans, perform: reconcileSelections)
     }
 
     // MARK: - Scan Selection Section

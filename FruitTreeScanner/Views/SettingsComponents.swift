@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct CameraSettingsView: View {
-    @ObservedObject private var settings = SettingsStore.shared
+    @ObservedObject private var settings: SettingsStore
+
+    init(settings: SettingsStore = .shared) {
+        self.settings = settings
+    }
 
     var body: some View {
         ZStack {
