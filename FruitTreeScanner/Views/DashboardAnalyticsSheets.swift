@@ -186,13 +186,15 @@ struct YieldReportPresentation {
 struct YieldReportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
-    @ObservedObject private var historyStore = ScanHistoryStore.shared
+    @ObservedObject private var historyStore: ScanHistoryStore
     private let onStartScan: (() -> Void)?
     private let bundle: Bundle
 
-    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+    @MainActor
+    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main, historyStore: ScanHistoryStore? = nil) {
         self.onStartScan = onStartScan
         self.bundle = bundle
+        self.historyStore = historyStore ?? .shared
     }
 
     private var reportData: YieldReportData {
@@ -450,13 +452,15 @@ struct TrendsPresentation {
 struct TrendsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
-    @ObservedObject private var historyStore = ScanHistoryStore.shared
+    @ObservedObject private var historyStore: ScanHistoryStore
     private let onStartScan: (() -> Void)?
     private let bundle: Bundle
 
-    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+    @MainActor
+    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main, historyStore: ScanHistoryStore? = nil) {
         self.onStartScan = onStartScan
         self.bundle = bundle
+        self.historyStore = historyStore ?? .shared
     }
 
     private var trendsData: TrendsData { TrendsData(records: historyStore.scanFiles) }
@@ -492,6 +496,9 @@ struct TrendsSheet: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .onAppear {
+                historyStore.loadRecords()
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(presentation.done) { dismiss() }

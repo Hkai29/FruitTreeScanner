@@ -10,27 +10,10 @@ enum CalibrationScanRecordImportPolicy {
     }
 }
 
-private struct ImportedCalibrationMetadata: Sendable {
-    let algorithmRevision: String
-    let calibrationContext: String
-    let baselineCount: Int
-    let baselineYield: Float
-
-    static func load(for record: ScanFileRecord) -> Self? {
-        guard let baseline = try? ScanRepository.shared.readCalibrationBaseline(for: record)
-        else { return nil }
-        return Self(
-            algorithmRevision: baseline.algorithmRevision,
-            calibrationContext: baseline.calibrationContext,
-            baselineCount: baseline.fruitCount,
-            baselineYield: baseline.yieldKg
-        )
-    }
-}
-
 struct AddCalibrationRecordView: View {
     @Environment(\.dismiss) var dismiss
-    @ObservedObject private var historyStore = ScanHistoryStore.shared
+    @ObservedObject private var historyStore: ScanHistoryStore
+    let scanSource: CalibrationScanSource
 
     let onSave: (CalibrationRecord) -> Void
 
@@ -46,6 +29,14 @@ struct AddCalibrationRecordView: View {
     @State private var importedEstimateSignature = ""
     @State private var importToken = UUID()
     @State private var isImportingMetadata = false
+
+    @MainActor
+    init(scanSource: CalibrationScanSource? = nil, onSave: @escaping (CalibrationRecord) -> Void) {
+        let source = scanSource ?? .production(repository: .shared, historyStore: .shared)
+        self.scanSource = source
+        self.historyStore = source.historyStore
+        self.onSave = onSave
+    }
 
     private var estimateSignature: String {
         "\(treeID)|\(estimatedFruitCount)|\(estimatedYieldKg)|\(selectedFruitCategory.rawValue)"
@@ -120,17 +111,18 @@ struct AddCalibrationRecordView: View {
         let selectedToken = UUID()
         importToken = selectedToken
         isImportingMetadata = true
+        let loadBaseline = scanSource.loadBaseline
         Task { @MainActor in
             let metadata = await Task.detached(priority: .utility) {
-                ImportedCalibrationMetadata.load(for: record)
+                loadBaseline(record)
             }.value
             guard importToken == selectedToken else { return }
             isImportingMetadata = false
             guard let metadata, estimateSignature == selectedSignature else { return }
             importedAlgorithmRevision = metadata.algorithmRevision
             importedCalibrationContext = metadata.calibrationContext
-            estimatedFruitCount = String(metadata.baselineCount)
-            estimatedYieldKg = String(metadata.baselineYield)
+            estimatedFruitCount = String(metadata.fruitCount)
+            estimatedYieldKg = String(metadata.yieldKg)
             importedEstimateSignature = estimateSignature
         }
     }

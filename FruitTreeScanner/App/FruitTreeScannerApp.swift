@@ -73,4 +73,12 @@ final class AppDependencies: ObservableObject {
             refreshHistory: { [historyStore] in historyStore.notifyRecordsUpdated() }
         )
     }
+
+    func importOperations() -> ScanImportOperations {
+        .production(repository: scanRepository, historyStore: historyStore)
+    }
+
+    func calibrationScanSource() -> CalibrationScanSource {
+        .production(repository: scanRepository, historyStore: historyStore)
+    }
 }

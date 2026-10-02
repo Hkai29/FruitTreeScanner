@@ -19,6 +19,14 @@ struct DashboardView: View {
         self.historyStore = historyStore ?? .shared
     }
 
+    var scanImportOperations: ScanImportOperations {
+        appDependencies.importOperations()
+    }
+
+    var calibrationScanSource: CalibrationScanSource {
+        appDependencies.calibrationScanSource()
+    }
+
     private var recentScans: [ScanFileRecord] {
         Array(historyStore.scanFiles.prefix(3))
     }

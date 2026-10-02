@@ -5,18 +5,21 @@ struct PointCloudSheet: View {
     var onStartScan: (() -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
 
-    @ObservedObject var historyStore = ScanHistoryStore.shared
+    @ObservedObject var historyStore: ScanHistoryStore
     @State private var searchText = ""
     @State private var selectedFile: URL?
 
+    @MainActor
     init(
         initialFileURL: URL? = nil,
         onStartScan: (() -> Void)? = nil,
-        onImportFile: (() -> Void)? = nil
+        onImportFile: (() -> Void)? = nil,
+        historyStore: ScanHistoryStore? = nil
     ) {
         _selectedFile = State(initialValue: initialFileURL)
         self.onStartScan = onStartScan
         self.onImportFile = onImportFile
+        self.historyStore = historyStore ?? .shared
     }
 
     private var effectiveSelectedFile: URL? {
@@ -39,7 +42,7 @@ struct PointCloudSheet: View {
                             onSelect: selectFile
                         )
 
-                        PointCloudView(plyFileURL: effectiveSelectedFile)
+                        PointCloudView(plyFileURL: effectiveSelectedFile, onClose: { dismiss() })
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }

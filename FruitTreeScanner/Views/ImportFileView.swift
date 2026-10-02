@@ -11,6 +11,12 @@ struct ImportFileView: View {
     @State var importStatus: ImportStatus = .idle
     @State var importTask: Task<Void, Never>?
     @State var isViewActive = false
+    let operations: ScanImportOperations
+
+    @MainActor
+    init(operations: ScanImportOperations? = nil) {
+        self.operations = operations ?? .production(repository: .shared, historyStore: .shared)
+    }
 
     var body: some View {
         NavigationStack {

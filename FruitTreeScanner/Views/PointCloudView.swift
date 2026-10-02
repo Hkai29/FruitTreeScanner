@@ -29,6 +29,7 @@ enum PointCloudLoadOperation {
 // MARK: - PointCloudView
 struct PointCloudView: View {
     let plyFileURL: URL?
+    var onClose: (() -> Void)? = nil
 
     @State private var pointCount: Int = 0
     @State private var colorMode: PointCloudColorMode = .height
@@ -77,7 +78,7 @@ struct PointCloudView: View {
                     bounds: pointCloudData?.bounds,
                     viewMode: viewMode,
                     canExport: canExportCurrentFile,
-                    onClose: { dismiss() },
+                    onClose: closePreview,
                     onExport: { showExportSheet = true }
                 )
 
@@ -108,6 +109,14 @@ struct PointCloudView: View {
             if let plyFileURL {
                 ShareSheet(items: [plyFileURL])
             }
+        }
+    }
+
+    private func closePreview() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
         }
     }
 
