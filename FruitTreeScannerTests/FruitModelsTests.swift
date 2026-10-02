@@ -2005,6 +2005,72 @@ final class FruitModelsTests: XCTestCase {
 
     // MARK: - Scan history loading and recovery
 
+    @MainActor
+    func testRootImportOperationsRefreshTheirRepositoryHistory() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try writeRepositoryHistoryFixture(
+            "root-import-\(UUID().uuidString).ply", in: root.appendingPathComponent("external")
+        )
+        let other = try writeRepositoryHistoryFixture("other.ply", in: root.appendingPathComponent("other-archive"))
+        let sourceBytes = try Data(contentsOf: source)
+        let otherBytes = try Data(contentsOf: other)
+        let directory = root.appendingPathComponent("archive")
+        let repository = ScanRepository(scansDirectory: directory)
+        let dependencies = AppDependencies(scanRepository: repository)
+        await dependencies.historyStore.reloadRecords()
+        XCTAssertTrue(dependencies.historyStore.scanFiles.isEmpty)
+        let operations = dependencies.importOperations()
+
+        let importAndInspectThread: @Sendable () throws -> (String, Bool) = {
+            (try operations.importPointCloud(source), Thread.isMainThread)
+        }
+        let (importedName, ranOnMainThread) = try await Task.detached(priority: .utility) {
+            try importAndInspectThread()
+        }.value
+        operations.refreshHistory()
+        let deadline = Date().addingTimeInterval(3)
+        while dependencies.historyStore.isLoading, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        XCTAssertFalse(ranOnMainThread)
+        let importedURL = directory.appendingPathComponent(importedName)
+        XCTAssertEqual(try Data(contentsOf: importedURL), sourceBytes)
+        XCTAssertEqual(dependencies.historyStore.scanFiles.map(\.fileURL), [importedURL])
+        XCTAssertEqual(dependencies.historyStore.scanFiles.first?.persistenceState, .incomplete)
+        XCTAssertNil(dependencies.historyStore.loadFailure)
+        XCTAssertFalse(dependencies.historyStore.isLoading)
+        XCTAssertEqual(try Data(contentsOf: source), sourceBytes)
+        XCTAssertEqual(try Data(contentsOf: other), otherBytes)
+    }
+
+    @MainActor
+    func testRootImportOperationsPropagateCancellationWithoutPublishing() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try writeRepositoryHistoryFixture("cancelled-import.ply", in: root.appendingPathComponent("external"))
+        let sourceBytes = try Data(contentsOf: source)
+        let directory = root.appendingPathComponent("archive")
+        let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+        let operations = dependencies.importOperations()
+
+        let receivedCancellation = await Task.detached(priority: .utility) {
+            withUnsafeCurrentTask { $0?.cancel() }
+            do {
+                _ = try operations.importPointCloud(source)
+                return false
+            } catch {
+                return error is CancellationError
+            }
+        }.value
+
+        XCTAssertTrue(receivedCancellation)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        XCTAssertTrue(dependencies.historyStore.scanFiles.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: source), sourceBytes)
+    }
+
     func testRepositoryHistoryQueryUsesConfiguredRootAndPreservesFiles() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

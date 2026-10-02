@@ -260,7 +260,7 @@ extension DashboardView {
         case .settings:
             SettingsView()
         case .calibration:
-            CalibrationView()
+            CalibrationView(scanSource: calibrationScanSource)
         case .scanHistory:
             HistorySheetView(
                 onStartScan: showStartScanAfterDismissingSheet,
@@ -272,16 +272,17 @@ extension DashboardView {
             PointCloudSheet(
                 initialFileURL: initialFileURL,
                 onStartScan: showStartScanAfterDismissingSheet,
-                onImportFile: { self.destination = .importFile }
+                onImportFile: { self.destination = .importFile },
+                historyStore: historyStore
             )
         case .tagManagement:
             TagManagementView(onStartScan: showStartScanAfterDismissingSheet)
         case .yieldReport:
-            YieldReportSheet(onStartScan: showStartScanAfterDismissingSheet)
+            YieldReportSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .compare:
             HistoricalCompareView(onStartScan: showStartScanAfterDismissingSheet)
         case .trends:
-            TrendsSheet(onStartScan: showStartScanAfterDismissingSheet)
+            TrendsSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .map:
             if #available(iOS 17, *) {
                 MapSheet(onStartScan: showStartScanAfterDismissingSheet)
@@ -289,7 +290,7 @@ extension DashboardView {
                 Text(OrchardMapPresentation().requiresIOS17)
             }
         case .importFile:
-            ImportFileView()
+            ImportFileView(operations: scanImportOperations)
         case .batchExport:
             BatchExportView(
                 onStartScan: showStartScanAfterDismissingSheet,

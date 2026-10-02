@@ -95,7 +95,7 @@ struct ScanHistoryView: View {
             case .share(let url):
                 ShareSheet(items: [url])
             case .pointCloud(let url):
-                PointCloudSheet(initialFileURL: url)
+                PointCloudSheet(initialFileURL: url, historyStore: historyStore)
             }
         }
         .alert(ScanHistoryDeletionCopy.recordConfirmationTitle, isPresented: deleteRecordAlertBinding) {

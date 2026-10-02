@@ -15,6 +15,7 @@ import UIKit
 struct CalibrationView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var recordsController: CalibrationRecordsController
+    let scanSource: CalibrationScanSource
     @State private var showAddRecord = false
     @State private var recordPendingDeletion: CalibrationRecord?
     @State private var maxDiameter: Double = SettingsStore.shared.clusterMaxDiameter
@@ -26,13 +27,12 @@ struct CalibrationView: View {
     }
 
     @MainActor
-    init() {
-        _recordsController = StateObject(wrappedValue: CalibrationRecordsController())
-    }
-
-    @MainActor
-    init(recordsController: CalibrationRecordsController) {
-        _recordsController = StateObject(wrappedValue: recordsController)
+    init(
+        recordsController: CalibrationRecordsController? = nil,
+        scanSource: CalibrationScanSource? = nil
+    ) {
+        _recordsController = StateObject(wrappedValue: recordsController ?? CalibrationRecordsController())
+        self.scanSource = scanSource ?? .production(repository: .shared, historyStore: .shared)
     }
 
     var body: some View {
@@ -103,7 +103,7 @@ struct CalibrationView: View {
         }
         .interactiveDismissDisabled(recordsController.state.isSaving)
         .sheet(isPresented: $showAddRecord) {
-            AddCalibrationRecordView { record in
+            AddCalibrationRecordView(scanSource: scanSource) { record in
                 recordsController.add(record)
             }
         }

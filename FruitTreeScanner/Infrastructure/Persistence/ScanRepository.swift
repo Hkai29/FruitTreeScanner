@@ -488,7 +488,7 @@ final class ScanRepository: @unchecked Sendable {
     }
 
     func importPointCloud(_ sourceURL: URL) throws -> String {
-        try PLYImportService.importFile(sourceURL)
+        try PLYImportService.importFile(sourceURL, scansDirectory: scansDirectoryOverride)
     }
 
     func delete(

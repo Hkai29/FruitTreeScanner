@@ -8,6 +8,392 @@ import UIKit
 
 final class DashboardSummaryTests: XCTestCase {
     @MainActor
+    func testDashboardAnalyticsRoutesLoadAndRefreshTheirRootHistory() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let controller = UIHostingController(rootView: AnyView(EmptyView()))
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        let routes: [(String, DashboardDestination)] = [("report", .yieldReport), ("trends", .trends)]
+        for (name, route) in routes {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let fixtureID = String(UUID().uuidString.prefix(4))
+            let treeID = "R-\(fixtureID)"
+            let rawID = "RAW-\(fixtureID)"
+            let invalidID = "BAD-\(fixtureID)"
+            for (filename, identity, date) in [
+                ("older", treeID, "2026-09-30 00:00:00"),
+                ("latest", treeID, "2026-10-01 00:00:00"),
+                ("raw", rawID, "2026-10-02 00:00:00"),
+                ("invalid", invalidID, "2026-10-02 00:00:00")
+            ] {
+                try PLYPointCloudWriter.write(
+                    points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                    treeID: identity, scanDate: date, gpsLat: 0, gpsLon: 0,
+                    to: directory.appendingPathComponent(filename + ".ply")
+                )
+            }
+            let olderMetadata = directory.appendingPathComponent("older_result.json")
+            let latestMetadata = directory.appendingPathComponent("latest_result.json")
+            func writeMetadata(count: Int, yield: Double, to url: URL) throws {
+                try JSONSerialization.data(withJSONObject: [
+                    "fruitCount": count, "yieldKg": yield, "fruitType": "apple", "confidence": "medium"
+                ]).write(to: url)
+            }
+            try writeMetadata(count: 9, yield: 1.5, to: olderMetadata)
+            try writeMetadata(count: 0, yield: 0, to: latestMetadata)
+            try Data("invalid result".utf8).write(to: directory.appendingPathComponent("invalid_result.json"))
+            let sourceBytes = try Dictionary(uniqueKeysWithValues: ["older", "latest", "raw", "invalid"].map {
+                let url = directory.appendingPathComponent($0 + ".ply")
+                return (url, try Data(contentsOf: url))
+            })
+            let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+            XCTAssertTrue(dependencies.historyStore.scanFiles.isEmpty, "The entry must load a cold root store")
+            let suiteName = "RootAnalyticsTests-\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            let dashboard = DashboardView(
+                router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+                historyStore: dependencies.historyStore
+            )
+            controller.rootView = AnyView(dashboard.sheetView(for: route)
+                .environment(\.locale, Locale(identifier: "en_US_POSIX")).id(name))
+            controller.view.setNeedsLayout()
+            window.layoutIfNeeded()
+            try await Task.sleep(nanoseconds: 100_000_000)
+            func waitForText(_ expected: String) async throws -> String {
+                var text = ""
+                let deadline = Date().addingTimeInterval(3)
+                repeat {
+                    controller.view.layoutIfNeeded()
+                    text = renderedAccessibilityText(in: controller.view)
+                    if !dependencies.historyStore.isLoading, text.contains(expected) { break }
+                    try await Task.sleep(nanoseconds: 20_000_000)
+                } while Date() < deadline
+                return text
+            }
+            func attach(_ phase: String) {
+                let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                    XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+                })
+                attachment.name = "RootAnalytics-\(name)-\(phase)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+            let initialText = try await waitForText(treeID)
+            attach("initial")
+            XCTAssertTrue(initialText.contains(treeID), "\(name) must load its Dashboard root archive: \(initialText)")
+            guard initialText.contains(treeID) else { continue }
+            XCTAssertEqual(dependencies.historyStore.scanFiles.count, 4)
+            XCTAssertFalse(initialText.contains(rawID))
+            XCTAssertFalse(initialText.contains(invalidID))
+            XCTAssertTrue(initialText.contains("0.0"), "A complete zero must remain visible")
+            XCTAssertEqual(initialText.contains("1.5"), name == "trends",
+                           "Report uses the latest complete value; trends keeps both historical values")
+
+            try writeMetadata(count: 3, yield: 0.7, to: latestMetadata)
+            await dependencies.historyStore.reloadRecords()
+            let refreshedText = try await waitForText("0.7")
+            XCTAssertTrue(refreshedText.contains("0.7"), "Published root refresh must update the actual consumer")
+            XCTAssertEqual(refreshedText.contains("1.5"), name == "trends")
+            XCTAssertFalse(refreshedText.contains(rawID))
+            XCTAssertFalse(refreshedText.contains(invalidID))
+            attach("refreshed")
+
+            // Only owned fixture sidecars are removed, leaving all PLY sources incomplete.
+            try FileManager.default.removeItem(at: olderMetadata)
+            try FileManager.default.removeItem(at: latestMetadata)
+            await dependencies.historyStore.reloadRecords()
+            let emptyKey = name == "report" ? "yield_report.empty_title" : "trends.empty_title"
+            let emptyTitle = Bundle.main.localizedString(forKey: emptyKey, value: nil, table: nil)
+            let emptyText = try await waitForText(emptyTitle)
+            XCTAssertTrue(emptyText.contains(emptyTitle))
+            XCTAssertFalse(emptyText.contains(treeID))
+            attach("empty")
+            for (url, bytes) in sourceBytes { XCTAssertEqual(try Data(contentsOf: url), bytes) }
+        }
+    }
+
+    @MainActor
+    func testPointCloudCloseControlDismissesItsPresentedSheet() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("close-preview.ply")
+        try PLYPointCloudWriter.write(
+            points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+            treeID: "CLOSE-PREVIEW", scanDate: "2026-10-02 00:00:00", gpsLat: 0, gpsLon: 0, to: source
+        )
+        let sourceBytes = try Data(contentsOf: source)
+        let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+        await dependencies.historyStore.reloadRecords()
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let controller = UIHostingController(rootView: PointCloudDismissalTestHost(historyStore: dependencies.historyStore))
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.setNeedsLayout()
+        window.layoutIfNeeded()
+        defer {
+            controller.presentedViewController?.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+
+        func closeControl(in root: NSObject) -> NSObject? {
+            var visited = Set<ObjectIdentifier>()
+            func visit(_ object: NSObject, depth: Int = 0) -> NSObject? {
+                guard depth < 32, visited.insert(ObjectIdentifier(object)).inserted else { return nil }
+                if object.accessibilityLabel == L10n.PointCloud.closePreviewAccessibility,
+                   object.accessibilityTraits.contains(.button) { return object }
+                let count = object.accessibilityElementCount()
+                if count > 0 && count < 100 {
+                    for index in 0..<count {
+                        if let child = object.accessibilityElement(at: index) as? NSObject,
+                           let found = visit(child, depth: depth + 1) { return found }
+                    }
+                }
+                if let view = object as? UIView {
+                    for child in view.subviews {
+                        if let found = visit(child, depth: depth + 1) { return found }
+                    }
+                }
+                return nil
+            }
+            return visit(root)
+        }
+        let presentationDeadline = Date().addingTimeInterval(3)
+        var button: NSObject?
+        repeat {
+            if let presented = controller.presentedViewController {
+                presented.view.layoutIfNeeded()
+                if presented.transitionCoordinator == nil, !presented.isBeingPresented {
+                    button = closeControl(in: presented.view)
+                }
+            }
+            if button != nil { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        } while Date() < presentationDeadline
+        XCTAssertNotNil(controller.presentedViewController)
+        let renderedText = controller.presentedViewController.map { renderedAccessibilityText(in: $0.view) } ?? "no sheet"
+        let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+        })
+        attachment.name = "PresentedPointCloud-CloseControl"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        let closeButton = try XCTUnwrap(button, "The presented production preview must expose its visible close control: \(renderedText)")
+        XCTAssertTrue(closeButton.accessibilityActivate(), "The actual accessibility control must handle activation")
+        let dismissalDeadline = Date().addingTimeInterval(3)
+        while controller.presentedViewController != nil, Date() < dismissalDeadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertNil(controller.presentedViewController, "The visible preview close control must dismiss the outer sheet")
+        XCTAssertTrue(renderedAccessibilityText(in: controller.view).contains("PREVIEW-HOST"))
+        XCTAssertEqual(try Data(contentsOf: source), sourceBytes)
+    }
+
+    @MainActor
+    func testDashboardPointCloudRouteKeepsRootSelectionAcrossHistoryRefreshes() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixtureID = String(UUID().uuidString.prefix(4))
+        let initialURL = directory.appendingPathComponent("preview-a.ply")
+        let nextURL = directory.appendingPathComponent("preview-b.ply")
+        let initialTreeID = "A-\(fixtureID)"
+        let nextTreeID = "B-\(fixtureID)"
+        let points = [
+            ColoredPoint(pos: SIMD3<Float>(0, 0, 0), r: 1, g: 0, b: 0),
+            ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 0, g: 1, b: 0)
+        ]
+        try PLYPointCloudWriter.write(points: points, treeID: initialTreeID,
+                                      scanDate: "2026-10-01 00:00:00", gpsLat: 0, gpsLon: 0, to: initialURL)
+        let initialBytes = try Data(contentsOf: initialURL)
+        let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+        await dependencies.historyStore.reloadRecords()
+        XCTAssertEqual(dependencies.historyStore.scanFiles.map(\.treeID), [initialTreeID])
+        let suiteName = "RootPreviewTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let dashboard = DashboardView(
+            router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+            historyStore: dependencies.historyStore
+        )
+        // Exercise the production sheet factory, without inventing an external route.
+        let controller = UIHostingController(rootView: dashboard.sheetView(for: .pointCloud(initialURL)))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+
+        func selectedLabels(in object: NSObject) -> [String] {
+            var visited = Set<ObjectIdentifier>()
+            func visit(_ object: NSObject, depth: Int = 0) -> [String] {
+                guard depth < 32, visited.insert(ObjectIdentifier(object)).inserted else { return [] }
+                var labels = object.accessibilityTraits.contains(.selected)
+                    ? [object.accessibilityLabel].compactMap { $0 } : []
+                let count = object.accessibilityElementCount()
+                if count > 0 && count < 100 {
+                    for index in 0..<count {
+                        if let child = object.accessibilityElement(at: index) as? NSObject {
+                            labels += visit(child, depth: depth + 1)
+                        }
+                    }
+                }
+                if let view = object as? UIView {
+                    labels += view.subviews.flatMap { visit($0, depth: depth + 1) }
+                }
+                return labels
+            }
+            return visit(object)
+        }
+        func waitForText(_ expected: String, selected: String? = nil) async throws -> String {
+            var text = ""
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                controller.view.layoutIfNeeded()
+                text = renderedAccessibilityText(in: controller.view)
+                if !dependencies.historyStore.isLoading, text.contains(expected),
+                   selected.map({ selectedLabels(in: controller.view).contains($0) }) ?? true { break }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            } while Date() < deadline
+            return text
+        }
+        func attach(_ name: String) {
+            let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        let initialText = try await waitForText(initialTreeID, selected: initialTreeID)
+        attach("RootPreview-Initial")
+        XCTAssertTrue(initialText.contains(initialTreeID), "Preview must use the Dashboard root archive: \(initialText)")
+        XCTAssertEqual(try Data(contentsOf: initialURL), initialBytes)
+        guard initialText.contains(initialTreeID) else { return }
+        XCTAssertTrue(selectedLabels(in: controller.view).contains(initialTreeID))
+
+        try PLYPointCloudWriter.write(points: points, treeID: nextTreeID,
+                                      scanDate: "2026-10-02 00:00:00", gpsLat: 0, gpsLon: 0, to: nextURL)
+        let nextBytes = try Data(contentsOf: nextURL)
+        await dependencies.historyStore.reloadRecords()
+        XCTAssertEqual(dependencies.historyStore.scanFiles.first?.fileURL, nextURL)
+        let refreshedText = try await waitForText(nextTreeID, selected: initialTreeID)
+        XCTAssertTrue(refreshedText.contains(nextTreeID))
+        XCTAssertTrue(selectedLabels(in: controller.view).contains(initialTreeID), "A new newest record must not replace the explicit selection")
+        XCTAssertEqual(try Data(contentsOf: initialURL), initialBytes)
+        XCTAssertEqual(try Data(contentsOf: nextURL), nextBytes)
+
+        // Remove only temporary test-owned sources; this is not user archive deletion.
+        try FileManager.default.removeItem(at: initialURL)
+        await dependencies.historyStore.reloadRecords()
+        let fallbackText = try await waitForText(nextTreeID, selected: nextTreeID)
+        XCTAssertTrue(fallbackText.contains(nextTreeID))
+        XCTAssertFalse(fallbackText.contains(initialTreeID))
+        XCTAssertTrue(selectedLabels(in: controller.view).contains(nextTreeID), "A missing selection must fall back within the same root")
+        XCTAssertEqual(try Data(contentsOf: nextURL), nextBytes)
+        attach("RootPreview-Fallback")
+
+        try FileManager.default.removeItem(at: nextURL)
+        await dependencies.historyStore.reloadRecords()
+        let emptyText = try await waitForText(L10n.PointCloud.emptyTitle)
+        XCTAssertTrue(emptyText.contains(L10n.PointCloud.emptyTitle))
+        XCTAssertTrue(emptyText.contains(L10n.PointCloud.newScan))
+        XCTAssertTrue(emptyText.contains(L10n.PointCloud.importPLY))
+        XCTAssertFalse(emptyText.contains(nextTreeID))
+        attach("RootPreview-Empty")
+    }
+
+    @MainActor
+    func testCalibrationFormUsesRootHistoryAndExcludesIncompleteScans() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let controller = UIHostingController(rootView: AnyView(EmptyView()))
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        for isComplete in [true, false] {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let pointCloud = directory.appendingPathComponent("root-calibration-ui.ply")
+            try PLYPointCloudWriter.write(
+                points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                treeID: "ROOT-CALIBRATION-UI", scanDate: "2026-10-02 00:00:00", gpsLat: 0, gpsLon: 0,
+                to: pointCloud
+            )
+            if isComplete {
+                try JSONSerialization.data(withJSONObject: [
+                    "fruitCount": 2, "yieldKg": 0.4, "fruitType": "apple", "confidence": "medium"
+                ]).write(to: directory.appendingPathComponent("root-calibration-ui_result.json"))
+            }
+            let pointCloudBytes = try Data(contentsOf: pointCloud)
+            let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+            await dependencies.historyStore.reloadRecords()
+            controller.rootView = AnyView(
+                AddCalibrationRecordView(scanSource: dependencies.calibrationScanSource()) { _ in
+                    XCTFail("Rendering must not save a calibration record")
+                }
+                .id(isComplete)
+            )
+            controller.view.setNeedsLayout()
+            window.layoutIfNeeded()
+            // Reuse one foreground window and let each root installation settle.
+            try await Task.sleep(nanoseconds: 100_000_000)
+            var text = ""
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                controller.view.layoutIfNeeded()
+                text = renderedAccessibilityText(in: controller.view)
+                if !dependencies.historyStore.isLoading,
+                   text.contains(L10n.Calibration.addNavigationTitle) { break }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            } while Date() < deadline
+            XCTAssertTrue(text.contains(L10n.Calibration.addNavigationTitle))
+            XCTAssertEqual(text.contains(L10n.Calibration.recentScanPicker), isComplete,
+                           "Only complete records from the injected root should enable recent scan import: \(text)")
+            let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            attachment.name = isComplete ? "RootCalibration-Complete" : "RootCalibration-Incomplete"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            XCTAssertEqual(try Data(contentsOf: pointCloud), pointCloudBytes)
+        }
+    }
+
+    @MainActor
     func testDashboardHistoryAndBatchRoutesUseRootRepositoryRecords() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -3598,6 +3984,24 @@ final class BatchExportFailureFeedbackTests: XCTestCase {
             window.isHidden = true
             window.rootViewController = nil
         }
+    }
+}
+
+private struct PointCloudDismissalTestHost: View {
+    let historyStore: ScanHistoryStore
+    @State private var isPresented = false
+    @State private var didPresent = false
+
+    var body: some View {
+        Text("PREVIEW-HOST")
+            .sheet(isPresented: $isPresented) {
+                PointCloudSheet(historyStore: historyStore)
+            }
+            .onAppear {
+                guard !didPresent else { return }
+                didPresent = true
+                isPresented = true
+            }
     }
 }
 

@@ -3054,6 +3054,69 @@ final class BatchExportServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("scan_result.json").path))
     }
 
+    @MainActor
+    func testRootCalibrationSourceReadsOriginalBaselineAndRejectsChangedEvidence() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let pointCloud = directory.appendingPathComponent("root-calibration.ply")
+        try PLYPointCloudWriter.write(
+            points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+            treeID: "ROOT-CALIBRATION", scanDate: "2026-10-02 00:00:00", gpsLat: 0, gpsLon: 0,
+            to: pointCloud
+        )
+        let repository = ScanRepository(scansDirectory: directory)
+        var result = makeYieldResult()
+        result.algorithmRevision = "root-algorithm"
+        result.calibrationContext = "root-context"
+        result.calibrationBaseCount = 10
+        result.calibrationBaseYieldKg = 2.5
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "ROOT-CALIBRATION", fruitType: "apple", scanDate: Date(),
+            gpsLat: 0, gpsLon: 0, sourceFilename: pointCloud.lastPathComponent, result: result
+        )
+        let committed = try repository.commit(ScanAssessment(
+            draft: repository.draft(at: pointCloud), exportRequest: request
+        ))
+        let incomplete = try writeMinimalPointCloud(in: directory, filename: "incomplete.ply")
+        let preservedURLs = [pointCloud, committed.metadataURL, committed.manifestURL, incomplete]
+        let preservedBytes = try preservedURLs.map { try Data(contentsOf: $0) }
+        let dependencies = AppDependencies(scanRepository: repository)
+        await dependencies.historyStore.reloadRecords()
+        let source = dependencies.calibrationScanSource()
+
+        XCTAssertTrue(source.historyStore === dependencies.historyStore)
+        let eligible = CalibrationScanRecordImportPolicy.eligibleRecords(from: source.historyStore.scanFiles)
+        XCTAssertEqual(eligible.map(\.fileURL), [pointCloud])
+        let record = try XCTUnwrap(eligible.first)
+        XCTAssertEqual(record.fruitCount, 12)
+        XCTAssertEqual(record.yieldKg, 3.45)
+        let loadAndInspectThread: @Sendable () -> (CalibrationScanBaseline?, Bool) = {
+            (source.loadBaseline(record), Thread.isMainThread)
+        }
+        let (loadedBaseline, ranOnMainThread) = await Task.detached(priority: .utility) {
+            loadAndInspectThread()
+        }.value
+        let baseline = try XCTUnwrap(loadedBaseline)
+        XCTAssertFalse(ranOnMainThread)
+        XCTAssertEqual(baseline.fruitCount, 10)
+        XCTAssertEqual(baseline.yieldKg, 2.5)
+        XCTAssertEqual(baseline.algorithmRevision, "root-algorithm")
+        XCTAssertEqual(baseline.calibrationContext, "root-context")
+        XCTAssertEqual(try preservedURLs.map { try Data(contentsOf: $0) }, preservedBytes)
+
+        let staleRecord = ScanFileRecord(
+            id: record.id, treeID: record.treeID, fileURL: record.fileURL, scanDate: record.scanDate,
+            fruitCount: record.fruitCount + 1, yieldKg: record.yieldKg, fruitType: record.fruitType
+        )
+        XCTAssertNil(source.loadBaseline(staleRecord), "A stale summary must not acquire a new calibration baseline")
+        try (preservedBytes[0] + Data("\n".utf8)).write(to: pointCloud)
+        XCTAssertNil(source.loadBaseline(record), "Raw source digest mismatch must reject the baseline")
+        XCTAssertEqual(try Data(contentsOf: committed.metadataURL), preservedBytes[1])
+        XCTAssertEqual(try Data(contentsOf: committed.manifestURL), preservedBytes[2])
+        XCTAssertEqual(try Data(contentsOf: incomplete), preservedBytes[3])
+    }
+
     func testRepositoryCommitConfirmsManifestAndCalibrationRejectsUnknownSourceIdentity() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

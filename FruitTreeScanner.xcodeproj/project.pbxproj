@@ -28,6 +28,8 @@
 		SCANCALVALUE001 /* ScanCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANCALVALUE002 /* ScanCalibration.swift */; };
 		SCANFEATURE001 /* ScanFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFEATURE002 /* ScanFeatureModel.swift */; };
 		SCANFINAL001 /* ScanFinalizationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANFINAL002 /* ScanFinalizationWorkflow.swift */; };
+		SCANIMPORT001 /* ScanImportOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANIMPORT002 /* ScanImportOperations.swift */; };
+		CALSCANSOURCE001 /* CalibrationScanSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALSCANSOURCE002 /* CalibrationScanSource.swift */; };
 		SCANEVIDENCE001 /* ScanEvidenceSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANEVIDENCE002 /* ScanEvidenceSnapshot.swift */; };
 		SCANEVID001 /* ScanEvidenceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANEVID002 /* ScanEvidenceIdentity.swift */; };
 		SCANOBS001 /* Observation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCANOBS002 /* Observation.swift */; };
@@ -354,6 +356,8 @@
 		SCANCALVALUE002 /* ScanCalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCalibration.swift; sourceTree = "<group>"; };
 		SCANFEATURE002 /* ScanFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFeatureModel.swift; sourceTree = "<group>"; };
 		SCANFINAL002 /* ScanFinalizationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanFinalizationWorkflow.swift; sourceTree = "<group>"; };
+		SCANIMPORT002 /* ScanImportOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanImportOperations.swift; sourceTree = "<group>"; };
+		CALSCANSOURCE002 /* CalibrationScanSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationScanSource.swift; sourceTree = "<group>"; };
 		SCANEVIDENCE002 /* ScanEvidenceSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanEvidenceSnapshot.swift; sourceTree = "<group>"; };
 		SCANEVID002 /* ScanEvidenceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanEvidenceIdentity.swift; sourceTree = "<group>"; };
 		SCANOBS002 /* Observation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Observation.swift; sourceTree = "<group>"; };
@@ -694,6 +698,8 @@
 				SCANFACTORY002 /* ScanPlanFactory.swift */,
 				RENDCAPTURE002 /* RendererScanSettingsCapture.swift */,
 				SCANFINAL002 /* ScanFinalizationWorkflow.swift */,
+				SCANIMPORT002 /* ScanImportOperations.swift */,
+				CALSCANSOURCE002 /* CalibrationScanSource.swift */,
 				SCANEVIDENCE002 /* ScanEvidenceSnapshot.swift */,
 			);
 			path = Application;
@@ -1359,6 +1365,8 @@
 				SCANCALVALUE001 /* ScanCalibration.swift in Sources */,
 				SCANFEATURE001 /* ScanFeatureModel.swift in Sources */,
 				SCANFINAL001 /* ScanFinalizationWorkflow.swift in Sources */,
+				SCANIMPORT001 /* ScanImportOperations.swift in Sources */,
+				CALSCANSOURCE001 /* CalibrationScanSource.swift in Sources */,
 				SCANEVIDENCE001 /* ScanEvidenceSnapshot.swift in Sources */,
 				SCANEVID001 /* ScanEvidenceIdentity.swift in Sources */,
 				SCANOBS001 /* Observation.swift in Sources */,

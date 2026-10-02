@@ -31,14 +31,15 @@ extension ImportFileView {
             let fileName = fileURL.lastPathComponent
             importStatus = .processing(fileName)
             importTask?.cancel()
+            let operations = operations
             importTask = Task.detached(priority: .utility) {
                 do {
-                    let importedName = try ScanRepository.shared.importPointCloud(fileURL)
+                    let importedName = try operations.importPointCloud(fileURL)
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
                         guard isViewActive else { return }
                         importStatus = .success(importedName)
-                        ScanHistoryStore.shared.notifyRecordsUpdated()
+                        operations.refreshHistory()
                     }
                 } catch {
                     guard !Task.isCancelled else { return }

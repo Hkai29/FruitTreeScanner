@@ -2345,6 +2345,48 @@ final class PointCloudProcessingTests: XCTestCase {
 
     // MARK: - PLYImportService reject/cleanup
 
+    func testRepositoryImportUsesConfiguredRootAndPreservesSource() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("repository-import-\(UUID().uuidString).ply")
+        try PLYPointCloudWriter.write(
+            points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+            treeID: "IMPORT-ROOT", scanDate: "2026-10-02 00:00:00", gpsLat: 0, gpsLon: 0, to: source
+        )
+        let bytes = try Data(contentsOf: source)
+        let directory = root.appendingPathComponent("archive")
+        let defaultDestination = LocalFileStorage.documentsDirectory()
+            .appendingPathComponent("scans").appendingPathComponent(source.lastPathComponent)
+        guard !FileManager.default.fileExists(atPath: defaultDestination.path) else {
+            return XCTFail("The unique test-owned import filename must not already exist")
+        }
+        // The failing implementation writes this test-owned UUID file to the default root.
+        // Clean only that exact file with matching bytes; never remove other archive data.
+        defer {
+            if (try? Data(contentsOf: defaultDestination)) == bytes {
+                try? FileManager.default.removeItem(at: defaultDestination)
+            }
+        }
+        let repository = ScanRepository(scansDirectory: directory)
+
+        let importedName = try repository.importPointCloud(source)
+
+        XCTAssertEqual(importedName, source.lastPathComponent)
+        let importedURL = directory.appendingPathComponent(importedName)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path), "Import must use the configured repository archive")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: defaultDestination.path), "Injected imports must not publish into the default archive")
+        XCTAssertEqual(try Data(contentsOf: source), bytes)
+        if FileManager.default.fileExists(atPath: importedURL.path) {
+            XCTAssertEqual(try Data(contentsOf: importedURL), bytes)
+        }
+        guard case .success(let records) = repository.loadHistoryRecords() else {
+            return XCTFail("The imported archive must be readable")
+        }
+        XCTAssertEqual(records.map(\.fileURL), [importedURL])
+        XCTAssertEqual(records.first?.persistenceState, .incomplete, "Importing raw PLY must not invent reliable yield metadata")
+    }
+
     func testPLYStagingFileCopierCopiesMultipleChunksExactly() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
