@@ -1,6 +1,6 @@
 # 重构迭代执行记录
 
-创建：2026-09-27；更新：2026-10-01。分支：`codex/scan-architecture-refactor`，基于 `81f49a6ec3d5` 及已有未提交迁移继续实施。
+创建：2026-09-27；更新：2026-10-02。分支：`codex/scan-architecture-refactor`，基于 `81f49a6ec3d5` 及已有未提交迁移继续实施。
 
 用户目标：进行重构，完成后继续构思下一轮并迭代。当前目标保持进行中；本文件区分已实施、待验证与下一轮范围，不把整个架构迁移宣称为已完成。
 
@@ -366,24 +366,100 @@
 
 ### 2026-10-01 第三十一轮提交检查点
 
-用户随后要求推送并合并，源码和测试已提交为 `0c3ec81c`（`refactor(history): bind archive queries and refresh to root dependencies`）。提交前重新运行 preflight，并逐项核对暂存的 11 个文件与上述 1014 项通过的最终源码摘要一致；最终验证开始/结束快照一致，不以此前 1008 项基线代替本轮证据。架构记录另行提交，六个原有工作流改动继续留在本地。推送、远程 CI 和合并结果在发布时通过 Git / PR 核实；提交不代表原生点击、永久删除或物理 LiDAR 验收已经完成。
+用户随后要求推送并合并，源码和测试已提交为 `0c3ec81c`（`refactor(history): bind archive queries and refresh to root dependencies`），架构记录提交为 `6ff3dda2`。提交前重新运行 preflight，并逐项核对暂存的 11 个文件与上述 1014 项通过的最终源码摘要一致；最终验证开始/结束快照一致，不以此前 1008 项基线代替本轮证据。六个原有工作流改动继续留在本地。
 
-### 下一轮构思与提示词：继续贯通记录消费者
+上述两个提交已通过 [PR #12](https://github.com/Hkai29/FruitTreeScanner/pull/12) 推送，远程 [CI 36833185872](https://github.com/Hkai29/FruitTreeScanner/actions/runs/36833185872) 成功，日志确认 Xcode 16.4 的 Domain 独立编译及模拟器编译退出 0；远程 CI 没有执行 XCTest 或签名 IPA。匹配 PR head 后于 2026-10-02 02:31:51 UTC 合并，合并提交为 `f440f587bcf20c24ad38e89d237d5e0cc3ba6e7a`，GitHub 与远端 main 均已核对；合并树与受测提交树相同。发布证据在 `/private/tmp/fruit-push-merge-iteration31-20261001/merge-result.json`。合并不代表永久删除或物理 LiDAR 验收已完成。
 
-当前调用搜索仍显示点云/报表/趋势/地图/对比页面，以及校准和导入使用全局历史实例。更具体的下一项证据是 `ScanRepository.importPointCloud` 没有传递自己的目录配置，`ImportFileView` 又固定调用共享仓储并刷新共享历史。先处理这个跨目录入口，再迁移其他消费者；不以本轮已接入的三个列表重新定义整个 App 的装配完成标准。
+## 第三十二轮：导入与历史刷新遵循同一根仓储
+
+根因已复现：`ScanRepository.importPointCloud` 忽略自己的目录配置，`ImportFileView` 固定调用共享仓储并刷新共享历史，工作台导入路由也未装配根依赖。新增唯一 UUID 文件回归在修复前实际失败（1 个测试失败，退出 65）：文件写到默认档案，配置目录没有记录。回归只清理它拥有且字节匹配的 UUID 文件，不触碰其他档案。
+
+- 仓储向原 `PLYImportService` 传递目录配置；服务的安全作用域、1 MiB 分块复制、有界解析、独占 rename、冲突重试、共享每路径事务锁和取消清理均保持。
+- 新增 `ScanImportOperations`，将阻塞导入与 MainActor 历史刷新配对，由 `AppDependencies` 装配并经工作台真实导入路由传入页面。页面仍在可取消后台任务导入，通过已有取消与视图活跃守卫后更新成功状态并刷新对应历史。默认 `ImportFileView()` 兼容入口保留，生产路由显式注入。
+- 三项新增测试覆盖配置目录及源字节保护、真实根装配后的后台导入和历史刷新，以及提前取消不发布文件。原始 PLY 导入保持 incomplete，不生成可靠果数、产量或 companion。
+- 首次修复构建暴露跨文件扩展无法访问 private 环境对象，改为工作台只读装配属性，未放宽原属性可见性；重跑三个方法全部通过、退出 0。随后尝试扩展深链接测试时发现 `AppNavigation` 没有 importFile 枚举；撤回这一项错误夹具扩展并恢复该测试文件原样，真实导入入口通过原生点击走查，没有为测试新增产品深链接。失败日志均保留。
+- 最后一次源码修改后执行 `storage ui full`：**1017 项通过，0 失败/跳过/预期失败，59 个类，退出 0**；结果树逐项确认三个新方法 Passed。Domain 24 源独立编译及 unsigned Release 模拟器构建成功，全部步骤退出 0，开始/结束快照一致；复审时所有源码/测试摘要仍与该报告一致。此后仅补本文档。
+- 隔离 iOS 模拟器安装该受测 Debug App 后，原生坐标点击恢复可用。实际走通工作台导入 → 系统文件选择 → 取消 → 空闲 → 关闭，以及分享合成 A 点云并保存到“我的 iPhone” → 选择该 PLY → 导入成功 → 关闭 → 工作台记录数 4→5 → 历史新增 incomplete 记录。同名导入生成新文件，不覆盖原档案；两条原完整记录仍显示 7 个 / 1.2 kg 与 11 个 / 2.7 kg，原损坏结果警告仍在。夹具日期为前一天，当日指标为 0，不将其当成当日可靠产量。
+- 走查后核对原 9 个档案文件和校准记录共 10 个 SHA-256 均保持；唯一新增文件与合成 A 源的原始字节一致，没有附加 result/manifest。原记录及新增合成导入均保留，未执行待确认的永久删除。
+
+证据：`/private/tmp/fruit-iteration32/` 的 `before.xcresult`、`after-repaired.xcresult`，最终 `fruit-code-improvement-d402qz6f/report.json` / `test-tree.log`，`ui-install-preservation.json`、`ui-validation.json` 和 `final-review.json`。单独复审目录传递、实际路由、线程隔离、取消/错误分支、App target 引用和关键结果树，无阻塞发现。六个原有工作流文件摘要保持；融合准入、诊断、校准公式、schema 1–3、原始摘要及事务规则均未修改。本轮结论 **mergeable**；实现与文档尚未提交、未推送。其他消费者的根装配、永久删除人工验收及物理 LiDAR 验收仍未完成，整体目标保持 **needs changes**。
+
+## 第三十三轮：校准最近记录与原始基线使用同一根来源
+
+真实调用链仍是工作台默认校准页 → 默认新增记录页，最近记录和基线读取固定调用全局实例。本轮属于依赖重构，不把默认目录上的正常用户流程描述为已复现数据故障。改动前先执行 complete 准入、仓储原始基线/未知来源拒绝、校准记录独立存储三个既有方法，**3 通过，退出 0**。
+
+- 新增 `CalibrationScanSource`，由 `AppDependencies` 配对根历史与仓储基线读取，工作台真实校准路由及新增记录 sheet 传递同一来源；默认 `CalibrationView()`、注入记录控制器及 `AddCalibrationRecordView(onSave:)` 的调用形式兼容。
+- 删除视图内重复的 `ImportedCalibrationMetadata` 包装，直接消费仓储原有 `CalibrationScanBaseline`。基线仍在 detached utility 读取，MainActor 应用，读取失败保持原有 nil 语义；重新选择 token、字段签名及保存时 revision/context 身份核对均未修改。校准控制器、校准记录持久化、参数提交和校准公式不并入扫描仓储。
+- 新增根装配集成测试：真实提交的摘要为 12 个 / 3.45 kg，读回原始未校准基线为 10 个 / 2.5 kg；完整记录准入、后台读取、原始字节保护、过期摘要拒绝和源 SHA 不匹配拒绝均覆盖。新增实际表单渲染测试，配置根中仅有 incomplete 记录时不显示最近扫描选择器，完整记录存在时显示。
+- 初次定向 5 通过，初次 full 1019 通过，但复审发现测试的 `Thread.isMainThread` 位于 async 上下文，新增校准检查及上一轮导入检查均改为同步 Sendable 检查闭包，保留后台线程断言，重跑 6 项通过。另修正新增渲染夹具的窗口安装/捕获时机，最终使用同一前台窗口与独立视图身份；重跑渲染方法通过，单独核对原尺寸完整/incomplete 附件的页首与选择器。旧包保留，不将初次通过汇总替代修正后的证据。
+- 最后源码和测试修改后 `storage ui full` 为 **1019 项通过、0 失败/跳过/预期失败，59 个类，退出 0**；关键结果树逐项确认两个新增方法及受影响导入刷新方法 Passed。Domain 24 源及 unsigned Release 模拟器构建成功，所有步骤退出 0，开始/结束快照一致。新 Swift 文件实际进入 App Sources；本轮线程检查警告已消除，其他既有测试的 RunLoop 警告仍存在。此后仅补文档和仓库外证据。
+- 隔离 iOS 模拟器安装最终受测 Debug App，实际走通工作台校准 → 新增 → 最近扫描菜单，仅出现完整 A/B，未出现原始导入/incomplete/损坏记录。选择 B 后表单带入 10 个 / 2.0 kg 原始基线，改选 A 后为 6 个 / 0.42 kg，与各自元数据一致；菜单仍显示记录摘要 11 个 / 2.7 kg 和 7 个 / 1.2 kg。取消输入并关闭校准返回工作台，记录数仍为 5。没有保存校准或调整参数。
+- 安装和走查后原有 10 个文件与上一轮新增合成 PLY 共 11 个 SHA-256 均保持，档案文件无新增/删除。元数据迟到及字段编辑分支的 token/signature 守卫通过独立差异复审保留；本轮重新选择走查不等于强制延迟回调的并发实验。
+
+证据在 `/private/tmp/fruit-iteration33/`：`baseline.xcresult`、`targeted.xcresult`、`targeted-repaired.xcresult`、`render-repaired.xcresult`、`attachments-final/`、最终 `fruit-code-improvement-cv8_573x/report.json` / `test-tree.log`、`ui-install-preservation.json`、`ui-validation.json` 和 `final-review.json`。独立复审装配、原始基线映射、异步守卫、兼容入口与 App target，无阻塞发现；六个原有工作流文件摘要保持。本轮 **mergeable**，第 32/33 轮均尚未提交、未推送；剩余消费者和物理验收未完成，整体目标仍 **needs changes**。
+
+## 第三十四轮：预览继承根历史与外层关闭动作
+
+真实工作台和历史页预览都进入 `PointCloudSheet`，但列表、空态及刷新仍观察 shared。新增实际工作台 sheet 工厂渲染回归：隔离仓储仅有新建 A 记录时，修复前却显示全局目录中的 NORTH/SOUTH 两条记录，**编译成功、1 项失败、退出 65**；结果树确认关键方法确实 Failed，没有清空或改写全局档案来制造失败。
+
+- `PointCloudSheet` 增加兼容默认入口的历史参数，工作台及历史页嵌套预览传递各自已注入实例。现有初始选取、搜索、文件变更后的回退、PLY 加载和采样函数保持。
+- 回归在真实渲染中确认根记录可见和 selected trait；加入较新记录仍保留显式选择，移除仅测试拥有的源后回退到同一根，清空临时根后显示新扫描/导入动作。原始 PLY 字节在各次读取和保留刷新后核对不变；附件单独按原尺寸检查。此测试调用实际 sheet 工厂，未冒充原生点击打开整个路由。
+- 第一阶段定向 **3 项通过**、第一次 `storage ui full` **1020 项通过**。随后在专用模拟器实际打开工作台预览，切换 B → 导入 A 成功，但可见关闭按钮点击及后续稳定截图都仍停在预览。读取实际按钮链确认它消费内层 NavigationView 的 dismiss，没有外层 sheet 的关闭动作。这项人工失败记录在 `native-close-before.json`，与自动化历史来源回归分开。
+- 修复该走查发现：`PointCloudSheet` 将外层 dismiss 显式传给 `PointCloudView`；后者通过可选回调关闭，独立默认入口仍使用原 dismiss 回退。点云解析、异步加载、SceneKit、测量、导出、融合与校准均未改动。
+- 关闭修复后先重新定向 **4 项通过，退出 0**，完整验证为 1020 通过。Mac 持续锁定期间，继续补真实呈现 `PointCloudSheet` 的关闭回归：用既有无障碍标签与按钮 trait 定位并激活可见控件，确认外层 presented controller 消失、回到测试宿主及点云原字节保持。初始夹具的 NSObject 标识访问编译失败、随后协议标识定位失败均保留；改用真实标签并检查实际呈现附件后通过，不把夹具问题算作产品回归。
+- 为证明新回归有效，仅临时撤去本轮的一行外层关闭绑定。按钮激活成功，但外层 sheet 仍存在，**1 项在关闭断言失败、退出 65**；恢复完全相同的绑定后，**5 项定向通过、退出 0**，生产源码和六个原有改动摘要逐项核对。该测试证明真实生产预览的模态关闭动作，不冒充工作台/历史页的原生点击。
+- 最后测试修改后最终 `storage ui full` 为 **1021 项通过、0 失败/跳过/预期失败，59 个类，所有 9 步退出 0**；Domain 24 源和 unsigned Release 模拟器构建成功，开始/结束快照一致。结果树确认新增关闭方法及原 7 个关键方法共 8 项 Passed；实际关闭附件按原尺寸检查。此前两份 1020 包保留为阶段证据，不替代最终 1021 包。
+- 最终受测 App 安装到专用模拟器后曾因 Mac 锁定中断原生验收。2026-10-02 原生操作恢复，实际走通工作台点云入口 → 关闭 → 首页，以及历史页 B 记录预览 → 关闭仅返回历史页 → 完成返回首页；记录数保持 5，原完整、incomplete 和损坏状态均保留。走查后原有 11 个档案/校准文件 SHA-256 全部保持，档案目录无新增或删除。未执行永久删除或物理采集。
+
+证据在 `/private/tmp/fruit-iteration34/`：来源失败 `regression-before.xcresult`、关闭失败 `close-binding-before.xcresult`、最终定向 `close-binding-restored.xcresult`、`close-regression-evidence.json`、`attachments-targeted/` 和 `attachments-close-restored/`、最终 `fruit-code-improvement-pg3hgd63/report.json` / `test-tree.log`、`final-critical-methods.json`、`native-close-before.json`、`ui-install-preservation.json` 和 `ui-validation.json`。独立差异复审检查根实例、观察生命周期、两条生产调用链、选取回退、关闭动作归属、实际控件回归及默认 API，没有源码阻塞发现；最终运行日志有内部 QoS 警告，未将其写成实测性能收益。六个原有工作流改动摘要保持，第 32/33 轮内容除必要追加处外保持。本轮 **mergeable**；第 32–34 轮尚未提交、未推送，剩余消费者和物理验收使整体目标仍 **needs changes**。
+
+### 下一轮构思与提示词：报告与趋势接入根历史
+
+第 34 轮人工关卡已补齐，下一项是 `DashboardAnalyticsSheets` 中仍固定观察 shared 的 `YieldReportSheet` 与 `TrendsSheet`。两者的数据模型已经过滤 incomplete/invalid；报告按每树最新完整记录汇总，趋势保留完整时间序列，这些语义保持。先验证隔离根和真实工作台工厂，再传递根历史，不为消除重复而合并不同聚合规则。地图、对比及设置保留为后续范围。
 
 ```text
 继续按代码改进工作流推进根依赖装配，保留六个原有工作流 dirty work。
-当前全量 1014 项通过，历史查询/删除与生产完成刷新已接入根依赖；不要重做。
-先追踪 ScanRepository.importPointCloud → PLYImportService 以及 ImportFileView 的真实调用链。
-为注入目录与实际导入目的地不一致建立能失败的回归，保护默认档案和外部源文件。
-让导入与完成刷新消费同一仓储/历史实例，保留安全作用域、独占发布、取消和错误语义。
-之后逐个让校准、点云、报表/趋势、地图和对比消费者接入同一根实例；检查真实路由。
-保留校准原始基线、上下文、摘要校验、融合准入、诊断和旧格式。
-按风险验证并完成可行 full；最后修改后核对关键测试实际执行，独立复审并记录证据。
-Device Hub 坐标点击当前返回 noWindowsAvailable：原生走查另列，不用附件冒充点击验收。
-永久删除仍需收到此前待确认动作的答复，物理采集仍需操作者和人工果数。
-本轮实现不自动提交或推送，不以兼容默认值替代生产调用链迁移完成。
+第三十一轮已由 PR #12 合并；第三十二至三十四轮尚未提交，最新最终全量 1021 项通过。
+第 34 轮工作台关闭、历史页嵌套预览关闭和返回首页已实际核对，不重做该修复。
+原 11 个隔离模拟器档案/校准文件保持，永久删除和物理采集不包含在该关卡。
+再 preflight，追踪 Dashboard → YieldReportSheet/TrendsSheet → 各自数据模型与历史刷新。
+用隔离根建立真实 sheet 工厂的失败回归或移动基线，向两个生产入口传递根历史。
+保留默认 API、complete-only 准入、报告每树最新完整记录和趋势完整时间序列。
+不改聚合数学、融合准入、校准公式、schema、摘要、点云解析或资源上限。
+验证空根、可靠零值、损坏/未完成排除、同树重复及刷新后的实际渲染；不动态生成期望值。
+按 storage ui full 验证，最后源码修改后核对关键方法执行，独立复审并走查实际入口和关闭。
+不重做已完成的历史/导入/校准/预览装配，不自动提交或推送。
+```
+
+## 第三十五轮：报告与趋势使用根历史并响应刷新
+
+根因：工作台已经持有根历史，但报告与趋势固定观察 `ScanHistoryStore.shared`；趋势入口还缺少冷启动加载。两个生产 sheet 工厂用独立目录的冷历史渲染，修复前均显示空态，新增方法实际失败，退出 65。
+
+- 两个页面接收根历史，工作台真实路由传入同一实例；默认构造兼容保留。趋势入口请求加载，报告已有加载保持。没有改动两种数据模型、聚合数学、筛选或展示布局。
+- 实际 SwiftUI 回归覆盖冷启动、根刷新和完整结果消失后的空态：报告保留同树最新完整零产量，趋势保留两次完整记录；原始 PLY、损坏 companion 和 incomplete 不进入汇总。夹具修改及删除仅发生在 UUID 测试目录，四份 PLY 字节保持。
+- 最终 5 项定向通过、退出 0。六张初始/刷新/空态附件逐张检查，未把工厂渲染写成工作台原生点击。
+- 最后源码修改后的 `storage ui full` 为 **1022 项通过、0 失败/跳过/预期失败，59 个类，全部 9 步退出 0**；Domain 24 源独立编译及 unsigned Release 模拟器构建成功，开始/结束快照一致。关键方法在结果树中实际 Passed。预览测试的两条内部 QoS 警告继续保留，没有实测性能改善结论。
+- 最终受测 Debug App 已安装到专用模拟器，11 份既有档案/校准文件摘要保持。合并前尝试原生入口走查时 Mac 再次锁定，电脑操作工具无法读取窗口；已请求手动解锁。本轮原生点击尚未完成，已有模拟器测试与附件不替代这项记录。
+
+证据位于 `/private/tmp/fruit-iteration35/`：`before.xcresult`、`after.xcresult`、`attachments/`、`fruit-code-improvement-54l195dt/report.json` / `test-tree.log` 和 `ui-install-preservation.json`。独立复审确认生产入口注入、观察生命周期、默认 API、完整零值及原有聚合规则保持，未发现代码阻塞问题；代码与已执行模拟器验证范围为 **mergeable**。原生点击、永久删除和物理 LiDAR 验收仍单独待完成，整体目标保持 **needs changes**。
+
+### 2026-10-02 第三十二至三十五轮交付检查点
+
+用户再次明确要求“推送并合并”。第 32–35 轮根依赖装配、预览关闭修复及对应回归已提交为 `c2499a74`（`refactor(app): bind scan consumers to root dependencies`），19 个源码/测试文件；本执行记录单独提交。提交前 preflight 通过，暂存源码及测试逐项匹配上述最终 1022 项通过的快照；架构记录只在验证结束后补充实际证据。原有六项工作流改动保持本地未提交；构建产物和合成数据均不纳入提交。远程推送、CI 与合并结果以随后核对的 GitHub PR 和仓库外发布证据为准。
+
+### 下一轮构思与提示词：剩余根历史消费者
+
+```text
+继续读取 AGENTS.md 与本记录并执行 preflight。第 31–35 轮已完成历史、导入、
+校准扫描来源、预览、报告与趋势的根装配，不重复这些迁移。
+先核对交付 PR 的实际状态，再补第 35 轮因 Mac 锁定尚未完成的报告/趋势原生点击。
+追踪 Dashboard → 地图/历史对比 → 历史数据来源，逐项选取有证据的 shared 依赖问题。
+用隔离根建立失败回归或移动基线，保留每个页面不同的筛选与聚合规则及默认 API。
+设置消费者另行核对，不合并不同存储所有权，不新增无消费者抽象或测试专用产品路由。
+保留 complete-only、可靠零值、.fused、拒绝原因、校准上下文、旧 schema 与摘要校验。
+使用相关风险验证、最后源码修改后的全量结果树与独立差异复审，记录真实验收限制。
+保护六项原有 dirty work 和专用模拟器 11 份档案；永久删除仍需对应确认。
+物理采集、人工果数和资源测量独立验收。更新下一步提示词，不自动提交或推送。
 ```
 
 ## 验证记录
@@ -520,7 +596,15 @@ Device Hub 坐标点击当前返回 noWindowsAvailable：原生走查另列，�
 | 第二十九轮 storage / UI / full | /private/tmp/fruit-iteration29/fruit-code-improvement-jp19bunp/report.json | 1007 通过，0 失败/跳过/预期失败，退出 0；Domain / Release 成功 |
 | 第三十轮 UI / full | /private/tmp/fruit-iteration30/fruit-code-improvement-1xa5prr5/report.json | 1008 通过，0 失败/跳过/预期失败，退出 0；Domain / Release 成功 |
 | 第三十一轮迁移前 full | /private/tmp/fruit-iteration31/fruit-code-improvement-kc5x7vvs/report.json | 1008 通过，0 失败/跳过/预期失败，退出 0；Domain / Release 成功 |
-| 第三十一轮 storage / lifecycle / UI / full（最新源码） | /private/tmp/fruit-iteration31/fruit-code-improvement-kk75926j/report.json | 1014 通过，0 失败/跳过/预期失败，退出 0；59 类和六个新方法执行，Domain / Release 成功 |
+| 第三十一轮 storage / lifecycle / UI / full | /private/tmp/fruit-iteration31/fruit-code-improvement-kk75926j/report.json | 1014 通过，0 失败/跳过/预期失败，退出 0；59 类和六个新方法执行，Domain / Release 成功 |
+| 第三十二轮配置目录失败回归（修复前） | /private/tmp/fruit-iteration32/before.xcresult / before.status | 1 个测试失败，退出 65；确认错误默认目录发布 |
+| 第三十二轮修复后定向 | /private/tmp/fruit-iteration32/after-repaired.xcresult / after-repaired.status | 3 通过，0 失败，退出 0 |
+| 第三十二轮 storage / UI / full | /private/tmp/fruit-iteration32/fruit-code-improvement-d402qz6f/report.json | 1017 通过，0 失败/跳过/预期失败，退出 0；59 类和三个新方法执行，Domain / Release 成功 |
+| 第三十二轮原生导入与保护 | /private/tmp/fruit-iteration32/ui-validation.json | 取消及实际成功/历史刷新走通；原 10 文件摘要保持，新增合成 PLY 字节一致且 incomplete |
+| 第三十三轮移动前基线 | /private/tmp/fruit-iteration33/baseline.xcresult | 3 通过，退出 0；complete 准入、原始基线/未知来源拒绝、校准独立存储 |
+| 第三十三轮修正后定向与渲染 | /private/tmp/fruit-iteration33/targeted-repaired.xcresult / render-repaired.xcresult | 6 项定向通过；最终渲染方法通过，原尺寸附件复核 |
+| 第三十三轮 storage / UI / full（最新源码） | /private/tmp/fruit-iteration33/fruit-code-improvement-cv8_573x/report.json | 1019 通过，0 失败/跳过/预期失败，退出 0；59 类与关键方法执行，Domain / Release 成功 |
+| 第三十三轮原生校准与保护 | /private/tmp/fruit-iteration33/ui-validation.json | 完整记录选择、B/A 原始基线、取消/返回走通；原 11 文件摘要保持 |
 | 差异检查 | git diff --check | 通过 |
 
 本地工作区的默认验证入口（runner 尚未纳入本次提交；需要保留的本地工作流文件，证据自动保存在仓库外）：
@@ -572,10 +656,10 @@ git diff --check
 
 根据当前代码，前述扫描/仓储边界、观测链路、质量关联、融合值服务、回放、品类/设置分层和结果/质量/诊断值归属已实施；整个 Domain 的 24 个源文件已通过独立 iOS 模块编译，门禁已接入 CI 并验证本地失败传播。接下来补齐运行证据：
 
-1. **继续贯通根依赖装配。** 第 31 轮已接入历史查询/删除、完成刷新及工作台/历史/批量列表。下一项先复现导入未传递仓储目录配置及导入页刷新全局历史的问题，再迁移校准、点云、报表/趋势、地图和对比消费者；具体提示词见第 31 轮。不以默认目录相同或测试通过替代真实生产装配。
-2. **补齐完整记录删除流程的剩余证据。** 隔离夹具的历史读取、三种批量格式、取消/清理、校准基线导入及保存已实际核对；第 28–30 轮发现的状态、临时目录所有权和颜色问题已修复。删除确认与取消通过，永久删除尚待用户在操作时确认；得到确认后只删已备份的 UI-FIXTURE-B，核对 PLY/结果 JSON/完成清单消失、其他源摘要保持及历史刷新。本轮 Device Hub 坐标点击还需恢复。物理完成/重试仍需另行验收，不用模拟器无 LiDAR 的页面替代。
+1. **继续贯通根依赖装配。** 第 31–34 轮已接入历史查询/删除、完成刷新、工作台/历史/批量列表、导入、校准扫描来源和预览；第 34 轮关闭/返回原生走查已补齐。下一项处理报表/趋势，随后地图、对比和设置消费者；具体提示词见第 34 轮。不以默认目录相同或测试通过替代真实生产装配。
+2. **补齐完整记录删除流程的剩余证据。** 隔离夹具的历史读取、三种批量格式、取消/清理、校准基线导入及保存已实际核对；第 28–30 轮发现的状态、临时目录所有权和颜色问题已修复。删除确认与取消通过，永久删除尚待用户在操作时确认；得到具体确认后只操作 UI-FIXTURE-B，核对 PLY/结果 JSON/完成清单消失、其他源摘要保持及历史刷新。Device Hub 原生操作当前可用。物理完成/重试仍需另行验收，不用模拟器无 LiDAR 的页面替代。
 3. **设备回放与物理验收。** 混合几何和必须重分配的合成回放已完成，不重复。下一步设计有采样上限和脱敏规则的真实观测基线，并标明人工果数、采集条件及模型/配置身份。已发现可连接 LiDAR iPhone；实际 30/60/120 秒绕拍需要操作者与场景基准。分别记录物理内存、采集/结束耗时、深度拒绝诊断和人工果数误差，不能用模拟器通过代替。
-4. **持续构建远程验收与模块收益评估。** Domain 门禁及模拟器编译已在 PR #10 的 run `36801712785`、PR #11 的 run `36827532091` 实测成功，覆盖第 1–30 轮提交；第 31 轮已提交为 `0c3ec81c`，其远程 CI 需在发布时另行核对。当前只有 App/XCTest 两个 target；Domain 类型仍使用模块内可见性。framework/package 需要按消费者定义公开 API，只有能减少实际依赖复杂度时才启动该迁移。当前维持单 App target 与完整 Domain 编译门禁，保留模型/shader 归属及 ReliableYieldEvidence 准入权限。
+4. **持续构建远程验收与模块收益评估。** Domain 门禁及模拟器编译已在 PR #10 的 run `36801712785`、PR #11 的 run `36827532091` 实测成功，覆盖第 1–30 轮；第 31 轮经 PR #12 的 run `36833185872` 成功后合并为 `f440f587`。第 32–34 轮尚未提交、未推送。当前只有 App/XCTest 两个 target；Domain 类型仍使用模块内可见性。framework/package 需要按消费者定义公开 API，只有能减少实际依赖复杂度时才启动该迁移。当前维持单 App target 与完整 Domain 编译门禁，保留模型/shader 归属及 ReliableYieldEvidence 准入权限。
 
 这些事项尚未完成，不能用当前定向或全量 XCTest 代替它们的实现与设备验收。目标继续保持 active。
 
@@ -640,12 +724,13 @@ shortStatus 无消费者已删除；FruitInfo 仅供旧研究测试，已隔离�
 第 27 轮已将 Domain 门禁接入 .github/workflows/build-ipa.yml，
 增加 main PR 和工具变更触发；rg/find 两条路径均实际编译成功且拒绝隐藏反向依赖。
 CI helper 保留编译退出码、限制报告行数；报告失败和 Xcode 选择失败有修正后夹具。
-PR #10/#11 的远程 CI 已实测通过并合并，覆盖第 1–30 轮；第 31 轮发布时另行核对其远程检查点。不重做该集成，不冒充 XCTest 或 IPA 签名。
-第 28 轮已修复最近记录默认 0 被呈现为可靠结果的问题，第 29 轮已移除 UI 过时临时目录检查，由导出服务统一判断所有权。第 30 轮在实际 SwiftUI sheet 边界声明深色方案，修复固定深色背景上的黑色标题与分组文字；浅色系统入口有失败回归与修复后证据。最新全量 1008 项通过；真实 UI 已核对三种批量产物与取消、收起、切换格式及页面关闭后的清理。不要重做这些修复或把合成夹具当真实精度证据。
+PR #10/#11/#12 的远程 CI 已实测通过并合并，覆盖第 1–31 轮。不重做该集成，不冒充 XCTest 或 IPA 签名；第 32–35 轮按本次用户要求准备提交、推送及合并，状态见最新交付检查点。
+第 28 轮已修复最近记录默认 0 被呈现为可靠结果的问题，第 29 轮已移除 UI 过时临时目录检查，由导出服务统一判断所有权。第 30 轮在实际 SwiftUI sheet 边界声明深色方案，修复固定深色背景上的黑色标题与分组文字；浅色系统入口有失败回归与修复后证据。最新最终全量 1022 项通过；真实 UI 已核对三种批量产物与取消、收起、切换格式及页面关闭后的清理。不要重做这些修复或把合成夹具当真实精度证据。
 完整历史读取、校准未校准基线导入和删除确认/取消已有证据；永久删除尚待用户确认，物理验收仍缺操作者采集。下一步在已确认授权后完成隔离模拟器 UI-FIXTURE-B 的删除，检查关联文件与历史刷新并保护其他夹具。未收到确认时保留该记录；继续补充真实设备采集条件、人工果数及资源测量，不制造无关重构来代替尚缺的证据。
-第 31 轮已贯通仓储历史查询/删除、生产完成刷新及工作台/历史/批量列表，最新全量为 1014。
-下一轮先复现导入目录配置与根依赖不一致的问题，再继续校准和其他记录消费者的真实装配，见第 31 轮提示词。
-Device Hub 坐标点击当前返回 noWindowsAvailable，原生点击验收另列，保护真实数据，不新增闲置生产测试路径。
+第 31–34 轮已贯通仓储历史查询/删除、生产完成刷新、工作台/历史/批量列表、导入、校准扫描来源和预览。
+第 34 轮关闭/返回原生走查已补齐，第 35 轮报告与趋势根历史装配和最终 1022 项全量已完成。
+第 35 轮原生点击因 Mac 再次锁定尚待补齐；下一项为地图/历史对比，见第 35 轮提示词。
+保护真实数据，不新增闲置生产测试路径。
 完成/重试已有代码回归；单独说明模拟器无 LiDAR 的 UI 范围与尚缺的物理证据。
 Domain 仍使用模块内访问；framework/package 需另行定义公开 API 并迁移消费者。
 按原蓝图维持当前单 App target，保持模型/shader 归属，评估正式模块的实际收益。
