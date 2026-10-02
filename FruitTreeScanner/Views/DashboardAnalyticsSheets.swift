@@ -694,13 +694,16 @@ struct TrendsRecordRow: View {
 struct MapSheet: View {
     private let onStartScan: (() -> Void)?
     private let bundle: Bundle
+    private let historyStore: ScanHistoryStore
 
-    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+    @MainActor
+    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main, historyStore: ScanHistoryStore? = nil) {
         self.onStartScan = onStartScan
         self.bundle = bundle
+        self.historyStore = historyStore ?? .shared
     }
 
     var body: some View {
-        OrchardMapView(onStartScan: onStartScan, bundle: bundle)
+        OrchardMapView(onStartScan: onStartScan, bundle: bundle, historyStore: historyStore)
     }
 }

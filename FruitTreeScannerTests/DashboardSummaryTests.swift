@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import SwiftUI
 import UIKit
 import XCTest
@@ -7,6 +8,514 @@ import UIKit
 @testable import FruitTreeScanner
 
 final class DashboardSummaryTests: XCTestCase {
+    @MainActor
+    func testDashboardComparisonCloseReturnsToRootAndAllowsReopening() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for (name, count, yield) in [("a", 6, 1.5), ("b", 12, 3.0)] {
+            try PLYPointCloudWriter.write(
+                points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                treeID: "CLOSE-\(name)", scanDate: "2026-10-02 00:00:00", gpsLat: 0, gpsLon: 0,
+                to: directory.appendingPathComponent(name + ".ply")
+            )
+            try JSONSerialization.data(withJSONObject: [
+                "fruitCount": count, "yieldKg": yield, "fruitType": "apple", "confidence": "medium"
+            ]).write(to: directory.appendingPathComponent(name + "_result.json"))
+        }
+        let sourceBytes = try Dictionary(uniqueKeysWithValues: ["a.ply", "b.ply", "a_result.json", "b_result.json"].map {
+            let url = directory.appendingPathComponent($0)
+            return (url, try Data(contentsOf: url))
+        })
+        let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+        let suiteName = "RootComparisonCloseTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let router = NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter())
+        let controller = UIHostingController(rootView:
+            DashboardView(router: router, historyStore: dependencies.historyStore)
+                .environmentObject(dependencies)
+        )
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        window.layoutIfNeeded()
+        defer {
+            controller.presentedViewController?.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        func waitFor(_ condition: () -> Bool) async throws -> Bool {
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                controller.view.layoutIfNeeded()
+                if condition() { return true }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            } while Date() < deadline
+            return false
+        }
+        func button(label: String, in root: NSObject) -> NSObject? {
+            var visited = Set<ObjectIdentifier>()
+            func visit(_ object: NSObject, depth: Int = 0) -> NSObject? {
+                guard depth < 32, visited.insert(ObjectIdentifier(object)).inserted else { return nil }
+                if object.accessibilityLabel == label, object.accessibilityTraits.contains(.button) { return object }
+                let count = object.accessibilityElementCount()
+                if count > 0 && count < 100 {
+                    for index in 0..<count {
+                        if let child = object.accessibilityElement(at: index) as? NSObject,
+                           let result = visit(child, depth: depth + 1) { return result }
+                    }
+                }
+                if let view = object as? UIView {
+                    for child in view.subviews {
+                        if let result = visit(child, depth: depth + 1) { return result }
+                    }
+                }
+                return nil
+            }
+            return visit(root)
+        }
+        func scrollView(in view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            return view.subviews.lazy.compactMap { scrollView(in: $0) }.first
+        }
+        func attach(_ phase: String) {
+            let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            attachment.name = "RootComparisonClose-\(phase)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        let loaded = try await waitFor {
+            !dependencies.historyStore.isLoading && dependencies.historyStore.scanFiles.count == 2
+        }
+        XCTAssertTrue(loaded)
+        let comparisonLabel = L10n.Dashboard.quickActionAccessibilityLabel(
+            title: L10n.Dashboard.compareTitle, description: L10n.Dashboard.compareDescription
+        )
+        let scroll = try XCTUnwrap(scrollView(in: controller.view))
+        var action: NSObject?
+        let maximumOffset = max(0, scroll.contentSize.height - scroll.bounds.height)
+        for offset in stride(from: CGFloat(0), through: maximumOffset, by: max(100, scroll.bounds.height / 2)) {
+            scroll.setContentOffset(CGPoint(x: 0, y: offset), animated: false)
+            controller.view.layoutIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+            if let candidate = button(label: comparisonLabel, in: controller.view),
+               candidate.accessibilityFrame.intersects(window.bounds) {
+                action = candidate
+                break
+            }
+        }
+        XCTAssertNotNil(action, "The real Dashboard must expose its comparison quick action")
+        guard action != nil else { return }
+        let presentation = HistoricalComparePresentation()
+        for complete in [true, false] {
+            if !complete {
+                try FileManager.default.removeItem(at: directory.appendingPathComponent("b_result.json"))
+                await dependencies.historyStore.reloadRecords()
+            }
+            let comparisonButton = try XCTUnwrap(button(label: comparisonLabel, in: controller.view))
+            XCTAssertTrue(comparisonButton.accessibilityActivate())
+            let presented = try await waitFor {
+                guard let sheet = controller.presentedViewController else { return false }
+                sheet.view.layoutIfNeeded()
+                return !sheet.isBeingPresented && sheet.transitionCoordinator == nil &&
+                    renderedAccessibilityText(in: sheet.view).contains(complete ? presentation.prompt : presentation.emptyTitle)
+            }
+            XCTAssertTrue(presented, "The real Dashboard must present comparison again after closing")
+            let sheet = try XCTUnwrap(controller.presentedViewController)
+            attach(complete ? "complete" : "empty")
+            let close = button(label: L10n.Common.done, in: sheet.view)
+            XCTAssertNotNil(close, "The actual comparison sheet must provide an explicit visible close control")
+            guard let close else { return }
+            XCTAssertTrue(close.accessibilityActivate())
+            let dismissed = try await waitFor { controller.presentedViewController == nil }
+            XCTAssertTrue(dismissed, "Comparison close must dismiss Dashboard's sheet")
+            XCTAssertNotNil(button(label: comparisonLabel, in: controller.view))
+            XCTAssertNil(button(label: L10n.Common.done, in: controller.view))
+            attach(complete ? "returned-complete" : "returned-empty")
+        }
+        try XCTUnwrap(sourceBytes[directory.appendingPathComponent("b_result.json")])
+            .write(to: directory.appendingPathComponent("b_result.json"))
+        for (url, bytes) in sourceBytes { XCTAssertEqual(try Data(contentsOf: url), bytes) }
+    }
+
+    @MainActor
+    func testDashboardMapRouteUsesRootHistoryAndRefreshesSelectedDetails() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suffix = String(UUID().uuidString.prefix(4))
+        let firstID = "A-\(suffix)"
+        let secondID = "B-\(suffix)"
+        let excludedIDs = ["RAW-\(suffix)", "BAD-\(suffix)", "NO-GPS-\(suffix)"]
+        for (name, identity, date, latitude, longitude) in [
+            ("older", firstID, "2026-09-30 00:00:00", 0.011, 0.012),
+            ("latest", firstID, "2026-10-01 00:00:00", 0.011, 0.012),
+            ("peer", secondID, "2026-10-01 00:00:00", 0.013, 0.014),
+            ("raw", excludedIDs[0], "2026-10-02 00:00:00", 0.015, 0.016),
+            ("invalid", excludedIDs[1], "2026-10-02 00:00:00", 0.017, 0.018),
+            ("unlocated", excludedIDs[2], "2026-10-02 00:00:00", 0.0, 0.0)
+        ] {
+            try PLYPointCloudWriter.write(
+                points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                treeID: identity, scanDate: date, gpsLat: latitude, gpsLon: longitude,
+                to: directory.appendingPathComponent(name + ".ply")
+            )
+        }
+        func metadataURL(_ name: String) -> URL { directory.appendingPathComponent(name + "_result.json") }
+        func writeMetadata(_ name: String, count: Int, yield: Double) throws {
+            try JSONSerialization.data(withJSONObject: [
+                "fruitCount": count, "yieldKg": yield, "fruitType": "apple", "confidence": "medium"
+            ]).write(to: metadataURL(name))
+        }
+        try writeMetadata("older", count: 8, yield: 10)
+        try writeMetadata("latest", count: 0, yield: 0)
+        try writeMetadata("peer", count: 12, yield: 40)
+        try writeMetadata("unlocated", count: 99, yield: 99)
+        try Data("invalid result".utf8).write(to: metadataURL("invalid"))
+        let sources = try Dictionary(uniqueKeysWithValues: ["older", "latest", "peer", "raw", "invalid", "unlocated"].map {
+            let url = directory.appendingPathComponent($0 + ".ply")
+            return (url, try Data(contentsOf: url))
+        })
+        let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+        XCTAssertTrue(dependencies.historyStore.scanFiles.isEmpty)
+        let suiteName = "RootMapTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let dashboard = DashboardView(
+            router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+            historyStore: dependencies.historyStore
+        )
+        let controller = UIHostingController(rootView: dashboard.sheetView(for: .map)
+            .environment(\.locale, Locale(identifier: "en_US_POSIX")))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.setNeedsLayout()
+        window.layoutIfNeeded()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        let presentation = OrchardMapPresentation()
+        func waitFor(_ condition: () -> Bool) async throws -> Bool {
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                controller.view.layoutIfNeeded()
+                if condition() { return true }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            } while Date() < deadline
+            return false
+        }
+        func map(in view: UIView) -> MKMapView? {
+            if let map = view as? MKMapView { return map }
+            return view.subviews.lazy.compactMap { map(in: $0) }.first
+        }
+        func button(label: String, in root: NSObject) -> NSObject? {
+            var visited = Set<ObjectIdentifier>()
+            func visit(_ object: NSObject, depth: Int = 0) -> NSObject? {
+                guard depth < 32, visited.insert(ObjectIdentifier(object)).inserted else { return nil }
+                if object.accessibilityLabel == label, object.accessibilityTraits.contains(.button) { return object }
+                let count = object.accessibilityElementCount()
+                if count > 0 && count < 100 {
+                    for index in 0..<count {
+                        if let child = object.accessibilityElement(at: index) as? NSObject,
+                           let found = visit(child, depth: depth + 1) { return found }
+                    }
+                }
+                if let view = object as? UIView {
+                    for child in view.subviews {
+                        if let found = visit(child, depth: depth + 1) { return found }
+                    }
+                }
+                return nil
+            }
+            return visit(root)
+        }
+        func attach(_ phase: String) {
+            let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            attachment.name = "RootMap-\(phase)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        let loaded = try await waitFor {
+            !dependencies.historyStore.isLoading && dependencies.historyStore.scanFiles.count == 6
+        }
+        attach("entry")
+        XCTAssertTrue(loaded, "The real map entry must load the Dashboard root archive")
+        guard loaded else { return }
+        let mapReady = try await waitFor {
+            map(in: controller.view)?.annotations.contains {
+                abs($0.coordinate.latitude - 0.011) < 0.000001 && abs($0.coordinate.longitude - 0.012) < 0.000001
+            } == true
+        }
+        XCTAssertTrue(mapReady)
+        let mapView = try XCTUnwrap(map(in: controller.view))
+        let annotation = try XCTUnwrap(mapView.annotations.first {
+            abs($0.coordinate.latitude - 0.011) < 0.000001 && abs($0.coordinate.longitude - 0.012) < 0.000001
+        })
+        let entryText = renderedAccessibilityText(in: controller.view)
+        XCTAssertTrue(entryText.contains(presentation.treeCountText(2, locale: Locale(identifier: "en_US_POSIX"))))
+        for id in excludedIDs { XCTAssertFalse(entryText.contains(id)) }
+        // Use the actual production annotation and MapKit's public selection control.
+        mapView.selectAnnotation(annotation, animated: false)
+        let selected = try await waitFor {
+            button(label: presentation.closeDetails, in: controller.view) != nil &&
+                renderedAccessibilityText(in: controller.view).contains("0.0 kg")
+        }
+        XCTAssertTrue(selected, "Selecting the real map annotation must show its complete latest zero")
+        attach("selected-zero")
+        guard selected else { return }
+
+        try writeMetadata("latest", count: 6, yield: 1.5)
+        await dependencies.historyStore.reloadRecords()
+        let currentRecord = try XCTUnwrap(dependencies.historyStore.scanFiles.first { $0.fileURL.lastPathComponent == "latest.ply" })
+        XCTAssertEqual(currentRecord.yieldKg, 1.5)
+        XCTAssertEqual(currentRecord.fruitCount, 6)
+        let refreshed = try await waitFor {
+            renderedAccessibilityText(in: controller.view).contains("1.5 kg")
+        }
+        XCTAssertTrue(refreshed, "Selected details must read the current root record instead of a stale annotation copy")
+        attach("refreshed")
+        guard refreshed else {
+            for (url, bytes) in sources { XCTAssertEqual(try Data(contentsOf: url), bytes) }
+            return
+        }
+        let filter = try XCTUnwrap(button(label: presentation.yieldLevelLabel(.medium), in: controller.view))
+        XCTAssertTrue(filter.accessibilityActivate())
+        let filtered = try await waitFor {
+            button(label: presentation.closeDetails, in: controller.view) == nil &&
+                !mapView.annotations.contains {
+                    abs($0.coordinate.latitude - 0.011) < 0.000001 && abs($0.coordinate.longitude - 0.012) < 0.000001
+                }
+        }
+        XCTAssertTrue(filtered, "A filtered-out record must not keep visible details")
+        attach("filtered")
+        let clearFilter = try XCTUnwrap(button(label: presentation.clearFilter, in: controller.view))
+        XCTAssertTrue(clearFilter.accessibilityActivate())
+        let restored = try await waitFor {
+            button(label: presentation.clearFilter, in: controller.view) == nil &&
+                mapView.annotations.contains {
+                    abs($0.coordinate.latitude - 0.011) < 0.000001 && abs($0.coordinate.longitude - 0.012) < 0.000001
+                }
+        }
+        XCTAssertTrue(restored)
+        XCTAssertNil(button(label: presentation.closeDetails, in: controller.view))
+        let reinserted = try XCTUnwrap(mapView.annotations.first {
+            abs($0.coordinate.latitude - 0.011) < 0.000001 && abs($0.coordinate.longitude - 0.012) < 0.000001
+        })
+        mapView.selectAnnotation(reinserted, animated: false)
+        let reselected = try await waitFor { button(label: presentation.closeDetails, in: controller.view) != nil }
+        XCTAssertTrue(reselected)
+        // Only owned companion files are invalidated; PLY evidence is untouched.
+        try FileManager.default.removeItem(at: metadataURL("latest"))
+        await dependencies.historyStore.reloadRecords()
+        let invalidated = try await waitFor {
+            button(label: presentation.closeDetails, in: controller.view) == nil && mapView.selectedAnnotations.isEmpty
+        }
+        XCTAssertTrue(invalidated, "The older per-tree fallback must not retain the newer record's selection")
+        attach("invalidated")
+        try writeMetadata("latest", count: 6, yield: 1.5)
+        await dependencies.historyStore.reloadRecords()
+        let remainsCleared = try await waitFor {
+            button(label: presentation.closeDetails, in: controller.view) == nil && mapView.selectedAnnotations.isEmpty
+        }
+        XCTAssertTrue(remainsCleared)
+        XCTAssertNil(button(label: presentation.closeDetails, in: controller.view))
+        attach("complete-again")
+        for name in ["older", "latest", "peer"] { try FileManager.default.removeItem(at: metadataURL(name)) }
+        await dependencies.historyStore.reloadRecords()
+        let empty = try await waitFor { renderedAccessibilityText(in: controller.view).contains(presentation.emptyTitle) }
+        XCTAssertTrue(empty)
+        for (url, bytes) in sources { XCTAssertEqual(try Data(contentsOf: url), bytes) }
+        attach("empty")
+    }
+
+    @MainActor
+    func testDashboardComparisonRouteLoadsRootHistoryAndReconcilesSelections() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suffix = String(UUID().uuidString.prefix(4))
+        let firstID = "A-\(suffix)"
+        let secondID = "B-\(suffix)"
+        let rawID = "RAW-\(suffix)"
+        let invalidID = "BAD-\(suffix)"
+        for (name, identity) in [("a", firstID), ("b", secondID), ("raw", rawID), ("invalid", invalidID)] {
+            try PLYPointCloudWriter.write(
+                points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                treeID: identity, scanDate: "2026-10-02 00:00:00", gpsLat: 0, gpsLon: 0,
+                to: directory.appendingPathComponent(name + ".ply")
+            )
+        }
+        let firstMetadata = directory.appendingPathComponent("a_result.json")
+        let secondMetadata = directory.appendingPathComponent("b_result.json")
+        func writeMetadata(count: Int, yield: Double, to url: URL) throws {
+            try JSONSerialization.data(withJSONObject: [
+                "fruitCount": count, "yieldKg": yield, "fruitType": "apple", "confidence": "medium"
+            ]).write(to: url)
+        }
+        try writeMetadata(count: 0, yield: 0, to: firstMetadata)
+        try writeMetadata(count: 12, yield: 3, to: secondMetadata)
+        try Data("invalid result".utf8).write(to: directory.appendingPathComponent("invalid_result.json"))
+        let sources = try Dictionary(uniqueKeysWithValues: ["a", "b", "raw", "invalid"].map {
+            let url = directory.appendingPathComponent($0 + ".ply")
+            return (url, try Data(contentsOf: url))
+        })
+        let dependencies = AppDependencies(scanRepository: ScanRepository(scansDirectory: directory))
+        XCTAssertTrue(dependencies.historyStore.scanFiles.isEmpty)
+        let suiteName = "RootComparisonTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let dashboard = DashboardView(
+            router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+            historyStore: dependencies.historyStore
+        )
+        let controller = UIHostingController(rootView: dashboard.sheetView(for: .compare)
+            .environment(\.locale, Locale(identifier: "en_US_POSIX")))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        let previousKeyWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.setNeedsLayout()
+        window.layoutIfNeeded()
+        defer {
+            controller.presentedViewController?.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        let presentation = HistoricalComparePresentation()
+        func waitFor(_ condition: () -> Bool) async throws -> Bool {
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                controller.view.layoutIfNeeded()
+                if condition() { return true }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            } while Date() < deadline
+            return false
+        }
+        func element(label: String, in root: NSObject, button: Bool = false) -> NSObject? {
+            var visited = Set<ObjectIdentifier>()
+            func visit(_ object: NSObject, depth: Int = 0) -> NSObject? {
+                guard depth < 32, visited.insert(ObjectIdentifier(object)).inserted else { return nil }
+                if object.accessibilityLabel == label,
+                   !button || object.accessibilityTraits.contains(.button) { return object }
+                let count = object.accessibilityElementCount()
+                if count > 0 && count < 100 {
+                    for index in 0..<count {
+                        if let child = object.accessibilityElement(at: index) as? NSObject,
+                           let found = visit(child, depth: depth + 1) { return found }
+                    }
+                }
+                if let view = object as? UIView {
+                    for child in view.subviews {
+                        if let found = visit(child, depth: depth + 1) { return found }
+                    }
+                }
+                return nil
+            }
+            return visit(root)
+        }
+        func attach(_ phase: String) {
+            let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            attachment.name = "RootComparison-\(phase)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        let loaded = try await waitFor {
+            !dependencies.historyStore.isLoading && dependencies.historyStore.scanFiles.count == 4
+        }
+        attach("entry")
+        XCTAssertTrue(loaded, "The real Dashboard comparison entry must load its cold root history")
+        guard loaded else { return }
+        XCTAssertTrue(renderedAccessibilityText(in: controller.view).contains(presentation.prompt))
+
+        func select(slot: String, treeID: String, excluding otherID: String? = nil) async throws {
+            let slotButton = try XCTUnwrap(element(label: slot, in: controller.view, button: true))
+            XCTAssertTrue(slotButton.accessibilityActivate())
+            let presented = try await waitFor {
+                guard let sheet = controller.presentedViewController else { return false }
+                sheet.view.layoutIfNeeded()
+                return !sheet.isBeingPresented && sheet.transitionCoordinator == nil
+            }
+            XCTAssertTrue(presented)
+            let sheet = try XCTUnwrap(controller.presentedViewController)
+            let text = renderedAccessibilityText(in: sheet.view)
+            XCTAssertTrue(text.contains(treeID), "Picker must list records from the same root: \(text)")
+            XCTAssertFalse(text.contains(rawID))
+            XCTAssertFalse(text.contains(invalidID))
+            if let otherID { XCTAssertFalse(text.contains(otherID), "The other selected record must be excluded") }
+            attach("picker-\(slot)")
+            let row = try XCTUnwrap(element(label: presentation.treeTitle(treeID), in: sheet.view, button: true))
+            XCTAssertTrue(row.accessibilityActivate())
+            let dismissed = try await waitFor { controller.presentedViewController == nil }
+            XCTAssertTrue(dismissed)
+        }
+        try await select(slot: presentation.scanA, treeID: firstID)
+        try await select(slot: presentation.scanB, treeID: secondID, excluding: firstID)
+        let zeroComparison = try XCTUnwrap(element(label: presentation.yieldChange, in: controller.view))
+        let unavailable = Bundle.main.localizedString(forKey: "historical_compare.unavailable", value: nil, table: nil)
+        XCTAssertTrue(zeroComparison.accessibilityValue?.contains("0.0 kg") == true)
+        XCTAssertTrue(zeroComparison.accessibilityValue?.contains("3.0 kg") == true)
+        XCTAssertTrue(zeroComparison.accessibilityValue?.contains(unavailable) == true)
+        attach("complete-zero")
+
+        try writeMetadata(count: 6, yield: 1.5, to: firstMetadata)
+        await dependencies.historyStore.reloadRecords()
+        let refreshed = try await waitFor {
+            element(label: presentation.yieldChange, in: controller.view)?.accessibilityValue?.contains("100.0%") == true
+        }
+        XCTAssertTrue(refreshed, "Existing selections must receive the root's updated values")
+        XCTAssertTrue(element(label: presentation.scanA, in: controller.view, button: true)?.accessibilityValue?.contains("1.5 kg") == true)
+        attach("refreshed")
+
+        // Invalidate only a test-owned companion; retain all point-cloud sources.
+        try FileManager.default.removeItem(at: secondMetadata)
+        await dependencies.historyStore.reloadRecords()
+        let oneComplete = try await waitFor { renderedAccessibilityText(in: controller.view).contains(presentation.emptyTitle) }
+        XCTAssertTrue(oneComplete)
+        attach("one-complete")
+        try writeMetadata(count: 12, yield: 3, to: secondMetadata)
+        await dependencies.historyStore.reloadRecords()
+        let restored = try await waitFor {
+            element(label: presentation.scanB, in: controller.view, button: true)?.accessibilityValue == presentation.noScanSelected
+        }
+        XCTAssertTrue(restored, "An invalidated selection must stay cleared when its record becomes complete again")
+        XCTAssertTrue(element(label: presentation.scanA, in: controller.view, button: true)?.accessibilityValue?.contains(firstID) == true)
+        XCTAssertFalse(renderedAccessibilityText(in: controller.view).contains(presentation.yieldChange))
+        attach("selection-cleared")
+
+        try FileManager.default.removeItem(at: firstMetadata)
+        try FileManager.default.removeItem(at: secondMetadata)
+        await dependencies.historyStore.reloadRecords()
+        let empty = try await waitFor { renderedAccessibilityText(in: controller.view).contains(presentation.emptyTitle) }
+        XCTAssertTrue(empty)
+        XCTAssertFalse(renderedAccessibilityText(in: controller.view).contains(firstID))
+        XCTAssertFalse(renderedAccessibilityText(in: controller.view).contains(secondID))
+        for (url, bytes) in sources { XCTAssertEqual(try Data(contentsOf: url), bytes) }
+        attach("empty")
+    }
+
     @MainActor
     func testDashboardAnalyticsRoutesLoadAndRefreshTheirRootHistory() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes

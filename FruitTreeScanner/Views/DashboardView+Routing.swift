@@ -280,12 +280,12 @@ extension DashboardView {
         case .yieldReport:
             YieldReportSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .compare:
-            HistoricalCompareView(onStartScan: showStartScanAfterDismissingSheet)
+            HistoricalCompareView(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .trends:
             TrendsSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .map:
             if #available(iOS 17, *) {
-                MapSheet(onStartScan: showStartScanAfterDismissingSheet)
+                MapSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
             } else {
                 Text(OrchardMapPresentation().requiresIOS17)
             }
