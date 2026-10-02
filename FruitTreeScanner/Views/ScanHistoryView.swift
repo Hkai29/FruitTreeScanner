@@ -8,15 +8,34 @@ struct ScanHistoryView: View {
     var onStartScan: (() -> Void)? = nil
     var onRescanTree: ((String) -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
-    @ObservedObject var historyStore = ScanHistoryStore.shared
+    @ObservedObject var historyStore: ScanHistoryStore
     @ObservedObject private var tagStore = TagStore.shared
-    @StateObject private var deletionController = ScanHistoryDeletionController()
+    @StateObject private var deletionController: ScanHistoryDeletionController
     @State private var selectedPlotId: UUID?
     @State private var selectedStatus: ScanStatus?
     @State private var presentedSheet: ScanHistorySheet?
     @State private var recordPendingDeletion: ScanFileRecord?
     @State private var showClearAllConfirmation = false
     @State private var deletionTask: Task<Void, Never>?
+
+    @MainActor
+    init(
+        customTitle: String = L10n.History.navigationTitle,
+        onStartScan: (() -> Void)? = nil,
+        onRescanTree: ((String) -> Void)? = nil,
+        onImportFile: (() -> Void)? = nil,
+        historyStore: ScanHistoryStore? = nil
+    ) {
+        let historyStore = historyStore ?? .shared
+        self.customTitle = customTitle
+        self.onStartScan = onStartScan
+        self.onRescanTree = onRescanTree
+        self.onImportFile = onImportFile
+        self.historyStore = historyStore
+        _deletionController = StateObject(wrappedValue: ScanHistoryDeletionController(
+            deleteRecords: { records in await historyStore.deleteRecordsWithResult(records) }
+        ))
+    }
 
     var body: some View {
         ZStack {

@@ -2923,15 +2923,69 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         var refreshes = 0
         let production = ScanFinalizationOperations.production(coordinator: coordinator, repository: repository,
                                                                refreshHistory: { refreshes += 1 })
-        let operations = ScanFinalizationOperations(
+        let operations = operationsWithSyntheticCapture(
+            production: production, coordinator: coordinator, repository: repository,
+            filename: "production-injected.ply"
+        )
+        let workflow = ScanFinalizationWorkflow()
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
+        await waitUntil { workflow.phase == .completed }
+        XCTAssertEqual(refreshes, 1)
+        let source = try repository.pointCloudDestination(filename: "production-injected.ply")
+        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+        XCTAssertEqual(record.summary.treeID, plan.treeID)
+        XCTAssertEqual(record.summary.yieldKg, workflow.result?.yieldFinalKg)
+        XCTAssertEqual(record.manifest?.scanID, "production-injected")
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .completed)
+    }
+
+    @MainActor
+    func testRootFinalizationRefreshesInjectedHistoryWithoutCallerReload() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repository = ScanRepository(scansDirectory: directory)
+        let dependencies = AppDependencies(scanRepository: repository)
+        await dependencies.historyStore.reloadRecords()
+        XCTAssertTrue(dependencies.historyStore.scanFiles.isEmpty)
+        let coordinator = ScanCoordinator(calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        let plan = makePlan()
+        coordinator.startRecording(plan: plan)
+        let operations = operationsWithSyntheticCapture(
+            production: dependencies.finalizationOperations(coordinator: coordinator),
+            coordinator: coordinator, repository: repository, filename: "root-finalization.ply"
+        )
+        let workflow = ScanFinalizationWorkflow()
+
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
+        await waitUntil { workflow.phase == .completed }
+        await waitUntil { dependencies.historyStore.scanFiles.count == 1 }
+
+        let source = try repository.pointCloudDestination(filename: "root-finalization.ply")
+        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+        XCTAssertEqual(dependencies.historyStore.scanFiles, [record.summary])
+        XCTAssertEqual(record.summary.yieldKg, workflow.result?.yieldFinalKg)
+        XCTAssertEqual(record.manifest?.scanID, "root-finalization")
+        XCTAssertNil(dependencies.historyStore.loadFailure)
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .completed)
+    }
+
+    @MainActor
+    private func operationsWithSyntheticCapture(
+        production: ScanFinalizationOperations,
+        coordinator: ScanCoordinator,
+        repository: ScanRepository,
+        filename: String
+    ) -> ScanFinalizationOperations {
+        ScanFinalizationOperations(
             lifecycleSnapshot: production.lifecycleSnapshot,
             beginFinishing: production.beginFinishing,
             exportPointCloud: { plan, latitude, longitude in
-                // Synthetic capture replaces only the unavailable physical LiDAR boundary.
+                // Replace only the physical LiDAR boundary unavailable on Simulator.
                 let context = ScanContext(scanID: coordinator.lifecycleSnapshot().scanIdentity, planID: plan.id)
                 let signature = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005, confidenceThreshold: 1)
                 let points = [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)]
-                let source = try repository.pointCloudDestination(filename: "production-injected.ply")
+                let source = try repository.pointCloudDestination(filename: filename)
                 let draft = try repository.stagePointCloud(to: source, captureIdentity: ScanCaptureIdentity(context: context, pointCloud: signature)) {
                     try PLYPointCloudWriter.write(points: points, treeID: plan.treeID, scanDate: "2026-09-28 00:00:00",
                                                   gpsLat: latitude, gpsLon: longitude, to: source)
@@ -2948,16 +3002,6 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
             refreshHistory: production.refreshHistory,
             discardArtifacts: production.discardArtifacts
         )
-        let workflow = ScanFinalizationWorkflow()
-        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
-        await waitUntil { workflow.phase == .completed }
-        XCTAssertEqual(refreshes, 1)
-        let source = try repository.pointCloudDestination(filename: "production-injected.ply")
-        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source))
-        XCTAssertEqual(record.summary.treeID, plan.treeID)
-        XCTAssertEqual(record.summary.yieldKg, workflow.result?.yieldFinalKg)
-        XCTAssertEqual(record.manifest?.scanID, "production-injected")
-        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .completed)
     }
 
     @MainActor

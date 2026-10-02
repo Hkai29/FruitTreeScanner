@@ -11,10 +11,12 @@ struct DashboardView: View {
     @State var activeScanRequest: ScanLaunchRequest?
     @State var postScanNavigationState = PostScanNavigationState()
     @State var sheetScanHandoffState = DashboardSheetScanHandoffState()
-    @ObservedObject var historyStore = ScanHistoryStore.shared
+    @ObservedObject var historyStore: ScanHistoryStore
 
-    init(router: NavigationRouter) {
+    @MainActor
+    init(router: NavigationRouter, historyStore: ScanHistoryStore? = nil) {
         self.router = router
+        self.historyStore = historyStore ?? .shared
     }
 
     private var recentScans: [ScanFileRecord] {

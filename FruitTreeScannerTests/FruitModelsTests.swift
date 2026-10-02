@@ -2005,6 +2005,76 @@ final class FruitModelsTests: XCTestCase {
 
     // MARK: - Scan history loading and recovery
 
+    func testRepositoryHistoryQueryUsesConfiguredRootAndPreservesFiles() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent("archive")
+        let visible = try writeRepositoryHistoryFixture("visible.ply", in: directory)
+        let hidden = try writeRepositoryHistoryFixture(".hidden.ply", in: directory)
+        let nested = try writeRepositoryHistoryFixture("nested.ply", in: directory.appendingPathComponent("nested"))
+        let other = try writeRepositoryHistoryFixture("other.ply", in: root.appendingPathComponent("other"))
+        let urls = [visible, hidden, nested, other]
+        let before = try urls.map { try Data(contentsOf: $0) }
+
+        let result = ScanRepository(scansDirectory: directory).loadHistoryRecords()
+
+        guard case .success(let records) = result else {
+            return XCTFail("Expected the configured archive to load")
+        }
+        XCTAssertEqual(records.map(\.fileURL), [visible])
+        XCTAssertEqual(records.first?.persistenceState, .incomplete, "Orphan PLY remains visible for recovery")
+        XCTAssertEqual(try urls.map { try Data(contentsOf: $0) }, before, "History queries must not mutate artifacts")
+    }
+
+    func testRepositoryHistoryQueryDoesNotCreateMissingDirectory() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+        XCTAssertEqual(ScanRepository(scansDirectory: directory).loadHistoryRecords(), .success([]))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    func testRepositoryHistoryQueryReportsDirectoryReadFailure() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let bytes = Data("a file is not an archive directory".utf8)
+        try bytes.write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        XCTAssertEqual(ScanRepository(scansDirectory: file).loadHistoryRecords(), .failure(.directoryUnavailable))
+        XCTAssertEqual(try Data(contentsOf: file), bytes)
+    }
+
+    @MainActor
+    func testInjectedHistoryDeletionReloadsItsArchiveAndPreservesOtherRoot() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent("archive")
+        let source = try writeRepositoryHistoryFixture("owned.ply", in: directory)
+        let other = try writeRepositoryHistoryFixture("other.ply", in: root.appendingPathComponent("other"))
+        let otherBytes = try Data(contentsOf: other)
+        let store = ScanHistoryStore(repository: ScanRepository(scansDirectory: directory))
+        await store.reloadRecords()
+        XCTAssertEqual(store.scanFiles.map(\.fileURL), [source])
+
+        let result = await store.deleteRecordsWithResult(store.scanFiles)
+        await store.reloadRecords()
+
+        XCTAssertTrue(result.isComplete)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertTrue(store.scanFiles.isEmpty)
+        XCTAssertNil(store.loadFailure)
+        XCTAssertEqual(try Data(contentsOf: other), otherBytes)
+    }
+
+    private func writeRepositoryHistoryFixture(_ filename: String, in directory: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let source = directory.appendingPathComponent(filename)
+        try PLYPointCloudWriter.write(
+            points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+            treeID: "HISTORY-FIXTURE", scanDate: "2026-10-01 00:00:00", gpsLat: 0, gpsLon: 0, to: source
+        )
+        return source
+    }
+
     func testScanHistoryDiskReadDistinguishesMissingDirectoryFromReadFailure() {
         let scansDirectory = URL(fileURLWithPath: "/tmp/scans", isDirectory: true)
 

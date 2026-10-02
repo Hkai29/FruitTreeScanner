@@ -8,6 +8,106 @@ import UIKit
 
 final class DashboardSummaryTests: XCTestCase {
     @MainActor
+    func testDashboardHistoryAndBatchRoutesUseRootRepositoryRecords() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixtureID = String(UUID().uuidString.prefix(8))
+        let source = directory.appendingPathComponent("root-ui-\(fixtureID).ply")
+        let treeID = "ROOT-UI-\(fixtureID)"
+        try PLYPointCloudWriter.write(
+            points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+            treeID: treeID, scanDate: "2026-10-01 00:00:00", gpsLat: 0, gpsLon: 0, to: source
+        )
+        // A synthetic legacy archive exercises the existing compatibility reader.
+        let metadata = directory.appendingPathComponent("root-ui-\(fixtureID)_result.json")
+        try JSONSerialization.data(withJSONObject: [
+            "fruitCount": 2, "yieldKg": 0.4, "fruitType": "apple", "confidence": "medium"
+        ]).write(to: metadata)
+        let repository = ScanRepository(scansDirectory: directory)
+        let dependencies = AppDependencies(scanRepository: repository)
+        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+        XCTAssertEqual(record.summary.treeID, treeID)
+        await dependencies.historyStore.reloadRecords()
+        let sourceBytes = try Data(contentsOf: source)
+        let metadataBytes = try Data(contentsOf: metadata)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+
+        for route in [AppNavigation.history, .batchExport] {
+            let suiteName = "RootHistoryRoutingTests-\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            let router = NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter())
+            router.handle(route)
+            let controller = UIHostingController(rootView:
+                DashboardView(router: router, historyStore: dependencies.historyStore)
+                    .environmentObject(dependencies)
+            )
+            let previousKeyWindow = scene.keyWindow
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+            window.rootViewController = controller
+            window.makeKeyAndVisible()
+            controller.view.setNeedsLayout()
+            controller.view.layoutIfNeeded()
+            defer {
+                controller.presentedViewController?.dismiss(animated: false)
+                window.isHidden = true
+                window.rootViewController = nil
+                previousKeyWindow?.makeKey()
+            }
+
+            var sheetText = ""
+            let expectedIdentity = route == .history ? source.lastPathComponent : treeID
+            let deadline = Date().addingTimeInterval(3)
+            while Date() < deadline {
+                if let sheet = controller.presentedViewController {
+                    sheet.view.layoutIfNeeded()
+                    sheetText = renderedAccessibilityText(in: sheet.view)
+                    if sheetText.contains(expectedIdentity), sheet.transitionCoordinator == nil,
+                       !sheet.isBeingPresented { break }
+                }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            }
+            XCTAssertNotNil(controller.presentedViewController, "The actual dashboard route must present its sheet")
+            XCTAssertTrue(sheetText.contains(expectedIdentity), "\(route) must use the injected archive, not the global history: \(sheetText)")
+            let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            attachment.name = "RootHistoryRoute-\(route.rawValue)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            controller.presentedViewController?.dismiss(animated: false)
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTAssertEqual(try Data(contentsOf: source), sourceBytes)
+        XCTAssertEqual(try Data(contentsOf: metadata), metadataBytes)
+    }
+
+    @MainActor
+    private func renderedAccessibilityText(in root: NSObject) -> String {
+        var visited = Set<ObjectIdentifier>()
+        func text(in object: NSObject, depth: Int = 0) -> [String] {
+            guard depth < 32, visited.insert(ObjectIdentifier(object)).inserted else { return [] }
+            var values = [object.accessibilityLabel, object.accessibilityValue].compactMap { $0 }
+            let count = object.accessibilityElementCount()
+            if count > 0 && count < 100 {
+                for index in 0..<count {
+                    if let child = object.accessibilityElement(at: index) as? NSObject {
+                        values += text(in: child, depth: depth + 1)
+                    }
+                }
+            }
+            if let view = object as? UIView {
+                values += view.subviews.flatMap { text(in: $0, depth: depth + 1) }
+            }
+            return values
+        }
+        return text(in: root).joined(separator: " | ")
+    }
+
+    @MainActor
     func testRecentScanCardDoesNotPresentMissingResultAsZeroYield() {
         let record = makeRecord(
             id: "missing-result",
@@ -82,26 +182,7 @@ final class DashboardSummaryTests: XCTestCase {
         controller.view.layoutIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
-        var visited = Set<ObjectIdentifier>()
-        func text(in object: NSObject, depth: Int = 0) -> [String] {
-            guard depth < 12, visited.insert(ObjectIdentifier(object)).inserted else { return [] }
-            var values = [object.accessibilityLabel, object.accessibilityValue].compactMap { $0 }
-            let count = object.accessibilityElementCount()
-            if count > 0 && count < 100 {
-                for index in 0..<count {
-                    if let child = object.accessibilityElement(at: index) as? NSObject {
-                        values += text(in: child, depth: depth + 1)
-                    }
-                }
-            }
-            if let view = object as? UIView {
-                for child in view.subviews {
-                    values += text(in: child, depth: depth + 1)
-                }
-            }
-            return values
-        }
-        let result = text(in: window).joined(separator: " | ")
+        let result = renderedAccessibilityText(in: window)
         window.resignKey()
         XCTAssertFalse(result.isEmpty, "The rendered card must expose accessible content")
         return result
