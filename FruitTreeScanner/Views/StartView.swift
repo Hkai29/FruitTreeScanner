@@ -9,7 +9,7 @@ struct StartView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @ObservedObject var tagStore = TagStore.shared
+    @ObservedObject var tagStore: TagStore
     @State var currentStep = 1
     @State var treeIdentifierDraft = StartTreeIdentifierDraft()
     @State var selectedPlotId: UUID?
@@ -23,8 +23,10 @@ struct StartView: View {
     let totalSteps = 5
 
     @MainActor
-    init(settings: SettingsStore = .shared, onLaunchScan: @escaping (ScanLaunchRequest) -> Void) {
+    init(settings: SettingsStore = .shared, tagStore: TagStore = .shared,
+         onLaunchScan: @escaping (ScanLaunchRequest) -> Void) {
         self.settings = settings
+        self.tagStore = tagStore
         self.onLaunchScan = onLaunchScan
         _selectedFruitCategory = State(initialValue: FruitCategory.scanCategory(for: settings.fruitType))
     }

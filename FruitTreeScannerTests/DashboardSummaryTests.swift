@@ -50,12 +50,10 @@ private final class RootLaunchUIHarness {
             }
             if let view = object as? UIView { for child in view.subviews { visit(child, depth: depth + 1) } }
         }
-        visit(window)
-        var current: UIViewController? = controller
-        while let root = current {
-            visit(root.view)
-            current = root.presentedViewController
-        }
+        // Detached transition snapshots and covered sheets can retain old editable controls.
+        var current = controller as UIViewController
+        while let presented = current.presentedViewController { current = presented }
+        visit(current.view)
         return result
     }
 
@@ -140,6 +138,60 @@ private final class RootLaunchUIHarness {
         }
     }
 
+    func advanceStart(to targetStep: Int, treeID: String) async throws {
+        let ready = try await waitFor { self.elements.contains { $0 is UITextField } }
+        XCTAssertTrue(ready)
+        try XCTUnwrap(elements.compactMap { $0 as? UITextField }.first).insertText(treeID)
+        for step in 1..<targetStep {
+            let enabled = try await waitFor {
+                self.element(label: L10n.StartFlow.next)?.accessibilityTraits.contains(.notEnabled) == false
+            }
+            XCTAssertTrue(enabled)
+            XCTAssertTrue(try XCTUnwrap(element(label: L10n.StartFlow.next)).accessibilityActivate())
+            let advanced = try await waitFor {
+                self.element(label: L10n.StartFlow.stepCountAccessibility(currentStep: step + 1, totalSteps: 5)) != nil
+            }
+            XCTAssertTrue(advanced)
+        }
+    }
+
+    func scrollToDashboardAction(label: String) async throws -> NSObject {
+        func findScroll(_ view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            return view.subviews.lazy.compactMap(findScroll).first
+        }
+        let scroll = try XCTUnwrap(findScroll(controller.view))
+        let maximum = max(0, scroll.contentSize.height - scroll.bounds.height)
+        for offset in stride(from: CGFloat(0), through: maximum, by: max(100, scroll.bounds.height / 2)) {
+            scroll.setContentOffset(CGPoint(x: 0, y: offset), animated: false)
+            window.layoutIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+            if let action = element(label: label), action.accessibilityFrame.intersects(window.bounds) { return action }
+        }
+        return try XCTUnwrap(element(label: label), "Actual Dashboard action must be reachable")
+    }
+
+    func cancelUncapturedScan() async throws {
+        let ready = try await waitFor { self.element(label: L10n.ScanReadiness.back) != nil }
+        XCTAssertTrue(ready)
+        XCTAssertTrue(try XCTUnwrap(element(label: L10n.ScanReadiness.back)).accessibilityActivate())
+        let dismissed = try await waitFor { self.controller.presentedViewController == nil }
+        XCTAssertTrue(dismissed, "Actual non-recording cancel must return to Dashboard")
+    }
+
+    func appendToClassificationNameAndSave(_ text: String) async throws {
+        let editable = try await waitFor { self.elements.contains { $0 is UITextField } }
+        XCTAssertTrue(editable)
+        let field = try XCTUnwrap(elements.compactMap { $0 as? UITextField }.first)
+        field.selectedTextRange = field.textRange(from: field.endOfDocument, to: field.endOfDocument)
+        field.insertText(text)
+        let ready = try await waitFor {
+            self.element(label: L10n.TagManagement.save)?.accessibilityTraits.contains(.notEnabled) == false
+        }
+        XCTAssertTrue(ready)
+        XCTAssertTrue(try XCTUnwrap(element(label: L10n.TagManagement.save)).accessibilityActivate())
+    }
+
     func attach(to test: XCTestCase, phase: String) async throws {
         // Accessibility updates before SwiftUI's 0.3-second step animation finishes painting.
         try await Task.sleep(nanoseconds: 350_000_000)
@@ -172,7 +224,275 @@ private struct RootMismatchHost: View {
     }
 }
 
+@MainActor
+private final class RootClassificationFixture {
+    let suite = "RootClassification-\(UUID())"
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let defaults: UserDefaults
+    let root: AppDependencies
+    static let protectedKeys = [SettingsStoreKey.fruitType, FruitParametersStore.userDefaultsKey,
+                         TagStore.snapshotUserDefaultsKey, "TagStore.plots", "TagStore.tags", "TagStore.assignments"]
+    let standard: [String: Any]
+    let plot: Plot
+    let tag: GroupTag
+
+    init() async throws {
+        await TagStore.shared.waitForPendingSave()
+        await FruitParametersStore.shared.waitForPendingSave()
+        standard = UserDefaults.standard.dictionaryRepresentation().filter { Self.protectedKeys.contains($0.key) }
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let settings = SettingsStore(defaults: defaults)
+        settings.fruitType = "pear"
+        let tags = TagStore(defaults: defaults)
+        tags.addPlot(name: "ROOT41 PLOT")
+        tags.addTag(name: "ROOT41 TAG")
+        plot = try XCTUnwrap(tags.plots.first)
+        tag = try XCTUnwrap(tags.tags.first)
+        root = AppDependencies(settings: settings, scanRepository: ScanRepository(scansDirectory: directory), tagStore: tags)
+        await tags.waitForPendingSave()
+    }
+
+    func mount(on ui: RootLaunchUIHarness) {
+        ui.mount(DashboardView(router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+                               historyStore: root.historyStore).environmentObject(root))
+    }
+
+    func verifyStandard() async {
+        await root.tagStore.waitForPendingSave()
+        let after = UserDefaults.standard.dictionaryRepresentation().filter { Self.protectedKeys.contains($0.key) }
+        XCTAssertTrue(NSDictionary(dictionary: after).isEqual(to: standard), "Isolated root must not write standard classification/settings")
+    }
+
+    func cleanup() {
+        defaults.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: directory)
+    }
+}
+
 final class DashboardSummaryTests: XCTestCase {
+    @MainActor
+    func testDashboardStartUsesRootClassificationAndActivatesOnce() async throws {
+        let fixture = try await RootClassificationFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        let ready = try await ui.waitFor { ui.element(label: L10n.Dashboard.startScan) != nil }
+        XCTAssertTrue(ready)
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Dashboard.startScan)).accessibilityActivate())
+        try await ui.advanceStart(to: 2, treeID: "ROOT41")
+        let plotLabel = "\(fixture.plot.name), \(L10n.StartSetup.text(.plotAssignedSubtitle))"
+        let rootPlot = try await ui.waitFor { ui.element(label: plotLabel) != nil }
+        try await ui.attach(to: self, phase: "classification-start-plot")
+        XCTAssertTrue(rootPlot, "Actual Dashboard Start must read root plots")
+        guard rootPlot else { await fixture.verifyStandard(); return }
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.StartSetup.text(.plotAdd))).accessibilityActivate())
+        try await ui.appendToClassificationNameAndSave("ROOT41 ADDED PLOT")
+        let addedPlot = try await ui.waitFor { fixture.root.tagStore.plots.count == 2 && ui.element(label: plotLabel) != nil }
+        XCTAssertTrue(addedPlot)
+        XCTAssertEqual(fixture.root.tagStore.plots.last?.name, "ROOT41 ADDED PLOT")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: plotLabel)).accessibilityActivate())
+        for step in 2...3 {
+            XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.StartFlow.next)).accessibilityActivate())
+            let advanced = try await ui.waitFor {
+                ui.element(label: L10n.StartFlow.stepCountAccessibility(currentStep: step + 1, totalSteps: 5)) != nil
+            }
+            XCTAssertTrue(advanced)
+        }
+        let rootTag = try await ui.waitFor { ui.element(label: fixture.tag.name) != nil }
+        XCTAssertTrue(rootTag)
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.StartSetup.text(.tagsAdd))).accessibilityActivate())
+        try await ui.appendToClassificationNameAndSave("ROOT41 ADDED TAG")
+        let addedTag = try await ui.waitFor { fixture.root.tagStore.tags.count == 2 && ui.element(label: fixture.tag.name) != nil }
+        XCTAssertTrue(addedTag)
+        XCTAssertEqual(fixture.root.tagStore.tags.last?.name, "ROOT41 ADDED TAG")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: fixture.tag.name)).accessibilityActivate())
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.StartFlow.next)).accessibilityActivate())
+        let confirmation = try await ui.waitFor { ui.categoryPicker != nil }
+        XCTAssertTrue(confirmation)
+        try await ui.attach(to: self, phase: "classification-start-confirmed")
+        let launch = try XCTUnwrap(ui.element(label: L10n.StartFlow.launch))
+        XCTAssertTrue(launch.accessibilityActivate())
+        _ = launch.accessibilityActivate()
+        let activated = try await ui.waitFor { fixture.root.tagStore.getAssignment(treeId: "ROOT41") != nil }
+        XCTAssertTrue(activated)
+        let assignment = try XCTUnwrap(fixture.root.tagStore.getAssignment(treeId: "ROOT41"))
+        XCTAssertEqual(assignment.plotId, fixture.plot.id)
+        XCTAssertEqual(assignment.tagIds, [fixture.tag.id])
+        XCTAssertEqual(assignment.status, .notScanned)
+        XCTAssertEqual(fixture.root.tagStore.assignments.count, 1)
+        try await ui.attach(to: self, phase: "classification-start-activated")
+        try await ui.cancelUncapturedScan()
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Dashboard.startScan)).accessibilityActivate())
+        try await ui.advanceStart(to: 2, treeID: "REOPEN41")
+        XCTAssertEqual(ui.element(label: plotLabel)?.accessibilityValue, L10n.QuickTagging.selectionValue(isSelected: false))
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.StartFlow.cancel)).accessibilityActivate())
+        let dismissed = try await ui.waitFor { ui.controller.presentedViewController == nil }
+        XCTAssertTrue(dismissed)
+        XCTAssertEqual(fixture.root.tagStore.assignments.count, 1)
+        await fixture.verifyStandard()
+        let reloaded = TagStore(defaults: fixture.defaults)
+        XCTAssertEqual(reloaded.plots.map(\.name), ["ROOT41 PLOT", "ROOT41 ADDED PLOT"])
+        XCTAssertEqual(reloaded.tags.map(\.name), ["ROOT41 TAG", "ROOT41 ADDED TAG"])
+        XCTAssertEqual(reloaded.getAssignment(treeId: "ROOT41"), assignment)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path).isEmpty)
+    }
+
+    @MainActor
+    func testDashboardTagManagementEditsTheRootClassification() async throws {
+        let fixture = try await RootClassificationFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        ui.window.overrideUserInterfaceStyle = .light
+        fixture.mount(on: ui)
+        let ready = try await ui.waitFor { ui.element(label: L10n.Dashboard.startScan) != nil }
+        XCTAssertTrue(ready)
+        let label = L10n.Dashboard.quickActionAccessibilityLabel(title: L10n.Dashboard.tagManagementTitle,
+                                                               description: L10n.Dashboard.tagManagementDescription)
+        let action = try await ui.scrollToDashboardAction(label: label)
+        XCTAssertTrue(action.accessibilityActivate())
+        let rootPlot = try await ui.waitFor { ui.element(label: fixture.plot.name) != nil }
+        try await ui.attach(to: self, phase: "classification-management-root")
+        XCTAssertTrue(rootPlot, "Actual management route must edit the same root classification as Start")
+        guard rootPlot else { await fixture.verifyStandard(); return }
+        let tabs = try XCTUnwrap(ui.elements.compactMap { $0 as? UISegmentedControl }.first)
+        XCTAssertEqual(tabs.traitCollection.userInterfaceStyle, .dark,
+                       "System classification controls must use dark appearance on the fixed dark page")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: fixture.plot.name)).accessibilityActivate())
+        try await ui.appendToClassificationNameAndSave(" EDITED")
+        let updated = try await ui.waitFor {
+            fixture.root.tagStore.plots.first?.name == "ROOT41 PLOT EDITED" &&
+                ui.element(label: "ROOT41 PLOT EDITED") != nil
+        }
+        XCTAssertTrue(updated)
+        XCTAssertEqual(fixture.root.tagStore.plots.first?.id, fixture.plot.id)
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.TagManagement.done)).accessibilityActivate())
+        let returned = try await ui.waitFor { ui.controller.presentedViewController == nil }
+        XCTAssertTrue(returned)
+        await fixture.verifyStandard()
+        let reloaded = TagStore(defaults: fixture.defaults)
+        XCTAssertEqual(reloaded.plots.first?.name, "ROOT41 PLOT EDITED")
+        XCTAssertEqual(reloaded.plots.first?.id, fixture.plot.id)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path).isEmpty)
+    }
+
+    @MainActor
+    func testDashboardQuickScanActivatesOnlyRootAndCancelsWithoutExtraAssignment() async throws {
+        let fixture = try await RootClassificationFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        let ready = try await ui.waitFor { ui.element(label: L10n.Dashboard.quickCapture) != nil }
+        XCTAssertTrue(ready)
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Dashboard.quickCapture)).accessibilityActivate())
+        let presented = try await ui.waitFor { ui.categoryPicker != nil }
+        XCTAssertTrue(presented)
+        let launch = try XCTUnwrap(ui.element(label: L10n.QuickScan.launch))
+        XCTAssertTrue(launch.accessibilityActivate())
+        _ = launch.accessibilityActivate()
+        let activated = try await ui.waitFor { fixture.root.tagStore.assignments.count == 1 }
+        XCTAssertTrue(activated)
+        let assignment = try XCTUnwrap(fixture.root.tagStore.assignments.first)
+        XCTAssertTrue(assignment.treeId.hasPrefix("Q"))
+        XCTAssertNil(assignment.plotId)
+        XCTAssertTrue(assignment.tagIds.isEmpty)
+        XCTAssertEqual(assignment.status, .notScanned)
+        try await ui.attach(to: self, phase: "classification-quick-activated")
+        try await ui.cancelUncapturedScan()
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Dashboard.quickCapture)).accessibilityActivate())
+        let reopened = try await ui.waitFor { ui.categoryPicker != nil }
+        XCTAssertTrue(reopened)
+        XCTAssertEqual(ui.categoryPicker?.accessibilityValue, L10n.FruitCategoryVerification.selectionAccessibilityValue(.pear))
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.QuickScan.close)).accessibilityActivate())
+        let dismissed = try await ui.waitFor { ui.controller.presentedViewController == nil }
+        XCTAssertTrue(dismissed)
+        XCTAssertEqual(fixture.root.tagStore.assignments.count, 1)
+        await fixture.verifyStandard()
+        XCTAssertEqual(TagStore(defaults: fixture.defaults).getAssignment(treeId: assignment.treeId), assignment)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path).isEmpty)
+    }
+
+    @MainActor
+    func testDashboardHistoryRescanKeepsRootAssignmentAndOriginalArchive() async throws {
+        let fixture = try await RootClassificationFixture()
+        defer { fixture.cleanup() }
+        let source = fixture.directory.appendingPathComponent("rescan41.ply")
+        try PLYPointCloudWriter.write(points: [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)],
+                                      treeID: "RESCAN41", scanDate: "2026-10-03 00:00:00", gpsLat: 0, gpsLon: 0, to: source)
+        let bytes = try Data(contentsOf: source)
+        fixture.root.tagStore.createOrUpdateAssignment(treeId: "RESCAN41", plotId: fixture.plot.id,
+                                                       tagIds: [fixture.tag.id], status: .reviewing)
+        await fixture.root.tagStore.waitForPendingSave()
+        let original = try XCTUnwrap(fixture.root.tagStore.getAssignment(treeId: "RESCAN41"))
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        let loaded = try await ui.waitFor { !fixture.root.historyStore.isLoading && fixture.root.historyStore.scanFiles.count == 1 }
+        XCTAssertTrue(loaded)
+        let history = try await ui.scrollToDashboardAction(label: L10n.Dashboard.viewAll)
+        XCTAssertTrue(history.accessibilityActivate())
+        let rescanLabel = NSLocalizedString("history.row.rescan_action", value: "Rescan", comment: "")
+        let listed = try await ui.waitFor { ui.element(label: rescanLabel) != nil }
+        XCTAssertTrue(listed)
+        try await ui.attach(to: self, phase: "classification-rescan-listed")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: rescanLabel)).accessibilityActivate())
+        let activated = try await ui.waitFor { ui.element(label: L10n.ScanReadiness.back) != nil }
+        XCTAssertTrue(activated)
+        XCTAssertEqual(fixture.root.tagStore.getAssignment(treeId: "RESCAN41"), original,
+                       "Actual history rescan must preserve root plot/tag/status/assignment identity")
+        try await ui.attach(to: self, phase: "classification-rescan-activated")
+        try await ui.cancelUncapturedScan()
+        await fixture.verifyStandard()
+        XCTAssertEqual(TagStore(defaults: fixture.defaults).getAssignment(treeId: "RESCAN41"), original)
+        XCTAssertEqual(try Data(contentsOf: source), bytes)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path), ["rescan41.ply"])
+    }
+
+    @MainActor
+    func testRootRescanRequestFreezesRootCategoryAndClassification() async throws {
+        let fixture = try await RootClassificationFixture()
+        defer { fixture.cleanup() }
+        fixture.root.settings.maxPointCount = 1_400_000
+        fixture.root.tagStore.createOrUpdateAssignment(treeId: "RESCAN41", plotId: fixture.plot.id,
+                                                       tagIds: [fixture.tag.id], status: .completed)
+        let request = try XCTUnwrap(fixture.root.rescanRequest(treeID: " RESCAN41 "))
+        XCTAssertEqual(request.treeID, "RESCAN41")
+        XCTAssertEqual(request.selectedFruitCategory, .pear)
+        XCTAssertEqual(request.plotId, fixture.plot.id)
+        XCTAssertEqual(request.tagIds, [fixture.tag.id])
+        XCTAssertEqual(request.season, .mature)
+        let frozen = fixture.root.scanPlanFactory.makePlan(treeID: request.treeID, season: request.season,
+                                                          selectedCategory: request.selectedFruitCategory, renderer: nil)
+        fixture.root.settings.fruitType = "orange"
+        fixture.root.settings.maxPointCount = 100_000
+        fixture.root.tagStore.deletePlot(id: fixture.plot.id)
+        fixture.root.tagStore.deleteTag(id: fixture.tag.id)
+        XCTAssertEqual(request.selectedFruitCategory, .pear)
+        XCTAssertEqual(request.plotId, fixture.plot.id)
+        XCTAssertEqual(request.tagIds, [fixture.tag.id])
+        XCTAssertEqual(frozen.fruitConfiguration.selectedCategory, .pear)
+        XCTAssertEqual(frozen.rendererSettings.maxPoints, 1_400_000)
+        let next = try XCTUnwrap(fixture.root.rescanRequest(treeID: "RESCAN41"))
+        XCTAssertEqual(next.selectedFruitCategory, .orange)
+        XCTAssertNil(next.plotId)
+        XCTAssertTrue(next.tagIds.isEmpty)
+        XCTAssertNotEqual(next.id, request.id)
+        XCTAssertFalse(next.gps === request.gps)
+        let unassigned = try XCTUnwrap(fixture.root.rescanRequest(treeID: "NEW41"))
+        XCTAssertNil(unassigned.plotId)
+        XCTAssertTrue(unassigned.tagIds.isEmpty)
+        for invalid in ["", " ../bad ", "bad\nname"] {
+            XCTAssertNil(fixture.root.rescanRequest(treeID: invalid))
+        }
+        XCTAssertEqual(fixture.root.tagStore.getAssignment(treeId: "RESCAN41")?.status, .completed)
+        XCTAssertEqual(fixture.root.tagStore.assignments.count, 1, "Request construction must not create assignments")
+        await fixture.verifyStandard()
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path).isEmpty)
+    }
+
     @MainActor
     func testLaunchControlsWriteRootOnceAndFreezeRequest() async throws {
         await FruitParametersStore.shared.waitForPendingSave()

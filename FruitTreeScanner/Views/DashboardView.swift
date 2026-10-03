@@ -31,6 +31,14 @@ struct DashboardView: View {
         appDependencies.settings
     }
 
+    var tagStore: TagStore {
+        appDependencies.tagStore
+    }
+
+    func rescanRequest(treeID: String) -> ScanLaunchRequest? {
+        appDependencies.rescanRequest(treeID: treeID)
+    }
+
     private var recentScans: [ScanFileRecord] {
         Array(historyStore.scanFiles.prefix(3))
     }
