@@ -11,9 +11,14 @@ extension ScanView {
         refreshScanReadiness()
         coordinator.hudState = hudState
         coordinator.onCoveragePercentChange = handleCoveragePercentChange
+        categoryMismatchPresentation.bind(
+            settings: appDependencies.settings,
+            currentScanIdentity: { [weak coordinator = coordinator] in coordinator?.lifecycleSnapshot().scanIdentity },
+            onStop: cancelScan
+        )
         coordinator.onFruitCategoryMismatch = { mismatch in
             guard isViewActive else { return }
-            categoryMismatch = mismatch
+            categoryMismatchPresentation.present(mismatch, scanIdentity: coordinator.lifecycleSnapshot().scanIdentity)
         }
         coordinator.onCalibrationWarning = { warning in
             guard isViewActive else { return }
@@ -67,6 +72,7 @@ extension ScanView {
 
     func handleDisappear() {
         isViewActive = false
+        categoryMismatchPresentation.invalidate()
         finalizationWorkflow.onEvent = nil
         cancelScanReadinessRequest(clearRecoveryRequest: true)
         invalidateTemporaryNotice()

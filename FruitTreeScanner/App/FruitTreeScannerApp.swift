@@ -51,12 +51,14 @@ struct FruitTreeScannerApp: App {
 @MainActor
 final class AppDependencies: ObservableObject {
     let settings: SettingsStore
+    let tagStore: TagStore
     let scanPlanFactory: ScanPlanFactory
     let scanRepository: ScanRepository
     let historyStore: ScanHistoryStore
 
-    init(settings: SettingsStore = .shared, scanRepository: ScanRepository = .shared) {
+    init(settings: SettingsStore = .shared, scanRepository: ScanRepository = .shared, tagStore: TagStore = .shared) {
         self.settings = settings
+        self.tagStore = tagStore
         self.scanRepository = scanRepository
         self.historyStore = ScanHistoryStore(repository: scanRepository)
         self.scanPlanFactory = ScanPlanFactory(settings: settings)
@@ -80,5 +82,19 @@ final class AppDependencies: ObservableObject {
 
     func calibrationScanSource() -> CalibrationScanSource {
         .production(repository: scanRepository, historyStore: historyStore)
+    }
+
+    func rescanRequest(treeID: String) -> ScanLaunchRequest? {
+        let treeID = TreeIdentifierPolicy.normalized(treeID)
+        guard TreeIdentifierPolicy.isValid(treeID) else { return nil }
+        let existing = tagStore.getAssignment(treeId: treeID)
+        return ScanLaunchRequest(
+            treeID: treeID,
+            selectedFruitCategory: FruitCategory.scanCategory(for: settings.fruitType),
+            season: .mature,
+            gps: GPSRecorder(),
+            plotId: existing?.plotId,
+            tagIds: existing?.tagIds ?? []
+        )
     }
 }

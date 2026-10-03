@@ -65,11 +65,17 @@ enum TagManagementDeletionRequest {
 
 struct TagManagementView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var tagStore = TagStore.shared
+    @ObservedObject private var tagStore: TagStore
     var onStartScan: (() -> Void)? = nil
     @State private var selectedTab: Int = 0
     @State private var presentedSheet: TagManagementSheet?
     @State private var pendingDeletion: TagManagementDeletionRequest?
+
+    @MainActor
+    init(onStartScan: (() -> Void)? = nil, tagStore: TagStore = .shared) {
+        self.onStartScan = onStartScan
+        self.tagStore = tagStore
+    }
 
     var body: some View {
         NavigationView {
@@ -195,6 +201,7 @@ struct TagManagementView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     private var isDeletionDialogPresented: Binding<Bool> {

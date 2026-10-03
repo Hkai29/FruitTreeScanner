@@ -32,6 +32,7 @@ final class QuickScanTreeIdentifierDraft: ObservableObject {
 
 struct QuickScanView: View {
     var onLaunchScan: (ScanLaunchRequest) -> Void
+    private let settings: SettingsStore
 
     @Environment(\.dismiss) var dismiss
     @StateObject private var gps = GPSRecorder()
@@ -39,7 +40,14 @@ struct QuickScanView: View {
     @StateObject private var treeIdentifierDraft = QuickScanTreeIdentifierDraft(
         value: QuickScanView.makeDefaultTreeID()
     )
-    @State private var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
+    @State private var selectedFruitCategory: FruitCategory
+
+    @MainActor
+    init(settings: SettingsStore = .shared, onLaunchScan: @escaping (ScanLaunchRequest) -> Void) {
+        self.settings = settings
+        self.onLaunchScan = onLaunchScan
+        _selectedFruitCategory = State(initialValue: FruitCategory.scanCategory(for: settings.fruitType))
+    }
 
     private var canLaunch: Bool {
         !launchGate.isSubmitting && treeIdentifierDraft.validatedValue != nil
@@ -170,7 +178,7 @@ struct QuickScanView: View {
                 )
             },
             deliver: { request in
-                SettingsStore.shared.fruitType = selectedFruitCategory.rawValue
+                settings.fruitType = request.selectedFruitCategory.rawValue
                 onLaunchScan(request)
             }
         )

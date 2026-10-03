@@ -5,21 +5,31 @@ import SwiftUI
 
 struct StartView: View {
     var onLaunchScan: (ScanLaunchRequest) -> Void
+    let settings: SettingsStore
 
     @Environment(\.dismiss) private var dismiss
 
-    @ObservedObject var tagStore = TagStore.shared
+    @ObservedObject var tagStore: TagStore
     @State var currentStep = 1
     @State var treeIdentifierDraft = StartTreeIdentifierDraft()
     @State var selectedPlotId: UUID?
     @State var season: Season = .mature
     @State var selectedTagIds: Set<UUID> = []
-    @State var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
+    @State var selectedFruitCategory: FruitCategory
     @StateObject var launchGate = ScanLaunchSubmissionGate()
     @State var presentedSheet: StartViewSheet?
     @State var gps = GPSRecorder()
 
     let totalSteps = 5
+
+    @MainActor
+    init(settings: SettingsStore = .shared, tagStore: TagStore = .shared,
+         onLaunchScan: @escaping (ScanLaunchRequest) -> Void) {
+        self.settings = settings
+        self.tagStore = tagStore
+        self.onLaunchScan = onLaunchScan
+        _selectedFruitCategory = State(initialValue: FruitCategory.scanCategory(for: settings.fruitType))
+    }
 
     var isLaunchingScan: Bool {
         launchGate.isSubmitting

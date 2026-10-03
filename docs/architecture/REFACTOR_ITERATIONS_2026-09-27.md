@@ -631,6 +631,99 @@ ScanLaunchRequest → ScanPlanFactory，以及 ScanView 品类不匹配停止/�
 更新下一轮构思，不以一轮完成宣告整体目标完成；提交/推送按当前明确授权执行。
 ```
 
+## 第四十轮：启动品类与不匹配动作的根配置和扫描边界
+
+2026-10-03 自动目标续轮。第 36–39 轮已通过 [PR #14](https://github.com/Hkai29/FruitTreeScanner/pull/14) 推送并合并，远端状态重新核实为 MERGED，合并提交 `196c5f73724836b316c934a6a16d1a3bc4cebd5d`。本轮基线 HEAD `5d977e59` 的文件树与该合并提交一致；第 40 轮仍是本地未提交、未推送改动。
+
+实际 Dashboard 根装配下，Start/QuickScan 品类草稿及提交仍使用 shared 配置；ScanView 不匹配停止/切换也写 shared。`before-proven.xcresult` 中两条启动路由显示苹果而独立根为梨，`before-mismatch-proven.xcresult` 中实际 ScanView 绑定的停止/切换未更新根，均保留退出 65 的产品失败。早期控件定位、呈现层遍历、Picker 合并标签和单位测试上下文不能使用 XCUIApplication 等工具失败另列；最终测试没有这些无效调用，也没有私有 API 或新增生产测试入口。
+
+- Dashboard 的真实 fullScreen 路由传递根 SettingsStore；StartView/QuickScanView 的默认构造兼容，每次创建从根初始化本地选择草稿，确认时按冻结请求写回该根。后续根变化不覆盖现有草稿、旧请求或 ScanPlan，launchGate 仍恰好一次提交。
+- 不匹配提示由 ScanCategoryMismatchPresentationController 持有当前选择，绑定根设置及实际 cancelScan。选择凭证带 presentation ID、scan identity 与绑定 identity；继续仅清除选择，停止先消费凭证，再在提示/偏好发布前后核对绑定和扫描，离开释放绑定。UIKit 呈现 binding 已清空时，已捕获的有效动作仍可完成；旧动作、旧扫描、重绑定及同步重入不会取消替换后的扫描。
+- `before-reentrant.xcresult` 证明偏好同步观察者替换扫描后旧动作仍会取消；`before-owner.xcresult` 证明同步重入会重复取消；`before-system-dismissal.xcresult` 证明只依赖呈现 binding 会丢失有效切换。修复后的专门回归覆盖这三类边界、同 scan ID 重绑定、凭证替换与释放。
+- 首次全量执行 **1033 项，其中 1032 通过、1 失败**，暴露品种“使用”后返回设置仍显示旧梨的问题；`after-render.xcresult` 再次复现。SettingsView 移除重复品类 State，以观察根的 Binding 显示/写入；第 39 轮既有回归保持原断言，点数/精度草稿、舍入、拖动结束与离开提交保持。
+- 新增 8 个回归方法。Dashboard 实际入口、取消/重开和根草稿用隔离偏好及空目录验证；独立实际 Start 五步与 QuickScan 控件选择葡萄、快速重复提交只交付一次，标准设置/参数/标签保持。实际 ScanView 装配回调、继续与停止意图验证当前计划、根切换、实际取消和关闭；没有运行 AR 采集或创建档案。
+- 最后源码修改后定向 **22 项通过**；`lifecycle ui full` **1034 项通过、0 失败/跳过/预期失败、59 个测试类、9 步全部退出 0**。Domain 24 源检查与 unsigned Release 模拟器构建通过，验证开始/结束源码快照相同。22 个定向方法及全量 37 个关键方法逐项 Passed；当前 7 个生产文件和测试文件摘要与最终受测源码一致，随后只更新本记录。
+- 26 张最终 PNG 及配对 accessibility 文本已检查。新启动截图等待 350ms 避免 AX 已更新但动画尚未绘制；早期过时截图保留。最终第一张 mismatch-continue PNG 仍是黑色背景，不能证明第一次提示的视觉呈现；第二张 mismatch-stop 显示完整消息及两个按钮，关闭截图显示测试宿主页。提示选择通过 controller 意图调用，继续后以 UIKit 公共 dismiss 模拟系统收起，**不能表述为已自动点击系统 Alert 按钮**。相机菜单阶段 PNG 未绘制菜单，不据此宣称选项视觉验收。既有 390pt 确认提示换行、可滚动 GPS 行及品种参数换行另轮处理。
+
+最终受测 Debug App 安装到专用 iOS 27 模拟器。原生 CUA 走查实际工作台 → QuickScan，首次定位提示选择“不允许”；苹果、有效自动树编号、未锁定 GPS 提示及六类菜单已核对，菜单点外部取消。关闭/重开 QuickScan 后编号更新；新建扫描两次打开均为空编号、步骤 1/5、下一步禁用，取消返回工作台。最后恢复完整 Device Hub，选中专用模拟器、键盘捕获关闭、Fit 缩放、工作台可见。未在原生走查中提交扫描、改变品类或授权定位。
+
+安装前后及走查后 **11 份档案/校准 SHA-256、扫描文件集合与本轮 25 项保护设置的值/缺失状态一致**。安装前有两项相对第 39 轮的既有差异：maxPointCount 已为 300 万、scanPrecision 已为 0.05，记录后使用本轮实际基线，未重置。六项原有工作流 dirty work 摘要不变；算法、`.fused` 唯一可靠来源、深度/confidenceMap 拒绝、诊断、阈值、schema 1–3、摘要、校准身份及资源限制保持。
+
+证据位于 `/private/tmp/fruit-iteration40/`：产品失败结果、`after-reviewed.xcresult`、`attachments-after-reviewed/`、`fruit-code-improvement-x1r37xf2/report.json`、`critical-methods.json`、`render-review.json`、`native-preflight-drift.json`、`ui-install-preservation.json`、`native-final-preservation.json`、`ui-validation.json`、`final-source-preservation.json` 和 `final-review.json`。单独只读差异复审无本轮阻塞发现，代码 **mergeable**。既有 QoS/异步 RunLoop/XCTest 最低版本/IOSurface 提示仍保留，不据此宣称性能或最低 iOS 16 运行验收。
+
+实际 Dashboard 提交仍会写 shared TagStore，本轮路由集成测试停在取消/重开，实际启动控件的请求交付另测，不能合称 Dashboard 提交全链路已验收。launchRescan 仍读取 shared 设置和分类。分类根所有权、窄屏展示及物理 30/60/120 秒采集、人工果数和资源测量仍待完成，整体为 **needs changes**，目标保持 active。
+
+### 下一轮构思与提示词：分类根所有权及实际启动/重新扫描
+
+```text
+继续 FruitTreeScanner 重构，读取 AGENTS.md、本记录并 preflight。
+第 40 轮启动/不匹配根配置及动作凭证已完成，最终全量 1034 项通过；
+PR #14 已合并第 36–39 轮，第 40 轮本地未提交；先核对实际 Git/PR 状态。
+保护六项原有工作流 dirty work、已受测第 40 轮、专用模拟器档案和实际设置。
+追踪 AppDependencies → Dashboard activateScan/launchRescan → ScanLaunchRequest/ScanPlan，
+以及 StartView 的地块/标签草稿、添加入口和 TagStore.shared 消费者。
+根当前未持有 TagStore，activateScan 写 shared，launchRescan 读取 shared 设置/分类；
+先建立隔离根下实际路由失败回归，再按证据引入必要根依赖，保留默认构造兼容。
+测试使用自有偏好、目录与分类，不能提交到标准 TagStore 或改真实档案。
+证明 actual fullScreen dismissal → 请求激活、新树、取消/重开及重复提交的行为，
+保留已冻结请求/计划的水果、地块与标签，不让后续编辑或新根覆盖旧扫描。
+保留 TagStore v1 snapshot、三项 legacy key、Codable ID/状态及失效地块/标签协调，
+核对异步待保存、发布重入和绑定替换；不随注入迁移修改格式或丢弃恢复数据。
+只修复有失败证据的消费者，保持单 App target 和模型/shader 归属。
+最后源码改动后运行对应配置/分类/启动/生命周期/UI及必要 storage/full/Release，
+逐项检查结果树和快照，单独复审差异，再进行保护数据的原生导航验收。
+区分真实系统控件点击、XCTest 公共控件动作、controller 意图和物理设备证据。
+保持 .fused、深度/confidenceMap 拒绝、诊断、阈值、schema、摘要、校准与资源上限。
+窄屏展示和物理 LiDAR/人工果数/30/60/120 秒资源验收分别处理。
+完成后更新下一轮构思；提交、推送和合并按当前明确授权执行。
+```
+
+## 第四十一轮：分类根所有权与实际启动、重新扫描
+
+2026-10-03。基线包含已受测的第 40 轮及六项原有工作流 dirty work。PR #14 已合并第 36–39 轮；本次按用户“推送并合并”授权交付第 40–41 轮，第 40 轮源码提交 `06f36359`，第 41 轮源码提交 `afabc468`。前文“本地未提交”描述的是各轮结束时的历史状态，远端交付终态以本次 PR 为准。
+
+实际 Dashboard 的 Start/TagManagement、activateScan 和 launchRescan 仍使用 shared 分类，导致独立根配置下读写另一套地块、标签和归属。`before-root-fixture.xcresult` 的两条实际路由读回归均失败；guard 在缺失根地块时停止，未继续写标准分类。迁移激活写入后，`before-rescan.xcresult` 又证明实际历史复扫读取 shared，清空了根 assignment 的地块/标签。早期测试的异步断言、夹具初始化、覆盖页面控件、光标位置和编辑器关闭时机问题单独保留，不归为产品回归。
+
+- AppDependencies 持有 TagStore，保留 `.shared` 默认构造；Dashboard 传递同一根到 StartView、TagManagementView，activateScan 在该根写入并保留既有状态。TagStore 自身的校验、失效引用协调、异步保存、v1 snapshot 和三项 legacy key 未改动。
+- 根 `rescanRequest(treeID:)` 先标准化并校验编号，再冻结根品类、地块和标签；不创建 assignment。每个请求拥有新 ID/GPS，后续根配置/分类编辑不改变旧请求或 ScanPlan。实际历史复扫及取消保持原 assignment ID、地块、标签、状态和原始 PLY 字节。
+- 新增 5 个方法。实际 Dashboard → Start 五步中的添加地块、添加标签、选择、确认、source dismissal 后激活，QuickScan 激活、取消/重开，以及历史复扫均在自有偏好与目录中运行。快速重复控件激活结合原 launchGate 回归验证单次交付；assignment 数量为 1 本身不被当作保存调用次数计数。6 项标准偏好值/缺失状态及自有目录字节均核对。
+- 测试遍历只读取最上层实际呈现页面，排除覆盖层保留的旧编辑控件，防止添加标签时编辑已关闭的地块字段。第 40 轮及更早方法的正文/断言保持；相关旧方法随本轮再次执行。
+- 首次定向 47 项和全量 1039 项已通过，但渲染复审发现浅色入口下分类页白色行底与白色文字不可读。`before-management-appearance.xcresult` 在测试自有浅色窗口复现；分类页局部声明深色方案，系统 segmented control/行与既有深色背景一致，不改变全局或持久偏好。
+- 最后源码修改后，定向 **47 项通过**；`storage lifecycle ui full` **1039 项通过、0 失败/跳过/预期失败、59 个测试类、9 步全部退出 0**。Domain 24 源检查与 unsigned Release 模拟器构建通过；开始/结束快照一致，11 个变更源码/测试文件仍与最终受测摘要一致。47 个定向方法及全量 62 个关键方法逐项 Passed。
+- 最终 35 张 PNG、33 份 accessibility 附件均检查，加载根地块的深色行已可读。此轮 continue/stop 两张不匹配提示均实际绘制，但动作仍是 controller 意图调用加 UIKit 公共 dismiss，不能称为自动点击系统 Alert。相机菜单阶段未绘制选项；390pt 确认页换行和 AX5 保存按钮在截屏底缘之外仍保留证据限制。
+
+最终 Debug App 安装到专用 iOS 27 模拟器。原生 CUA 核对工作台 → 地块标签 → 地块/标签/状态三个分页、实际添加标签表单的取消、状态空态 → 新建扫描的源页面关闭交接、空编号 1/5 与禁用下一步、取消、分类页重开复位及实际完成返回。滚动动画中的一次点击打开批量导出，只查看后关闭，未导出。未编辑分类、提交扫描、改变设置或授予定位权限；第 2 步及实际提交由隔离挂载的 XCTest 控件验证，不合称本轮原生验证。第 40 轮原生 QuickScan 证据仍单独保留。
+
+安装前后及走查后 **11 份档案/校准 SHA-256、扫描文件集合及 25 项设置的值/缺失状态一致**。最终完整 Device Hub 选中专用模拟器，键盘捕获关闭、Fit 缩放、工作台顶部可见。六项原有工作流改动摘要不变且未包含在本次提交；算法、`.fused` 唯一可靠来源、深度/confidenceMap 拒绝、诊断、阈值、schema、摘要、校准身份和资源上限保持。
+
+证据在 `/private/tmp/fruit-iteration41/`：产品失败结果、`after-final.xcresult`、`attachments-after-final/`、`fruit-code-improvement-pgumnfa6/report.json`、`critical-methods.json`、`render-review.json`、`native-final-preservation.json`、`ui-validation.json`、`final-source-preservation.json` 和 `final-review.json`。独立只读差异复审没有本轮阻塞发现，提交范围 **mergeable**。既有 QoS 等运行提示仍存在，无实测性能、最低 iOS 16 运行或物理 LiDAR 验收声明。
+
+此轮完成启动/分类生产者及激活/复扫；历史筛选与复核写入、结果快速标记、批量导出分类名称仍有 shared 消费者。分类消费者迁移及物理 30/60/120 秒采集、人工果数和资源测量待完成，整体仍为 **needs changes**，目标保持 active。
+
+### 下一轮构思与提示词：分类消费者的根装配
+
+```text
+继续 FruitTreeScanner 重构，读取 AGENTS.md、本记录并 preflight。
+第 40–41 轮启动/不匹配根配置、分类生产者及 Dashboard 激活/复扫已完成；
+最新全量 1039 项、定向 47 项与 Release 构建通过，先核对本次实际 Git/PR 终态。
+保护六项原有工作流 dirty work、已受测源码、专用模拟器 11 份档案及 25 项实际设置。
+追踪 Dashboard → HistorySheetView → ScanHistoryView 的地块/状态筛选及复核写入，
+ScanView → ScanScannerInterfaceLayer → ScanResultLayer → ResultView → QuickTaggingCard，
+以及 Dashboard → BatchExportView 的分类名称读取和导出映射。
+先用隔离根、偏好和自有文件证明实际读取/写入失败；只迁移有证据的必要消费者。
+不能在失败旧实现上继续写入标准 TagStore，也不能新增闲置产品测试路径。
+逐个保留默认构造兼容，实际筛选、复核、结果保存和导出调用必须使用同一根。
+TreeFilterView 当前未找到生产调用，先重新核对真实用途，不能虚构已接入的路径。
+保持请求/计划冻结、归属 ID/状态、删除引用协调、TagStore v1/legacy keys 与待保存语义，
+保持原始 PLY、结果/manifest 摘要及批量导出前后校验；不要随注入变更格式。
+最后源码修改后运行分类/历史/结果/导出定向及必要 storage/lifecycle/ui/full/Release，
+逐方法核对结果树、源码快照和渲染附件，独立复审，再完成保护数据的原生导航。
+区分 CUA 系统操作、XCTest 公共控件、controller 意图及物理设备证据。
+保持 .fused 唯一可靠来源、拒绝原因/诊断、阈值、schema、校准身份和资源上限。
+窄屏展示与物理 LiDAR/人工果数/30/60/120 秒资源验收另列，不以本轮通过代替整体完成。
+完成后记录下一轮构思；提交、推送与合并按当前明确授权执行。
+```
+
 ## 验证记录
 
 日志与 xcresult 位于 `/Users/reece24/Library/Logs/FruitTreeScanner/architecture-reassessment-20260927/`。
@@ -908,7 +1001,12 @@ Mac 已可操作；趋势、地图空态入口/关闭及对比实际选择有原
 报告实际两条完整记录统计与关闭、对比返回已补齐，11 份档案/校准文件保持。
 第 39 轮设置、相机和品种当前品类已共用根配置，最新全量 1026 项通过；
 11 份档案和 21 项保护设置保持，实际设置/菜单取消/返回/关闭/重开已走查。
-下一步按第 39 轮提示词核对启动和品类不匹配消费者，先证明真实装配失败再迁移。
+第 40 轮已贯通启动与品类不匹配根配置、动作凭证和设置返回显示，最新全量 1034 项通过；
+11 份档案及本轮 25 项保护设置保持，启动入口/取消/重开已原生走查。
+第 41 轮已贯通分类生产者、实际 Dashboard 激活和重新扫描，最新全量 1039 项通过；
+11 份档案和 25 项设置保持，分类分页/表单取消/转入启动/重开/完成返回已原生走查。
+第 40–41 轮源码已分别提交，按此次明确授权推送并合并，以最新 PR 终态为准。
+下一步按第 41 轮提示词迁移历史筛选/复核、结果快速标记及批量导出分类消费者。
 保护真实数据，不新增闲置生产测试路径。
 完成/重试已有代码回归；单独说明模拟器无 LiDAR 的 UI 范围与尚缺的物理证据。
 Domain 仍使用模块内访问；framework/package 需另行定义公开 API 并迁移消费者。

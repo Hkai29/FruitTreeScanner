@@ -38,7 +38,7 @@ struct ScanView: View {
     @State var pendingLifecycleRecoveryAfterReadiness = false
     @StateObject var readinessRequestController = ScanReadinessRequestController()
     @State var showCancelConfirmation = false
-    @State var categoryMismatch: FruitCategoryMismatch?
+    @StateObject var categoryMismatchPresentation = ScanCategoryMismatchPresentationController()
     @State var showLifecycleRecovery = false
 
     var lifecycleSnapshot: ScanLifecycleSnapshot { sessionModel.lifecycleSnapshot }
@@ -115,17 +115,19 @@ struct ScanView: View {
             } message: {
                 Text(L10n.ScanCancellation.text(.message))
             }
-            .alert(item: $categoryMismatch) { mismatch in
-                Alert(
+            .alert(item: $categoryMismatchPresentation.presentation) { presentation in
+                let mismatch = presentation.mismatch
+                return Alert(
                     title: Text(L10n.FruitCategoryVerification.mismatchTitle),
                     message: Text(L10n.FruitCategoryVerification.mismatchMessage(
                         selected: mismatch.selectedCategory,
                         detected: mismatch.dominantDetectedCategory
                     )),
-                    primaryButton: .default(Text(L10n.FruitCategoryVerification.continueAction)),
+                    primaryButton: .default(Text(L10n.FruitCategoryVerification.continueAction)) {
+                        categoryMismatchPresentation.continueScan(presentationID: presentation.id)
+                    },
                     secondaryButton: .destructive(Text(L10n.FruitCategoryVerification.stopAndSwitchAction)) {
-                        SettingsStore.shared.fruitType = mismatch.dominantDetectedCategory.rawValue
-                        cancelScan()
+                        categoryMismatchPresentation.stopAndSwitch(presentationID: presentation.id)
                     }
                 )
             }
@@ -165,6 +167,74 @@ struct ScanView: View {
 
     func invalidateCoverageCompletion() {
         coverageCompletionPresentation.invalidate()
+    }
+}
+
+@MainActor
+final class ScanCategoryMismatchPresentationController: ObservableObject {
+    struct Presentation: Identifiable {
+        let id = UUID()
+        let mismatch: FruitCategoryMismatch
+        let scanIdentity: UUID
+    }
+
+    @Published var presentation: Presentation?
+    private var activeChoice: Presentation?
+    private var settings: SettingsStore?
+    private var currentScanIdentity: (() -> UUID?)?
+    private var onStop: (() -> Void)?
+    private var bindingIdentity = UUID()
+    private var isHandlingChoice = false
+
+    func bind(settings: SettingsStore, currentScanIdentity: @escaping () -> UUID?, onStop: @escaping () -> Void) {
+        bindingIdentity = UUID()
+        activeChoice = nil
+        self.settings = settings
+        self.currentScanIdentity = currentScanIdentity
+        self.onStop = onStop
+        presentation = nil
+    }
+
+    func present(_ mismatch: FruitCategoryMismatch, scanIdentity: UUID) {
+        guard !isHandlingChoice, settings != nil, onStop != nil,
+              currentScanIdentity?() == scanIdentity else { return }
+        let choice = Presentation(mismatch: mismatch, scanIdentity: scanIdentity)
+        activeChoice = choice
+        presentation = choice
+    }
+
+    func continueScan(presentationID: UUID) {
+        guard !isHandlingChoice, let current = activeChoice, current.id == presentationID,
+              current.scanIdentity == currentScanIdentity?() else { return }
+        isHandlingChoice = true
+        defer { isHandlingChoice = false }
+        activeChoice = nil
+        presentation = nil
+    }
+
+    func stopAndSwitch(presentationID: UUID) {
+        guard !isHandlingChoice, let current = activeChoice, current.id == presentationID,
+              current.scanIdentity == currentScanIdentity?(),
+              let settings, let onStop else { return }
+        let binding = bindingIdentity
+        isHandlingChoice = true
+        defer { isHandlingChoice = false }
+        activeChoice = nil
+        presentation = nil
+        // Publishing the dismissal or preference can synchronously replace the scan or page binding.
+        guard binding == bindingIdentity, current.scanIdentity == currentScanIdentity?() else { return }
+        settings.fruitType = current.mismatch.dominantDetectedCategory.rawValue
+        guard binding == bindingIdentity, current.scanIdentity == currentScanIdentity?() else { return }
+        onStop()
+    }
+
+    func invalidate() {
+        bindingIdentity = UUID()
+        activeChoice = nil
+        settings = nil
+        currentScanIdentity = nil
+        onStop = nil
+        presentation = nil
     }
 }
 

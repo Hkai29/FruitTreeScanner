@@ -242,11 +242,11 @@ extension DashboardView {
     func fullScreenView(for destination: DashboardDestination) -> some View {
         switch destination {
         case .startScan:
-            StartView { request in
+            StartView(settings: settingsStore, tagStore: tagStore) { request in
                 queueScanAfterSourceDismissal(request)
             }
         case .quickScan:
-            QuickScanView { request in
+            QuickScanView(settings: settingsStore) { request in
                 queueScanAfterSourceDismissal(request)
             }
         default:
@@ -276,7 +276,7 @@ extension DashboardView {
                 historyStore: historyStore
             )
         case .tagManagement:
-            TagManagementView(onStartScan: showStartScanAfterDismissingSheet)
+            TagManagementView(onStartScan: showStartScanAfterDismissingSheet, tagStore: tagStore)
         case .yieldReport:
             YieldReportSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .compare:
@@ -303,26 +303,16 @@ extension DashboardView {
     }
 
     func launchRescan(treeID: String) {
-        let normalizedTreeID = TreeIdentifierPolicy.normalized(treeID)
-        guard TreeIdentifierPolicy.isValid(normalizedTreeID) else {
+        guard let request = rescanRequest(treeID: treeID) else {
             showStartScanAfterDismissingSheet()
             return
         }
-        let existing = TagStore.shared.getAssignment(treeId: normalizedTreeID)
-        let request = ScanLaunchRequest(
-            treeID: normalizedTreeID,
-            selectedFruitCategory: FruitCategory.scanCategory(for: SettingsStore.shared.fruitType),
-            season: .mature,
-            gps: GPSRecorder(),
-            plotId: existing?.plotId,
-            tagIds: existing?.tagIds ?? []
-        )
         queueScanAfterSourceDismissal(request)
     }
 
     private func activateScan(_ request: ScanLaunchRequest) {
-        let existing = TagStore.shared.getAssignment(treeId: request.treeID)
-        TagStore.shared.createOrUpdateAssignment(
+        let existing = tagStore.getAssignment(treeId: request.treeID)
+        tagStore.createOrUpdateAssignment(
             treeId: request.treeID,
             plotId: request.plotId,
             tagIds: request.tagIds,
