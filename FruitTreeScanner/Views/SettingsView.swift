@@ -8,7 +8,6 @@ struct SettingsView: View {
     @State private var scanExpanded = true
     @State private var maxPointCountDraft: Double = 1_000_000
     @State private var scanPrecisionDraft: Double = 0.01
-    @State private var selectedFruitCategory: FruitCategory = .apple
 
     init(settings: SettingsStore = .shared) {
         self.settings = settings
@@ -25,6 +24,13 @@ struct SettingsView: View {
         Binding(
             get: { scanPrecisionDraft },
             set: { scanPrecisionDraft = $0 }
+        )
+    }
+
+    private var fruitCategoryBinding: Binding<FruitCategory> {
+        Binding(
+            get: { FruitCategory.scanCategory(for: settings.fruitType) },
+            set: { settings.fruitType = $0.rawValue }
         )
     }
 
@@ -81,10 +87,7 @@ struct SettingsView: View {
                             icon: "viewfinder",
                             isExpanded: $scanExpanded
                         ) {
-                            FruitCategorySettingsRow(selection: $selectedFruitCategory)
-                                .onChange(of: selectedFruitCategory) { category in
-                                    settings.fruitType = category.rawValue
-                                }
+                            FruitCategorySettingsRow(selection: fruitCategoryBinding)
 
                             GlassDivider()
 
@@ -183,7 +186,6 @@ struct SettingsView: View {
     private func refreshDraftsFromSettings() {
         maxPointCountDraft = Double(settings.maxPointCount)
         scanPrecisionDraft = settings.scanPrecision
-        selectedFruitCategory = FruitCategory.scanCategory(for: settings.fruitType)
     }
 
     private func commitDrafts() {

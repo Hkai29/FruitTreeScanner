@@ -5,6 +5,7 @@ import SwiftUI
 
 struct StartView: View {
     var onLaunchScan: (ScanLaunchRequest) -> Void
+    let settings: SettingsStore
 
     @Environment(\.dismiss) private var dismiss
 
@@ -14,12 +15,19 @@ struct StartView: View {
     @State var selectedPlotId: UUID?
     @State var season: Season = .mature
     @State var selectedTagIds: Set<UUID> = []
-    @State var selectedFruitCategory = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
+    @State var selectedFruitCategory: FruitCategory
     @StateObject var launchGate = ScanLaunchSubmissionGate()
     @State var presentedSheet: StartViewSheet?
     @State var gps = GPSRecorder()
 
     let totalSteps = 5
+
+    @MainActor
+    init(settings: SettingsStore = .shared, onLaunchScan: @escaping (ScanLaunchRequest) -> Void) {
+        self.settings = settings
+        self.onLaunchScan = onLaunchScan
+        _selectedFruitCategory = State(initialValue: FruitCategory.scanCategory(for: settings.fruitType))
+    }
 
     var isLaunchingScan: Bool {
         launchGate.isSubmitting

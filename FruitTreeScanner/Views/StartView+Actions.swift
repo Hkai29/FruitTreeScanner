@@ -43,7 +43,7 @@ extension StartView {
                 )
             },
             deliver: { request in
-                SettingsStore.shared.fruitType = selectedFruitCategory.rawValue
+                settings.fruitType = request.selectedFruitCategory.rawValue
                 onLaunchScan(request)
             }
         )

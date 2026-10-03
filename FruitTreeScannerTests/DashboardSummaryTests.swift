@@ -1,3 +1,4 @@
+import Combine
 import CoreLocation
 import MapKit
 import SwiftUI
@@ -7,7 +8,543 @@ import SwiftUI
 import UIKit
 @testable import FruitTreeScanner
 
+@MainActor
+private final class RootLaunchUIHarness {
+    let controller = UIHostingController(rootView: AnyView(EmptyView()))
+    let window: UIWindow
+    private let previousKeyWindow: UIWindow?
+
+    init() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive })
+        previousKeyWindow = scene.keyWindow
+        window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+    }
+
+    func mount<V: View>(_ view: V) {
+        controller.rootView = AnyView(view)
+        window.layoutIfNeeded()
+    }
+
+    func close() {
+        controller.presentedViewController?.dismiss(animated: false)
+        window.isHidden = true
+        window.rootViewController = nil
+        previousKeyWindow?.makeKey()
+    }
+
+    var elements: [NSObject] {
+        var seen = Set<ObjectIdentifier>()
+        var result: [NSObject] = []
+        func visit(_ object: NSObject, depth: Int = 0) {
+            guard depth < 32, seen.insert(ObjectIdentifier(object)).inserted else { return }
+            result.append(object)
+            let count = object.accessibilityElementCount()
+            if count > 0 && count < 100 {
+                for index in 0..<count {
+                    if let child = object.accessibilityElement(at: index) as? NSObject { visit(child, depth: depth + 1) }
+                }
+            }
+            if let view = object as? UIView { for child in view.subviews { visit(child, depth: depth + 1) } }
+        }
+        visit(window)
+        var current: UIViewController? = controller
+        while let root = current {
+            visit(root.view)
+            current = root.presentedViewController
+        }
+        return result
+    }
+
+    func element(label: String) -> NSObject? {
+        let matches = elements.filter { $0.accessibilityLabel == label }
+        return matches.first { $0.accessibilityTraits.contains(.button) } ?? matches.first
+    }
+
+    var categoryPicker: NSObject? {
+        elements.first {
+            $0 is UIButton &&
+                $0.accessibilityLabel?.contains(L10n.FruitCategoryVerification.selectedAccessibilityLabel) == true &&
+                $0.accessibilityValue != nil
+        }
+    }
+
+    func dismissSystemAlert() throws {
+        var current: UIViewController? = controller
+        while let root = current {
+            if let alert = root as? UIAlertController {
+                alert.dismiss(animated: true)
+                return
+            }
+            current = root.presentedViewController
+        }
+        XCTFail("Expected the actual system alert presentation")
+    }
+
+    func selectCategory(_ category: FruitCategory) async throws {
+        let button = try XCTUnwrap(categoryPicker as? UIButton)
+        XCTAssertTrue(button.accessibilityActivate())
+        let ready = try await waitFor { button.menu != nil }
+        XCTAssertTrue(ready)
+        func actions(in menu: UIMenu) -> [UIAction] {
+            menu.children.flatMap { child -> [UIAction] in
+                if let action = child as? UIAction { return [action] }
+                if let nested = child as? UIMenu { return actions(in: nested) }
+                return []
+            }
+        }
+        let action = try XCTUnwrap(actions(in: try XCTUnwrap(button.menu)).first {
+            $0.title == L10n.Fruit.name(for: category)
+        })
+        button.sendAction(action)
+        button.contextMenuInteraction?.dismissMenu()
+        let selected = try await waitFor {
+            self.categoryPicker?.accessibilityValue == L10n.FruitCategoryVerification.selectionAccessibilityValue(category)
+        }
+        XCTAssertTrue(selected)
+    }
+
+    func waitFor(_ condition: () -> Bool) async throws -> Bool {
+        func settled(_ current: UIViewController) -> Bool {
+            current.transitionCoordinator == nil && !current.isBeingPresented && !current.isBeingDismissed &&
+                current.children.allSatisfy(settled) && (current.presentedViewController.map(settled) ?? true)
+        }
+        let deadline = Date().addingTimeInterval(3)
+        repeat {
+            window.layoutIfNeeded()
+            if settled(controller) && condition() { return true }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        } while Date() < deadline
+        return false
+    }
+
+    func advanceStartToConfirmation() async throws {
+        let ready = try await waitFor { self.elements.contains { $0 is UITextField } }
+        XCTAssertTrue(ready)
+        let field = try XCTUnwrap(elements.compactMap { $0 as? UITextField }.first)
+        field.insertText("ROOT40")
+        let valid = try await waitFor {
+            self.element(label: L10n.StartFlow.next)?.accessibilityTraits.contains(.notEnabled) == false
+        }
+        XCTAssertTrue(valid)
+        for step in 1...4 {
+            let next = try XCTUnwrap(element(label: L10n.StartFlow.next))
+            XCTAssertTrue(next.accessibilityActivate())
+            let advanced = try await waitFor {
+                self.element(label: L10n.StartFlow.stepCountAccessibility(currentStep: step + 1, totalSteps: 5)) != nil
+            }
+            XCTAssertTrue(advanced, "Actual next control must advance to step \(step + 1)")
+        }
+    }
+
+    func attach(to test: XCTestCase, phase: String) async throws {
+        // Accessibility updates before SwiftUI's 0.3-second step animation finishes painting.
+        try await Task.sleep(nanoseconds: 350_000_000)
+        window.layoutIfNeeded()
+        CATransaction.flush()
+        let image = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+        })
+        image.name = "RootLaunch-\(phase)"
+        image.lifetime = .keepAlways
+        test.add(image)
+        let text = XCTAttachment(string: elements.compactMap {
+            guard let label = $0.accessibilityLabel else { return nil }
+            return String(describing: type(of: $0)) + " [" + String($0.accessibilityTraits.rawValue) +
+                "] control=" + String($0 is UIControl) + " " + label + " = " + ($0.accessibilityValue ?? "")
+        }.joined(separator: "\n"))
+        text.name = "RootLaunch-\(phase)-accessibility"
+        text.lifetime = .keepAlways
+        test.add(text)
+    }
+}
+
+private struct RootMismatchHost: View {
+    let scan: ScanView
+    @State private var isPresented = true
+
+    var body: some View {
+        Text("Root mismatch host")
+            .sheet(isPresented: $isPresented) { scan }
+    }
+}
+
 final class DashboardSummaryTests: XCTestCase {
+    @MainActor
+    func testLaunchControlsWriteRootOnceAndFreezeRequest() async throws {
+        await FruitParametersStore.shared.waitForPendingSave()
+        await TagStore.shared.waitForPendingSave()
+        let protectedKeys = [SettingsStoreKey.fruitType, FruitParametersStore.userDefaultsKey,
+                             TagStore.snapshotUserDefaultsKey, "TagStore.plots", "TagStore.tags", "TagStore.assignments"]
+        let shared = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suite = "RootLaunchControls-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        let root = AppDependencies(settings: settings, scanRepository: ScanRepository(scansDirectory: directory))
+        for quick in [true, false] {
+            settings.fruitType = "pear"
+            settings.maxPointCount = 1_400_000
+            let frozen = root.scanPlanFactory.makePlan(treeID: "FROZEN40", season: .mature,
+                                                      selectedCategory: .pear, renderer: nil)
+            var delivered: [ScanLaunchRequest] = []
+            let receive: (ScanLaunchRequest) -> Void = { delivered.append($0) }
+            let ui = try RootLaunchUIHarness()
+            defer { ui.close() }
+            if quick { ui.mount(QuickScanView(settings: settings, onLaunchScan: receive)) }
+            else {
+                ui.mount(StartView(settings: settings, onLaunchScan: receive))
+                try await ui.advanceStartToConfirmation()
+            }
+            let ready = try await ui.waitFor { ui.categoryPicker != nil }
+            XCTAssertTrue(ready)
+            XCTAssertEqual(ui.categoryPicker?.accessibilityValue,
+                           L10n.FruitCategoryVerification.selectionAccessibilityValue(.pear))
+            try await ui.selectCategory(.grape)
+            XCTAssertEqual(settings.fruitType, "pear", "Selecting a draft must not write root before submission")
+            settings.fruitType = "strawberry"
+            XCTAssertEqual(ui.categoryPicker?.accessibilityValue,
+                           L10n.FruitCategoryVerification.selectionAccessibilityValue(.grape))
+            try await ui.attach(to: self, phase: "controls-\(quick ? "quick" : "start")-selected")
+            let launch = try XCTUnwrap(ui.element(label: quick ? L10n.QuickScan.launch : L10n.StartFlow.launch))
+            XCTAssertTrue(launch.accessibilityActivate())
+            _ = launch.accessibilityActivate()
+            let submitted = try await ui.waitFor { delivered.count == 1 && settings.fruitType == "grape" }
+            XCTAssertTrue(submitted)
+            XCTAssertEqual(delivered.count, 1, "The actual control must not deliver two rapid activations")
+            let request = try XCTUnwrap(delivered.first)
+            XCTAssertEqual(request.selectedFruitCategory, .grape)
+            XCTAssertEqual(request.season, .mature)
+            XCTAssertNil(request.plotId)
+            XCTAssertTrue(request.tagIds.isEmpty)
+            XCTAssertTrue(TreeIdentifierPolicy.validationIssue(for: request.treeID) == nil)
+            if !quick { XCTAssertEqual(request.treeID, "ROOT40") }
+            let plan = root.scanPlanFactory.makePlan(treeID: request.treeID, season: request.season,
+                                                    selectedCategory: request.selectedFruitCategory, renderer: nil)
+            settings.fruitType = "orange"
+            settings.maxPointCount = 100_000
+            XCTAssertEqual(request.selectedFruitCategory, .grape)
+            XCTAssertEqual(plan.fruitConfiguration.selectedCategory, .grape)
+            XCTAssertEqual(plan.rendererSettings.maxPoints, 1_400_000)
+            XCTAssertEqual(frozen.fruitConfiguration.selectedCategory, .pear)
+            XCTAssertEqual(frozen.rendererSettings.maxPoints, 1_400_000)
+            try await ui.attach(to: self, phase: "controls-\(quick ? "quick" : "start")-submitted")
+        }
+        let after = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        XCTAssertTrue(NSDictionary(dictionary: after).isEqual(to: shared))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    @MainActor
+    func testMismatchStopSwitchDoesNotCancelScanReplacedDuringSettingsPublication() throws {
+        let suite = "MismatchReentrancy-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.fruitType = "pear"
+        let controller = ScanCategoryMismatchPresentationController()
+        var scanIdentity = UUID()
+        var cancellations = 0
+        controller.bind(settings: settings, currentScanIdentity: { scanIdentity }, onStop: { cancellations += 1 })
+        controller.present(FruitCategoryMismatch(selectedCategory: .pear, dominantDetectedCategory: .apple,
+                                                  supportingFrameCount: 3, confidence: 0.9),
+                           scanIdentity: scanIdentity)
+        let choice = try XCTUnwrap(controller.presentation)
+        let observation = settings.objectWillChange.sink { scanIdentity = UUID() }
+        controller.stopAndSwitch(presentationID: choice.id)
+        withExtendedLifetime(observation) {
+            XCTAssertEqual(settings.fruitType, "apple")
+            XCTAssertNotEqual(scanIdentity, choice.scanIdentity)
+            XCTAssertEqual(cancellations, 0, "A synchronous preference observer must not expose a new scan to the old cancel action")
+        }
+    }
+
+    @MainActor
+    func testMismatchChoiceRejectsSynchronousReentryAndReboundOwner() throws {
+        for phase in 0..<3 {
+            let suite = "MismatchOwner-\(UUID())"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = SettingsStore(defaults: defaults)
+            settings.fruitType = "pear"
+            let controller = ScanCategoryMismatchPresentationController()
+            let scanIdentity = UUID()
+            var cancellations = 0
+            var replacementCancellations = 0
+            controller.bind(settings: settings, currentScanIdentity: { scanIdentity }, onStop: { cancellations += 1 })
+            controller.present(FruitCategoryMismatch(selectedCategory: .pear, dominantDetectedCategory: .apple,
+                                                      supportingFrameCount: 3, confidence: 0.9),
+                               scanIdentity: scanIdentity)
+            let choice = try XCTUnwrap(controller.presentation)
+            var observed = false
+            let publisher = phase == 2 ? settings.objectWillChange : controller.objectWillChange
+            let observation = publisher.sink {
+                guard !observed else { return }
+                observed = true
+                switch phase {
+                case 0: controller.stopAndSwitch(presentationID: choice.id)
+                case 1: controller.invalidate()
+                default:
+                    controller.bind(settings: settings, currentScanIdentity: { scanIdentity },
+                                    onStop: { replacementCancellations += 1 })
+                }
+            }
+            controller.stopAndSwitch(presentationID: choice.id)
+            withExtendedLifetime(observation) {
+                XCTAssertTrue(observed)
+                XCTAssertEqual(cancellations, phase == 0 ? 1 : 0)
+                XCTAssertEqual(replacementCancellations, 0)
+                XCTAssertEqual(settings.fruitType, phase == 1 ? "pear" : "apple")
+                XCTAssertNil(controller.presentation)
+            }
+        }
+    }
+
+    @MainActor
+    func testMismatchChoiceSurvivesSystemDismissalAndRejectsOldRebindCallback() throws {
+        let suite = "MismatchDismissal-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.fruitType = "pear"
+        let controller = ScanCategoryMismatchPresentationController()
+        let scanIdentity = UUID()
+        var cancellations = 0
+        let mismatch = FruitCategoryMismatch(selectedCategory: .pear, dominantDetectedCategory: .apple,
+                                              supportingFrameCount: 3, confidence: 0.9)
+        controller.bind(settings: settings, currentScanIdentity: { scanIdentity }, onStop: { cancellations += 1 })
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        let choice = try XCTUnwrap(controller.presentation)
+        // The alert's presentation binding may clear before its captured button action is delivered.
+        controller.presentation = nil
+        controller.stopAndSwitch(presentationID: choice.id)
+        XCTAssertEqual(settings.fruitType, "apple")
+        XCTAssertEqual(cancellations, 1)
+
+        settings.fruitType = "pear"
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        let previous = try XCTUnwrap(controller.presentation)
+        var observed = false
+        let observation = controller.objectWillChange.sink {
+            guard !observed else { return }
+            observed = true
+            controller.stopAndSwitch(presentationID: previous.id)
+        }
+        controller.bind(settings: settings, currentScanIdentity: { scanIdentity }, onStop: { cancellations += 1 })
+        withExtendedLifetime(observation) {
+            XCTAssertTrue(observed)
+            XCTAssertEqual(settings.fruitType, "pear")
+            XCTAssertEqual(cancellations, 1, "Rebinding must retire the old choice before publishing dismissal")
+        }
+    }
+
+    @MainActor
+    func testMismatchPresentationRejectsStaleScanAndChoiceAndReleasesBindings() throws {
+        let suite = "MismatchLifetime-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.fruitType = "pear"
+        let controller = ScanCategoryMismatchPresentationController()
+        var scanIdentity = UUID()
+        var cancellations = 0
+        let mismatch = FruitCategoryMismatch(selectedCategory: .pear, dominantDetectedCategory: .apple,
+                                              supportingFrameCount: 3, confidence: 0.9)
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        XCTAssertNil(controller.presentation)
+        controller.bind(settings: settings, currentScanIdentity: { scanIdentity }, onStop: { cancellations += 1 })
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        let oldChoice = try XCTUnwrap(controller.presentation)
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        let currentChoice = try XCTUnwrap(controller.presentation)
+        controller.stopAndSwitch(presentationID: oldChoice.id)
+        controller.continueScan(presentationID: oldChoice.id)
+        XCTAssertEqual(controller.presentation?.id, currentChoice.id)
+        XCTAssertEqual(settings.fruitType, "pear")
+        XCTAssertEqual(cancellations, 0)
+        let previousScan = scanIdentity
+        scanIdentity = UUID()
+        controller.stopAndSwitch(presentationID: currentChoice.id)
+        XCTAssertEqual(settings.fruitType, "pear")
+        XCTAssertEqual(cancellations, 0)
+        controller.present(mismatch, scanIdentity: previousScan)
+        XCTAssertEqual(controller.presentation?.id, currentChoice.id)
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        let nextChoice = try XCTUnwrap(controller.presentation)
+        controller.stopAndSwitch(presentationID: nextChoice.id)
+        controller.stopAndSwitch(presentationID: nextChoice.id)
+        XCTAssertNil(controller.presentation)
+        XCTAssertEqual(settings.fruitType, "apple")
+        XCTAssertEqual(cancellations, 1)
+        weak var retained: NSObject?
+        do {
+            let token = NSObject()
+            retained = token
+            controller.bind(settings: settings, currentScanIdentity: { scanIdentity }, onStop: { [token] in
+                _ = token
+                cancellations += 1
+            })
+        }
+        XCTAssertNotNil(retained)
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        let invalidated = try XCTUnwrap(controller.presentation)
+        controller.invalidate()
+        XCTAssertNil(retained)
+        controller.present(mismatch, scanIdentity: scanIdentity)
+        controller.stopAndSwitch(presentationID: invalidated.id)
+        XCTAssertNil(controller.presentation)
+        XCTAssertEqual(cancellations, 1)
+    }
+
+    @MainActor
+    func testMismatchStopSwitchWritesRootAndCancelsOnlyPresentedScan() async throws {
+        let detected = FruitCategory.scanCategory(for: SettingsStore.shared.fruitType)
+        let initial: FruitCategory = detected == .pear ? .orange : .pear
+        await FruitParametersStore.shared.waitForPendingSave()
+        let protectedKeys = [SettingsStoreKey.fruitType, FruitParametersStore.userDefaultsKey]
+        let shared = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suite = "RootMismatch-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.fruitType = initial.rawValue
+        let root = AppDependencies(settings: settings, scanRepository: ScanRepository(scansDirectory: directory))
+        let frozen = root.scanPlanFactory.makePlan(treeID: "MISMATCH40", season: .mature,
+                                                  selectedCategory: initial, renderer: nil)
+        let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
+        let presentation = ScanCategoryMismatchPresentationController()
+        var nextRequests = 0
+        let scan = ScanView(treeID: "MISMATCH40", gps: GPSRecorder(), season: .mature,
+                            selectedFruitCategory: initial, appDependencies: root,
+                            onScanNextTree: { nextRequests += 1 }, coordinator: coordinator,
+                            categoryMismatchPresentation: presentation)
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        ui.mount(RootMismatchHost(scan: scan))
+        let ready = try await ui.waitFor { coordinator.onFruitCategoryMismatch != nil && coordinator.isTornDown }
+        XCTAssertTrue(ready, "Actual ScanView must install its callback and settle simulator readiness")
+        guard ready else { return }
+        // Bind a test-owned session without running AR capture or creating a scan artifact.
+        let bound = coordinator.scanSession.startNewScan(plan: frozen)
+        let callback = try XCTUnwrap(coordinator.onFruitCategoryMismatch)
+        let mismatch = FruitCategoryMismatch(selectedCategory: initial, dominantDetectedCategory: detected,
+                                              supportingFrameCount: 3, confidence: 0.9)
+        callback(mismatch)
+        let alert = try await ui.waitFor { ui.element(label: L10n.FruitCategoryVerification.continueAction) != nil }
+        XCTAssertTrue(alert)
+        try await ui.attach(to: self, phase: "mismatch-continue")
+        let firstPresentation = try XCTUnwrap(presentation.presentation)
+        presentation.continueScan(presentationID: firstPresentation.id)
+        // UIKit dismisses its alert after a real button action; model intent dispatch is separate.
+        try ui.dismissSystemAlert()
+        let continued = try await ui.waitFor { ui.element(label: L10n.FruitCategoryVerification.stopAndSwitchAction) == nil }
+        XCTAssertTrue(continued)
+        XCTAssertEqual(settings.fruitType, initial.rawValue)
+        XCTAssertEqual(coordinator.activeScanPlan?.id, frozen.id)
+        XCTAssertEqual(coordinator.lifecycleSnapshot().scanIdentity, bound.scanIdentity)
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .recording)
+        callback(mismatch)
+        let secondAlert = try await ui.waitFor { ui.element(label: L10n.FruitCategoryVerification.stopAndSwitchAction) != nil }
+        XCTAssertTrue(secondAlert)
+        try await ui.attach(to: self, phase: "mismatch-stop")
+        let secondPresentation = try XCTUnwrap(presentation.presentation)
+        presentation.stopAndSwitch(presentationID: secondPresentation.id)
+        let dismissed = try await ui.waitFor { ui.controller.presentedViewController == nil }
+        XCTAssertTrue(dismissed)
+        try await ui.attach(to: self, phase: "mismatch-dismissed")
+        XCTAssertEqual(settings.fruitType, detected.rawValue, "Actual stop-and-switch must write root settings")
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .cancelled)
+        XCTAssertNil(coordinator.activeScanPlan?.id)
+        XCTAssertNil(coordinator.onFruitCategoryMismatch)
+        XCTAssertEqual(nextRequests, 0)
+        XCTAssertEqual(frozen.fruitConfiguration.selectedCategory, initial)
+        callback(mismatch)
+        try await Task.sleep(nanoseconds: 60_000_000)
+        XCTAssertNil(ui.controller.presentedViewController)
+        XCTAssertEqual(settings.fruitType, detected.rawValue)
+        let after = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        XCTAssertTrue(NSDictionary(dictionary: after).isEqual(to: shared))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    @MainActor
+    func testDashboardQuickScanReadsRootCategoryAndKeepsDraft() async throws {
+        try await assertDashboardLaunchCategory(quick: true)
+    }
+
+    @MainActor
+    func testDashboardStartScanReadsRootCategoryAndKeepsDraft() async throws {
+        try await assertDashboardLaunchCategory(quick: false)
+    }
+
+    @MainActor
+    private func assertDashboardLaunchCategory(quick: Bool) async throws {
+        await TagStore.shared.waitForPendingSave()
+        let protectedKeys = [SettingsStoreKey.fruitType, TagStore.snapshotUserDefaultsKey,
+                             "TagStore.plots", "TagStore.tags", "TagStore.assignments"]
+        let shared = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suite = "RootLaunchRoute-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        let initial: FruitCategory = SettingsStore.shared.fruitType == "pear" ? .orange : .pear
+        let later: FruitCategory = initial == .pear ? .orange : .pear
+        settings.fruitType = initial.rawValue
+        let root = AppDependencies(settings: settings, scanRepository: ScanRepository(scansDirectory: directory))
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        ui.mount(DashboardView(
+            router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+            historyStore: root.historyStore
+        ).environmentObject(root))
+        let entryLabel = quick ? L10n.Dashboard.quickCapture : L10n.Dashboard.startScan
+        for reopened in [false, true] {
+            let entryReady = try await ui.waitFor { ui.element(label: entryLabel) != nil }
+            try await ui.attach(to: self, phase: "dashboard-entry-\(quick ? "quick" : "start")")
+            XCTAssertTrue(entryReady)
+            guard entryReady else { return }
+            XCTAssertTrue(try XCTUnwrap(ui.element(label: entryLabel)).accessibilityActivate())
+            let presented = try await ui.waitFor { ui.controller.presentedViewController != nil }
+            XCTAssertTrue(presented)
+            guard presented else { return }
+            try await ui.attach(to: self, phase: "presented-\(quick ? "quick" : "start")")
+            if !quick { try await ui.advanceStartToConfirmation() }
+            let pickerReady = try await ui.waitFor { ui.categoryPicker != nil }
+            XCTAssertTrue(pickerReady)
+            let picker = try XCTUnwrap(ui.categoryPicker)
+            let expected = reopened ? later : initial
+            try await ui.attach(to: self, phase: "dashboard-\(quick ? "quick" : "start")-\(reopened ? "reopened" : "initial")")
+            XCTAssertEqual(picker.accessibilityValue, L10n.FruitCategoryVerification.selectionAccessibilityValue(expected),
+                           "Actual Dashboard launch route must initialize its draft from root settings")
+            guard picker.accessibilityValue == L10n.FruitCategoryVerification.selectionAccessibilityValue(expected) else { return }
+            if !reopened {
+                settings.fruitType = later.rawValue
+                try await Task.sleep(nanoseconds: 60_000_000)
+                XCTAssertEqual(picker.accessibilityValue, L10n.FruitCategoryVerification.selectionAccessibilityValue(initial),
+                               "An existing launch draft must not follow later root changes")
+            }
+            let cancel = ui.element(label: quick ? L10n.QuickScan.close : L10n.StartFlow.cancel)
+            XCTAssertTrue(try XCTUnwrap(cancel).accessibilityActivate())
+            let dismissed = try await ui.waitFor { ui.controller.presentedViewController == nil }
+            XCTAssertTrue(dismissed)
+        }
+        let after = UserDefaults.standard.dictionaryRepresentation().filter { protectedKeys.contains($0.key) }
+        XCTAssertTrue(NSDictionary(dictionary: after).isEqual(to: shared))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
     @MainActor
     func testDashboardSettingsRoutesEditRootAndPreserveFrozenPlan() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

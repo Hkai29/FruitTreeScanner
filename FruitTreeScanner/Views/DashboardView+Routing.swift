@@ -242,11 +242,11 @@ extension DashboardView {
     func fullScreenView(for destination: DashboardDestination) -> some View {
         switch destination {
         case .startScan:
-            StartView { request in
+            StartView(settings: settingsStore) { request in
                 queueScanAfterSourceDismissal(request)
             }
         case .quickScan:
-            QuickScanView { request in
+            QuickScanView(settings: settingsStore) { request in
                 queueScanAfterSourceDismissal(request)
             }
         default:
