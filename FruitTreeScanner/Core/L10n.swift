@@ -1904,6 +1904,7 @@ enum L10n {
         static let deleteConfirmationMessage = NSLocalizedString("calibration.delete.message", value: "这条校准记录会从本机移除，扫描原始记录不会被删除。", comment: "Calibration record delete confirmation message")
 
         static let parametersTitle = NSLocalizedString("calibration.parameters.title", value: "算法参数", comment: "Calibration parameters section title")
+        static let parameterConflict = NSLocalizedString("calibration.parameters.concurrent_update", value: "参数已在其他页面更新，已保留最新值。请重新调整。", comment: "A stale calibration edit was rebased to a newer saved value")
         static let minimumClusterPoints = NSLocalizedString("calibration.parameters.minimum_cluster_points", value: "最小聚类点数", comment: "Minimum cluster point count")
         static let maximumClusterDiameter = NSLocalizedString("calibration.parameters.maximum_cluster_diameter", value: "最大聚类直径 (m)", comment: "Maximum cluster diameter")
         static let minimumSphericity = NSLocalizedString("calibration.parameters.minimum_sphericity", value: "最小球形度", comment: "Minimum sphericity")

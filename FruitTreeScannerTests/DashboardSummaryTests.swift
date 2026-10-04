@@ -70,6 +70,32 @@ private final class RootLaunchUIHarness {
         }
     }
 
+    func openCalibration() async throws {
+        let label = L10n.Dashboard.quickActionAccessibilityLabel(title: L10n.Dashboard.calibrationTitle,
+                                                                description: L10n.Dashboard.calibrationDescription)
+        let action = try await scrollToDashboardAction(label: label)
+        XCTAssertTrue(action.accessibilityActivate())
+        let ready = try await waitFor { self.element(label: L10n.Calibration.minimumClusterPoints) != nil }
+        XCTAssertTrue(ready)
+    }
+
+    func changeCalibrationSlider(_ label: String, fraction: Float, expected: String) async throws -> UISlider {
+        let control = try await scrollToControl(label: label)
+        let slider = try XCTUnwrap(control as? UISlider)
+        slider.sendActions(for: .touchDown)
+        slider.value += (slider.maximumValue - slider.minimumValue) * fraction
+        slider.sendActions(for: .valueChanged)
+        let changed = try await waitFor { slider.accessibilityValue == expected }
+        XCTAssertTrue(changed)
+        return slider
+    }
+
+    func closeCalibration() async throws {
+        XCTAssertTrue(try XCTUnwrap(element(label: L10n.Calibration.close)).accessibilityActivate())
+        let closed = try await waitFor { self.controller.presentedViewController == nil }
+        XCTAssertTrue(closed)
+    }
+
     func dismissSystemAlert() throws {
         var current: UIViewController? = controller
         while let root = current {
@@ -395,6 +421,305 @@ private final class RootParameterFixture {
 }
 
 final class DashboardSummaryTests: XCTestCase {
+    @MainActor
+    func testUneditedCalibrationClosePreservesNewerRootParametersWithoutSaving() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openCalibration()
+        XCTAssertEqual(ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue, "0.145 m")
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.diamMax = 0.165
+            $0.sphericityThreshold = 0.64
+            $0.averageWeightG = 233
+        }
+        fixture.root.settings.clusterMinPoints = 24
+        fixture.root.settings.clusterMaxDiameter = 0.165
+        fixture.root.settings.sphericityThreshold = 0.64
+        await fixture.root.parametersStore.waitForPendingSave()
+        let parameters = fixture.root.parametersStore.parameterSnapshot()
+        let bytes = try XCTUnwrap(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey))
+        var publications = 0
+        let observation = fixture.root.parametersStore.$params.dropFirst().sink { _ in publications += 1 }
+        defer { observation.cancel() }
+        try await ui.closeCalibration()
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.settings.clusterMinPoints, 24)
+        XCTAssertEqual(fixture.root.settings.clusterMaxDiameter, 0.165, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.settings.sphericityThreshold, 0.64, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.parametersStore.parameterSnapshot(), parameters)
+        XCTAssertEqual(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+        XCTAssertEqual(publications, 0, "Closing an unedited page must not rewrite parameter state")
+        try await ui.openCalibration()
+        XCTAssertEqual(ui.element(label: L10n.Calibration.minimumClusterPoints)?.accessibilityValue, "24")
+        XCTAssertEqual(ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue, "0.165 m")
+        XCTAssertEqual(ui.element(label: L10n.Calibration.minimumSphericity)?.accessibilityValue, "0.64")
+        try await ui.attach(to: self, phase: "44-calibration-newer-reopened")
+        try await ui.closeCalibration()
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testCalibrationCloseDoesNotReapplyEarlierCommitsOverNewerValues() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        await fixture.root.prepareForScanning()
+        let frozen = fixture.plan("ROOT44-FROZEN")
+        let frozenContext = try XCTUnwrap(frozen.fruitConfiguration.calibrationContext)
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openCalibration()
+        let points = try await ui.changeCalibrationSlider(L10n.Calibration.minimumClusterPoints,
+                                                        fraction: 1 / 147, expected: "20")
+        points.sendActions(for: .touchUpInside)
+        let pointsCommitted = try await ui.waitFor { fixture.root.settings.clusterMinPoints == 20 }
+        XCTAssertTrue(pointsCommitted)
+        let diameter = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                          fraction: 1 / 32, expected: "0.150 m")
+        diameter.sendActions(for: .touchUpInside)
+        let diameterCommitted = try await ui.waitFor { abs(fixture.root.settings.clusterMaxDiameter - 0.15) < 0.00001 }
+        XCTAssertTrue(diameterCommitted)
+        _ = try await ui.changeCalibrationSlider(L10n.Calibration.minimumSphericity,
+                                                fraction: 1 / 30, expected: "0.60")
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.diamMax = 0.165
+            $0.averageWeightG = 233
+            $0.density = 0.92
+        }
+        fixture.root.settings.clusterMinPoints = 24
+        fixture.root.settings.clusterMaxDiameter = 0.165
+        try await ui.closeCalibration()
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.settings.clusterMinPoints, 24)
+        XCTAssertEqual(fixture.root.settings.clusterMaxDiameter, 0.165, accuracy: 0.00001)
+        let persisted = FruitParametersStore(defaults: fixture.defaults)
+        XCTAssertEqual(persisted.param(for: .pear).diamMax, 0.165, accuracy: 0.00001)
+        XCTAssertEqual(persisted.param(for: .pear).sphericityThreshold, 0.60, accuracy: 0.00001,
+                       "An independent pending field still commits when its source has not changed")
+        XCTAssertEqual(persisted.param(for: .pear).averageWeightG, 233)
+        XCTAssertEqual(persisted.param(for: .pear).density, 0.92, accuracy: 0.00001)
+        let next = fixture.plan("ROOT44-NEXT")
+        XCTAssertEqual(next.fruitConfiguration.clusterConfig.minPoints, 24)
+        XCTAssertEqual(next.fruitConfiguration.defaultParams.diamMax, 0.165, accuracy: 0.00001)
+        XCTAssertEqual(next.fruitConfiguration.defaultParams.sphericityThreshold, 0.60, accuracy: 0.00001)
+        XCTAssertEqual(frozen.fruitConfiguration.defaultParams.diamMax, 0.145, accuracy: 0.00001)
+        XCTAssertEqual(frozen.fruitConfiguration.calibrationContext, frozenContext)
+        XCTAssertNotEqual(next.fruitConfiguration.calibrationContext, frozenContext)
+        await persisted.waitForPendingSave()
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testCalibrationConflictingGesturePreservesNewerValuesAndCanBeRetried() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openCalibration()
+        let diameter = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                          fraction: 1 / 32, expected: "0.150 m")
+        fixture.root.parametersStore.updateParam(for: .pear) { $0.diamMax = 0.165 }
+        diameter.sendActions(for: .touchUpInside)
+        let protected = try await ui.waitFor {
+            abs(fixture.root.parametersStore.param(for: .pear).diamMax - 0.165) < 0.00001 &&
+                ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue == "0.165 m"
+        }
+        XCTAssertTrue(protected, "A stale pending gesture must not overwrite a newer same-field save")
+        guard protected else { await fixture.verifyStandard(); return }
+        XCTAssertEqual(fixture.root.settings.clusterMaxDiameter, 0.145, accuracy: 0.00001,
+                       "A parameter-only conflict must not copy either stale draft into settings")
+        let notice = try await ui.waitFor { ui.element(label: L10n.Calibration.parameterConflict) != nil }
+        XCTAssertTrue(notice, "A rejected stale gesture must explain why the displayed value changed")
+        try await ui.attach(to: self, phase: "44-calibration-conflict")
+        let retry = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                       fraction: 1 / 32, expected: "0.170 m")
+        retry.sendActions(for: .touchUpInside)
+        let retryCommitted = try await ui.waitFor { abs(fixture.root.settings.clusterMaxDiameter - 0.17) < 0.00001 }
+        XCTAssertTrue(retryCommitted)
+        try await ui.closeCalibration()
+        await fixture.root.parametersStore.waitForPendingSave()
+        let persisted = FruitParametersStore(defaults: fixture.defaults)
+        XCTAssertEqual(persisted.param(for: .pear).diamMax, 0.17, accuracy: 0.00001)
+        await persisted.waitForPendingSave()
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testCalibrationSettingsOnlyConflictsProtectPendingFieldsAndAllowRetry() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openCalibration()
+        let points = try await ui.changeCalibrationSlider(L10n.Calibration.minimumClusterPoints,
+                                                        fraction: 1 / 147, expected: "20")
+        let diameter = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                          fraction: 1 / 32, expected: "0.150 m")
+        fixture.root.settings.clusterMinPoints = 24
+        fixture.root.settings.clusterMaxDiameter = 0.165
+        points.sendActions(for: .touchUpInside)
+        diameter.sendActions(for: .touchUpInside)
+        let protected = try await ui.waitFor {
+            ui.element(label: L10n.Calibration.minimumClusterPoints)?.accessibilityValue == "24" &&
+                ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue == "0.145 m"
+        }
+        XCTAssertTrue(protected)
+        XCTAssertEqual(fixture.root.settings.clusterMinPoints, 24)
+        XCTAssertEqual(fixture.root.settings.clusterMaxDiameter, 0.165, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMax, 0.145, accuracy: 0.00001,
+                       "A settings-only conflict must not save a stale parameter draft")
+        let retry = try await ui.changeCalibrationSlider(L10n.Calibration.minimumClusterPoints,
+                                                       fraction: 1 / 147, expected: "25")
+        retry.sendActions(for: .touchUpInside)
+        let applied = try await ui.waitFor { fixture.root.settings.clusterMinPoints == 25 }
+        XCTAssertTrue(applied, "A fresh gesture uses the newly accepted settings baseline")
+        try await ui.closeCalibration()
+        XCTAssertEqual(fixture.root.settings.clusterMinPoints, 25)
+        XCTAssertEqual(fixture.root.settings.clusterMaxDiameter, 0.165, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMax, 0.145, accuracy: 0.00001)
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testCalibrationDiameterPreservesNewerMinimumBeforeClamping() async throws {
+        for (newMinimum, expectedMaximum, conflicts) in [(Float(0.142), Float(0.145), true),
+                                                       (Float(0.040), Float(0.140), false)] {
+            let fixture = try await RootParameterFixture()
+            defer { fixture.cleanup() }
+            let ui = try RootLaunchUIHarness()
+            defer { ui.close() }
+            fixture.mount(on: ui)
+            try await ui.openCalibration()
+            let diameter = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                              fraction: -1 / 32, expected: "0.140 m")
+            fixture.root.parametersStore.updateParam(for: .pear) { $0.diamMin = newMinimum }
+            await fixture.root.parametersStore.waitForPendingSave()
+            diameter.sendActions(for: .touchUpInside)
+            let settled = try await ui.waitFor {
+                abs(Double(fixture.root.parametersStore.param(for: .pear).diamMax) - Double(expectedMaximum)) < 0.00001 &&
+                    abs(fixture.root.settings.clusterMaxDiameter - Double(expectedMaximum)) < 0.00001 &&
+                    ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue ==
+                    (conflicts ? "0.145 m" : "0.140 m")
+            }
+            XCTAssertTrue(settled)
+            XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMin, newMinimum, accuracy: 0.00001,
+                           "A stale maximum draft must not clamp away a newer minimum")
+            XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMax, expectedMaximum, accuracy: 0.00001)
+            if conflicts {
+                guard settled else { await fixture.verifyStandard(); return }
+                let notice = try await ui.waitFor { ui.element(label: L10n.Calibration.parameterConflict) != nil }
+                XCTAssertTrue(notice)
+                let retry = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                               fraction: 1 / 32, expected: "0.150 m")
+                retry.sendActions(for: .touchUpInside)
+                let committed = try await ui.waitFor {
+                    abs(fixture.root.parametersStore.param(for: .pear).diamMax - 0.150) < 0.00001
+                }
+                XCTAssertTrue(committed, "A fresh edit uses the newly accepted minimum baseline")
+                XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMin, 0.142, accuracy: 0.00001)
+            }
+            try await ui.closeCalibration()
+            await fixture.verifyStandard()
+        }
+    }
+
+    @MainActor
+    func testCalibrationDiameterPreservesNewerSettingsMinimumAndAllowsSafeMerge() async throws {
+        for (newMinimum, expectedMaximum, conflicts) in [(0.142, 0.145, true), (0.040, 0.140, false)] {
+            let fixture = try await RootParameterFixture()
+            defer { fixture.cleanup() }
+            let ui = try RootLaunchUIHarness()
+            defer { ui.close() }
+            fixture.mount(on: ui)
+            try await ui.openCalibration()
+            let diameter = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                              fraction: -1 / 32, expected: "0.140 m")
+            fixture.root.settings.clusterMinDiameter = newMinimum
+            diameter.sendActions(for: .touchUpInside)
+            let settled = try await ui.waitFor {
+                abs(Double(fixture.root.parametersStore.param(for: .pear).diamMax) - expectedMaximum) < 0.00001 &&
+                    abs(fixture.root.settings.clusterMaxDiameter - expectedMaximum) < 0.00001 &&
+                    ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue ==
+                    (conflicts ? "0.145 m" : "0.140 m")
+            }
+            XCTAssertTrue(settled)
+            XCTAssertEqual(fixture.root.settings.clusterMinDiameter, newMinimum, accuracy: 0.00001)
+            XCTAssertEqual(fixture.root.settings.clusterMaxDiameter, expectedMaximum, accuracy: 0.00001)
+            XCTAssertEqual(Double(fixture.root.parametersStore.param(for: .pear).diamMax), expectedMaximum, accuracy: 0.00001,
+                           "A conflicting settings minimum must be rejected before either max is written")
+            if conflicts {
+                guard settled else { await fixture.verifyStandard(); return }
+                let retry = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                               fraction: 1 / 32, expected: "0.150 m")
+                retry.sendActions(for: .touchUpInside)
+                let applied = try await ui.waitFor { abs(fixture.root.settings.clusterMaxDiameter - 0.150) < 0.00001 }
+                XCTAssertTrue(applied)
+                XCTAssertEqual(fixture.root.settings.clusterMinDiameter, 0.142, accuracy: 0.00001)
+            }
+            try await ui.closeCalibration()
+            await fixture.verifyStandard()
+        }
+    }
+
+    @MainActor
+    func testCalibrationDiameterStillClampsMinimumFromItsOwnBaseline() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        fixture.root.parametersStore.updateParam(for: .pear) { $0.diamMin = 0.142 }
+        fixture.root.settings.clusterMinDiameter = 0.142
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openCalibration()
+        let diameter = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                          fraction: -1 / 32, expected: "0.140 m")
+        diameter.sendActions(for: .touchUpInside)
+        let applied = try await ui.waitFor { abs(fixture.root.settings.clusterMaxDiameter - 0.140) < 0.00001 }
+        XCTAssertTrue(applied)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMin, 0.140, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMax, 0.140, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.settings.clusterMinDiameter, 0.140, accuracy: 0.00001)
+        XCTAssertNil(ui.element(label: L10n.Calibration.parameterConflict))
+        try await ui.closeCalibration()
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testCalibrationPendingConflictOnClosePreservesNewerParameters() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openCalibration()
+        _ = try await ui.changeCalibrationSlider(L10n.Calibration.maximumClusterDiameter,
+                                                fraction: 1 / 32, expected: "0.150 m")
+        _ = try await ui.changeCalibrationSlider(L10n.Calibration.minimumSphericity,
+                                                fraction: 1 / 30, expected: "0.60")
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.diamMax = 0.165
+            $0.sphericityThreshold = 0.64
+            $0.averageWeightG = 233
+        }
+        fixture.root.settings.clusterMaxDiameter = 0.165
+        fixture.root.settings.sphericityThreshold = 0.64
+        await fixture.root.parametersStore.waitForPendingSave()
+        let parameters = fixture.root.parametersStore.parameterSnapshot()
+        let bytes = try XCTUnwrap(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey))
+        try await ui.closeCalibration()
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.parametersStore.parameterSnapshot(), parameters)
+        XCTAssertEqual(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+        XCTAssertEqual(fixture.root.settings.clusterMaxDiameter, 0.165, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.settings.sphericityThreshold, 0.64, accuracy: 0.00001)
+        await fixture.verifyStandard()
+    }
+
     @MainActor
     func testDashboardCalibrationCommitsRootDraftsAndKeepsTheirCategory() async throws {
         let fixture = try await RootParameterFixture()
