@@ -11,7 +11,7 @@ struct ResultView: View {
     let onDismiss: () -> Void
     let onDismissToHome: () -> Void
 
-    @ObservedObject private var tagStore = TagStore.shared
+    @ObservedObject var tagStore = TagStore.shared
     @State private var selectedPlotId: UUID?
     @State private var selectedTagIds: Set<UUID> = []
     @State private var selectedStatus: ScanStatus = .scanned
@@ -47,7 +47,8 @@ struct ResultView: View {
                         treeID: treeID,
                         selectedPlotId: $selectedPlotId,
                         selectedTagIds: $selectedTagIds,
-                        selectedStatus: $selectedStatus
+                        selectedStatus: $selectedStatus,
+                        tagStore: tagStore
                     )
 
                     ResultPostScanWorkflowSection(result: result)

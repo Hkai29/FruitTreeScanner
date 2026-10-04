@@ -266,7 +266,8 @@ extension DashboardView {
                 onStartScan: showStartScanAfterDismissingSheet,
                 onRescanTree: launchRescan,
                 onImportFile: { self.destination = .importFile },
-                historyStore: historyStore
+                historyStore: historyStore,
+                tagStore: tagStore
             )
         case .pointCloud(let initialFileURL):
             PointCloudSheet(
@@ -295,7 +296,8 @@ extension DashboardView {
             BatchExportView(
                 onStartScan: showStartScanAfterDismissingSheet,
                 onImportFile: { self.destination = .importFile },
-                store: historyStore
+                store: historyStore,
+                tagStore: tagStore
             )
         case .startScan, .quickScan:
             EmptyView()

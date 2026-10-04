@@ -6,7 +6,7 @@ struct QuickTaggingCard: View {
     @Binding var selectedTagIds: Set<UUID>
     @Binding var selectedStatus: ScanStatus
 
-    @ObservedObject private var tagStore = TagStore.shared
+    @ObservedObject var tagStore = TagStore.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var didSave = false
 

@@ -72,7 +72,8 @@ struct ScanView: View {
                 qualityMonitor: qualityMonitor,
                 measurementController: measurementController,
                 measuredDistance: $measuredDistance,
-                actions: scannerInterfaceActions
+                actions: scannerInterfaceActions,
+                tagStore: appDependencies.tagStore
             )
 
             ScanReadinessOverlay(
