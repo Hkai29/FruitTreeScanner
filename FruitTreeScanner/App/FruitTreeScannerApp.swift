@@ -51,17 +51,20 @@ struct FruitTreeScannerApp: App {
 @MainActor
 final class AppDependencies: ObservableObject {
     let settings: SettingsStore
+    let parametersStore: FruitParametersStore
     let tagStore: TagStore
     let scanPlanFactory: ScanPlanFactory
     let scanRepository: ScanRepository
     let historyStore: ScanHistoryStore
 
-    init(settings: SettingsStore = .shared, scanRepository: ScanRepository = .shared, tagStore: TagStore = .shared) {
+    init(settings: SettingsStore = .shared, scanRepository: ScanRepository = .shared,
+         tagStore: TagStore = .shared, parametersStore: FruitParametersStore? = nil) {
         self.settings = settings
+        self.parametersStore = parametersStore ?? .shared
         self.tagStore = tagStore
         self.scanRepository = scanRepository
         self.historyStore = ScanHistoryStore(repository: scanRepository)
-        self.scanPlanFactory = ScanPlanFactory(settings: settings)
+        self.scanPlanFactory = ScanPlanFactory(settings: settings, parametersStore: self.parametersStore)
     }
 
     func prepareForScanning() async {

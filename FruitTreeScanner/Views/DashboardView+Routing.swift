@@ -258,9 +258,9 @@ extension DashboardView {
     func sheetView(for destination: DashboardDestination) -> some View {
         switch destination {
         case .settings:
-            SettingsView(settings: settingsStore)
+            SettingsView(settings: settingsStore, parametersStore: parametersStore)
         case .calibration:
-            CalibrationView(scanSource: calibrationScanSource)
+            CalibrationView(scanSource: calibrationScanSource, settings: settingsStore, parametersStore: parametersStore)
         case .scanHistory:
             HistorySheetView(
                 onStartScan: showStartScanAfterDismissingSheet,

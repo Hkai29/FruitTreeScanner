@@ -3,14 +3,17 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject private var settings: SettingsStore
+    private let parametersStore: FruitParametersStore
     @State private var deviceExpanded = true
     @State private var dataExpanded = true
     @State private var scanExpanded = true
     @State private var maxPointCountDraft: Double = 1_000_000
     @State private var scanPrecisionDraft: Double = 0.01
 
-    init(settings: SettingsStore = .shared) {
+    @MainActor
+    init(settings: SettingsStore = .shared, parametersStore: FruitParametersStore? = nil) {
         self.settings = settings
+        self.parametersStore = parametersStore ?? .shared
     }
 
     private var maxPointCountBinding: Binding<Double> {
@@ -92,7 +95,7 @@ struct SettingsView: View {
                             GlassDivider()
 
                             NavigationLink {
-                                VarietyDatabaseView(settings: settings)
+                                VarietyDatabaseView(settings: settings, store: parametersStore)
                             } label: {
                                 SettingsNavigationRow(
                                     icon: "leaf.circle",

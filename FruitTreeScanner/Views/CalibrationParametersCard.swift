@@ -8,6 +8,7 @@ struct CalibrationParametersCard: View {
     let onCommitMinClusterPoints: () -> Void
     let onCommitMaxDiameter: () -> Void
     let onCommitSphericity: () -> Void
+    @ObservedObject var settings: SettingsStore = .shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
@@ -42,7 +43,7 @@ struct CalibrationParametersCard: View {
                 onCommit: onCommitSphericity
             )
 
-            CalibrationHSVSummary()
+            CalibrationHSVSummary(settings: settings)
         }
         .padding(Design.Space.md)
         .background(
@@ -138,6 +139,8 @@ private struct CalibrationSliderRow: View {
 }
 
 private struct CalibrationHSVSummary: View {
+    @ObservedObject var settings: SettingsStore
+
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.xs) {
             Text(L10n.Calibration.hsvRange)
@@ -145,13 +148,13 @@ private struct CalibrationHSVSummary: View {
                 .foregroundColor(Design.Colors.Dark.textPrimary)
 
             HStack {
-                Text("H: \(Int(SettingsStore.shared.hsvHMin))° - \(Int(SettingsStore.shared.hsvHMax))°")
+                Text("H: \(Int(settings.hsvHMin))° - \(Int(settings.hsvHMax))°")
                     .font(Design.Typography.monoSmall)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
 
                 Spacer()
 
-                Text("S≥\(String(format: "%.0f%%", SettingsStore.shared.hsvSMin * 100)) V≥\(String(format: "%.0f%%", SettingsStore.shared.hsvVMin * 100))")
+                Text("S≥\(String(format: "%.0f%%", settings.hsvSMin * 100)) V≥\(String(format: "%.0f%%", settings.hsvVMin * 100))")
                     .font(Design.Typography.monoSmall)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }

@@ -325,7 +325,272 @@ private final class RootClassificationFixture {
     }
 }
 
+@MainActor
+private final class RootParameterFixture {
+    let suite = "RootParameters-\(UUID())"
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let defaults: UserDefaults
+    let root: AppDependencies
+    private let standard: [String: Any]
+    private static let protectedKeys = RootClassificationFixture.protectedKeys + [
+        SettingsStoreKey.clusterMinPoints, SettingsStoreKey.clusterMinDiameter,
+        SettingsStoreKey.clusterMaxDiameter, SettingsStoreKey.sphericityThreshold,
+        SettingsStoreKey.hsvHMin, SettingsStoreKey.hsvHMax, SettingsStoreKey.hsvSMin, SettingsStoreKey.hsvVMin
+    ]
+
+    init() async throws {
+        await FruitParametersStore.shared.waitForPendingSave()
+        await TagStore.shared.waitForPendingSave()
+        standard = UserDefaults.standard.dictionaryRepresentation().filter { Self.protectedKeys.contains($0.key) }
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let settings = SettingsStore(defaults: defaults)
+        settings.fruitType = "pear"
+        settings.qualityPreset = "中"
+        settings.clusterMinPoints = 19
+        settings.clusterMaxDiameter = 0.145
+        settings.sphericityThreshold = 0.58
+        settings.hsvHMin = 10
+        settings.hsvHMax = 44
+        settings.hsvSMin = 0.51
+        settings.hsvVMin = 0.61
+        let parameters = FruitParametersStore(defaults: defaults)
+        parameters.updateParam(for: .pear) {
+            $0.diamMin = 0.035
+            $0.diamMax = 0.145
+            $0.averageWeightG = 221
+            $0.density = 0.91
+            $0.clusterEps = 0.045
+            $0.sphericityThreshold = 0.58
+        }
+        parameters.updateParam(for: .apple) { $0.averageWeightG = 161 }
+        await parameters.waitForPendingSave()
+        root = AppDependencies(settings: settings, scanRepository: ScanRepository(scansDirectory: directory),
+                               tagStore: TagStore(defaults: defaults), parametersStore: parameters)
+    }
+
+    func mount(on ui: RootLaunchUIHarness) {
+        ui.mount(DashboardView(router: NavigationRouter(defaults: defaults, notificationCenter: NotificationCenter()),
+                               historyStore: root.historyStore).environmentObject(root))
+    }
+
+    func plan(_ treeID: String) -> ScanPlan {
+        root.scanPlanFactory.makePlan(treeID: treeID, season: .mature, selectedCategory: .pear, renderer: nil)
+    }
+
+    func verifyStandard() async {
+        await root.parametersStore.waitForPendingSave()
+        await root.tagStore.waitForPendingSave()
+        await FruitParametersStore.shared.waitForPendingSave()
+        await TagStore.shared.waitForPendingSave()
+        let after = UserDefaults.standard.dictionaryRepresentation().filter { Self.protectedKeys.contains($0.key) }
+        XCTAssertTrue(NSDictionary(dictionary: after).isEqual(to: standard), "Root parameter flows must preserve standard preferences")
+        XCTAssertTrue((try? FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty) == true)
+    }
+
+    func cleanup() {
+        defaults.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: directory)
+    }
+}
+
 final class DashboardSummaryTests: XCTestCase {
+    @MainActor
+    func testDashboardCalibrationCommitsRootDraftsAndKeepsTheirCategory() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        await fixture.root.prepareForScanning()
+        let frozen = fixture.plan("ROOT43-CALIBRATION")
+        let frozenContext = try XCTUnwrap(frozen.fruitConfiguration.calibrationContext)
+        let appleBefore = fixture.root.parametersStore.param(for: .apple)
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        func openCalibration() async throws {
+            let label = L10n.Dashboard.quickActionAccessibilityLabel(title: L10n.Dashboard.calibrationTitle,
+                                                                    description: L10n.Dashboard.calibrationDescription)
+            let action = try await ui.scrollToDashboardAction(label: label)
+            XCTAssertTrue(action.accessibilityActivate())
+            let ready = try await ui.waitFor { ui.element(label: L10n.Calibration.minimumClusterPoints) != nil }
+            XCTAssertTrue(ready)
+        }
+        func increment(_ label: String, fraction: Float, expected: String) async throws -> UISlider {
+            let control = try await ui.scrollToControl(label: label)
+            let slider = try XCTUnwrap(control as? UISlider)
+            slider.sendActions(for: .touchDown)
+            slider.value += (slider.maximumValue - slider.minimumValue) * fraction
+            slider.sendActions(for: .valueChanged)
+            let changed = try await ui.waitFor { slider.accessibilityValue == expected }
+            XCTAssertTrue(changed, "Actual slider draft must reach \(expected)")
+            return slider
+        }
+        try await openCalibration()
+        XCTAssertEqual(ui.element(label: L10n.Calibration.minimumClusterPoints)?.accessibilityValue, "19")
+        XCTAssertEqual(ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue, "0.145 m")
+        XCTAssertEqual(ui.element(label: L10n.Calibration.minimumSphericity)?.accessibilityValue, "0.58")
+        let initialHSV = try await ui.waitFor {
+            ui.elements.contains { $0.accessibilityLabel?.contains("H: 10° - 44°") == true &&
+                $0.accessibilityLabel?.contains("S≥51% V≥61%") == true }
+        }
+        XCTAssertTrue(initialHSV, "Dashboard calibration HSV must read root settings")
+        await fixture.verifyStandard()
+        try await ui.attach(to: self, phase: "43-calibration-root")
+        let minPoints = try await increment(L10n.Calibration.minimumClusterPoints, fraction: 1 / 147, expected: "20")
+        XCTAssertEqual(fixture.root.settings.clusterMinPoints, 19, "Dragging retains the draft")
+        minPoints.sendActions(for: .touchUpInside)
+        let minCommitted = try await ui.waitFor { fixture.root.settings.clusterMinPoints == 20 }
+        XCTAssertTrue(minCommitted)
+        let diameter = try await increment(L10n.Calibration.maximumClusterDiameter, fraction: 1 / 32, expected: "0.150 m")
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).diamMax, 0.145, accuracy: 0.00001)
+        diameter.sendActions(for: .touchUpInside)
+        let diameterCommitted = try await ui.waitFor {
+            abs(fixture.root.settings.clusterMaxDiameter - 0.15) < 0.00001 &&
+                abs(fixture.root.parametersStore.param(for: .pear).diamMax - 0.15) < 0.00001
+        }
+        XCTAssertTrue(diameterCommitted)
+        _ = try await increment(L10n.Calibration.minimumSphericity, fraction: 1 / 30, expected: "0.60")
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).sphericityThreshold, 0.58, accuracy: 0.00001)
+        fixture.root.settings.hsvHMax = 48
+        fixture.root.settings.fruitType = "apple"
+        let updatedHSV = try await ui.waitFor {
+            ui.elements.contains { $0.accessibilityLabel?.contains("H: 10° - 48°") == true }
+        }
+        XCTAssertTrue(updatedHSV, "Published root HSV changes must update the presented card")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Calibration.close)).accessibilityActivate())
+        let closed = try await ui.waitFor { ui.controller.presentedViewController == nil }
+        XCTAssertTrue(closed)
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).sphericityThreshold, 0.60, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.settings.sphericityThreshold, 0.60, accuracy: 0.00001)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .apple), appleBefore,
+                       "Changing the next scan category cannot redirect an already-open pear draft")
+        let persisted = FruitParametersStore(defaults: fixture.defaults)
+        XCTAssertEqual(persisted.param(for: .pear).diamMax, 0.15, accuracy: 0.00001)
+        XCTAssertEqual(persisted.param(for: .pear).sphericityThreshold, 0.60, accuracy: 0.00001)
+        let next = fixture.plan("ROOT43-CALIBRATION-NEXT")
+        XCTAssertEqual(next.fruitConfiguration.clusterConfig.minPoints, 20)
+        XCTAssertEqual(next.fruitConfiguration.defaultParams.sphericityThreshold, 0.60, accuracy: 0.00001)
+        XCTAssertNotEqual(next.fruitConfiguration.calibrationContext, frozenContext)
+        XCTAssertEqual(frozen.fruitConfiguration.defaultParams.diamMax, 0.145, accuracy: 0.00001)
+        XCTAssertEqual(frozen.fruitConfiguration.calibrationContext, frozenContext)
+        try await openCalibration()
+        XCTAssertEqual(ui.element(label: L10n.Calibration.minimumClusterPoints)?.accessibilityValue, "20")
+        XCTAssertEqual(ui.element(label: L10n.Calibration.maximumClusterDiameter)?.accessibilityValue, "0.150 m")
+        XCTAssertEqual(ui.element(label: L10n.Calibration.minimumSphericity)?.accessibilityValue, "0.50")
+        try await ui.attach(to: self, phase: "43-calibration-reopened-apple")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Calibration.close)).accessibilityActivate())
+        let closedAgain = try await ui.waitFor { ui.controller.presentedViewController == nil }
+        XCTAssertTrue(closedAgain)
+        await persisted.waitForPendingSave()
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testDashboardVarietySaveCancelAndReopenUseOwnedParameters() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        await fixture.root.prepareForScanning()
+        let frozen = fixture.plan("ROOT43-VARIETY")
+        let frozenContext = try XCTUnwrap(frozen.fruitConfiguration.calibrationContext)
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Dashboard.settingsAccessibilityLabel)).accessibilityActivate())
+        let ready = try await ui.waitFor { ui.element(label: L10n.Settings.varietyDatabase) != nil }
+        XCTAssertTrue(ready)
+        let variety = try await ui.scrollToControl(label: L10n.Settings.varietyDatabase)
+        XCTAssertTrue(variety.accessibilityActivate())
+        let editLabel = L10n.VarietyDatabase.editAccessibility(L10n.Fruit.name(for: .pear))
+        func slider(_ label: String) async throws -> UISlider {
+            _ = try await ui.scrollToControl(label: label)
+            return try XCTUnwrap(ui.elements.compactMap { $0 as? UISlider }.first { $0.accessibilityLabel == label })
+        }
+        func editPear() async throws {
+            let control = try await ui.scrollToControl(label: editLabel)
+            XCTAssertTrue(control.accessibilityActivate())
+            let editing = try await ui.waitFor {
+                ui.elements.contains { $0 is UISlider && $0.accessibilityLabel == L10n.VarietyDatabase.maximumDiameter }
+            }
+            XCTAssertTrue(editing)
+        }
+        try await editPear()
+        let maximum = try await slider(L10n.VarietyDatabase.maximumDiameter)
+        XCTAssertEqual(maximum.accessibilityValue, VarietyParameterFormatter.millimeters(0.145))
+        let weight = try await slider(L10n.VarietyDatabase.averageWeight)
+        XCTAssertEqual(weight.accessibilityValue, VarietyParameterFormatter.grams(221))
+        try await ui.attach(to: self, phase: "43-variety-root")
+        weight.value += (weight.maximumValue - weight.minimumValue) / 1999
+        weight.sendActions(for: .valueChanged)
+        let drafted = try await ui.waitFor { weight.accessibilityValue == VarietyParameterFormatter.grams(222) }
+        XCTAssertTrue(drafted)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).averageWeightG, 221)
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.cancel)).accessibilityActivate())
+        let cancelled = try await ui.waitFor { ui.element(label: editLabel) != nil }
+        XCTAssertTrue(cancelled)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).averageWeightG, 221)
+        try await editPear()
+        let savedWeight = try await slider(L10n.VarietyDatabase.averageWeight)
+        XCTAssertEqual(savedWeight.accessibilityValue, VarietyParameterFormatter.grams(221))
+        savedWeight.value += (savedWeight.maximumValue - savedWeight.minimumValue) / 1999
+        savedWeight.sendActions(for: .valueChanged)
+        let changed = try await ui.waitFor { savedWeight.accessibilityValue == VarietyParameterFormatter.grams(222) }
+        XCTAssertTrue(changed)
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.save)).accessibilityActivate())
+        let saved = try await ui.waitFor { ui.element(label: editLabel) != nil &&
+            fixture.root.parametersStore.param(for: .pear).averageWeightG == 222 }
+        XCTAssertTrue(saved)
+        await fixture.root.parametersStore.waitForPendingSave()
+        let persisted = FruitParametersStore(defaults: fixture.defaults)
+        XCTAssertEqual(persisted.param(for: .pear).averageWeightG, 222)
+        XCTAssertEqual(fixture.plan("ROOT43-VARIETY-NEXT").fruitConfiguration.defaultParams.averageWeightG, 222)
+        XCTAssertEqual(frozen.fruitConfiguration.defaultParams.averageWeightG, 221)
+        XCTAssertEqual(frozen.fruitConfiguration.calibrationContext, frozenContext)
+        try await editPear()
+        let reopenedWeight = try await slider(L10n.VarietyDatabase.averageWeight)
+        XCTAssertEqual(reopenedWeight.accessibilityValue, VarietyParameterFormatter.grams(222))
+        try await ui.attach(to: self, phase: "43-variety-saved-reopened")
+        // Native UIAlertController confirmation is exercised with real touches in
+        // FruitTreeScannerUITests/VarietyConfirmationTests on a disposable simulator.
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.cancel)).accessibilityActivate())
+        let closedAgain = try await ui.waitFor { ui.element(label: editLabel) != nil }
+        XCTAssertTrue(closedAgain)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear).averageWeightG, 222)
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .apple).averageWeightG, 161)
+        await persisted.waitForPendingSave()
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testRootPlansCaptureAllOwnedParametersAndFreezeCalibrationContext() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        await fixture.root.prepareForScanning()
+        let originalParameters = fixture.root.parametersStore.parameterSnapshot()
+        let frozen = fixture.plan("ROOT43-FROZEN")
+        XCTAssertEqual(frozen.fruitConfiguration.parametersSnapshot, originalParameters,
+                       "The actual root factory must capture every root parameter, including other categories")
+        XCTAssertEqual(frozen.fruitConfiguration.defaultParams.diamMax, 0.145, accuracy: 0.00001)
+        XCTAssertEqual(frozen.fruitConfiguration.defaultParams.averageWeightG, 221)
+        XCTAssertEqual(frozen.fruitConfiguration.clusterConfig.minPoints, 19)
+        await fixture.verifyStandard()
+        guard frozen.fruitConfiguration.parametersSnapshot == originalParameters else { return }
+        let originalContext = try XCTUnwrap(frozen.fruitConfiguration.calibrationContext)
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.diamMax = 0.155
+            $0.averageWeightG = 222
+        }
+        fixture.root.parametersStore.updateParam(for: .apple) { $0.averageWeightG = 162 }
+        let next = fixture.plan("ROOT43-NEXT")
+        XCTAssertEqual(next.fruitConfiguration.defaultParams.diamMax, 0.155, accuracy: 0.00001)
+        XCTAssertEqual(next.fruitConfiguration.defaultParams.averageWeightG, 222)
+        XCTAssertEqual(next.fruitConfiguration.parametersSnapshot["apple"]?.averageWeightG, 162)
+        XCTAssertNotEqual(next.fruitConfiguration.calibrationContext, originalContext)
+        XCTAssertEqual(frozen.fruitConfiguration.parametersSnapshot, originalParameters)
+        XCTAssertEqual(frozen.fruitConfiguration.calibrationContext, originalContext)
+        XCTAssertEqual(frozen.fruitConfiguration.clusterConfig.maxDiameter, 0.145, accuracy: 0.00001)
+        await fixture.verifyStandard()
+    }
+
     @MainActor
     func testDashboardHistoryFiltersAndReviewUseRootClassification() async throws {
         let fixture = try await RootClassificationFixture()

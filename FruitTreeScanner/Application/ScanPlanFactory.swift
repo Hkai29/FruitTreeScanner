@@ -36,12 +36,14 @@ extension ScanFruitConfiguration {
         settings: ScanSettingsProviding,
         calibrationRecordsLoader: ScanCalibrationRecordsLoader = {
             try CalibrationRecordPersistence.load()
-        }
+        },
+        parametersStore: FruitParametersStore? = nil
     ) -> ScanFruitConfiguration {
         let snapshot = ScanFruitConfigurationSnapshot.capture(
             selectedCategory: selectedCategory,
             settings: settings,
-            calibrationRecordsLoader: calibrationRecordsLoader
+            calibrationRecordsLoader: calibrationRecordsLoader,
+            parametersStore: parametersStore
         )
         return snapshot.makeConfiguration(modelIdentity: ScanModelFingerprint.bundledIdentity)
     }
@@ -63,9 +65,10 @@ struct ScanFruitConfigurationSnapshot: Sendable {
     static func capture(
         selectedCategory: FruitCategory,
         settings: ScanSettingsProviding,
-        calibrationRecordsLoader: ScanCalibrationRecordsLoader
+        calibrationRecordsLoader: ScanCalibrationRecordsLoader,
+        parametersStore: FruitParametersStore? = nil
     ) -> ScanFruitConfigurationSnapshot {
-        let parametersSnapshot = FruitParametersStore.shared.parameterSnapshot()
+        let parametersSnapshot = (parametersStore ?? .shared).parameterSnapshot()
         let defaultParams = parametersSnapshot[selectedCategory.rawValue]
             ?? FruitVarietyParams(category: selectedCategory)
         let clusterConfig = settings.clusterConfig(for: defaultParams)
@@ -154,6 +157,7 @@ struct ScanFruitConfigurationSnapshot: Sendable {
 @MainActor
 final class ScanPlanFactory {
     let settings: SettingsStore
+    let parametersStore: FruitParametersStore
 
     private let calibrationRecordsLoader: ScanCalibrationRecordsLoader
     private let modelIdentityProvider: ScanModelIdentityProviding
@@ -168,9 +172,11 @@ final class ScanPlanFactory {
         },
         modelIdentityProvider: ScanModelIdentityProviding = BundledScanModelIdentityProvider(),
         experimentConfiguration: FruitScanExperimentConfig = .default,
-        resourceBudget: ScanResourceBudget = .default
+        resourceBudget: ScanResourceBudget = .default,
+        parametersStore: FruitParametersStore? = nil
     ) {
         self.settings = settings
+        self.parametersStore = parametersStore ?? .shared
         self.calibrationRecordsLoader = calibrationRecordsLoader
         self.modelIdentityProvider = modelIdentityProvider
         self.experimentConfiguration = experimentConfiguration
@@ -192,7 +198,8 @@ final class ScanPlanFactory {
         let snapshot = ScanFruitConfigurationSnapshot.capture(
             selectedCategory: selectedCategory,
             settings: settings,
-            calibrationRecordsLoader: calibrationRecordsLoader
+            calibrationRecordsLoader: calibrationRecordsLoader,
+            parametersStore: parametersStore
         )
         let rendererSettings = RendererScanSettings(
             store: settings,

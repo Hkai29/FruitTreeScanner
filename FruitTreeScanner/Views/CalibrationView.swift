@@ -15,24 +15,32 @@ import UIKit
 struct CalibrationView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var recordsController: CalibrationRecordsController
+    @ObservedObject private var settings: SettingsStore
+    private let parametersStore: FruitParametersStore
     let scanSource: CalibrationScanSource
     @State private var showAddRecord = false
     @State private var recordPendingDeletion: CalibrationRecord?
-    @State private var maxDiameter: Double = SettingsStore.shared.clusterMaxDiameter
-    @State private var minClusterPoints: Double = Double(SettingsStore.shared.clusterMinPoints)
-    @State private var sphericity: Double = SettingsStore.shared.sphericityThreshold
-
-    private var activeFruitCategory: FruitCategory {
-        FruitCategory(rawValue: SettingsStore.shared.fruitType) ?? .apple
-    }
+    @State private var maxDiameter: Double
+    @State private var minClusterPoints: Double
+    @State private var sphericity: Double
+    // A draft keeps its category even if another root consumer changes the next scan selection.
+    @State private var activeFruitCategory: FruitCategory
 
     @MainActor
     init(
         recordsController: CalibrationRecordsController? = nil,
-        scanSource: CalibrationScanSource? = nil
+        scanSource: CalibrationScanSource? = nil,
+        settings: SettingsStore = .shared,
+        parametersStore: FruitParametersStore? = nil
     ) {
         _recordsController = StateObject(wrappedValue: recordsController ?? CalibrationRecordsController())
         self.scanSource = scanSource ?? .production(repository: .shared, historyStore: .shared)
+        self.settings = settings
+        self.parametersStore = parametersStore ?? .shared
+        _maxDiameter = State(initialValue: settings.clusterMaxDiameter)
+        _minClusterPoints = State(initialValue: Double(settings.clusterMinPoints))
+        _sphericity = State(initialValue: settings.sphericityThreshold)
+        _activeFruitCategory = State(initialValue: FruitCategory(rawValue: settings.fruitType) ?? .apple)
     }
 
     var body: some View {
@@ -61,7 +69,8 @@ struct CalibrationView: View {
                             sphericity: $sphericity,
                             onCommitMinClusterPoints: commitMinClusterPointsDraft,
                             onCommitMaxDiameter: commitMaxDiameterDraft,
-                            onCommitSphericity: commitSphericityDraft
+                            onCommitSphericity: commitSphericityDraft,
+                            settings: settings
                         )
 
                         if recordsController.state.showsDerivedStatistics {
@@ -119,9 +128,9 @@ struct CalibrationView: View {
         }
         .onAppear {
             recordsController.load()
-            let params = FruitParametersStore.shared.param(for: activeFruitCategory)
+            let params = parametersStore.param(for: activeFruitCategory)
             maxDiameter = Double(params.diamMax)
-            minClusterPoints = Double(SettingsStore.shared.clusterMinPoints)
+            minClusterPoints = Double(settings.clusterMinPoints)
             sphericity = Double(params.sphericityThreshold)
         }
         .onDisappear {
@@ -165,24 +174,24 @@ struct CalibrationView: View {
 
     private func commitMinClusterPointsDraft() {
         let rounded = Int(minClusterPoints.rounded())
-        guard SettingsStore.shared.clusterMinPoints != rounded else { return }
-        SettingsStore.shared.clusterMinPoints = rounded
-        minClusterPoints = Double(SettingsStore.shared.clusterMinPoints)
+        guard settings.clusterMinPoints != rounded else { return }
+        settings.clusterMinPoints = rounded
+        minClusterPoints = Double(settings.clusterMinPoints)
     }
 
     private func commitMaxDiameterDraft() {
         let rounded = (maxDiameter / 0.005).rounded() * 0.005
         let category = activeFruitCategory
-        let current = FruitParametersStore.shared.param(for: category)
+        let current = parametersStore.param(for: category)
         let needsStoreUpdate = abs(Double(current.diamMax) - rounded) > 0.000_1
-        let needsSettingsUpdate = abs(SettingsStore.shared.clusterMaxDiameter - rounded) > 0.000_1
+        let needsSettingsUpdate = abs(settings.clusterMaxDiameter - rounded) > 0.000_1
         guard needsStoreUpdate || needsSettingsUpdate else {
             maxDiameter = Double(current.diamMax)
             return
         }
 
         if needsStoreUpdate {
-            FruitParametersStore.shared.updateParam(for: category) { params in
+            parametersStore.updateParam(for: category) { params in
                 params.diamMax = Float(rounded)
                 if params.diamMin > params.diamMax {
                     params.diamMin = params.diamMax
@@ -190,7 +199,7 @@ struct CalibrationView: View {
             }
         }
         if needsSettingsUpdate {
-            SettingsStore.shared.clusterMaxDiameter = rounded
+            settings.clusterMaxDiameter = rounded
         }
         maxDiameter = rounded
     }
@@ -198,21 +207,21 @@ struct CalibrationView: View {
     private func commitSphericityDraft() {
         let rounded = (sphericity / 0.02).rounded() * 0.02
         let category = activeFruitCategory
-        let current = FruitParametersStore.shared.param(for: category)
+        let current = parametersStore.param(for: category)
         let needsStoreUpdate = abs(Double(current.sphericityThreshold) - rounded) > 0.000_1
-        let needsSettingsUpdate = abs(SettingsStore.shared.sphericityThreshold - rounded) > 0.000_1
+        let needsSettingsUpdate = abs(settings.sphericityThreshold - rounded) > 0.000_1
         guard needsStoreUpdate || needsSettingsUpdate else {
             sphericity = Double(current.sphericityThreshold)
             return
         }
 
         if needsStoreUpdate {
-            FruitParametersStore.shared.updateParam(for: category) { params in
+            parametersStore.updateParam(for: category) { params in
                 params.sphericityThreshold = Float(rounded)
             }
         }
         if needsSettingsUpdate {
-            SettingsStore.shared.sphericityThreshold = rounded
+            settings.sphericityThreshold = rounded
         }
         sphericity = rounded
     }
