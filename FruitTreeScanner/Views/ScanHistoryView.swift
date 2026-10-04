@@ -9,7 +9,7 @@ struct ScanHistoryView: View {
     var onRescanTree: ((String) -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
     @ObservedObject var historyStore: ScanHistoryStore
-    @ObservedObject private var tagStore = TagStore.shared
+    @ObservedObject private var tagStore: TagStore
     @StateObject private var deletionController: ScanHistoryDeletionController
     @State private var selectedPlotId: UUID?
     @State private var selectedStatus: ScanStatus?
@@ -24,7 +24,8 @@ struct ScanHistoryView: View {
         onStartScan: (() -> Void)? = nil,
         onRescanTree: ((String) -> Void)? = nil,
         onImportFile: (() -> Void)? = nil,
-        historyStore: ScanHistoryStore? = nil
+        historyStore: ScanHistoryStore? = nil,
+        tagStore: TagStore = .shared
     ) {
         let historyStore = historyStore ?? .shared
         self.customTitle = customTitle
@@ -32,6 +33,7 @@ struct ScanHistoryView: View {
         self.onRescanTree = onRescanTree
         self.onImportFile = onImportFile
         self.historyStore = historyStore
+        self.tagStore = tagStore
         _deletionController = StateObject(wrappedValue: ScanHistoryDeletionController(
             deleteRecords: { records in await historyStore.deleteRecordsWithResult(records) }
         ))

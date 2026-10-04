@@ -100,6 +100,7 @@ struct ScanResultLayer: View {
     let onRetryResultPersistence: () -> Void
     let onDismissResult: () -> Void
     let onDismissResultToHome: () -> Void
+    @ObservedObject var tagStore = TagStore.shared
 
     var body: some View {
         if showResult, let result = yieldResult {
@@ -109,7 +110,8 @@ struct ScanResultLayer: View {
                 persistenceState: resultPersistenceState,
                 onRetryPersistence: onRetryResultPersistence,
                 onDismiss: onDismissResult,
-                onDismissToHome: onDismissResultToHome
+                onDismissToHome: onDismissResultToHome,
+                tagStore: tagStore
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }

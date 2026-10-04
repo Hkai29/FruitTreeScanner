@@ -724,6 +724,47 @@ TreeFilterView 当前未找到生产调用，先重新核对真实用途，不�
 完成后记录下一轮构思；提交、推送与合并按当前明确授权执行。
 ```
 
+## 第四十二轮：历史、结果标记与批量导出的分类根装配
+
+2026-10-04。第 40–41 轮已由 [PR #15](https://github.com/Hkai29/FruitTreeScanner/pull/15) 合并，主分支提交 `c17ed022` 与本轮基线 `c6d084c2` 文件树一致。六项原有工作流 dirty work 继续保留。本次用户明确要求推送并合并，第 42 轮使用独立分支 `codex/root-classification-consumers` 交付，远端终态以对应 PR 为准。
+
+根因是分类生产者已使用 AppDependencies 持有的 TagStore，但历史、扫描结果与批量导出仍从 shared 读取或写入另一套分类。最终夹具与全部八个原生产文件匹配基线摘要时，`before-final.xcresult` 的三项产品回归均失败、退出 65：实际历史菜单缺失根地块，实际 ScanView 结果未恢复根归属，实际 CSV 未包含根地块分组。历史和结果在缺失根数据时 guard 终止，未继续保存标准分类。早期菜单 accessibility 定位及系统呈现夹具失败另列，不冒充产品证据。
+
+- Dashboard → HistorySheetView → ScanHistoryView 传递同一根，筛选与复核写入继续执行原逻辑。
+- ScanView → ScanScannerInterfaceLayer → ScanResultLayer → ResultView → QuickTaggingCard 传递同一根，结果恢复、草稿与保存继续执行原逻辑；根发布更新不覆盖用户尚未保存的本地草稿。
+- Dashboard → BatchExportView 传入已有可注入的 TagStore，CSV 按地块映射使用根名称；没有改变导出服务或文件格式。
+- 默认构造保持 `.shared` 兼容。assignment ID、地块/标签、复核状态、reviewing 恢复为 scanned 草稿的既有语义、v1/legacy 编码、待保存语义及存档字节保持。TreeFilterView 再次核对没有生产调用，本轮未迁移或移除。
+- 三项实际 UI 链回归分别验证地块/状态筛选与复核刷新、结果恢复/选择/根发布后草稿保留/保存、真实按地块 CSV；核对新建 TagStore 读回、标准偏好值与缺失状态、自有存档完整字节。菜单夹具用公共 UIContextMenuInteraction.updateVisibleMenu 读取实际菜单并原样返回，通过公共 UIButton.sendAction 派发原 UIAction；不称作系统菜单物理点击。
+- 最后源码修改后的 `after-final.xcresult` **3 项通过，0 失败/跳过/预期失败，退出 0**。`storage lifecycle ui full` **1042 项通过、59 类、9 步全部退出 0**；三项关键方法逐项 Passed，Domain 检查与 unsigned Release 模拟器构建通过。开始/结束快照一致，九个 Swift 文件摘要仍与受测版本一致。
+- 七张 PNG、七份 accessibility 附件及一份 CSV 均复核；根地块、筛选后的 A 记录、结果已保存与 CSV `ROOT41 PLOT,BATCH42,7,1.25` 符合预期。390×844 的既有批量选项/标题占用列表空间，首行只能部分显示；该布局不属于本轮改动，后续紧凑布局验收仍需处理。
+
+最终受测 Debug App 安装到专用 iOS 27 模拟器。原生 CUA 实际走查工作台 → 历史地块菜单打开/取消、已扫描状态筛选空态、恢复全部状态、完成返回；工作台 → 批量导出显示 2/2 条完整记录、18 个果实与 3.9 kg、排除三条无效/未完整记录，选择按地块、关闭/重开恢复默认不分组，再关闭返回。原生未修改归属、复核、删除或导出分享；相应写入和 CSV 由隔离真实 UI XCTest 验证。Device Hub 最终为完整窗口、专用模拟器、键盘捕获关闭、Fit 缩放、工作台可见。
+
+安装前后及走查后 **11 份档案/校准文件集合与 SHA-256、全部 7 项实际持久偏好完全一致**；本轮实际 plist 项目计数与前轮包含默认值/缺失状态的 25 项检查范围分别记录。六项工作流文件摘要不变。算法、`.fused` 唯一可靠来源、深度/confidenceMap 拒绝、诊断、阈值、schema、摘要、校准身份和资源上限保持。
+
+证据在 `/private/tmp/fruit-iteration42/`：`before-final.xcresult`、`after-final.xcresult`、`attachments-after-final/`、`fruit-code-improvement-x10y53r0/report.json`、`critical-methods.json`、`render-review.json`、`ui-validation.json`、`native-final-preservation.json`、`final-source-preservation.json` 与 `final-review.json`。独立只读复审无本轮阻塞发现，结论 **mergeable**。全量报告保留两条系统 QoS 提示，不宣称性能收益、最低 iOS 运行或物理 LiDAR 验收。整体目标因校准参数所有权、紧凑布局及真实设备验收仍为 **needs changes**。
+
+### 下一轮构思与提示词：校准和扫描计划的参数所有权
+
+真实代码仍显示 CalibrationView 的草稿初始化、onAppear 与提交写入使用 SettingsStore.shared/FruitParametersStore.shared；CalibrationParametersCard 的 HSV 显示读取 shared；ScanPlanFactory 的快照捕获直接读取 FruitParametersStore.shared，VarietyDatabaseView 同样持有 shared 参数。下一轮先核对这些路径与根装配，不能仅以去掉 shared 字样判定完成。
+
+```text
+继续 FruitTreeScanner 重构，读取 AGENTS.md、本记录并 preflight。
+第 42 轮分类消费者已完成，最终全量 1042 项与 Release 通过；先核对实际 Git/PR 终态。
+保护六项工作流 dirty work、已受测源码、专用模拟器 11 份档案和全部实际持久偏好。
+追踪 AppDependencies、Dashboard → CalibrationView → CalibrationParametersCard，
+Settings → VarietyDatabaseView，以及 ScanPlanFactory 的参数快照捕获。
+先用独立根、偏好和参数证明实际读写/计划冻结缺口，建立失败回归或迁移基线。
+按证据确定 FruitParametersStore 的根所有权及必要消费者，保留旧默认构造兼容。
+校准草稿、当前品类、设置提交、品种参数与新计划快照应使用同一根；
+后续参数编辑不得改变活动 ScanPlan，不能在失败旧实现上继续写标准参数。
+不改变默认阈值、校准签名/身份、参数编码、可靠融合准入、诊断或资源上限。
+最后源码修改后运行参数/计划/校准定向与必要 storage/lifecycle/ui/full/Release，
+核对关键方法结果树、快照、渲染，独立复审并完成保护数据的原生关闭/重开走查。
+区分实际 CUA 操作、XCTest 公共控件与物理 LiDAR/人工果数/资源测量证据。
+完成后记录下一轮构思；提交、推送与合并按当前明确授权执行。
+```
+
 ## 验证记录
 
 日志与 xcresult 位于 `/Users/reece24/Library/Logs/FruitTreeScanner/architecture-reassessment-20260927/`。
@@ -1005,8 +1046,10 @@ Mac 已可操作；趋势、地图空态入口/关闭及对比实际选择有原
 11 份档案及本轮 25 项保护设置保持，启动入口/取消/重开已原生走查。
 第 41 轮已贯通分类生产者、实际 Dashboard 激活和重新扫描，最新全量 1039 项通过；
 11 份档案和 25 项设置保持，分类分页/表单取消/转入启动/重开/完成返回已原生走查。
-第 40–41 轮源码已分别提交，按此次明确授权推送并合并，以最新 PR 终态为准。
-下一步按第 41 轮提示词迁移历史筛选/复核、结果快速标记及批量导出分类消费者。
+第 40–41 轮已由 PR #15 合并，第 42 轮已贯通历史筛选/复核、结果快速标记及批量导出分类消费者，
+最新全量 1042 项、59 类及 Release 通过；原生筛选/返回与批量关闭/重开已走查，11 份档案及全部 7 项实际持久偏好保持。
+第 42 轮按本次明确授权推送并合并，以对应 PR 终态为准。
+下一步按第 42 轮提示词核对校准与扫描计划的参数根所有权。
 保护真实数据，不新增闲置生产测试路径。
 完成/重试已有代码回归；单独说明模拟器无 LiDAR 的 UI 范围与尚缺的物理证据。
 Domain 仍使用模块内访问；framework/package 需另行定义公开 API 并迁移消费者。

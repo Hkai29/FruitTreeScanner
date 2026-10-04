@@ -66,6 +66,7 @@ struct ScanScannerInterfaceLayer: View {
     @Binding var measuredDistance: Float?
 
     let actions: ScanScannerInterfaceActions
+    @ObservedObject var tagStore = TagStore.shared
 
     var body: some View {
         if !scanReadiness.blocksScanning {
@@ -116,7 +117,8 @@ struct ScanScannerInterfaceLayer: View {
                 resultPersistenceState: resultPersistenceState,
                 onRetryResultPersistence: actions.onRetryResultPersistence,
                 onDismissResult: actions.onDismissResult,
-                onDismissResultToHome: actions.onDismissResultToHome
+                onDismissResultToHome: actions.onDismissResultToHome,
+                tagStore: tagStore
             )
 
             if isEstimating {
