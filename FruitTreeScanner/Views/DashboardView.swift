@@ -31,6 +31,10 @@ struct DashboardView: View {
         appDependencies.settings
     }
 
+    var parametersStore: FruitParametersStore {
+        appDependencies.parametersStore
+    }
+
     var tagStore: TagStore {
         appDependencies.tagStore
     }

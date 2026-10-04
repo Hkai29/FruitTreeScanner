@@ -322,6 +322,7 @@
 		TESTYIELDGATE001 /* YieldEstimationRequestGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TESTYIELDGATE002 /* YieldEstimationRequestGateTests.swift */; };
 		APPSHORTCUTS002 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPSHORTCUTS001 /* AppShortcuts.swift */; };
 		NAVROUTER002 /* NavigationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAVROUTER001 /* NavigationRouter.swift */; };
+		UITESTBUILD430001 /* VarietyConfirmationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UITESTFILE430001 /* VarietyConfirmationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -335,6 +336,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		UITESTFILE430001 /* VarietyConfirmationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VarietyConfirmationTests.swift; sourceTree = "<group>"; };
+		UITESTAPP430001 /* FruitTreeScannerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FruitTreeScannerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		03D674BF9587E5ADD1D01895 /* GPSRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSRecorder.swift; sourceTree = "<group>"; };
 		SCANHIST987654321 /* ScanHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryStore.swift; sourceTree = "<group>"; };
 		VOXELTREND002 /* VoxelDiscoveryTrend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxelDiscoveryTrend.swift; sourceTree = "<group>"; };
@@ -789,8 +792,15 @@
 			children = (
 				080EE612D73BEFA8302D230F /* FruitTreeScanner */,
 				TESTGRP001122 /* FruitTreeScannerTests */,
+				UITESTGROUP430001 /* FruitTreeScannerUITests */,
 				98B57B354ACEAED286563A16 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		UITESTGROUP430001 /* FruitTreeScannerUITests */ = {
+			isa = PBXGroup;
+			children = (UITESTFILE430001 /* VarietyConfirmationTests.swift */,);
+			path = FruitTreeScannerUITests;
 			sourceTree = "<group>";
 		};
 		TESTGRP001122 /* FruitTreeScannerTests */ = {
@@ -985,6 +995,7 @@
 			children = (
 				91A788BC333D6DB6CF90917E /* FruitTreeScanner.app */,
 				TESTAPP001122 /* FruitTreeScannerTests.xctest */,
+				UITESTAPP430001 /* FruitTreeScannerUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1134,6 +1145,17 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		UITESTTARGET430001 /* FruitTreeScannerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = UITESTCONFIGLIST430001;
+			buildPhases = (UITESTSOURCES430001,);
+			buildRules = ();
+			dependencies = (TESTDEP001122,);
+			name = FruitTreeScannerUITests;
+			productName = FruitTreeScannerUITests;
+			productReference = UITESTAPP430001;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 28DEAD06C4CFCC309D35A921 /* Build configuration list for PBXNativeTarget "FruitTreeScanner" */;
@@ -1186,6 +1208,10 @@
 						CreatedOnToolsVersion = 15.4;
 						TestTargetID = 38BA72362BEB63A680EDB2B7;
 					};
+					UITESTTARGET430001 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 38BA72362BEB63A680EDB2B7;
+					};
 				};
 			};
 			buildConfigurationList = 8E860B69EC509B6C947B6D17 /* Build configuration list for PBXProject "FruitTreeScanner" */;
@@ -1205,6 +1231,7 @@
 			targets = (
 				38BA72362BEB63A680EDB2B7 /* FruitTreeScanner */,
 				TESTTGT001122 /* FruitTreeScannerTests */,
+				UITESTTARGET430001 /* FruitTreeScannerUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -1224,6 +1251,12 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		UITESTSOURCES430001 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (UITESTBUILD430001 /* VarietyConfirmationTests.swift in Sources */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4154A4CC6A67671CF02E6C91 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1558,6 +1591,36 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		UITESTDEBUG430001 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks",);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = FruitTreeScanner;
+			};
+			name = Debug;
+		};
+		UITESTRELEASE430001 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks",);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hkai29.fruitscanner.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = FruitTreeScanner;
+			};
+			name = Release;
+		};
 		294AC179CF7107920C0CF944 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1676,6 +1739,12 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		UITESTCONFIGLIST430001 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (UITESTDEBUG430001, UITESTRELEASE430001,);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		28DEAD06C4CFCC309D35A921 /* Build configuration list for PBXNativeTarget "FruitTreeScanner" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
