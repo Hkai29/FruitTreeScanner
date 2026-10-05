@@ -2,12 +2,12 @@ import SwiftUI
 
 struct VarietyEditView: View {
     let category: FruitCategory
-    let params: FruitVarietyParams
-    let onSave: (FruitVarietyParams) -> Void
+    private let onCommit: (FruitVarietyParams, FruitVarietyParams) -> FruitParametersStore.EditCommitResult
     let onReset: () -> Void
 
     @Environment(\.dismiss) private var dismiss
 
+    @State private var baseline: FruitVarietyParams
     @State private var diamMin: Float
     @State private var diamMax: Float
     @State private var averageWeightG: Float
@@ -15,12 +15,22 @@ struct VarietyEditView: View {
     @State private var clusterEps: Float
     @State private var sphericityThreshold: Float
     @State private var showResetConfirm = false
+    @State private var showsParameterConflict = false
 
     init(category: FruitCategory, params: FruitVarietyParams, onSave: @escaping (FruitVarietyParams) -> Void, onReset: @escaping () -> Void) {
+        self.init(category: category, params: params, onCommit: { _, edited in
+            onSave(edited)
+            return .accepted
+        }, onReset: onReset)
+    }
+
+    init(category: FruitCategory, params: FruitVarietyParams,
+         onCommit: @escaping (FruitVarietyParams, FruitVarietyParams) -> FruitParametersStore.EditCommitResult,
+         onReset: @escaping () -> Void) {
         self.category = category
-        self.params = params
-        self.onSave = onSave
+        self.onCommit = onCommit
         self.onReset = onReset
+        _baseline = State(initialValue: params)
         _diamMin = State(initialValue: params.diamMin)
         _diamMax = State(initialValue: params.diamMax)
         _averageWeightG = State(initialValue: params.averageWeightG)
@@ -30,7 +40,7 @@ struct VarietyEditView: View {
     }
 
     private var normalizedParams: FruitVarietyParams {
-        var newParams = params
+        var newParams = baseline
         let minDiameter = min(diamMin, diamMax)
         let maxDiameter = max(diamMin, diamMax)
         newParams.diamMin = minDiameter
@@ -47,15 +57,23 @@ struct VarietyEditView: View {
             ZStack {
                 Design.Colors.Dark.bgDeep.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: Design.Space.lg) {
-                        headerSection
-                        diameterSection
-                        weightSection
-                        qualitySection
-                        algorithmSection
+                VStack(spacing: 0) {
+                    if showsParameterConflict {
+                        Text(L10n.VarietyDatabase.parameterConflict)
+                            .font(Design.Typography.subheadline)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
+                            .padding(Design.Space.md)
                     }
-                    .padding(Design.Space.md)
+                    ScrollView {
+                        VStack(spacing: Design.Space.lg) {
+                            headerSection
+                            diameterSection
+                            weightSection
+                            qualitySection
+                            algorithmSection
+                        }
+                        .padding(Design.Space.md)
+                    }
                 }
             }
             .navigationTitle(L10n.VarietyDatabase.editTitle(fruitName))
@@ -210,8 +228,19 @@ struct VarietyEditView: View {
     }
 
     private func saveAndDismiss() {
-        onSave(normalizedParams)
-        dismiss()
+        switch onCommit(baseline, normalizedParams) {
+        case .accepted:
+            dismiss()
+        case .conflict(let current):
+            baseline = current
+            diamMin = current.diamMin
+            diamMax = current.diamMax
+            averageWeightG = current.averageWeightG
+            density = current.density
+            clusterEps = current.clusterEps
+            sphericityThreshold = current.sphericityThreshold
+            showsParameterConflict = true
+        }
     }
 
     private func resetAndDismiss() {

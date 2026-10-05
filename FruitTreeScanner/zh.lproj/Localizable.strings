@@ -473,6 +473,7 @@
 "calibration.delete.message" = "这条校准记录会从本机移除，扫描原始记录不会被删除。";
 "calibration.parameters.title" = "算法参数";
 "calibration.parameters.concurrent_update" = "参数已在其他页面更新，已保留最新值。请重新调整。";
+"variety.parameters.concurrent_update" = "参数已在其他页面更新，本次未保存。已载入最新值，请重新调整后保存。";
 "calibration.parameters.minimum_cluster_points" = "最小聚类点数";
 "calibration.parameters.maximum_cluster_diameter" = "最大聚类直径 (m)";
 "calibration.parameters.minimum_sphericity" = "最小球形度";

@@ -1,8 +1,175 @@
+import Combine
 import XCTest
 @testable import FruitTreeScanner
 
 @MainActor
 final class FruitParametersStoreTests: XCTestCase {
+    func testEditCommitMergesEachFieldAndPreservesOtherNewerParameters() async throws {
+        let cases: [(WritableKeyPath<FruitVarietyParams, Float>, Float)] = [
+            (\.diamMin, 0.040), (\.diamMax, 0.170), (\.averageWeightG, 222),
+            (\.density, 0.93), (\.clusterEps, 0.055), (\.sphericityThreshold, 0.64)
+        ]
+        for (field, value) in cases {
+            let defaults = makeDefaults()
+            defer { clear(defaults) }
+            try seedDefaultParams(in: defaults)
+            let store = FruitParametersStore(defaults: defaults)
+            let baseline = store.param(for: .pear)
+            let apple = store.param(for: .apple)
+            var draft = baseline
+            draft[keyPath: field] = value
+            store.updateParam(for: .pear) {
+                $0.diamMin = 0.035
+                $0.diamMax = 0.165
+                $0.averageWeightG = 333
+                $0.density = 0.92
+                $0.clusterEps = 0.060
+                $0.sphericityThreshold = 0.66
+                $0[keyPath: field] = baseline[keyPath: field]
+            }
+            var expected = store.param(for: .pear)
+            expected[keyPath: field] = value
+            assertAccepted(store.commitEdits(for: .pear, baseline: baseline, edited: draft))
+            await store.waitForPendingSave()
+            XCTAssertEqual(store.param(for: .pear), expected)
+            XCTAssertEqual(store.param(for: .apple), apple)
+            XCTAssertEqual(try persistedParams(from: defaults).first { $0.category == "pear" }, expected)
+        }
+    }
+
+    func testEditCommitRejectsConflictAtomicallyWithoutPublishingOrSaving() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        try seedDefaultParams(in: defaults)
+        let store = FruitParametersStore(defaults: defaults)
+        let baseline = store.param(for: .pear)
+        var draft = baseline
+        draft.averageWeightG = 222
+        draft.density = 0.94
+        store.updateParam(for: .pear) { $0.density = 0.92 }
+        await store.waitForPendingSave()
+        let current = store.param(for: .pear)
+        let bytes = defaults.data(forKey: FruitParametersStore.userDefaultsKey)
+        var publications = 0
+        let observation = store.$params.dropFirst().sink { _ in publications += 1 }
+        defer { observation.cancel() }
+        assertConflict(store.commitEdits(for: .pear, baseline: baseline, edited: draft), current: current)
+        XCTAssertEqual(store.param(for: .pear), current, "A later conflicting field must prevent an earlier weight write")
+        XCTAssertEqual(publications, 0)
+        XCTAssertFalse(store.hasPendingSave)
+        XCTAssertEqual(defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+    }
+
+    func testEditCommitProtectsBothDiameterBoundsAndAllowsSafeMerge() async throws {
+        for (lower, upper, editLower, accepted) in [(Float(0.142), Float(0.145), false, false),
+                                                   (0.035, 0.039, true, false),
+                                                   (0.040, 0.145, false, true)] {
+            let defaults = makeDefaults()
+            defer { clear(defaults) }
+            try seedDefaultParams(in: defaults)
+            let store = FruitParametersStore(defaults: defaults)
+            store.updateParam(for: .pear) { $0.diamMin = 0.035; $0.diamMax = 0.145 }
+            let baseline = store.param(for: .pear)
+            var draft = baseline
+            if editLower { draft.diamMin = 0.040 } else { draft.diamMax = 0.140 }
+            store.updateParam(for: .pear) { $0.diamMin = lower; $0.diamMax = upper }
+            await store.waitForPendingSave()
+            let current = store.param(for: .pear)
+            let bytes = defaults.data(forKey: FruitParametersStore.userDefaultsKey)
+            let result = store.commitEdits(for: .pear, baseline: baseline, edited: draft)
+            if accepted {
+                assertAccepted(result)
+                await store.waitForPendingSave()
+                var expected = current
+                expected.diamMax = 0.140
+                XCTAssertEqual(store.param(for: .pear), expected)
+            } else {
+                assertConflict(result, current: current)
+                XCTAssertEqual(store.param(for: .pear), current)
+                XCTAssertFalse(store.hasPendingSave)
+                XCTAssertEqual(defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+            }
+        }
+    }
+
+    func testEditCommitRejectsResetIdentityAndAcceptsFreshDraft() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        try seedDefaultParams(in: defaults)
+        let store = FruitParametersStore(defaults: defaults)
+        let baseline = store.param(for: .pear)
+        let apple = store.param(for: .apple)
+        var draft = baseline
+        draft.averageWeightG = 181
+        store.resetToDefault(for: .pear)
+        await store.waitForPendingSave()
+        let reset = store.param(for: .pear)
+        XCTAssertNotEqual(reset.id, baseline.id)
+        XCTAssertEqual(reset.averageWeightG, baseline.averageWeightG)
+        let bytes = defaults.data(forKey: FruitParametersStore.userDefaultsKey)
+        assertConflict(store.commitEdits(for: .pear, baseline: baseline, edited: draft), current: reset)
+        XCTAssertEqual(store.param(for: .pear), reset)
+        XCTAssertFalse(store.hasPendingSave)
+        XCTAssertEqual(defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+        var fresh = reset
+        fresh.averageWeightG = 181
+        assertAccepted(store.commitEdits(for: .pear, baseline: reset, edited: fresh))
+        await store.waitForPendingSave()
+        fresh.isCustomized = true
+        XCTAssertEqual(store.param(for: .pear), fresh)
+        XCTAssertEqual(store.param(for: .apple), apple)
+        XCTAssertEqual(try persistedParams(from: defaults).first { $0.category == "pear" }, fresh)
+    }
+
+    func testUneditedCommitDoesNotCustomizePublishOrScheduleSave() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        try seedDefaultParams(in: defaults)
+        let store = FruitParametersStore(defaults: defaults)
+        let baseline = store.param(for: .pear)
+        let bytes = defaults.data(forKey: FruitParametersStore.userDefaultsKey)
+        var publications = 0
+        let observation = store.$params.dropFirst().sink { _ in publications += 1 }
+        defer { observation.cancel() }
+        assertAccepted(store.commitEdits(for: .pear, baseline: baseline, edited: baseline))
+        XCTAssertEqual(store.param(for: .pear), baseline)
+        XCTAssertFalse(store.param(for: .pear).isCustomized)
+        XCTAssertEqual(publications, 0)
+        XCTAssertFalse(store.hasPendingSave)
+        XCTAssertEqual(defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+    }
+
+    func testEditCommitRejectsWrongCategoryAndNonFiniteChanges() throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+        try seedDefaultParams(in: defaults)
+        let store = FruitParametersStore(defaults: defaults)
+        let baseline = store.param(for: .pear)
+        var wrong = store.param(for: .apple)
+        wrong.averageWeightG = 222
+        assertConflict(store.commitEdits(for: .pear, baseline: baseline, edited: wrong), current: baseline)
+        var invalid = baseline
+        invalid.density = .nan
+        assertConflict(store.commitEdits(for: .pear, baseline: baseline, edited: invalid), current: baseline)
+        XCTAssertEqual(store.param(for: .pear), baseline)
+        XCTAssertFalse(store.hasPendingSave)
+    }
+
+    private func assertAccepted(_ result: FruitParametersStore.EditCommitResult,
+                                file: StaticString = #filePath, line: UInt = #line) {
+        if case .accepted = result { return }
+        XCTFail("Expected this edit to be accepted", file: file, line: line)
+    }
+
+    private func assertConflict(_ result: FruitParametersStore.EditCommitResult, current: FruitVarietyParams,
+                                file: StaticString = #filePath, line: UInt = #line) {
+        guard case .conflict(let latest) = result else {
+            XCTFail("Expected the entire edit to be rejected", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(latest, current, file: file, line: line)
+    }
+
     func testParameterSchemaFixtureKeepsIdentityAndCalibrationFields() throws {
         // Fixed pre-migration schema fixture; not a user's private stored record.
         let fixture = Data(#"{"id":"01234567-89AB-4CDE-8F01-23456789ABCD","category":"pear","diamMin":0.031,"diamMax":0.13,"averageWeightG":245,"density":0.94,"clusterEps":0.047,"sphericityThreshold":0.33,"isCustomized":true}"#.utf8)
@@ -138,6 +305,7 @@ final class FruitParametersStoreTests: XCTestCase {
     func testVarietyDatabaseCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [
+                "variety.parameters.concurrent_update": "Parameters changed on another screen. Nothing was saved. Latest values loaded; adjust them again and save.",
                 "variety.title": "Variety Parameters",
                 "variety.more_actions": "More variety actions",
                 "variety.reset_all": "Reset All Parameters",
@@ -178,6 +346,7 @@ final class FruitParametersStoreTests: XCTestCase {
                 "variety.diameter_range": "%@–%@ %@"
             ],
             "zh": [
+                "variety.parameters.concurrent_update": "参数已在其他页面更新，本次未保存。已载入最新值，请重新调整后保存。",
                 "variety.title": "品种参数库",
                 "variety.more_actions": "更多品种操作",
                 "variety.reset_all": "重置所有参数",

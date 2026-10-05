@@ -1779,6 +1779,7 @@ enum L10n {
 
     // MARK: - Variety Parameters
     enum VarietyDatabase {
+        static let parameterConflict = NSLocalizedString("variety.parameters.concurrent_update", value: "参数已在其他页面更新，本次未保存。已载入最新值，请重新调整后保存。", comment: "An entire variety edit was rejected and refreshed after a concurrent update")
         static let title = NSLocalizedString("variety.title", value: "品种参数库", comment: "Variety parameter database title")
         static let moreActions = NSLocalizedString("variety.more_actions", value: "更多品种操作", comment: "Variety parameter toolbar menu accessibility label")
         static let resetAll = NSLocalizedString("variety.reset_all", value: "重置所有参数", comment: "Reset all variety parameters action")

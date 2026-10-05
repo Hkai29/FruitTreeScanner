@@ -96,6 +96,52 @@ private final class RootLaunchUIHarness {
         XCTAssertTrue(closed)
     }
 
+    func openVarietyDatabase() async throws {
+        XCTAssertTrue(try XCTUnwrap(element(label: L10n.Dashboard.settingsAccessibilityLabel)).accessibilityActivate())
+        let ready = try await waitFor { self.element(label: L10n.Settings.varietyDatabase) != nil }
+        XCTAssertTrue(ready)
+        let database = try await scrollToControl(label: L10n.Settings.varietyDatabase)
+        XCTAssertTrue(database.accessibilityActivate())
+        let loaded = try await waitFor {
+            self.element(label: L10n.VarietyDatabase.editAccessibility(L10n.Fruit.name(for: .pear))) != nil
+        }
+        XCTAssertTrue(loaded)
+    }
+
+    func editVariety(_ category: FruitCategory) async throws {
+        let label = L10n.VarietyDatabase.editAccessibility(L10n.Fruit.name(for: category))
+        let edit = try await scrollToControl(label: label)
+        XCTAssertTrue(edit.accessibilityActivate())
+        let ready = try await waitFor {
+            self.elements.contains { $0 is UISlider && $0.accessibilityLabel == L10n.VarietyDatabase.maximumDiameter }
+        }
+        XCTAssertTrue(ready)
+    }
+
+    func varietySliderValue(_ label: String) -> String? {
+        elements.compactMap { $0 as? UISlider }.first { $0.accessibilityLabel == label }?.accessibilityValue
+    }
+
+    func changeVarietySlider(_ label: String, value: Float,
+                             range: ClosedRange<Float> = 1...2000, expected: String) async throws {
+        _ = try await scrollToControl(label: label)
+        let slider = try XCTUnwrap(elements.compactMap { $0 as? UISlider }.first { $0.accessibilityLabel == label })
+        // SwiftUI's UIKit slider uses a normalized range; send its public valueChanged action.
+        let position = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        slider.value = slider.minimumValue + (slider.maximumValue - slider.minimumValue) * position
+        slider.sendActions(for: .valueChanged)
+        let changed = try await waitFor { slider.accessibilityValue == expected }
+        XCTAssertTrue(changed)
+    }
+
+    func saveVarietyAndWaitForDatabase(_ category: FruitCategory) async throws {
+        XCTAssertTrue(try XCTUnwrap(element(label: L10n.Common.save)).accessibilityActivate())
+        let closed = try await waitFor {
+            self.element(label: L10n.VarietyDatabase.editAccessibility(L10n.Fruit.name(for: category))) != nil
+        }
+        XCTAssertTrue(closed)
+    }
+
     func dismissSystemAlert() throws {
         var current: UIViewController? = controller
         while let root = current {
@@ -421,6 +467,235 @@ private final class RootParameterFixture {
 }
 
 final class DashboardSummaryTests: XCTestCase {
+    @MainActor
+    func testVarietyWeightOnlySavePreservesNewerFieldsAndFrozenPlan() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let frozen = fixture.plan("ROOT45-FROZEN")
+        let context = frozen.fruitConfiguration.calibrationContext
+        let apple = fixture.root.parametersStore.param(for: .apple)
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openVarietyDatabase()
+        try await ui.editVariety(.pear)
+        try await ui.changeVarietySlider(L10n.VarietyDatabase.averageWeight, value: 222,
+                                         expected: VarietyParameterFormatter.grams(222))
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.diamMin = 0.040
+            $0.diamMax = 0.165
+            $0.density = 0.93
+            $0.clusterEps = 0.055
+            $0.sphericityThreshold = 0.64
+        }
+        await fixture.root.parametersStore.waitForPendingSave()
+        var expected = fixture.root.parametersStore.param(for: .pear)
+        expected.averageWeightG = 222
+        fixture.root.settings.fruitType = "apple"
+        try await ui.saveVarietyAndWaitForDatabase(.pear)
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear), expected,
+                       "A weight edit must preserve the newer root's other five fields and identity")
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .apple), apple)
+        let reloaded = FruitParametersStore(defaults: fixture.defaults)
+        XCTAssertEqual(reloaded.param(for: .pear), expected)
+        let next = fixture.plan("ROOT45-NEXT")
+        XCTAssertEqual(next.fruitConfiguration.defaultParams, expected)
+        XCTAssertEqual(frozen.fruitConfiguration.defaultParams.averageWeightG, 221)
+        XCTAssertEqual(frozen.fruitConfiguration.defaultParams.diamMax, 0.145, accuracy: 0.00001)
+        XCTAssertEqual(frozen.fruitConfiguration.calibrationContext, context)
+        try await ui.editVariety(.pear)
+        XCTAssertEqual(ui.varietySliderValue(L10n.VarietyDatabase.maximumDiameter),
+                       VarietyParameterFormatter.millimeters(0.165))
+        _ = try await ui.scrollToControl(label: L10n.VarietyDatabase.averageWeight)
+        XCTAssertEqual(ui.varietySliderValue(L10n.VarietyDatabase.averageWeight),
+                       VarietyParameterFormatter.grams(222))
+        try await ui.attach(to: self, phase: "45-variety-merged-reopened")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.cancel)).accessibilityActivate())
+        await reloaded.waitForPendingSave()
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testUneditedVarietySavePreservesNewerValuesWithoutPublishing() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openVarietyDatabase()
+        try await ui.editVariety(.pear)
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.diamMax = 0.165
+            $0.averageWeightG = 333
+            $0.sphericityThreshold = 0.64
+        }
+        await fixture.root.parametersStore.waitForPendingSave()
+        let expected = fixture.root.parametersStore.parameterSnapshot()
+        let bytes = try XCTUnwrap(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey))
+        var publications = 0
+        let observation = fixture.root.parametersStore.$params.dropFirst().sink { _ in publications += 1 }
+        defer { observation.cancel() }
+        try await ui.saveVarietyAndWaitForDatabase(.pear)
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.parametersStore.parameterSnapshot(), expected)
+        XCTAssertEqual(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+        XCTAssertEqual(publications, 0, "Unedited save must not publish or enqueue persistence")
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testVarietyConflictingSavePreservesLatestAndAllowsRetry() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openVarietyDatabase()
+        try await ui.editVariety(.pear)
+        try await ui.changeVarietySlider(L10n.VarietyDatabase.averageWeight, value: 222,
+                                         expected: VarietyParameterFormatter.grams(222))
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.averageWeightG = 333
+            $0.diamMax = 0.165
+            $0.sphericityThreshold = 0.64
+        }
+        await fixture.root.parametersStore.waitForPendingSave()
+        let current = fixture.root.parametersStore.parameterSnapshot()
+        let bytes = try XCTUnwrap(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey))
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.save)).accessibilityActivate())
+        let rejected = try await ui.waitFor {
+            ui.varietySliderValue(L10n.VarietyDatabase.averageWeight) == VarietyParameterFormatter.grams(333)
+        }
+        XCTAssertTrue(rejected, "A conflicting save must retain the edit sheet and rebase to the newer value")
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.parametersStore.parameterSnapshot(), current)
+        XCTAssertEqual(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+        guard rejected else { await fixture.verifyStandard(); return }
+        XCTAssertNotNil(ui.element(label: L10n.VarietyDatabase.parameterConflict))
+        try await ui.attach(to: self, phase: "45-variety-conflict")
+        try await ui.changeVarietySlider(L10n.VarietyDatabase.averageWeight, value: 334,
+                                         expected: VarietyParameterFormatter.grams(334))
+        try await ui.saveVarietyAndWaitForDatabase(.pear)
+        await fixture.root.parametersStore.waitForPendingSave()
+        var expected = try XCTUnwrap(current["pear"])
+        expected.averageWeightG = 334
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear), expected)
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testVarietyCancelPreservesNewerValuesAndDoesNotSaveDrafts() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openVarietyDatabase()
+        try await ui.editVariety(.pear)
+        try await ui.changeVarietySlider(L10n.VarietyDatabase.averageWeight, value: 222,
+                                         expected: VarietyParameterFormatter.grams(222))
+        fixture.root.parametersStore.updateParam(for: .pear) {
+            $0.averageWeightG = 333
+            $0.diamMax = 0.165
+        }
+        await fixture.root.parametersStore.waitForPendingSave()
+        let snapshot = fixture.root.parametersStore.parameterSnapshot()
+        let bytes = try XCTUnwrap(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey))
+        var publications = 0
+        let observation = fixture.root.parametersStore.$params.dropFirst().sink { _ in publications += 1 }
+        defer { observation.cancel() }
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.cancel)).accessibilityActivate())
+        let closed = try await ui.waitFor {
+            ui.element(label: L10n.VarietyDatabase.editAccessibility(L10n.Fruit.name(for: .pear))) != nil
+        }
+        XCTAssertTrue(closed)
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.parametersStore.parameterSnapshot(), snapshot)
+        XCTAssertEqual(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+        XCTAssertEqual(publications, 0)
+        await fixture.verifyStandard()
+    }
+
+    @MainActor
+    func testVarietyDiameterEditProtectsNewerLowerBoundAndAllowsSafeMerge() async throws {
+        for minimum: Float in [0.142, 0.040] {
+            let fixture = try await RootParameterFixture()
+            defer { fixture.cleanup() }
+            let ui = try RootLaunchUIHarness()
+            defer { ui.close() }
+            fixture.mount(on: ui)
+            try await ui.openVarietyDatabase()
+            try await ui.editVariety(.pear)
+            try await ui.changeVarietySlider(L10n.VarietyDatabase.maximumDiameter, value: 0.140, range: 0.05...0.30,
+                                             expected: VarietyParameterFormatter.millimeters(0.140))
+            fixture.root.parametersStore.updateParam(for: .pear) { $0.diamMin = minimum }
+            await fixture.root.parametersStore.waitForPendingSave()
+            let latest = fixture.root.parametersStore.param(for: .pear)
+            if minimum == 0.142 {
+                XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.save)).accessibilityActivate())
+                let rejected = try await ui.waitFor {
+                    ui.element(label: L10n.VarietyDatabase.parameterConflict) != nil &&
+                    ui.varietySliderValue(L10n.VarietyDatabase.maximumDiameter) ==
+                        VarietyParameterFormatter.millimeters(0.145)
+                }
+                XCTAssertTrue(rejected)
+                XCTAssertEqual(fixture.root.parametersStore.param(for: .pear), latest)
+                try await ui.changeVarietySlider(L10n.VarietyDatabase.maximumDiameter, value: 0.150, range: 0.05...0.30,
+                                                 // Existing Float slider mapping and formatter truncate this step to 149 mm.
+                                                 expected: VarietyParameterFormatter.millimeters(0.14999999))
+            }
+            try await ui.saveVarietyAndWaitForDatabase(.pear)
+            await fixture.root.parametersStore.waitForPendingSave()
+            let saved = fixture.root.parametersStore.param(for: .pear)
+            XCTAssertEqual(saved.diamMax, minimum == 0.142 ? 0.150 : 0.140, accuracy: 0.000001)
+            var unchanged = saved
+            unchanged.diamMax = latest.diamMax
+            XCTAssertEqual(unchanged, latest, "Only the edited maximum may change; all other fields and identity must remain exact")
+            XCTAssertLessThanOrEqual(saved.diamMin, saved.diamMax)
+            await fixture.verifyStandard()
+        }
+    }
+
+    @MainActor
+    func testVarietyResetIdentityInvalidatesOldDraftEvenWhenValuesMatch() async throws {
+        let fixture = try await RootParameterFixture()
+        defer { fixture.cleanup() }
+        fixture.root.parametersStore.resetToDefault(for: .pear)
+        await fixture.root.parametersStore.waitForPendingSave()
+        let original = fixture.root.parametersStore.param(for: .pear)
+        let ui = try RootLaunchUIHarness()
+        defer { ui.close() }
+        fixture.mount(on: ui)
+        try await ui.openVarietyDatabase()
+        try await ui.editVariety(.pear)
+        try await ui.changeVarietySlider(L10n.VarietyDatabase.averageWeight, value: 181,
+                                         expected: VarietyParameterFormatter.grams(181))
+        fixture.root.parametersStore.resetToDefault(for: .pear)
+        await fixture.root.parametersStore.waitForPendingSave()
+        let reset = fixture.root.parametersStore.param(for: .pear)
+        XCTAssertNotEqual(reset.id, original.id)
+        XCTAssertEqual(reset.averageWeightG, original.averageWeightG)
+        let bytes = try XCTUnwrap(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey))
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.save)).accessibilityActivate())
+        let rejected = try await ui.waitFor {
+            ui.element(label: L10n.VarietyDatabase.parameterConflict) != nil &&
+            ui.varietySliderValue(L10n.VarietyDatabase.averageWeight) == VarietyParameterFormatter.grams(180)
+        }
+        XCTAssertTrue(rejected)
+        await fixture.root.parametersStore.waitForPendingSave()
+        XCTAssertEqual(fixture.root.parametersStore.param(for: .pear), reset)
+        XCTAssertEqual(fixture.defaults.data(forKey: FruitParametersStore.userDefaultsKey), bytes)
+        XCTAssertFalse(reset.isCustomized)
+        try await ui.attach(to: self, phase: "45-variety-reset-conflict")
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Common.cancel)).accessibilityActivate())
+        let closed = try await ui.waitFor {
+            ui.element(label: L10n.VarietyDatabase.editAccessibility(L10n.Fruit.name(for: .pear))) != nil
+        }
+        XCTAssertTrue(closed)
+        await fixture.verifyStandard()
+    }
+
     @MainActor
     func testUneditedCalibrationClosePreservesNewerRootParametersWithoutSaving() async throws {
         let fixture = try await RootParameterFixture()

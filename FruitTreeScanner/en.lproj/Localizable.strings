@@ -473,6 +473,7 @@
 "calibration.delete.message" = "This calibration record will be removed from this device. The original scan record won’t be deleted.";
 "calibration.parameters.title" = "Algorithm Parameters";
 "calibration.parameters.concurrent_update" = "Parameters changed on another screen. The latest values were kept. Adjust them again to apply your change.";
+"variety.parameters.concurrent_update" = "Parameters changed on another screen. Nothing was saved. Latest values loaded; adjust them again and save.";
 "calibration.parameters.minimum_cluster_points" = "Minimum Cluster Points";
 "calibration.parameters.maximum_cluster_diameter" = "Maximum Cluster Diameter (m)";
 "calibration.parameters.minimum_sphericity" = "Minimum Sphericity";
