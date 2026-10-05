@@ -134,6 +134,39 @@ final class FruitParametersStore: ObservableObject {
         return Swift.max(min, Swift.min(value, max))
     }
     
+    enum EditCommitResult {
+        case accepted
+        case conflict(FruitVarietyParams)
+    }
+
+    /// Check and merge an editor's changes in one MainActor turn, before publishing or saving.
+    func commitEdits(for category: FruitCategory, baseline: FruitVarietyParams,
+                     edited: FruitVarietyParams) -> EditCommitResult {
+        let current = param(for: category)
+        let fields: [WritableKeyPath<FruitVarietyParams, Float>] = [
+            \.diamMin, \.diamMax, \.averageWeightG, \.density, \.clusterEps, \.sphericityThreshold
+        ]
+        let changed = fields.filter { edited[keyPath: $0] != baseline[keyPath: $0] }
+        guard !changed.isEmpty else { return .accepted }
+        guard current.id == baseline.id, edited.id == baseline.id,
+              baseline.category == category.rawValue, edited.category == category.rawValue,
+              let index = params.firstIndex(where: { $0.category == category.rawValue }) else {
+            return .conflict(current)
+        }
+        var merged = current
+        for field in changed {
+            guard edited[keyPath: field].isFinite,
+                  current[keyPath: field] == baseline[keyPath: field] else { return .conflict(current) }
+            merged[keyPath: field] = edited[keyPath: field]
+        }
+        // Merging either bound must preserve the other consumer's newer bound.
+        guard merged.diamMin <= merged.diamMax else { return .conflict(current) }
+        merged.isCustomized = true
+        params[index] = merged
+        saveParams()
+        return .accepted
+    }
+
     func updateParam(for category: FruitCategory, updates: (inout FruitVarietyParams) -> Void) {
         guard let index = params.firstIndex(where: { $0.category == category.rawValue }) else { return }
         updates(&params[index])

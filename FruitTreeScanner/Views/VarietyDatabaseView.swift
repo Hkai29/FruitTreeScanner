@@ -113,15 +113,8 @@ struct VarietyDatabaseView: View {
             VarietyEditView(
                 category: category,
                 params: store.param(for: category),
-                onSave: { newParams in
-                    store.updateParam(for: category) { p in
-                        p.diamMin = newParams.diamMin
-                        p.diamMax = newParams.diamMax
-                        p.averageWeightG = newParams.averageWeightG
-                        p.density = newParams.density
-                        p.clusterEps = newParams.clusterEps
-                        p.sphericityThreshold = newParams.sphericityThreshold
-                    }
+                onCommit: { baseline, edited in
+                    store.commitEdits(for: category, baseline: baseline, edited: edited)
                 },
                 onReset: {
                     store.resetToDefault(for: category)
