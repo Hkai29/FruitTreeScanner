@@ -59,6 +59,7 @@ struct ScanResourceBudget: Equatable, Sendable, Encodable {
 struct ScanPlan: Sendable {
     let id: UUID
     let treeID: String
+    let classification: ScanClassificationSnapshot
     let season: Season
     let fruitConfiguration: ScanFruitConfiguration
     let rendererSettings: RendererScanSettings
@@ -86,10 +87,12 @@ struct ScanPlan: Sendable {
         autoExportCSV: Bool,
         modelIdentity: ScanModelIdentity,
         algorithmRevision: String = YieldAlgorithmRevision.current,
-        experimentConfiguration: FruitScanExperimentConfig = .default
+        experimentConfiguration: FruitScanExperimentConfig = .default,
+        classification: ScanClassificationSnapshot = .empty
     ) {
         self.id = id
         self.treeID = treeID
+        self.classification = classification
         self.season = season
         self.fruitConfiguration = fruitConfiguration
         self.rendererSettings = rendererSettings
@@ -124,7 +127,7 @@ enum ScanCalibrationWarning: Equatable, Sendable {
 
 /// An absent context is an explicit unavailable identity, not permission to
 /// recompute one from whichever model/settings happen to be available later.
-struct ScanCalibrationIdentity: Equatable, Sendable {
+struct ScanCalibrationIdentity: Equatable, Sendable, Codable {
     let algorithmRevision: String
     let context: String?
 }

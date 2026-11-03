@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// 地图空状态的文案。
+///
+/// 键与既有本地化表保持一致（`orchard_map.empty.*`），不新增键。
 struct OrchardMapEmptyStatePresentation: Equatable {
     let title: String
     let message: String
@@ -24,44 +27,89 @@ struct OrchardMapEmptyStatePresentation: Equatable {
     }
 }
 
+/// 果园地图空板。
+///
+/// 没有定位记录时不说"地图是空的"，而是说明现在有什么、下一步做什么，
+/// 并把无定位档案的去处（档案）留在可见位置。
 struct OrchardMapEmptyState: View {
     private let onStartScan: (() -> Void)?
+    private let onOpenArchive: (() -> Void)?
     private let presentation: OrchardMapEmptyStatePresentation
 
-    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main) {
+    init(
+        onStartScan: (() -> Void)? = nil,
+        onOpenArchive: (() -> Void)? = nil,
+        bundle: Bundle = .main
+    ) {
         self.onStartScan = onStartScan
+        self.onOpenArchive = onOpenArchive
         presentation = OrchardMapEmptyStatePresentation(bundle: bundle)
     }
 
     var body: some View {
         ScrollView {
-            DashboardSheetEmptyState(
-                icon: "map",
-                imageName: "FeatureMap",
-                title: presentation.title,
-                message: presentation.message,
-                accent: Design.Colors.Dark.info,
-                primaryAction: action(
-                    title: presentation.startScanTitle,
-                    icon: "viewfinder",
-                    handler: onStartScan
-                ),
-                outerPadding: false,
-                adaptsForAccessibility: true
-            )
-            .padding(.horizontal, 16)
-            .padding(.top, 84)
-
-            Spacer(minLength: Design.Space.xxl)
+            VStack(alignment: .leading, spacing: 16) {
+                plate
+                actions
+                Spacer(minLength: Design.Space.xxl)
+            }
+            .frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Design.Space.lg)
         }
         .scrollIndicators(.hidden)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Design.Colors.Dark.bgDeep)
-        .ignoresSafeArea()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Design.Colors.Workspace.background)
     }
 
-    private func action(title: String, icon: String, handler: (() -> Void)?) -> DashboardSheetAction? {
-        guard let handler else { return nil }
-        return DashboardSheetAction(title: title, icon: icon, action: handler)
+    private var plate: some View {
+        InstrumentSurveyPlate {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin.slash")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(Design.Colors.Workspace.accent)
+                        .accessibilityHidden(true)
+                    Text(presentation.title)
+                        .font(.system(.headline, design: .default).weight(.semibold))
+                        .foregroundColor(Design.Colors.Workspace.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text(presentation.message)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                DividerLine()
+
+                Text(WorkspaceText.locationExplanation)
+                    .font(.footnote)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(16)
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        VStack(spacing: 10) {
+            if let onStartScan {
+                Button(action: onStartScan) {
+                    Label(presentation.startScanTitle, systemImage: "viewfinder")
+                }
+                .buttonStyle(WorkspacePrimaryButtonStyle())
+                .accessibilityIdentifier("orchard.map.startScan")
+            }
+
+            if let onOpenArchive {
+                Button(action: onOpenArchive) {
+                    Label(WorkspaceText.openArchives, systemImage: "square.stack.3d.up")
+                }
+                .buttonStyle(WorkspaceSecondaryButtonStyle())
+                .accessibilityIdentifier("orchard.map.openArchive")
+            }
+        }
     }
 }

@@ -8,6 +8,7 @@ struct PointCloudSheet: View {
     @ObservedObject var historyStore: ScanHistoryStore
     @State private var searchText = ""
     @State private var selectedFile: URL?
+    @State private var showsFileSelection = false
 
     @MainActor
     init(
@@ -26,23 +27,29 @@ struct PointCloudSheet: View {
         selectedFile ?? historyStore.scanFiles.first?.fileURL
     }
 
+    /// 当前点云对应的档案记录。用于判定并标注点云来源。
+    private var selectedRecord: ScanFileRecord? {
+        guard let effectiveSelectedFile else { return nil }
+        return historyStore.scanFiles.first { $0.fileURL == effectiveSelectedFile }
+    }
+
     var body: some View {
         NavigationView {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
+                Design.Colors.Workspace.background.ignoresSafeArea()
 
                 if historyStore.scanFiles.isEmpty {
-                    emptyState
+                    ScrollView {
+                        emptyState
+                    }
                 } else {
                     VStack(spacing: 0) {
-                        PointCloudFileSelector(
-                            records: historyStore.scanFiles,
-                            selectedFile: effectiveSelectedFile,
-                            searchText: $searchText,
-                            onSelect: selectFile
+                        PointCloudView(
+                            plyFileURL: effectiveSelectedFile, onClose: { dismiss() },
+                            treeID: selectedRecord?.treeID,
+                            provenance: PointCloudProvenance.resolve(record: selectedRecord),
+                            onChooseArchive: { showsFileSelection.toggle() }
                         )
-
-                        PointCloudView(plyFileURL: effectiveSelectedFile, onClose: { dismiss() })
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
@@ -50,21 +57,41 @@ struct PointCloudSheet: View {
             .navigationTitle(L10n.PointCloud.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 24))
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
+                            .foregroundColor(Design.Colors.Workspace.secondary)
                     }
                     .accessibilityLabel(L10n.PointCloud.closePreviewAccessibility)
                 }
             }
         }
+        .navigationViewStyle(.stack)
         .onAppear(perform: loadInitialSelection)
         .onChange(of: historyStore.scanFiles, perform: updateSelection)
+        .sheet(isPresented: $showsFileSelection) {
+            NavigationView {
+                PointCloudFileSelector(
+                    records: historyStore.scanFiles,
+                    selectedFile: effectiveSelectedFile,
+                    searchText: $searchText,
+                    onSelect: selectFile
+                )
+                .navigationTitle(WorkspaceText.chooseArchive)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(L10n.Common.done) { showsFileSelection = false }
+                    }
+                }
+            }
+            .navigationViewStyle(.stack)
+            .preferredColorScheme(.light)
+        }
     }
 
     private var emptyState: some View {
@@ -73,7 +100,7 @@ struct PointCloudSheet: View {
             imageName: "FeaturePointCloud",
             title: L10n.PointCloud.emptyTitle,
             message: L10n.PointCloud.emptyMessage,
-            accent: Design.Colors.Dark.info,
+            accent: Design.Colors.Workspace.information,
             primaryAction: action(title: L10n.PointCloud.newScan, icon: "viewfinder", handler: onStartScan),
             secondaryAction: action(title: L10n.PointCloud.importPLY, icon: "square.and.arrow.down", handler: onImportFile)
         )
@@ -86,6 +113,7 @@ struct PointCloudSheet: View {
 
     private func selectFile(_ url: URL) {
         selectedFile = url
+        showsFileSelection = false
     }
 
     private func loadInitialSelection() {

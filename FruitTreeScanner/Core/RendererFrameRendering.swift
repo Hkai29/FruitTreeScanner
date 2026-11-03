@@ -28,21 +28,15 @@ extension Renderer {
 
         let framePointBuffer = pointBufferSnapshot()
 
-        commandBuffer.addCompletedHandler { [weak self] _ in
-            guard let self else { return }
-            self.inFlightSemaphore.signal()
-            if self.isRecording {
-                self.updateSnapshot()
-            }
-        }
         update(frame: currentFrame)
         updateCapturedImageTextures(frame: currentFrame)
         currentBufferIndex = (currentBufferIndex + 1) % maxInFlightBuffers
 
+        var wrotePoints = false
         if shouldAccumulate(frame: currentFrame, pointCount: framePointBuffer.count), updateDepthTextures(frame: currentFrame) {
             pointCloudUniforms.pointCloudCurrentIndex = Int32(framePointBuffer.index)
             pointCloudUniformsBuffers[currentBufferIndex][0] = pointCloudUniforms
-            accumulatePoints(frame: currentFrame, commandBuffer: commandBuffer, renderEncoder: renderEncoder, pointIndex: framePointBuffer.index)
+            wrotePoints = accumulatePoints(frame: currentFrame, commandBuffer: commandBuffer, renderEncoder: renderEncoder, capture: framePointBuffer)
         } else {
             pointCloudUniformsBuffers[currentBufferIndex][0] = pointCloudUniforms
         }
@@ -66,8 +60,40 @@ extension Renderer {
         renderEncoder.setVertexBuffer(particlesBuffer)
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: framePointBuffer.count)
         renderEncoder.endEncoding()
+        commandBuffer.addCompletedHandler(pointCloudCommandCompletionHandler(
+            captureGeneration: framePointBuffer.generation, wrotePoints: wrotePoints
+        ))
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    func pointCloudCommandCompletionHandler(captureGeneration: UInt64, wrotePoints: Bool) -> MTLCommandBufferHandler {
+        { [weak self] completed in
+            self?.completePointCloudCommand(
+                status: completed.status, error: completed.error,
+                captureGeneration: captureGeneration, wrotePoints: wrotePoints
+            )
+        }
+    }
+
+    func completePointCloudCommand(
+        status: MTLCommandBufferStatus, error: Error? = nil,
+        captureGeneration: UInt64, wrotePoints: Bool
+    ) {
+        pointBufferLock.lock()
+        let isCurrentCapture = pointCaptureGeneration == captureGeneration
+        if isCurrentCapture, wrotePoints, status != .completed || error != nil {
+            pointCaptureWriteFailed = true
+            storeSnapshot(points: [], fullSignature: nil)
+        }
+        let canRefresh = isCurrentCapture && !pointCaptureWriteFailed
+        pointBufferLock.unlock()
+        // Publish health before returning the permit: a CPU drain must observe
+        // failure as soon as it acquires the last outstanding permit.
+        inFlightSemaphore.signal()
+        if canRefresh, isRecording {
+            updateSnapshot(expectedCaptureGeneration: captureGeneration)
+        }
     }
 
     func update(frame: ARFrame) {
@@ -144,13 +170,18 @@ extension Renderer {
             || distance_squared(currentTransform.columns.3, lastTransform.columns.3) >= translationSquaredThreshold
     }
 
-    func accumulatePoints(frame: ARFrame, commandBuffer: MTLCommandBuffer, renderEncoder: MTLRenderCommandEncoder, pointIndex: Int) {
+    func accumulatePoints(frame: ARFrame, commandBuffer: MTLCommandBuffer, renderEncoder: MTLRenderCommandEncoder, capture: PointCloudCaptureState) -> Bool {
         guard let texY = capturedImageTextureY,
               let texCbCr = capturedImageTextureCbCr,
               let texDepth = depthTexture,
-              let texConf = confidenceTexture else { return }
+              let texConf = confidenceTexture else { return false }
 
-        pointCloudUniforms.pointCloudCurrentIndex = Int32(pointIndex)
+        pointBufferLock.lock()
+        guard pointBufferSnapshotLocked() == capture, !pointCaptureWriteFailed else {
+            pointBufferLock.unlock()
+            return false
+        }
+        pointCloudUniforms.pointCloudCurrentIndex = Int32(capture.index)
         var retaining = [capturedImageTextureY, capturedImageTextureCbCr, depthTexture, confidenceTexture]
         commandBuffer.addCompletedHandler { _ in retaining.removeAll() }
         renderEncoder.setDepthStencilState(relaxedStencilState)
@@ -163,7 +194,6 @@ extension Renderer {
         renderEncoder.setVertexTexture(CVMetalTextureGetTexture(texDepth), index: Int(kTextureDepth.rawValue))
         renderEncoder.setVertexTexture(CVMetalTextureGetTexture(texConf), index: Int(kTextureConfidence.rawValue))
         renderEncoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: gridPointsBuffer.count)
-        pointBufferLock.lock()
         currentPointIndex = (currentPointIndex + gridPointsBuffer.count) % maxPoints
         currentPointCount = min(currentPointCount + gridPointsBuffer.count, maxPoints)
         pointBufferRevision &+= 1
@@ -171,6 +201,7 @@ extension Renderer {
         lastCameraTransform = frame.camera.transform
         scannedRegions.insert(RendererDepthCoverage.makeCameraRegionKey(frame: frame))
         updateCoverageVoxels(frame: frame)
+        return true
     }
 
 }

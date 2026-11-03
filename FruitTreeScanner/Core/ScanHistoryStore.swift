@@ -7,6 +7,10 @@ struct ScanHistoryDeletionArtifact: Equatable, Sendable {
         case csv
         case resultJSON
         case completionManifest
+        case replayInput
+        case replayPoints
+        case replayPreparation
+        case archiveRecovery
     }
 
     enum ResidualReason: Equatable, Sendable {
@@ -70,9 +74,14 @@ final class ScanHistoryStore: ObservableObject {
     @Published private(set) var loadFailure: ScanHistoryLoadFailure?
     @Published private(set) var isLoading = false
 
+    let dashboardAggregation: DashboardAggregationStore
+
     static let didUpdateNotification = Notification.Name("ScanHistoryStoreDidUpdate")
     private let recordsLoader: ScanHistoryRecordsLoader
     private let repository: ScanRepository
+
+    /// 归档详情等只读读取走同一份根仓储，不另开数据通路。
+    var archiveRepository: ScanRepository { repository }
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = 0
 
@@ -95,10 +104,12 @@ final class ScanHistoryStore: ObservableObject {
     init(
         recordsLoader: @escaping ScanHistoryRecordsLoader,
         repository: ScanRepository = .shared,
-        automaticallyLoads: Bool = false
+        automaticallyLoads: Bool = false,
+        dashboardAggregation: DashboardAggregationStore? = nil
     ) {
         self.recordsLoader = recordsLoader
         self.repository = repository
+        self.dashboardAggregation = dashboardAggregation ?? DashboardAggregationStore()
         if automaticallyLoads {
             loadRecords()
         }
@@ -153,6 +164,7 @@ final class ScanHistoryStore: ObservableObject {
 
         switch result {
         case .success(let records):
+            dashboardAggregation.updateRecords(records)
             if scanFiles != records {
                 scanFiles = records
             }

@@ -6,19 +6,33 @@ on:
     paths:
       - 'FruitTreeScanner/**'
       - 'FruitTreeScannerTests/**'
+      - 'FruitTreeScannerUITests/**'
       - 'FruitTreeScanner.xcodeproj/**'
       - '.github/workflows/build-ipa.yml'
       - 'tools/validate_fusion_domain.sh'
       - 'tools/ci_simulator_build.sh'
+      - 'tools/ci_xctest_gate.sh'
+      - 'tools/xctest_gate.py'
+      - 'tools/check_test_target_registration.py'
+      - 'tools/check_ci_test_registration_gate.py'
+      - 'tools/tests/**'
+      - 'tools/code_improvement_workflow.py'
   pull_request:
     branches: [ main ]
     paths:
       - 'FruitTreeScanner/**'
       - 'FruitTreeScannerTests/**'
+      - 'FruitTreeScannerUITests/**'
       - 'FruitTreeScanner.xcodeproj/**'
       - '.github/workflows/build-ipa.yml'
       - 'tools/validate_fusion_domain.sh'
       - 'tools/ci_simulator_build.sh'
+      - 'tools/ci_xctest_gate.sh'
+      - 'tools/xctest_gate.py'
+      - 'tools/check_test_target_registration.py'
+      - 'tools/check_ci_test_registration_gate.py'
+      - 'tools/tests/**'
+      - 'tools/code_improvement_workflow.py'
   workflow_dispatch:
 
 permissions:
@@ -27,10 +41,26 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Structural failures must fail fast: a UI test source that exists in the
+      # repository but is never compiled into its target is invisible to the
+      # XCTest gate (it does not run the UI test target at all), so it needs its
+      # own early, hard-failing step. It needs no Xcode, so it runs before the
+      # runner is configured and before anything is built.
+      - name: UITest target registration gate
+        shell: bash
+        run: python3 tools/check_test_target_registration.py
+
+      # Guards the wiring above: if the registration step is deleted, moved
+      # behind the expensive build, or made non-blocking, this step fails.
+      - name: CI registration gate wiring check
+        shell: bash
+        run: python3 tools/check_ci_test_registration_gate.py
 
       - name: Use runner Xcode
         shell: bash
@@ -46,3 +76,7 @@ jobs:
         id: build
         shell: bash
         run: bash tools/ci_simulator_build.sh
+
+      - name: XCTest gate
+        shell: bash
+        run: bash tools/ci_xctest_gate.sh

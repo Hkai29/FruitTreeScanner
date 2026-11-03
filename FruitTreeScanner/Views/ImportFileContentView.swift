@@ -1,58 +1,85 @@
+// ImportFileContentView.swift
+// 导入页内容：状态 + 规则，底部一条主操作带。
+//
+// 布局遵循仪器工作区：纸面底、20pt 页边距、最大 1080 居中、发丝线分区。
+// 状态完全来自既有的 ImportStatus：等待、选择文件、处理中、成功、失败。
+
 import SwiftUI
 
 struct ImportFileContentView: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let status: ImportStatus
     let isProcessing: Bool
     let onImportTap: () -> Void
 
+    private let contentWidth: CGFloat = 1080
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 22) {
                 ImportHeader()
-                ImportStatusView(status: status)
-                importButton
-                ImportRulesList()
+
+                statusSection
+
+                rulesSection
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Design.Space.lg)
+            .frame(maxWidth: contentWidth, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 24)
+            .frame(maxWidth: .infinity)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actionBand
         }
     }
 
-    private var importButton: some View {
-        let title = status.isSuccess ? L10n.Import.continueButton : L10n.Import.selectButton
+    // MARK: - 状态
 
-        return Button(action: onImportTap) {
-            HStack(spacing: 10) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.headline.weight(.semibold))
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(.headline.weight(.semibold))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(1)
-                Spacer(minLength: 0)
-                if !dynamicTypeSize.isAccessibilitySize {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .accessibilityHidden(true)
-                }
-            }
-            .foregroundColor(Design.Colors.Dark.bgDeep)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 48)
-            .background(Design.Colors.harvest)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+    private var statusSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            InstrumentSectionLabel(title: ImportStrings.statusLabel)
+            ImportStatusView(status: status)
         }
-        .buttonStyle(.plain)
-        .disabled(isProcessing)
-        .opacity(isProcessing ? 0.6 : 1)
-        .accessibilityLabel(title)
-        .accessibilityHint(L10n.Import.selectButtonHint)
-        .accessibilityIdentifier("import.selectFile")
+    }
+
+    // MARK: - 规则
+
+    private var rulesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            InstrumentSectionLabel(title: ImportStrings.rulesLabel)
+            ImportRulesList()
+        }
+    }
+
+    // MARK: - 底部主操作
+
+    private var actionBand: some View {
+        VStack(spacing: 0) {
+            Button(action: onImportTap) {
+                Label(buttonTitle, systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(WorkspacePrimaryButtonStyle())
+            .disabled(isProcessing)
+            .opacity(isProcessing ? 0.6 : 1)
+            .accessibilityLabel(buttonTitle)
+            .accessibilityHint(L10n.Import.selectButtonHint)
+            .accessibilityIdentifier("import.selectFile")
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(maxWidth: contentWidth)
+        .frame(maxWidth: .infinity)
+        .background(Design.Colors.Workspace.surface)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Design.Colors.Workspace.line)
+                .frame(height: 0.5)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var buttonTitle: String {
+        status.isSuccess ? L10n.Import.continueButton : L10n.Import.selectButton
     }
 }

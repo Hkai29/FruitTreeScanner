@@ -1,3 +1,7 @@
+// ScanControlBar.swift
+// 采集底部控制条：工具行 + 主操作行。
+// 语义色来自 Design.Colors.Dark（信号青=可执行，锈红=记录中/危险）。
+
 import SwiftUI
 
 struct ScanCoverageHintBar: View {
@@ -21,19 +25,19 @@ struct ScanBottomControlBar: View {
     let onToggleMeasurement: () -> Void
     let onCancel: () -> Void
     let onFinish: () -> Void
+    var onResume: (() -> Void)? = nil
     #if DEBUG
     let onDebug: () -> Void
     #endif
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var isPad: Bool { horizontalSizeClass == .regular }
-
-    private var utilityHeight: CGFloat { isPad ? 48 : 38 }
-    private var utilityFontSize: CGFloat { isPad ? 15 : 13 }
-    private var primaryHeight: CGFloat { isPad ? 56 : 46 }
-    private var primaryFontSize: CGFloat { isPad ? 16 : 14 }
-    private var primaryIconSize: CGFloat { isPad ? 15 : 13 }
+    // 触达区域不得小于 44pt：野外戴手套操作。
+    private var utilityHeight: CGFloat { isPad ? 48 : 44 }
+    private var primaryHeight: CGFloat { isPad ? 58 : 54 }
 
     var body: some View {
         VStack(spacing: Design.Space.sm) {
@@ -45,7 +49,6 @@ struct ScanBottomControlBar: View {
                         isActive: false,
                         action: onToggleGuide,
                         height: utilityHeight,
-                        fontSize: utilityFontSize,
                         accessibilityIdentifier: "scan.guide"
                     )
 
@@ -55,46 +58,50 @@ struct ScanBottomControlBar: View {
                         isActive: measurementController.isActive,
                         action: onToggleMeasurement,
                         height: utilityHeight,
-                        fontSize: utilityFontSize,
                         accessibilityIdentifier: "scan.measure"
                     )
+
+                    if onResume != nil {
+                        ScanUtilityControlButton(
+                            title: L10n.ScanControls.text(.rerecord),
+                            icon: "arrow.counterclockwise",
+                            isActive: false,
+                            action: onToggleRecording,
+                            height: utilityHeight,
+                            accessibilityIdentifier: "scan.rerecord"
+                        )
+                    }
                 }
             }
 
-            HStack(spacing: Design.Space.sm) {
+            primaryLayout {
                 ScanPrimaryControlButton(
                     title: L10n.ScanControls.text(.cancel),
                     icon: "xmark",
-                    role: .secondary,
+                    role: .cancel,
                     isLoading: false,
                     action: onCancel,
                     height: primaryHeight,
-                    fontSize: primaryFontSize,
-                    iconSize: primaryIconSize,
                     accessibilityIdentifier: "scan.cancel"
                 )
 
                 ScanPrimaryControlButton(
-                    title: recordingButtonTitle,
-                    icon: isRecording ? "stop.fill" : "record.circle",
-                    role: isRecording ? .recording : .primary,
+                    title: onResume != nil ? L10n.ScanPostCapture.resumeAction : recordingButtonTitle,
+                    icon: onResume != nil ? "plus.viewfinder" : (isRecording ? "stop.fill" : "record.circle"),
+                    role: isRecording ? .recording : (onResume != nil ? .secondary : .primary),
                     isLoading: false,
-                    action: onToggleRecording,
+                    action: onResume ?? onToggleRecording,
                     height: primaryHeight,
-                    fontSize: primaryFontSize,
-                    iconSize: primaryIconSize,
-                    accessibilityIdentifier: "scan.record"
+                    accessibilityIdentifier: onResume != nil ? "scan.resume" : "scan.record"
                 )
 
                 ScanPrimaryControlButton(
                     title: canFinish ? L10n.ScanControls.text(.finish) : L10n.ScanExport.requirementsAction,
                     icon: canFinish ? "checkmark" : "info.circle",
-                    role: canFinish ? .finish : .secondary,
+                    role: canFinish && onResume != nil ? .finish : .secondary,
                     isLoading: isEstimating,
                     action: onFinish,
                     height: primaryHeight,
-                    fontSize: primaryFontSize,
-                    iconSize: primaryIconSize,
                     accessibilityIdentifier: "scan.finish"
                 )
                 .disabled(ScanExportReadiness.finishControlIsDisabled(isEstimating: isEstimating))
@@ -102,19 +109,19 @@ struct ScanBottomControlBar: View {
                 .accessibilityHint(canFinish ? "" : L10n.ScanExport.requirementsHint)
             }
         }
-        .padding(.horizontal, Design.Space.lg)
-        .padding(.vertical, Design.Space.md)
+        .padding(10)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.large)
-                .fill(Design.Colors.Dark.hudBackground)
+            RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
+                .fill(Design.Colors.Dark.bgSurface.opacity(0.94))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.large)
+            RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
                 .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
         )
-        .padding(.horizontal, Design.Space.md)
-        .padding(.bottom, Design.Space.lg)
+        .frame(maxWidth: 760)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
     }
 
     private var recordingButtonTitle: String {
@@ -122,33 +129,44 @@ struct ScanBottomControlBar: View {
         if hudState.pointCount > 0 { return L10n.ScanControls.text(.rerecord) }
         return L10n.ScanControls.text(.startRecording)
     }
+
+    private var primaryLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize && verticalSizeClass != .compact
+            ? AnyLayout(VStackLayout(spacing: Design.Space.sm))
+            : AnyLayout(HStackLayout(spacing: Design.Space.sm))
+    }
 }
 
 private struct ScanUtilityControlButton: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     let icon: String
     let isActive: Bool
     let action: () -> Void
-    var height: CGFloat = 38
-    var fontSize: CGFloat = 13
+    var height: CGFloat = 42
     var accessibilityIdentifier: String?
 
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: icon)
-                .font(.system(size: fontSize, weight: .semibold))
-                .foregroundColor(isActive ? Design.Colors.harvest : Design.Colors.Dark.textPrimary)
-                .lineLimit(1)
+                .labelStyle(ScanUtilityLabelStyle(usesTextOnly: dynamicTypeSize.isAccessibilitySize))
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(isActive ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textPrimary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity)
-                .frame(height: height)
+                .frame(minHeight: height)
+                .contentShape(Rectangle())
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isActive ? Design.Colors.harvest.opacity(0.16) : Color.white.opacity(0.07))
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .fill(isActive ? Design.Colors.Dark.glow : Color.clear)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(isActive ? Design.Colors.harvest.opacity(0.7) : Design.Colors.Dark.glassBorder, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .stroke(
+                            isActive ? Color.clear : Design.Colors.Dark.glassBorder,
+                            lineWidth: 1
+                        )
                 )
         }
         .buttonStyle(ScanControlButtonStyle())
@@ -156,12 +174,29 @@ private struct ScanUtilityControlButton: View {
     }
 }
 
+private struct ScanUtilityLabelStyle: LabelStyle {
+    let usesTextOnly: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if usesTextOnly {
+            configuration.title
+        } else {
+            HStack(spacing: 6) {
+                configuration.icon
+                configuration.title
+            }
+        }
+    }
+}
+
 private struct ScanPrimaryControlButton: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     enum Role {
         case primary
         case secondary
         case recording
         case finish
+        case cancel
     }
 
     let title: String
@@ -169,9 +204,7 @@ private struct ScanPrimaryControlButton: View {
     let role: Role
     let isLoading: Bool
     let action: () -> Void
-    var height: CGFloat = 46
-    var fontSize: CGFloat = 14
-    var iconSize: CGFloat = 13
+    var height: CGFloat = 52
     var accessibilityIdentifier: String?
 
     var body: some View {
@@ -184,7 +217,7 @@ private struct ScanPrimaryControlButton: View {
                             .scaleEffect(0.75)
                     } else {
                         Image(systemName: icon)
-                            .font(.system(size: iconSize, weight: .bold))
+                            .font(.system(.subheadline, design: .default).weight(.bold))
                     }
 
                     Text(displayTitle)
@@ -192,18 +225,20 @@ private struct ScanPrimaryControlButton: View {
 
                 Text(displayTitle)
             }
-            .font(.system(size: fontSize, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundColor(foregroundColor)
-            .lineLimit(1)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .minimumScaleFactor(0.82)
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+            .frame(minHeight: height)
+            .contentShape(Rectangle())
             .background(
-                RoundedRectangle(cornerRadius: 9)
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
                     .fill(backgroundColor)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 9)
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
             )
         }
@@ -217,32 +252,37 @@ private struct ScanPrimaryControlButton: View {
 
     private var backgroundColor: Color {
         switch role {
-        case .primary: return Design.Colors.harvest
-        case .secondary: return Color.white.opacity(0.08)
-        case .recording: return Design.Colors.apple
-        case .finish: return Design.Colors.forest
+        case .primary, .finish: return Design.Colors.Dark.glow
+        case .secondary: return Color.white.opacity(0.04)
+        case .recording: return Design.Colors.Dark.error
+        case .cancel: return .clear
         }
     }
 
     private var foregroundColor: Color {
         switch role {
         case .secondary: return Design.Colors.Dark.textPrimary
-        default: return .white
+        case .primary, .finish: return Design.Colors.Dark.bgDeep
+        case .cancel: return Design.Colors.Dark.textSecondary
+        // 深色画布上的实心按钮一律"亮底 + 墨字"：浅锈红 #E58B7B 配白字只有 2.6:1，不达标。
+        case .recording: return Design.Colors.Dark.bgDeep
         }
     }
 
     private var borderColor: Color {
         switch role {
         case .secondary: return Design.Colors.Dark.glassBorder
-        default: return Color.white.opacity(0.12)
+        default: return .clear
         }
     }
 }
 
 private struct ScanControlButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1)
-            .animation(.easeOut(duration: Design.Animation.micro), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: Design.Animation.micro), value: configuration.isPressed)
     }
 }

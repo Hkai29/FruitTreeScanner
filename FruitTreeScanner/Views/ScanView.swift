@@ -8,10 +8,11 @@ struct ScanView: View {
     @ObservedObject var gps: GPSRecorder
     let season: Season
     let selectedFruitCategory: FruitCategory
+    let classification: ScanClassificationSnapshot
     let appDependencies: AppDependencies
     let onScanNextTree: () -> Void
 
-    @State var coordinator = ScanCoordinator()
+    @State var coordinator: ScanCoordinator
     @StateObject var sessionModel = ScanFeatureModel()
     @StateObject var finalizationWorkflow = ScanFinalizationWorkflow()
     @StateObject var hudState = ScanHUDState()
@@ -39,15 +40,43 @@ struct ScanView: View {
     @StateObject var readinessRequestController = ScanReadinessRequestController()
     @State var showCancelConfirmation = false
     @StateObject var categoryMismatchPresentation = ScanCategoryMismatchPresentationController()
-    @State var showLifecycleRecovery = false
+    @StateObject var lifecycleRecoveryPresentation = ScanLifecycleRecoveryPresentationController()
+
+    @MainActor
+    init(treeID: String, gps: GPSRecorder, season: Season, selectedFruitCategory: FruitCategory,
+         appDependencies: AppDependencies, onScanNextTree: @escaping () -> Void,
+         classification: ScanClassificationSnapshot = .empty,
+         coordinator: ScanCoordinator? = nil, showGuide: Bool = true, yieldResult: YieldResult? = nil,
+         showResult: Bool = false, readinessRequestController: ScanReadinessRequestController? = nil,
+         categoryMismatchPresentation: ScanCategoryMismatchPresentationController? = nil,
+         finalizationWorkflow: ScanFinalizationWorkflow? = nil,
+         lifecycleRecoveryPresentation: ScanLifecycleRecoveryPresentationController? = nil) {
+        self.treeID = treeID
+        self.gps = gps
+        self.season = season
+        self.selectedFruitCategory = selectedFruitCategory
+        self.classification = classification
+        self.appDependencies = appDependencies
+        self.onScanNextTree = onScanNextTree
+        _coordinator = State(initialValue: coordinator ?? ScanCoordinator(settings: appDependencies.settings))
+        _showGuide = State(initialValue: showGuide)
+        _yieldResult = State(initialValue: yieldResult)
+        _showResult = State(initialValue: showResult)
+        _readinessRequestController = StateObject(wrappedValue: readinessRequestController ?? ScanReadinessRequestController())
+        _categoryMismatchPresentation = StateObject(wrappedValue: categoryMismatchPresentation ?? ScanCategoryMismatchPresentationController())
+        _finalizationWorkflow = StateObject(wrappedValue: finalizationWorkflow ?? ScanFinalizationWorkflow())
+        _lifecycleRecoveryPresentation = StateObject(wrappedValue: lifecycleRecoveryPresentation ?? ScanLifecycleRecoveryPresentationController())
+    }
 
     var lifecycleSnapshot: ScanLifecycleSnapshot { sessionModel.lifecycleSnapshot }
     var isRecording: Bool {
         sessionModel.isRecording && scanReadiness == .ready && !showLifecycleRecovery
     }
     var isEstimating: Bool { finalizationWorkflow.isWorking }
+    var showLifecycleRecovery: Bool { lifecycleRecoveryPresentation.presentation != nil }
 
     var body: some View {
+        let recoveryPresentationID = lifecycleRecoveryPresentation.presentation?.id
         ZStack {
             ScanRenderLayer(
                 scanReadiness: scanReadiness,
@@ -73,18 +102,16 @@ struct ScanView: View {
                 measurementController: measurementController,
                 measuredDistance: $measuredDistance,
                 actions: scannerInterfaceActions,
-                tagStore: appDependencies.tagStore
+                tagStore: appDependencies.tagStore,
+                notice: scanNoticePresentation.visibleNotice
             )
 
             ScanReadinessOverlay(
                 scanReadiness: scanReadiness,
                 onOpenSettings: openAppSettings,
-                onDismiss: requestCancelScan
+                onDismiss: requestCancelScan,
+                notice: scanNoticePresentation.visibleNotice
             )
-
-            if let scanNotice = scanNoticePresentation.visibleNotice {
-                ScanNoticeToast(message: scanNotice)
-            }
             if isEstimating {
                 VStack {
                     Spacer()
@@ -95,6 +122,7 @@ struct ScanView: View {
                 }
             }
         }
+        .accessibilityIdentifier("scan.session.\(treeID)")
         .onAppear(perform: handleAppear)
         .onDisappear(perform: handleDisappear)
         .onChange(of: scenePhase) { phase in
@@ -132,17 +160,22 @@ struct ScanView: View {
                     }
                 )
             }
-            .alert(lifecycleAlertTitle, isPresented: $showLifecycleRecovery) {
+            .alert(lifecycleAlertTitle, isPresented: Binding(
+                get: { lifecycleRecoveryPresentation.presentation != nil },
+                set: { if !$0, let recoveryPresentationID {
+                    lifecycleRecoveryPresentation.dismissFromSystem(presentationID: recoveryPresentationID)
+                } }
+            ), presenting: lifecycleRecoveryPresentation.presentation) { presentation in
                 Button(L10n.Scan.restartAfterInterruption) {
-                    restartAfterInterruption()
+                    lifecycleRecoveryPresentation.restart(presentationID: presentation.id)
                 }
                 .accessibilityHint(L10n.Scan.interruptionAccessibilityHint)
                 Button(L10n.Scan.discardAfterInterruption, role: .destructive) {
-                    discardAfterInterruption()
+                    lifecycleRecoveryPresentation.discard(presentationID: presentation.id)
                 }
                 .accessibilityHint(L10n.Scan.interruptionAccessibilityHint)
-            } message: {
-                Text(L10n.Scan.interruptionMessage)
+            } message: { _ in
+                Text(lifecycleAlertMessage)
             }
     }
 
@@ -168,6 +201,89 @@ struct ScanView: View {
 
     func invalidateCoverageCompletion() {
         coverageCompletionPresentation.invalidate()
+    }
+}
+
+@MainActor
+final class ScanLifecycleRecoveryPresentationController: ObservableObject {
+    struct Presentation: Identifiable {
+        let id = UUID()
+        let snapshot: ScanLifecycleSnapshot
+        var scanIdentity: UUID { snapshot.scanIdentity }
+    }
+
+    @Published var presentation: Presentation?
+    private var activeChoice: Presentation?
+    private var acceptsRecovery: ((UUID) -> Bool)?
+    private var onRestart: ((UUID) -> Void)?
+    private var onDiscard: ((UUID) -> Void)?
+    private var bindingIdentity = UUID()
+    private var isHandlingChoice = false
+
+    var scanIdentity: UUID? { activeChoice?.scanIdentity }
+
+    func bind(acceptsRecovery: @escaping (UUID) -> Bool,
+              onRestart: @escaping (UUID) -> Void, onDiscard: @escaping (UUID) -> Void) {
+        bindingIdentity = UUID()
+        activeChoice = nil
+        self.acceptsRecovery = acceptsRecovery
+        self.onRestart = onRestart
+        self.onDiscard = onDiscard
+        presentation = nil
+    }
+
+    func present(_ snapshot: ScanLifecycleSnapshot) {
+        guard !isHandlingChoice, acceptsRecovery?(snapshot.scanIdentity) == true else { return }
+        if presentation?.snapshot == snapshot { return }
+        let choice = Presentation(snapshot: snapshot)
+        activeChoice = choice
+        presentation = choice
+    }
+
+    func restart(presentationID: UUID) {
+        handleChoice(presentationID: presentationID, action: onRestart)
+    }
+
+    func discard(presentationID: UUID) {
+        handleChoice(presentationID: presentationID, action: onDiscard)
+    }
+
+    private func handleChoice(presentationID: UUID, action: ((UUID) -> Void)?) {
+        guard !isHandlingChoice, let choice = activeChoice, choice.id == presentationID,
+              acceptsRecovery?(choice.scanIdentity) == true, let action else { return }
+        let binding = bindingIdentity
+        isHandlingChoice = true
+        activeChoice = nil
+        presentation = nil
+        // Dismissal may synchronously replace the page binding or scan owner.
+        let accepted = binding == bindingIdentity && acceptsRecovery?(choice.scanIdentity) == true
+        isHandlingChoice = false
+        guard accepted else { return }
+        // A failed restart can now present a new choice; the old one stays consumed.
+        action(choice.scanIdentity)
+    }
+
+    func dismiss() {
+        activeChoice = nil
+        presentation = nil
+    }
+
+    func dismissFromSystem(presentationID: UUID) {
+        // SwiftUI can write the alert binding during a view update. Publish on
+        // the next main-queue turn and never hide a replacement presentation.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.presentation?.id == presentationID else { return }
+            self.dismiss()
+        }
+    }
+
+    func invalidate() {
+        bindingIdentity = UUID()
+        activeChoice = nil
+        acceptsRecovery = nil
+        onRestart = nil
+        onDiscard = nil
+        presentation = nil
     }
 }
 

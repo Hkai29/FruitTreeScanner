@@ -35,14 +35,14 @@ struct AlgorithmParametersResultSection: View {
                                 ResultConfidencePresentation(result.confidence).label
                             ]
                         ),
-                        tint: Design.Colors.forest
+                        tint: Design.Colors.Workspace.accent
                     )
                 }
                 ResultParameterRow(
                     title: L10n.Result.detail(.algorithmPathLabel),
                     value: presentation.methodDisplayName,
                     detail: presentation.methodDetail,
-                    tint: Design.Colors.harvest
+                    tint: Design.Colors.Workspace.accent
                 )
                 if result.occlusionK > 1.01 {
                     ResultParameterRow(

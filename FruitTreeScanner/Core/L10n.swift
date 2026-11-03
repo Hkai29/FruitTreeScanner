@@ -14,6 +14,8 @@ enum L10n {
         static let recording = NSLocalizedString("scan.recording", value: "录制中", comment: "Recording status")
         static let noPointCloud = NSLocalizedString("scan.no_point_cloud", value: "请先录制一段点云后再测量", comment: "No point cloud notice")
         static let exportFailed = NSLocalizedString("scan.export_failed", value: "点云导出失败（文件写入错误），请检查存储空间后重试", comment: "PLY export failure")
+        static let pointCloudCaptureFailedTitle = NSLocalizedString("scan.point_cloud_capture_failed.title", value: "本次点云采集未完成", comment: "Invalid point cloud capture title")
+        static let pointCloudCaptureFailedMessage = NSLocalizedString("scan.point_cloud_capture_failed.message", value: "本次采集数据无法用于估产。请重新开始扫描；放弃不会生成结果。", comment: "Invalid point cloud requires a new scan")
         static let estimateFailed = NSLocalizedString("scan.estimate_failed", value: "本次产量计算未完成，请重试。已保存的点云将继续保留。", comment: "Retryable yield estimation failure")
         static var coverageComplete: String { coverageCompleteTitle() }
         static var coverageCompleteHint: String { coverageCompleteMessage() }
@@ -880,7 +882,10 @@ enum L10n {
         static let noPlotsAvailable = NSLocalizedString("quick_tagging.plot_empty", value: "暂无地块", comment: "No plots available menu item")
         static let noTags = NSLocalizedString("quick_tagging.tags_empty", value: "暂无标签，可稍后在地块标签中添加。", comment: "No tags available message")
         static let save = NSLocalizedString("quick_tagging.save", value: "保存标记", comment: "Save quick tagging action")
+        static let saving = NSLocalizedString("quick_tagging.saving", value: "保存中…", comment: "Quick tagging save in progress state")
         static let saved = NSLocalizedString("quick_tagging.saved", value: "已保存标记", comment: "Quick tagging saved state")
+        static let saveFailed = NSLocalizedString("quick_tagging.save_failed", value: "标记没有写入本地存储，请重试。", comment: "Quick tagging save failure explanation")
+        static let saveRejected = NSLocalizedString("quick_tagging.save_rejected", value: "树号无效，这次标记没有保存。请检查树号后重试。", comment: "Quick tagging rejected because the tree id is invalid")
         static let saveHint = NSLocalizedString("quick_tagging.save_hint", value: "保存这棵树所选的地块、标签和扫描状态。", comment: "Save quick tagging accessibility hint")
         static let tagHint = NSLocalizedString("quick_tagging.tag_hint", value: "切换这棵树的标签选择。", comment: "Tag selection accessibility hint")
         static let statusHint = NSLocalizedString("quick_tagging.status_hint", value: "设置这棵树的扫描状态。", comment: "Status selection accessibility hint")
@@ -1157,10 +1162,18 @@ enum L10n {
         static let mapDescription = NSLocalizedString("dashboard.action.map.description", value: "按位置查看树体", comment: "Dashboard orchard map action description")
 
         static let viewAll = NSLocalizedString("dashboard.view_all", value: "查看全部", comment: "View all recent scans")
+        static let noToolsInGroup = NSLocalizedString("dashboard.no_tools_in_group", value: "该分组暂无功能", comment: "Empty tool group placeholder")
+        static let archiveTotals = NSLocalizedString("dashboard.archive_totals", value: "累计档案", comment: "Archive totals panel label")
+        static let averagePerTree = NSLocalizedString("dashboard.average_per_tree", value: "单株均值", comment: "Average yield per tree metric")
+        static let totalScans = NSLocalizedString("dashboard.total_scans", value: "累计扫描", comment: "Total scan count metric")
+        static let evidenceEmptyPointCloud = NSLocalizedString("dashboard.evidence_empty_point_cloud", value: "无点云数据", comment: "Point cloud preview placeholder when no PLY data can be read")
         static let emptyDescription = NSLocalizedString("dashboard.empty_description", value: "完成第一次扫描后，这里会显示最近树体、产量和点云入口。", comment: "Dashboard recent scans empty-state description")
         static let startFirstScan = NSLocalizedString("dashboard.start_first_scan", value: "开始第一次扫描", comment: "Dashboard first scan action")
         static let todayOverview = NSLocalizedString("dashboard.today_overview", value: "今日概览", comment: "Dashboard daily overview section")
-        static let treeIDs = NSLocalizedString("dashboard.tree_ids", value: "树编号", comment: "Dashboard unique tree identifiers statistic")
+        static let todayYield = NSLocalizedString("dashboard.today_yield", value: "今日产量", comment: "Dashboard metric label for today's yield")
+        static let todayScanCount = NSLocalizedString("dashboard.today_scan_count", value: "今日扫描", comment: "Dashboard metric label for today's scan count")
+        static let todayTreeCount = NSLocalizedString("dashboard.today_tree_count", value: "今日树体", comment: "Dashboard metric label for today's tree count")
+        static let treeIDs = NSLocalizedString("dashboard.tree_ids", value: "树木数量", comment: "Dashboard unique tree identifiers statistic")
 
         private static let historyAccessibilityLabel = NSLocalizedString("dashboard.history_accessibility_label", value: "扫描历史", comment: "Dashboard scan history accessibility label without a count")
         private static let historyAccessibilityOne = NSLocalizedString("dashboard.history_accessibility_one", value: "扫描历史，1条记录", comment: "Dashboard scan history accessibility label for one record")
@@ -1311,6 +1324,34 @@ enum L10n {
         static let emptyMessage = NSLocalizedString("history.empty.message", value: "完成扫描或导入 PLY 后，点云文件、果数和产量会按时间保存在这里。", comment: "Empty scan history description")
         static let filteredEmptyTitle = NSLocalizedString("history.filtered_empty.title", value: "没有符合筛选的记录", comment: "Filtered scan history empty title")
         static let filteredEmptyMessage = NSLocalizedString("history.filtered_empty.message", value: "切换地块或状态筛选后再查看。", comment: "Filtered scan history empty description")
+        // 搜索（档案列表）：树号与存档编号都匹配。
+        static let searchPlaceholder = NSLocalizedString("history.search.placeholder", value: "搜索树号或记录号", comment: "Archive search field placeholder")
+        static let searchFieldLabel = NSLocalizedString("history.search.field_label", value: "搜索树号或记录号", comment: "Archive search field accessibility label")
+        static let clearSearch = NSLocalizedString("history.search.clear", value: "清除搜索", comment: "Clear archive search action")
+        static let searchNoMatchTitle = NSLocalizedString("history.search.no_match_title", value: "没有匹配的记录", comment: "Archive search with no matching record title")
+        static let searchNoMatch = NSLocalizedString("history.search.no_match", value: "没有树号或记录号包含「%@」。换个条件，或清掉当前条件再看。", comment: "Archive search with no matching record")
+
+        /// 搜索没命中时的说明：说清是**哪个条件**筛空的，而不是笼统说「没有记录」。
+        static func searchNoMatchMessage(_ query: String) -> String {
+            String(format: searchNoMatch, query)
+        }
+
+        // 查询**命中了**，但被地块/状态筛选排空：这是另一种原因，措辞不能混。
+        static let searchExcludedTitle = NSLocalizedString("history.search.excluded_title", value: "匹配记录被当前筛选排除", comment: "Archive search matched records excluded by the current filter title")
+        static let searchExcluded = NSLocalizedString("history.search.excluded", value: "「%@」匹配到的记录不在当前地块或复核状态里。", comment: "Archive search matched records excluded by the current filter")
+        static let clearFilters = NSLocalizedString("history.filter.clear", value: "清除筛选", comment: "Clear plot and status filters action")
+
+        /// 匹配记录被筛选排空时的说明：说清是**筛选**排掉的，不是「没有这条记录」。
+        static func searchExcludedMessage(_ query: String) -> String {
+            String(format: searchExcluded, query)
+        }
+
+        // 按扫描日期分组。
+        static let groupToday = NSLocalizedString("history.group.today", value: "今天", comment: "Archive group for today")
+        static let groupYesterday = NSLocalizedString("history.group.yesterday", value: "昨天", comment: "Archive group for yesterday")
+        static let groupEarlier = NSLocalizedString("history.group.earlier", value: "更早", comment: "Archive group for earlier days")
+        static let groupInvalidDate = NSLocalizedString("history.group.invalid_date", value: "日期异常", comment: "Archive group for scans dated in the future")
+        static let groupCountFormat = NSLocalizedString("history.group.count_format", value: "%@ · %d 份", comment: "Archive group title with the number of records")
         static let startScan = NSLocalizedString("history.action.start_scan", value: "开始扫描", comment: "Start scan action")
         static let importPLY = NSLocalizedString("history.action.import_ply", value: "导入 PLY", comment: "Import PLY action")
         static let clearAll = NSLocalizedString("history.action.clear_all", value: "清空全部", comment: "Clear all scan history action")
@@ -1322,6 +1363,33 @@ enum L10n {
         static let deleteAlertMessage = NSLocalizedString("history.alert.delete.message", value: "将删除这条记录关联的 PLY 点云、CSV 和结果文件。", comment: "Delete scan record alert message")
         static let clearAlertTitle = NSLocalizedString("history.alert.clear.title", value: "清空全部扫描记录", comment: "Clear scan history alert title")
         static let clearAlertMessage = NSLocalizedString("history.alert.clear.message", value: "将删除当前所有扫描记录及其关联文件，此操作无法撤销。", comment: "Clear scan history alert message")
+        // 归档详情（只读历史记录，与「本次扫描」的结果页不是一回事）
+        static let detailTitle = NSLocalizedString("history.detail.title", value: "归档详情", comment: "Archive detail title")
+        static let detailIdentityTitle = NSLocalizedString("history.detail.identity_title", value: "这条记录", comment: "Archive detail identity section")
+        static let detailTreeLabel = NSLocalizedString("history.detail.tree_label", value: "树号", comment: "Archive detail tree id label")
+        static let detailRecordLabel = NSLocalizedString("history.detail.record_label", value: "存档编号", comment: "Archive detail record id label")
+        static let detailDateLabel = NSLocalizedString("history.detail.date_label", value: "扫描时间", comment: "Archive detail date label")
+        static let detailFruitTypeLabel = NSLocalizedString("history.detail.fruit_type_label", value: "果实种类", comment: "Archive detail fruit type label")
+        static let detailReadingTitle = NSLocalizedString("history.detail.reading_title", value: "这次读数", comment: "Archive detail reading section")
+        static let detailYieldLabel = NSLocalizedString("history.detail.yield_label", value: "估算产量", comment: "Archive detail yield label")
+        static let detailCountLabel = NSLocalizedString("history.detail.count_label", value: "果实数量", comment: "Archive detail fruit count label")
+        static let detailReliabilityLabel = NSLocalizedString("history.detail.reliability_label", value: "可靠性", comment: "Archive detail reliability label")
+        static let detailReliabilityUnknown = NSLocalizedString("history.detail.reliability_unknown", value: "未提供", comment: "Archive detail reliability not provided")
+        static let detailSourceTitle = NSLocalizedString("history.detail.source_title", value: "来源与完整性", comment: "Archive detail provenance section")
+        static let detailIntegrityLabel = NSLocalizedString("history.detail.integrity_label", value: "文件完整性", comment: "Archive detail file integrity label")
+        static let detailFileSizeLabel = NSLocalizedString("history.detail.file_size_label", value: "文件大小", comment: "Archive detail file size label")
+        static let detailFileLabel = NSLocalizedString("history.detail.file_label", value: "文件", comment: "Archive detail file label")
+        static let detailLoading = NSLocalizedString("history.detail.loading", value: "正在读取这条归档…", comment: "Archive detail loading")
+        static let detailUnavailableTitle = NSLocalizedString("history.detail.unavailable_title", value: "这条归档读不出来", comment: "Archive detail unavailable title")
+        static let detailResultUnavailable = NSLocalizedString("history.detail.result_unavailable_text", value: "这次扫描的结果读不到。", comment: "Archive detail result unavailable text")
+        static let detailRetry = NSLocalizedString("history.detail.retry", value: "重试", comment: "Archive detail retry reading action")
+        static let detailRetryHint = NSLocalizedString("history.detail.retry_hint", value: "重新读取这条归档。", comment: "Archive detail retry reading accessibility hint")
+        // 分享点云失败：点云是接收方常打不开的文件类型，失败必须说出来。
+        static let shareFailureTitle = NSLocalizedString("history.share.failure_title", value: "分享失败", comment: "Archive point cloud share failure alert title")
+        static let shareFailureMessage = NSLocalizedString("history.share.failure_message", value: "点云没有分享成功。请重试，或选择其他分享方式。", comment: "Archive point cloud share failure recovery message")
+        static let integrityComplete = NSLocalizedString("history.integrity.complete", value: "完整", comment: "Archive file integrity complete")
+        static let integrityIncomplete = NSLocalizedString("history.integrity.incomplete", value: "结果没写全", comment: "Archive file integrity incomplete")
+        static let integrityInvalid = NSLocalizedString("history.integrity.invalid", value: "无法核对", comment: "Archive file integrity invalid")
         static let previewPointCloud = NSLocalizedString("history.row.preview_point_cloud", value: "预览点云", comment: "Preview point cloud action")
         static let rescanTree = NSLocalizedString("history.row.rescan_tree", value: "复扫这棵", comment: "Rescan tree action")
         static let markReview = NSLocalizedString("history.row.mark_review", value: "标记待复核", comment: "Mark scan record for review action")
@@ -1330,6 +1398,10 @@ enum L10n {
         static let moreActions = NSLocalizedString("history.row.more_actions", value: "更多操作", comment: "More scan record actions")
         static let unknownSize = NSLocalizedString("history.row.unknown_size", value: "未知大小", comment: "Unknown scan file size")
         static let uncounted = NSLocalizedString("history.row.uncounted", value: "未计数", comment: "Scan record has no fruit count")
+        // 档案版行：读数列与存档身份前缀
+        static let readingUnavailable = NSLocalizedString("history.row.reading_unavailable", value: "不可用", comment: "Archive row reading is unavailable")
+        static let archiveRecordPrefix = NSLocalizedString("history.row.archive_record_prefix", value: "存档", comment: "Archive row record identity prefix")
+        static let currentPlotPrefix = NSLocalizedString("history.row.current_plot_prefix", value: "当前地块", comment: "Archive row current plot prefix")
 
         static func statusLocalizationKey(for status: ScanStatus) -> String {
             switch status {
@@ -1973,6 +2045,7 @@ enum L10n {
     // MARK: - Scan HUD
     enum ScanHUD {
         static let wholeTree = NSLocalizedString("scan.hud.whole_tree", value: "果树全株", comment: "Whole-tree scan badge")
+        static let diagnosticsTitle = NSLocalizedString("scan.hud.diagnostics_title", value: "采集诊断", comment: "Expandable scan diagnostics")
         private static let treeIDFormat = NSLocalizedString("scan.hud.tree_id_format", value: "树号 %@", comment: "Tree identifier displayed in scan HUD")
         static let treeID = NSLocalizedString("scan.hud.metric.tree_id", value: "树号", comment: "Tree identifier metric label")
         static let coverage = NSLocalizedString("scan.hud.metric.coverage", value: "覆盖", comment: "Scan coverage metric label")
@@ -2149,6 +2222,9 @@ enum L10n {
             case .json:
                 key = "export.format.research_json"
                 fallback = "研究 JSON"
+            case .replay:
+                key = "export.format.replay"
+                fallback = "观测回放包"
             }
             return bundle.localizedString(forKey: key, value: fallback, table: nil)
         }
@@ -2412,10 +2488,13 @@ enum L10n {
         static let clearSearchAccessibility = NSLocalizedString("point_cloud.accessibility.clear_search", value: "清除搜索", comment: "Clear point-cloud search accessibility label")
         static let viewerTitle = NSLocalizedString("point_cloud.viewer.title", value: "点云查看", comment: "Point-cloud viewer title")
         static let shareAccessibility = NSLocalizedString("point_cloud.accessibility.share", value: "分享点云", comment: "Share point-cloud accessibility label")
+        static let shareFailureTitle = NSLocalizedString("point_cloud.share.failure_title", value: "分享失败", comment: "Point-cloud share failure alert title")
+        static let shareFailureMessage = NSLocalizedString("point_cloud.share.failure_message", value: "点云没有分享成功。请重试，或选择其他分享方式。", comment: "Point-cloud share failure recovery message")
+        static let toolsTitle = NSLocalizedString("point_cloud.tools.title", value: "点云工具", comment: "Point-cloud tools sheet title and entry")
 
         static let pointsMetric = NSLocalizedString("point_cloud.metric.points", value: "点", comment: "Compact point-count metric label")
         static let heightMetric = NSLocalizedString("point_cloud.metric.height", value: "高", comment: "Compact point-cloud height metric label")
-        static let footprintMetric = NSLocalizedString("point_cloud.metric.footprint", value: "冠幅", comment: "Compact crown-footprint metric label")
+        static let footprintMetric = NSLocalizedString("point_cloud.metric.footprint", value: "范围", comment: "Compact planar extent metric label")
 
         static let reset = NSLocalizedString("point_cloud.tool.reset", value: "重置", comment: "Reset point-cloud camera")
         static let color = NSLocalizedString("point_cloud.tool.color", value: "色彩", comment: "Point-cloud color tool")
@@ -2425,9 +2504,9 @@ enum L10n {
 
         static let legendLow = NSLocalizedString("point_cloud.legend.low", value: "低", comment: "Low end of point-cloud height legend")
         static let legendHigh = NSLocalizedString("point_cloud.legend.high", value: "高", comment: "High end of point-cloud height legend")
-        static let legendSparse = NSLocalizedString("point_cloud.legend.sparse", value: "稀", comment: "Sparse end of point-cloud density legend")
-        static let legendDense = NSLocalizedString("point_cloud.legend.dense", value: "密", comment: "Dense end of point-cloud density legend")
-        static let legendFruitCandidates = NSLocalizedString("point_cloud.legend.fruit_candidates", value: "果实候选", comment: "Fruit candidates in point-cloud legend")
+        static let legendSparse = NSLocalizedString("point_cloud.legend.sparse", value: "暗", comment: "Dark end of RGB brightness legend")
+        static let legendDense = NSLocalizedString("point_cloud.legend.dense", value: "亮", comment: "Bright end of RGB brightness legend")
+        static let legendFruitCandidates = NSLocalizedString("point_cloud.legend.fruit_candidates", value: "按颜色强调", comment: "Red-threshold color emphasis, not fruit detection")
         static let legendUniformBright = NSLocalizedString("point_cloud.legend.uniform_bright", value: "统一亮色", comment: "Uniform bright point-cloud legend")
 
         static let viewOrbit = NSLocalizedString("point_cloud.view.orbit", value: "自由", comment: "Orbit point-cloud view mode")
@@ -2440,8 +2519,8 @@ enum L10n {
         static let viewDetailSide = NSLocalizedString("point_cloud.view_detail.side", value: "侧向轮廓", comment: "Side view-mode detail")
 
         static let colorHeight = NSLocalizedString("point_cloud.color.height", value: "高度", comment: "Height point-cloud color mode")
-        static let colorDensity = NSLocalizedString("point_cloud.color.density", value: "密度", comment: "Density point-cloud color mode")
-        static let colorFruit = NSLocalizedString("point_cloud.color.fruit", value: "果实", comment: "Fruit point-cloud color mode")
+        static let colorDensity = NSLocalizedString("point_cloud.color.density", value: "亮度", comment: "RGB brightness point-cloud color mode")
+        static let colorFruit = NSLocalizedString("point_cloud.color.fruit", value: "偏红强调", comment: "Red-threshold color emphasis mode")
         static let colorUniform = NSLocalizedString("point_cloud.color.uniform", value: "统一", comment: "Uniform point-cloud color mode")
 
         static let measurementStart = NSLocalizedString("point_cloud.measurement.start", value: "起点", comment: "Point-cloud measurement start")
@@ -2494,10 +2573,10 @@ enum L10n {
 
         private static let noSearchResultsFormat = NSLocalizedString("point_cloud.selector.no_results", value: "未找到编号“%@”的记录", comment: "No point-cloud record matching the entered tree ID")
         private static let colorLegendFormat = NSLocalizedString("point_cloud.legend.color_format", value: "色彩：%@", comment: "Point-cloud color legend with selected mode")
-        private static let actualHeightFormat = NSLocalizedString("point_cloud.legend.actual_height_format", value: "真实高度 %@", comment: "Actual point-cloud height")
+        private static let actualHeightFormat = NSLocalizedString("point_cloud.legend.actual_height_format", value: "高度范围 %@", comment: "Vertical extent of loaded point cloud")
         private static let pointCountAccessibilityFormat = NSLocalizedString("point_cloud.accessibility.point_count", value: "点数：%@", comment: "Point-count accessibility value")
         private static let heightAccessibilityFormat = NSLocalizedString("point_cloud.accessibility.height", value: "高度：%@", comment: "Point-cloud height accessibility value")
-        private static let footprintAccessibilityFormat = NSLocalizedString("point_cloud.accessibility.footprint", value: "冠幅：%@", comment: "Crown-footprint accessibility value")
+        private static let footprintAccessibilityFormat = NSLocalizedString("point_cloud.accessibility.footprint", value: "平面范围：%@", comment: "Planar extent accessibility value")
 
         static func noSearchResults(for treeID: String) -> String {
             String(format: noSearchResultsFormat, treeID)

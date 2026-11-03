@@ -1,5 +1,5 @@
 // GlassCard.swift
-// 深色表面组件
+// 共享容器与设置行。统一为发丝线 + 纸面 + 等宽读数的仪器排版。
 
 import SwiftUI
 
@@ -10,7 +10,7 @@ struct GlassCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     init(
-        cornerRadius: CGFloat = Design.Radius.Glass.medium,
+        cornerRadius: CGFloat = Design.Radius.medium,
         padding: CGFloat = Design.Space.md,
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -22,7 +22,7 @@ struct GlassCard<Content: View>: View {
     var body: some View {
         content()
             .padding(padding)
-            .darkSurface(cornerRadius: cornerRadius)
+            .workspaceSurface(cornerRadius: cornerRadius)
     }
 }
 
@@ -37,32 +37,34 @@ struct GlassExpandableSection<Content: View>: View {
         VStack(spacing: 0) {
             // Header
             Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(.easeInOut(duration: Design.Animation.standard)) {
                     isExpanded.toggle()
                 }
             } label: {
-                HStack(spacing: Design.Space.sm) {
+                HStack(spacing: 8) {
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Design.Colors.harvest)
-                        .frame(width: 24)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Design.Colors.Workspace.accent)
+                        .frame(width: 18)
                         .accessibilityHidden(true)
 
                     Text(title)
-                        .font(Design.Typography.darkHeadline)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
+                        .instrumentLabel()
+                        .foregroundColor(Design.Colors.Workspace.secondary)
 
                     Spacer()
 
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(Design.Colors.Workspace.faint)
                         .rotationEffect(.degrees(isExpanded ? 0 : -90))
                         .accessibilityHidden(true)
                 }
-                .padding(Design.Space.md)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(DarkGlassButtonStyle())
+            .buttonStyle(.plain)
             .accessibilityLabel(title)
             .accessibilityValue(isExpanded ? L10n.Settings.sectionExpanded : L10n.Settings.sectionCollapsed)
             .accessibilityHint(L10n.Settings.sectionToggleHint)
@@ -75,12 +77,11 @@ struct GlassExpandableSection<Content: View>: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(Design.Colors.Dark.glassFill)
+        .background(Design.Colors.Workspace.surface, in: RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
+            RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
+                .stroke(Design.Colors.Workspace.line, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: Design.Radius.Glass.medium))
     }
 }
 
@@ -93,33 +94,26 @@ struct GlassRow<Right: View>: View {
     @State private var isPressed = false
 
     var body: some View {
-        HStack(spacing: Design.Space.md) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 20)
+                .accessibilityHidden(true)
 
             Text(title)
-                .font(Design.Typography.darkSubheadline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Workspace.ink)
 
             Spacer()
 
             right()
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm + 2)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(isPressed ? Color.white.opacity(0.07) : Design.Colors.Dark.bgElevated.opacity(0.55))
-        )
-        .scaleEffect(isPressed ? 0.98 : 1)
-        .animation(.easeOut(duration: Design.Animation.micro), value: isPressed)
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in isPressed = true }
-                .onEnded { _ in isPressed = false }
-        )
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(minHeight: Design.Touch.minimumHeight)
+        .background(isPressed ? Design.Colors.Workspace.inset.opacity(0.6) : .clear)
+        .contentShape(Rectangle())
     }
 }
 
@@ -127,9 +121,9 @@ struct GlassRow<Right: View>: View {
 struct GlassDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Design.Colors.Dark.glassBorder)
+            .fill(Design.Colors.Workspace.line)
             .frame(height: 0.5)
-            .padding(.leading, 56)
+            .padding(.leading, 46)
     }
 }
 
@@ -141,27 +135,24 @@ struct GlassToggleRow: View {
     var accessibilityHint: String = ""
 
     var body: some View {
-        HStack(spacing: Design.Space.md) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 20)
                 .accessibilityHidden(true)
 
             Toggle(isOn: $isOn) {
                 Text(title)
-                    .font(Design.Typography.darkSubheadline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
             }
-            .tint(Design.Colors.harvest)
+            .tint(Design.Colors.Workspace.accent)
             .accessibilityHint(accessibilityHint)
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm + 2)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
-        )
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(minHeight: Design.Touch.minimumHeight)
     }
 }
 
@@ -174,8 +165,9 @@ struct GlassReadonlyRow: View {
     var body: some View {
         GlassRow(icon: icon, title: title) {
             Text(value)
-                .font(Design.Typography.darkCaption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.subheadline)
+                .monospacedDigit()
+                .foregroundColor(Design.Colors.Workspace.secondary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
@@ -203,38 +195,37 @@ struct GlassSliderRow: View {
     }
 
     var body: some View {
-        VStack(spacing: Design.Space.sm) {
-            HStack(spacing: Design.Space.md) {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .frame(width: 24)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .frame(width: 20)
+                    .accessibilityHidden(true)
 
                 Text(title)
-                    .font(Design.Typography.darkSubheadline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
 
                 Spacer()
 
                 Text(displayValue)
-                    .font(Design.Typography.hudValue)
-                    .foregroundColor(Design.Colors.harvest)
+                    .font(.subheadline)
+                    .monospacedDigit()
+                    .foregroundColor(Design.Colors.Workspace.accent)
             }
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, Design.Space.sm + 2)
+            .padding(.horizontal, 14)
+            .padding(.top, 11)
             .accessibilityHidden(true)
 
             Slider(value: $value, in: range, step: step, onEditingChanged: onEditingChanged)
-                .tint(Design.Colors.harvest)
-                .padding(.horizontal, Design.Space.md)
-                .padding(.bottom, Design.Space.sm)
+                .tint(Design.Colors.Workspace.accent)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
                 .accessibilityLabel(title)
                 .accessibilityValue(displayValue)
                 .accessibilityHint(accessibilityHint)
         }
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
-        )
+        .frame(minHeight: Design.Touch.minimumHeight)
     }
 }

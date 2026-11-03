@@ -124,3 +124,14 @@ extension DetectionDepthCandidateBuilder {
     }
 
 }
+
+extension FusionEvidencePipeline {
+    func run(
+        detections: [DetectedFruit],
+        candidates: [FruitCandidate]
+    ) -> FusionEvidencePipelineOutput {
+        let output = run(observations: detections.map { $0.resolvedObservation() }, candidates: candidates)
+        ScanFusionDiagnosticsUpdater.logWarning(for: output)
+        return output
+    }
+}

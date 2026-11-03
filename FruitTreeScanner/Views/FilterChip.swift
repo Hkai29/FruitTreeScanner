@@ -1,5 +1,11 @@
 // FilterChip.swift
-// 共享的筛选器芯片组件
+// 共享的筛选器芯片组件：菜单型筛选片。
+//
+// 外观与 `InstrumentChip` 同一套语言（信号青实底 / 发丝线描边 / 6pt 圆角），
+// 区别只在于它是一个菜单：右侧带下拉箭头，点击后展开选项。
+//
+// 无障碍：芯片的无障碍标签就是标题本身（箭头是装饰图形），
+// 这样外部可以按标题定位并激活这个菜单。
 
 import SwiftUI
 
@@ -25,25 +31,31 @@ struct FilterChip<Content: View>: View {
         Menu {
             content()
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Text(title)
-                    .font(.subheadline)
-                    .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
+                    .font(.footnote.weight(isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .white : Design.Colors.Workspace.secondary)
+                    .lineLimit(1)
 
                 Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundColor(isSelected ? .white : Design.Colors.Dark.textSecondary)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(isSelected ? .white.opacity(0.85) : Design.Colors.Workspace.muted)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .frame(minHeight: minimumHeight)
-            .contentShape(Capsule())
-            .background(isSelected ? Design.Colors.earth.opacity(0.22) : Design.Colors.Dark.bgElevated)
-            .overlay(
-                Capsule()
-                    .stroke(isSelected ? Design.Colors.earth.opacity(0.55) : Design.Colors.Dark.glassBorder, lineWidth: 1)
+            .padding(.horizontal, 11)
+            .frame(minHeight: max(Design.Touch.minimumHeight, minimumHeight ?? Design.Touch.minimumHeight))
+            .background(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .fill(isSelected ? Design.Colors.Workspace.accent : Design.Colors.Workspace.surface)
             )
-            .clipShape(Capsule())
+            .overlay(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .stroke(
+                        isSelected ? Color.clear : Design.Colors.Workspace.line,
+                        lineWidth: 1
+                    )
+            )
+            .contentShape(Rectangle())
         }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

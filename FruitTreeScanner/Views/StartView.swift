@@ -1,5 +1,7 @@
 // StartView.swift
 // 新建扫描 - 5步引导式设计
+//
+// 呈现层按新的仪器设计系统重建；步骤、校验与提交逻辑保持不变。
 
 import SwiftUI
 
@@ -72,11 +74,15 @@ struct StartView: View {
     var stepContent: some View {
         switch currentStep {
         case 1:
-            Step1_IDEntry(draft: $treeIdentifierDraft)
+            Step1_IDEntry(
+                draft: $treeIdentifierDraft,
+                existingTreeIDs: existingTreeIDs
+            )
         case 2:
             Step2_PlotSelection(
                 plots: tagStore.plots,
                 selectedPlotId: $selectedPlotId,
+                treeCounts: plotTreeCounts,
                 onAddPlot: { presentedSheet = .addPlot }
             )
         case 3:

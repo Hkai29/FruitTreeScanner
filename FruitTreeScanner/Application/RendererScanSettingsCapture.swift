@@ -1,4 +1,28 @@
 import Foundation
+import ARKit
+import MetalKit
+
+extension SettingsStore {
+    @MainActor
+    func rendererScanSettings() -> RendererScanSettings {
+        RendererScanSettings(store: self, particleCapacity: maxPointCount)
+    }
+}
+
+// Compatibility defaults stay at the mutable-settings boundary. Production
+// MetalView passes the root provider's captured values to the designated init.
+extension Renderer {
+    @MainActor
+    convenience init(session: ARSession, metalDevice: MTLDevice, renderDestination: MTKView) {
+        self.init(session: session, metalDevice: metalDevice, renderDestination: renderDestination,
+                  initialSettings: SettingsStore.shared.rendererScanSettings())
+    }
+
+    @MainActor
+    func applyScanQualitySettings() {
+        applyScanQualitySettings(SettingsStore.shared.rendererScanSettings())
+    }
+}
 
 // Capture mutable application settings before constructing the immutable plan value.
 extension RendererScanSettings {

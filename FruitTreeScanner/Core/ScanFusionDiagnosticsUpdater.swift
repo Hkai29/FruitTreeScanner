@@ -1,3 +1,5 @@
+import os
+
 enum ScanFusionDiagnosticsUpdater {
     static func makeInitialDiagnostics(input: ScanFusionYieldBuilder.Input) -> ScanYieldDiagnostics {
         var diagnostics = ScanDiagnosticsBuilder.makeDiagnostics(
@@ -84,11 +86,25 @@ enum ScanFusionDiagnosticsUpdater {
         _ output: FusionEvidencePipelineOutput,
         to diagnostics: inout ScanYieldDiagnostics
     ) {
+        logWarning(for: output)
         diagnostics.cloudOnlyConservativeMode = output.cloudOnlyConservativeMode
         diagnostics.deduplicatedImageDetectionCount = output.deduplicatedDetectionCount
         diagnostics.fusedFruitCount = output.validatedFruits.count
         applyValidationSourceDiagnostics(output.validatedFruits, to: &diagnostics)
         diagnostics.validationSourceReliability = validationSourceReliability(output.validatedFruits)
+    }
+
+    static func warningMessage(for output: FusionEvidencePipelineOutput) -> String? {
+        guard let diagnostic = output.diagnostic else { return nil }
+        switch diagnostic {
+        case let .missingAlignedDepthContext(observationCount):
+            return "Skipping \(observationCount) image detections because none carried aligned depth context"
+        }
+    }
+
+    static func logWarning(for output: FusionEvidencePipelineOutput) {
+        guard let message = warningMessage(for: output) else { return }
+        Log.fusion.warning("\(message, privacy: .public)")
     }
 
     static func applyOcclusion(

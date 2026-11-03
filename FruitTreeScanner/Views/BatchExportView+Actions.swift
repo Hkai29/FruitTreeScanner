@@ -6,10 +6,7 @@ enum BatchExportShareCompletionPolicy {
         sharedURL: URL,
         currentExportURL: URL?
     ) -> Bool {
-        guard result.errorDescription != nil,
-              let currentExportURL
-        else { return false }
-
+        guard ScanShareFailurePolicy.isFailure(result), let currentExportURL else { return false }
         return sharedURL.standardizedFileURL == currentExportURL.standardizedFileURL
     }
 }
@@ -85,78 +82,44 @@ extension BatchExportView {
     }
 
     func performExport() {
-        let requestSnapshot = makeExportRequestSnapshot()
-        guard !requestSnapshot.records.isEmpty else { return }
-
-        exportTask?.cancel()
-        exportGeneration += 1
-        let generation = exportGeneration
-        isExporting = true
-        clearExportedFile()
-
-        exportTask = Task {
-            defer {
-                if exportGeneration == generation {
-                    isExporting = false
-                    exportTask = nil
-                }
-            }
-
-            do {
-                let exportResult = try await BatchExportService.shared.export(
-                    records: requestSnapshot.records,
-                    format: requestSnapshot.format,
-                    options: requestSnapshot.options
-                )
-                guard !Task.isCancelled,
-                      exportGeneration == generation
-                else {
-                    BatchExportService.removeTemporaryExport(at: exportResult.url)
-                    return
-                }
-                guard makeExportRequestSnapshot() == requestSnapshot else {
-                    BatchExportService.removeTemporaryExport(at: exportResult.url)
-                    return
-                }
-                exportedURL = exportResult.url
-                presentedSheet = .share(exportResult.url)
-            } catch is CancellationError {
-            } catch {
-                guard !Task.isCancelled,
-                      exportGeneration == generation
-                else { return }
-                Log.export.error("Batch export failed: \(error.localizedDescription)")
-                exportFailure = BatchExportFailurePresentation(error: error)
-            }
-        }
+        workflow.start(makeExportRequestSnapshot(), currentRequest: exportRequestReader())
     }
 
     func makeExportRequestSnapshot() -> BatchExportRequestSnapshot {
-        var options = exportOptions
-        options.plotNameByTreeID = plotNameByTreeID()
-        return BatchExportRequestSnapshot(
+        Self.makeExportRequestSnapshot(
             records: store.scanFiles,
             selectedRecordIDs: selectedRecords,
             format: exportFormat,
+            options: exportOptions,
+            plotNames: plotNameByTreeID()
+        )
+    }
+
+    static func makeExportRequestSnapshot(
+        records: [ScanFileRecord],
+        selectedRecordIDs: Set<String>,
+        format: BatchExportService.ExportFormat,
+        options: BatchExportService.ExportOptions,
+        plotNames: [String: String]
+    ) -> BatchExportRequestSnapshot {
+        var options = options
+        options.plotNameByTreeID = plotNames
+        return BatchExportRequestSnapshot(
+            records: records,
+            selectedRecordIDs: selectedRecordIDs,
+            format: format,
             options: options
         )
     }
 
     func cancelExport() {
-        exportGeneration += 1
-        exportTask?.cancel()
-        exportTask = nil
-        if isExporting {
-            isExporting = false
-        }
+        workflow.cancel()
     }
 
     func clearExportedFile() {
-        guard let url = exportedURL else { return }
-        exportedURL = nil
+        guard exportedURL != nil else { return }
+        workflow.clearExportedFile()
         presentedSheet = nil
-
-        BatchExportService.removeTemporaryExport(at: url)
     }
 
     func pruneSelection(to files: [ScanFileRecord]) {
@@ -176,6 +139,10 @@ extension BatchExportView {
     }
 
     func plotNameByTreeID() -> [String: String] {
+        Self.plotNameByTreeID(tagStore: tagStore)
+    }
+
+    static func plotNameByTreeID(tagStore: TagStore) -> [String: String] {
         let plotNameByID = Dictionary(uniqueKeysWithValues: tagStore.plots.map { ($0.id, $0.name) })
         return Dictionary(uniqueKeysWithValues: tagStore.assignments.compactMap { assignment in
             guard let plotId = assignment.plotId,

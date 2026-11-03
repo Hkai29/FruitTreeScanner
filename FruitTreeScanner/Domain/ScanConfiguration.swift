@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 扫描配置
-struct FruitScanConfig: Sendable, Encodable {
+struct FruitScanConfig: Sendable, Codable {
     var imageDetectionInterval: Int = 10
     var minConfidence: Float = 0.5
     var sizeTolerance: Float = 0.35
@@ -12,7 +12,7 @@ struct FruitScanConfig: Sendable, Encodable {
 }
 
 // MARK: - 聚类配置
-struct ClusterConfig: Sendable, Encodable {
+struct ClusterConfig: Sendable, Codable {
     var minPoints: Int = 3
     var minDiameter: Float = 0.015
     var maxDiameter: Float = 0.20
@@ -22,7 +22,7 @@ struct ClusterConfig: Sendable, Encodable {
     static let `default` = ClusterConfig()
 }
 
-enum Season: Sendable {
+enum Season: String, Codable, Sendable {
     case mature
     case off
 

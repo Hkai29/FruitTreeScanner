@@ -30,51 +30,46 @@ struct ScanDiagnosticsBuilder {
         diagnostics: ScanYieldDiagnostics,
         pointCloudMinimum: Int
     ) -> [String] {
-        var reasons: [String] = []
+        zeroYieldReasonDescriptions(ZeroYieldReasonPolicy.reasons(
+            diagnostics: diagnostics, pointCloudMinimum: pointCloudMinimum
+        ))
+    }
 
-        if diagnostics.imageModelStatus != "CoreML" {
-            reasons.append(L10n.Diagnostics.modelNotLoaded)
+    /// Preserve the existing ordered string schema and its text-dependent
+    /// cloudOnly suppression. Equal dynamic and formal reasons stay repeated.
+    static func zeroYieldReasonDescriptions(_ reasons: [ZeroYieldReason]) -> [String] {
+        var descriptions: [String] = []
+        for reason in reasons {
+            switch reason {
+            case .modelNotLoaded:
+                descriptions.append(L10n.Diagnostics.modelNotLoaded)
+            case .depthUnavailable:
+                descriptions.append(L10n.Diagnostics.depthUnavailable)
+            case .depthConfidenceFailure(let message):
+                descriptions.append(message)
+            case .insufficientPoints:
+                descriptions.append(L10n.Diagnostics.insufficientPoints)
+            case .noImageFrames:
+                descriptions.append(L10n.Diagnostics.noImageFrames)
+            case .noDetections:
+                descriptions.append(L10n.Diagnostics.noDetections)
+            case .confidenceFiltered:
+                descriptions.append(L10n.Diagnostics.confidenceFiltered)
+            case .unmappedLabels:
+                descriptions.append(L10n.Diagnostics.unmappedLabels)
+            case .noCandidates:
+                descriptions.append(L10n.Diagnostics.noCandidates)
+            case .fusionFailed:
+                descriptions.append(L10n.Diagnostics.fusionFailed)
+            case .cloudOnlyRejected:
+                if !descriptions.contains(L10n.Diagnostics.noDetections) {
+                    descriptions.append(L10n.Diagnostics.cloudOnlyRejected)
+                }
+            case .uncalibratedSeason:
+                descriptions.append("非成熟期冠层回归模型尚未标定，本次未生成产量估算")
+            }
         }
-        if !diagnostics.depthAvailable {
-            reasons.append(L10n.Diagnostics.depthUnavailable)
-        }
-        if !diagnostics.depthConfidenceFailureReason.isEmpty {
-            reasons.append(diagnostics.depthConfidenceFailureReason)
-        }
-        if diagnostics.pointCloudPointCount < pointCloudMinimum {
-            reasons.append(L10n.Diagnostics.insufficientPoints)
-        }
-        if diagnostics.imageFramesProcessed == 0 {
-            reasons.append(L10n.Diagnostics.noImageFrames)
-        }
-        if diagnostics.imageObservationCount == 0 {
-            reasons.append(L10n.Diagnostics.noDetections)
-        }
-        if diagnostics.imageObservationCount > 0,
-           diagnostics.imageMappedFruitCount == 0,
-           diagnostics.imageConfidenceFilteredCount > 0 {
-            reasons.append(L10n.Diagnostics.confidenceFiltered)
-        }
-        if diagnostics.imageObservationCount > 0,
-           diagnostics.imageMappedFruitCount == 0,
-           diagnostics.imageConfidenceFilteredCount < diagnostics.imageObservationCount {
-            reasons.append(L10n.Diagnostics.unmappedLabels)
-        }
-        if diagnostics.pointCloudCandidateCount == 0 {
-            reasons.append(L10n.Diagnostics.noCandidates)
-        }
-        if diagnostics.imageDetectionCount > 0,
-           diagnostics.pointCloudCandidateCount > 0,
-           diagnostics.fusedFruitCount == 0 {
-            reasons.append(L10n.Diagnostics.fusionFailed)
-        }
-        if diagnostics.cloudOnlyConservativeMode,
-           diagnostics.fusedFruitCount == 0,
-           !reasons.contains(L10n.Diagnostics.noDetections) {
-            reasons.append(L10n.Diagnostics.cloudOnlyRejected)
-        }
-
-        return reasons
+        return descriptions
     }
 
     static func zeroYieldNote(

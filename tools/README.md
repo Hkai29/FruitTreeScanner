@@ -10,6 +10,63 @@ legacy/   One-off historical migration scripts kept for reference
 
 These tools are not part of the iOS app target. Prefer running them from the repository root so repo-relative paths resolve cleanly.
 
+## Code improvement workflow
+
+Run `python3 tools/code_improvement_workflow.py preflight` to record the current
+working-tree baseline, then choose `fusion`, `storage`, `lifecycle`, `ui`, or
+`full` for the changed behavior. Risk profiles can be combined. `quick` checks
+Domain and Debug compilation; `full` runs all XCTest and a Release simulator
+build. `--dry-run` prints commands without executing or creating output.
+
+The runner uses Python 3 (standard library only), command-scoped Xcode settings,
+and unique logs, patches, result bundles and a JSON report outside the checkout.
+A passing test gate requires a successful process and nonempty XCTest results
+with no failures or skips. Workspace changes invalidate a passing run. Code
+review and relevant UI/device acceptance remain separate.
+
+See the Chinese [iteration procedure and agent prompt](../docs/implementation/CODE_IMPROVEMENT_WORKFLOW.md).
+
+Test the runner's failure handling without Xcode:
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests -v`.
+
+## XCTest gate (CI and local share one judgement)
+
+`tools/xctest_gate.py` is the single place that decides whether an XCTest
+result bundle may pass. `tools/code_improvement_workflow.py` (local profiles)
+and `tools/ci_xctest_gate.sh` (CI) both call it, so there is no second,
+looser standard.
+
+A bundle passes only when all of the following hold:
+
+- the summary's counters are present and are non-negative integers (a `bool`
+  is not an integer), `result == "Passed"`, `passedTests > 0`, and
+  `totalTestCount == passedTests`;
+- `failedTests`, `skippedTests` and `expectedFailures` are all `0` — **no
+  skip whitelist exists**; a skipped test is an unverified test;
+- `runtimeWarnings` is present and readable, and no warning matches
+  `Publishing changes from within view updates is not allowed` (that one is
+  blocking, because it means state published during a view update);
+- the result tree contains a real passing case for **every declared XCTest
+  class**, in the `FruitTreeScannerTests` bundle;
+- the summary and the tree agree on how many tests passed;
+- a payload containing multiple test runs is rejected outright.
+
+Non-blocking warnings (for example the QoS priority-inversion diagnostics)
+are printed and kept for review rather than swallowed.
+
+Run it directly:
+
+```sh
+python3 tools/xctest_gate.py <path/to/tests.xcresult>
+```
+
+The gate's own regression matrix lives in `tools/tests/test_xctest_gate.py`
+and runs with the rest of the tool tests:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests
+```
+
 ## Domain dependency check
 
 Run `bash tools/validate_fusion_domain.sh` from any directory to compile the

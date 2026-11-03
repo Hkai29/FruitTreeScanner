@@ -4,7 +4,7 @@ enum YieldAlgorithmRevision {
     static let current = "fusion-geometry-evidence-v2-20260906"
 }
 
-struct YieldCalibrationCorrection: Equatable, Sendable {
+struct YieldCalibrationCorrection: Equatable, Sendable, Codable {
     let countFactor: Float
     let yieldFactor: Float
     let countSampleCount: Int

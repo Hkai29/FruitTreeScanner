@@ -138,21 +138,23 @@ struct MetalMeasurementOverlay: View {
                                     .fill(Design.Colors.apple)
                                     .frame(width: 10, height: 10)
                                 Text(L10n.PointCloud.measurementStart)
-                                    .font(.system(size: 11))
+                                    .font(.caption)
                             }
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(Design.Colors.earth)
                                     .frame(width: 10, height: 10)
                                 Text(L10n.PointCloud.measurementEnd)
-                                    .font(.system(size: 11))
+                                    .font(.caption)
                             }
                         }
 
                         Button(action: onClose) {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 22, weight: .semibold))
+                                .font(.title2.weight(.semibold))
                                 .foregroundColor(.white.opacity(0.9))
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .layoutPriority(1)
@@ -160,27 +162,23 @@ struct MetalMeasurementOverlay: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     Text(L10n.PointCloud.scanMeasurementPrompt(controller.instructionPrompt))
-                        .font(.system(size: 10))
-                        .foregroundColor(Color.gray)
+                        .font(.footnote)
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                         .multilineTextAlignment(.trailing)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(
-                            width: max(min(geo.size.width - 104, 196), 0),
+                            width: max(min(geo.size.width - 104, 296), 0),
                             alignment: .trailing
                         )
                 }
                 .frame(
-                    width: max(min(geo.size.width - 80, 220), 0),
+                    width: max(min(geo.size.width - 80, 320), 0),
                     alignment: .trailing
                 )
                 .foregroundColor(.white)
                 .padding(12)
-                .background(Design.Colors.Dark.hudBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
-                )
-                .cornerRadius(10)
+                .background(Design.Colors.Dark.controlSurface)
+                .cornerRadius(12)
                 .padding(.trailing, 16)
                 .padding(.top, 60)
             }
@@ -196,24 +194,20 @@ struct MetalMeasurementOverlay: View {
                 VStack(spacing: 4) {
                     if let dist = distance {
                         Text(L10n.PointCloud.scanMeasurementDistance(dist))
-                            .font(.system(size: 24, weight: .semibold, design: .monospaced))
-                            .foregroundColor(Design.Colors.harvest)
+                            .font(.title2.weight(.medium)).monospacedDigit()
+                            .foregroundColor(Design.Colors.Dark.textPrimary)
                     } else {
                         Text(L10n.PointCloud.scanMeasurementCalculating())
-                            .font(.system(size: 14))
-                            .foregroundColor(Color.gray)
+                            .font(.subheadline)
+                            .foregroundColor(Design.Colors.Dark.textSecondary)
                     }
                     Text(L10n.PointCloud.measurementDistance)
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }
                 .padding(16)
-                .background(Design.Colors.Dark.hudBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
-                )
-                .cornerRadius(10)
+                .background(Design.Colors.Dark.controlSurface)
+                .cornerRadius(12)
                 .padding(16)
             }
         }

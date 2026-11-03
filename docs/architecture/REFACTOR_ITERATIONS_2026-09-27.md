@@ -1,8 +1,10 @@
 # 重构迭代执行记录
 
-创建：2026-09-27；更新：2026-10-04。初始分支：`codex/scan-architecture-refactor`，基于 `81f49a6ec3d5` 及已有未提交迁移继续实施；后续分支与交付见各轮记录。
+创建：2026-09-27；更新：2026-10-06。初始分支：`codex/scan-architecture-refactor`，基于 `81f49a6ec3d5` 及已有未提交迁移继续实施；后续分支与交付见各轮记录。
 
 用户目标：进行重构，完成后继续构思下一轮并迭代。当前目标保持进行中；本文件区分已实施、待验证与下一轮范围，不把整个架构迁移宣称为已完成。
+
+最新检查点（2026-10-13）：第 71 轮修复历史刷新动作的归属与捕获边界。刷新只属于纵向记录列表，并直接捕获同一 history store；保留唯一加载 owner、取消和代次保护。新增真实生产 sheet 的悬挂加载回归，原实现失败，最终定向 1/1 与 full 1196/1196、59 类、Domain 45 源、Release 均通过，原 1195 方法保留、编译告警集合及两条旧 QoS 保持。同一最终源码回放 fixture 1 / 原生 2 / golden 1 通过；309 文件身份 `897a49c36f4a80c07945a3c6592240693297abc1c7800a6d8e4a8ec699e85907` 与 Debug/Release/回放/实际安装主程序及代码 dylib 核对一致。用户确认第一次直接下拉出现读取失败；代理取图时已回首页，后续失败截图明确来自同会话重开历史页。目录可逆修复后，用户确认第二次同页直接下拉清除横幅、仍有 2 条记录；代理随即核对恢复现场，两条 Result Complete 及 7 fruits/1.2 kg、2 fruits/0.5 kg 保持，十六原件及外部备份 SHA 相同。原生恢复门槛完成，最终独立复审另记。全部删除、多记录失败子集的原生验收、其他本机门禁、真机输入/资源/精度、最低系统及 Git 交付仍开放；未暂存、提交、推送或合并。下文历史百分比不作为当前量化进度，整体仍 needs changes / active。
 
 ## 迭代 1：源身份与取消后的事务结算
 
@@ -882,6 +884,655 @@ Settings → VarietyDatabaseView，以及 ScanPlanFactory 的参数快照捕获�
 提交、推送和合并按当时明确授权执行，保护范围外改动。
 ```
 
+## 第四十六轮：校准草稿绑定重置来源身份
+
+2026-10-05。第 45 轮已通过 [PR #18](https://github.com/Hkai29/FruitTreeScanner/pull/18) 合并为 `eb807eac`，CI run `37258382617` 的 Domain 与模拟器构建成功；远端 main 与受测分支头 `33984237` 文件树相同。本轮从该头继续，只修改校准页面、根 UI 回归及本执行记录，六项原有工作流改动继续保留。
+
+- 根因：CalibrationParameterDraft 只记录设置/参数数值和关联下界；resetToDefault/resetAll 会创建新的参数 UUID，即使直径/球形度数值完全相同，旧编辑也应失效。未改生产代码的 `before.xcresult` 为 **4 项：2 Failed、2 Passed，退出 65**；失败证明旧手势与关闭提交把重置后的梨参数改为 `.155/.32/customized`，其他品类重置及未编辑关闭通过。生产轮前摘要及保护文件核对均相等。
+- 直径和球形度草稿分别捕获参数 UUID，在初始化、onAppear、提交检查与重载时贯通；已编辑草稿的来源变化会拒绝写入并载入最新值，随后新编辑可提交。先判断未编辑，保持零写入；最小聚类点数不依赖参数身份，关闭时仍能独立提交。每个字段持有自己的基线，直径拒绝后的重载不会放行旧球形度。重载一次读取完整最新参数，不改变字段冲突、双下界和原联动策略。
+- 最后源码修改后的 `after.xcresult` 为 **13/13 Passed、退出 0**，包含四项新回归与九项既有校准/根参数回归。`storage lifecycle ui full` 为 **1069/1069 项、59/59 类 Passed，9 步全部退出 0**，包括整个 Domain 独立编译及 unsigned Release；零失败、跳过和预期失败。13 项方法在定向与全量结果树逐项通过，验证开始/结束快照一致。
+- 七份页面 PNG/可访问性附件已独立查看：两种重置冲突恢复 `19/.150/.30` 并显示完整说明；关闭重开为 `20/.150/.30`，旧冲突、较新值及打开时品类仍正确。真实 UIKit 公共控件驱动根页面，无新增生产测试入口。CUA 原生走查新版本工作台 → 校准 → 未编辑关闭 → 工作台，安装前后、打开后与关闭后 **11 份档案的集合/字节及整份 7 项实际持久偏好保持**；重置仅在隔离测试夹具执行。两张原生截图已检查。
+
+独立只读复审未发现本轮生产/UI 阻塞。保留未编辑零写入、设置独立字段、其他品类、打开时品类、根参数所有权、旧计划/校准上下文冻结、阈值、schema、资源上限、`.fused` 唯一可靠来源及全部诊断。本轮没有提交、推送或合并；第 45 轮交付与第 46 轮本地改动分列。证据目录 `/private/tmp/fruit-iteration46/`：`baseline.json`、`before-production-preservation.json`、`before.xcresult`、`after.xcresult`、`critical-methods.json`、`critical-full.json`、`fruit-code-improvement-3tuxuc60/report.json`、`attachments/`、`native-final-preservation.json` 和原生截图。全量保留两条系统 QoS 提示及已有编译警告；最低运行版本、物理 LiDAR、人工果数和实际资源验收仍待补齐。本轮决定 **mergeable**，整体目标仍 **needs changes**。
+
+### 当前范围进度估算
+
+应用户“现在重构了多少百分比”，对照原 R0–R7 交付范围和当前待验收清单，估计**代码架构改造约 90%，包含全部验收的整体完成度约 80%**。这是定性的范围估算，没有预先登记阶段权重或自动进度统计；46 轮迭代不是完成百分比，也不能代表性能提升比例。主要代码所有权/契约、领域隔离、仓储和消费者迁移已实施，完整删除流程、真实观测回放及同设备 30/60/120 秒内存/耗时/精度验收仍未全部通过。独立 framework/package 仅在有实际依赖收益时评估，不因尚未拆包把现有隔离门禁判为未完成。
+
+### 下一轮构思与提示词：直径毫米显示舍入
+
+第 45 轮真实滑块已观察到 `.14999999 m` 显示为 `149 mm`；VarietyParameterFormatter 的单值和区间都用 `Int(meters * 1_000)` 截断。下一轮先固定展示规则及失败回归，只在呈现层处理浮点边界，不修改物理参数或编码。
+
+```text
+继续 FruitTreeScanner 整体架构收尾，读取 AGENTS.md、本执行记录并 preflight。
+第 46 轮校准重置身份已完成：13 项定向、1069 项/59 类全量、Domain、Release、
+原生未编辑关闭及11档案/整份7偏好保护通过；仅三个本轮路径未提交。
+先追踪 VarietyParameterFormatter.millimeters/diameterRange 与编辑滑块、品类卡片消费者。
+复现 .14999999 m 被截断为149 mm，明确显示到整毫米的舍入规则，再建立失败回归。
+覆盖单值、区间、实际滑块步长、不同语言/locale；保护范围与单位的一致性。
+修复仅限显示，不将舍入后的数值写回参数，不改变编码、阈值或物理几何。
+验证实际编辑页面与品类卡片保持一致，未编辑保存仍为零写入，持久参数字节不变。
+不要重做 UUID 草稿保护、根参数装配、原子合并或领域/仓储迁移。
+按风险完成测试、iOS原生走查和独立复审，记录真机验收仍未完成。
+提交、推送、合并依照当时明确授权；六项原有工作流改动继续保护。
+```
+
+## 第四十七轮：整毫米展示统一舍入
+
+2026-10-05。本轮沿用 `33984237`，保护六项原有工作流改动、第 46 轮校准源码和四项回归。只修改品种展示格式、两份测试及本执行记录。
+
+- 根因：VarietyParameterFormatter 的单值和区间端点直接截断 `meters * 1_000`；实际滑块的 `.14999999 m` 因而显示为 `149 mm`，`.034999996 m` 显示为 `34 mm`。生产未改时，修正夹具后的 `before-repaired.xcresult` **4/4 Failed、退出 65**，失败均为显示断言；物理 bitPattern、完整参数、持久字节、零发布和冻结计划保持断言通过。首次 `before.xcresult` 还包含测试读取继承默认值的额外快照断言失败；夹具改为比较隔离 suite 的完整 persistentDomain 后重新复现，原始失败证据保留，未将夹具问题当作产品缺陷。
+- 单值和区间共用只读 `millimeterNumber`，显示到最近整毫米，半毫米向远离零的方向舍入。未回写或量化物理参数；重量、locale、单位、区间分隔符、滑块步长及存档编码不变。
+- 最后源码修改后的 `verified-targeted.xcresult` **11/11 Passed、退出 0**；固定边界预期覆盖半毫米、三种 locale 和全部 97 个合法滑块网格值。实际根 UIKit 页面覆盖滑块编辑、保存、卡片、重开和未编辑保存，原始 Float bitPattern、整份参数/持久 suite、零发布及下一冻结计划均保持。第 45 轮并发用例仅更新过时的截断显示预期，其并发断言保持。
+- `ui` profile **1073/1073 项、59/59 类 Passed，8 步全部退出 0**，包含完整 Domain 独立编译，零失败、跳过或预期失败；11 项定向方法在全量结果树逐项通过，验证开始/结束源码摘要相同。本轮没有重跑 Release 或独立原生 UI XCTest，不能将第 46 轮 Release 和更早的原生 UI 测试写成本轮证据。
+- 七份 PNG 和七份可访问性附件已逐份复审：两张梨卡片明确显示 **35–150 mm**，两张新编辑页面显示 **35/150 mm**；冲突说明、重置值与较新字段保持。卡片范围未由 AX 自动断言，已直接检查 PNG。CUA 原生走查工作台 → 设置 → 品种库 → 梨编辑 → 未编辑保存 → 品种库 → 返回 → 完成 → 工作台，默认梨仍为 **30–150 mm**，自定义品种数仍为 0。安装前后、保存后和最终返回后 **11 份档案的集合/字节及整份 7 项实际持久偏好保持**。
+
+独立只读复审未发现本轮阻塞。保留第 46 轮草稿身份保护、原子字段合并、根所有权、物理参数与计划/校准上下文冻结、schema、阈值、资源上限、`.fused` 唯一可靠来源及全部诊断。本轮未提交、推送或合并，第 46/47 轮仍是本地改动。证据目录 `/private/tmp/fruit-iteration47/`：`baseline.json`、`before-repaired.xcresult`、`verified-targeted.xcresult`、`critical-methods.json`、`critical-full.json`、`fruit-code-improvement-n9nvc4mm/report.json`、`attachments/`、`native-final-preservation.json` 与原生截图。全量保留两条已有 QoS 提示及编译警告；最低运行版本和物理 LiDAR/资源/人工果数验收仍未完成。本轮决定 **mergeable**，整体目标仍 **needs changes**；代码约 90%、整体约 80% 的定性估算暂不因本轮显示修复上调。
+
+### 下一轮构思与提示词：按原交付范围核验缺口
+
+呈现层边界收尾后，下一轮回到原 R0–R7 完成条件，逐项关联当前生产入口、所有权和实际证据，区分已实施、已验证与仍缺验收的事项。现有合成观测回放、领域编译和模拟器结果不能替代真实观测或同设备峰值内存/耗时/果数误差。先核对已有观测存档与资源记录入口，再选择有证据的最小缺口；不重复已完成迁移或新增无依据的外观重构。
+
+```text
+继续 FruitTreeScanner 整体重构，读取 AGENTS.md、原 R0–R7 蓝图和本执行记录并 preflight。
+第 47 轮整毫米显示已完成：11 项定向、1073 项/59 类全量、完整 Domain、
+七份页面附件及原生未编辑保存/返回通过；11档案和整份7偏好保持。
+保护六项原有工作流改动及第46/47轮本地源码、测试；提交按明确授权执行。
+对原蓝图的完成条件建立逐项表，链接当前真实调用链、所有权和已执行证据。
+区分代码完成与模拟器、原生控件、最低运行版本、物理LiDAR及资源验收。
+核对 Observation 的生成、冻结、回放和存档接口，以及已有峰值内存/结束耗时记录。
+先复用现有入口；真实观测基线必须有采样上限、脱敏、模型/配置身份和固定预期。
+若需新契约，先固定兼容及失败回归，再实施最小改变；不要将平台缓冲带回 Domain。
+物理30/60/120秒及人工果数需要操作者与同场景基准，不能用合成回放替代。
+不重做已完成所有权/仓储迁移，不改融合准入、阈值、旧编码、诊断或资源上限。
+按实际风险验证并独立复审，记录剩余事项与下一步，整体目标保持active。
+```
+
+## 第四十八轮：对照原 R0–R7 完成条件核验
+
+2026-10-05。上一轮完成第 47 轮源码修复、1073 项全量、原生走查和独立复审，属于已验证进展。本轮沿用 `33984237`，读取原蓝图、真实生产链、工程 target、结果树与现有测量入口；新增 [原范围完成条件核验](REFACTOR_COMPLETION_AUDIT_2026-10-05.md)，并更新本记录。没有生产、测试、工程或工作流改动，所有 308 个 Swift 源文件及六项原有工作流改动保持；第 46/47 轮记录与源码也保持。
+
+- 核验覆盖原 8 个阶段、34 条架构/底层约束、七条全应用协作、17 个必测场景和核心不变量。48 个明确引用的方法在第 47 轮结果树唯一出现且 Passed，对应测试源码位置已核对。结果树仍为 **1073/1073 Passed、59 类、8 步退出 0**；本轮没有重跑 XCTest 或原生页面，不把旧结果写成新运行。
+- 本轮重新运行整个 Domain 独立编译，**24 文件、iOS 16 simulator/Swift 5、退出 0**；当前 App **unsigned Release 模拟器构建退出 0**。原生 UI target 为 iOS 17，App/单元 target 仍为 iOS 16；编译不能证明最低版本运行。初次 Domain 尝试因沙箱缓存权限失败，仓库外缓存后的会话 handle 在恢复时已丢失，不计成功；最终留存日志/退出码的运行才计通过。首次 Release 自动审批因用量限制未执行，读取用量确认恢复后重新经审批启动，通过后保留原失败经过。
+- 实质缺口：当前 Domain 门禁只证明现有 24 个文件；ReliableYieldEvidence、FusionEvidencePipeline、YieldResultComposer 和部分点云/遮挡编排仍在 Core，不能用目录编译通过关闭整个领域链。FramePacket/Observation 已有有界值契约，现有长期持久结果/研究 JSON 尚不是完整观测回放包；回放测试明确使用合成输入。FinalPointCloud.buildDuration 和 estimatedPeakPayloadBytes 分别是单阶段耗时和数组 payload 估算，不是进程峰值、全结束流程耗时或实测资源回归预算。GPU 在途/超时/permit 回收的专门故障证据、最低版本运行、完整原生删除、物理完成/重试、30/60/120 秒及人工果数均继续列为缺口。
+- 全应用核验还发现 Dashboard 聚合仍在 Views、批量导出仍有 UI 编排、ScanPlan 未含 plot/tag 快照；这些按原要求列为部分实现。Renderer 仍编排命名/路径/仓储 staging/文件 writer，职责收敛未完成；兼容入口已补保留原因和退出条件，未冒充已移除。
+- 下一项有真实调用链依据：ScanView 默认创建 Coordinator 未传根 settings；MetalView 创建 Renderer 未传根设置，Renderer 初始容量与无计划时 applyScanQualitySettings 都取全局共享设置；工厂随后按已经分配的 capacity 截断根配置。此处尚未新增失败回归，不预先声称具体运行后果。第 49 轮先用隔离根值与 shared 值不同的真实路径复现，再让初始容量/预览设置从根装配或现有捕获边界传递，保留预算、阈值、冻结计划、lazy 分配顺序及绑定保护。具体完成标准与提示词见新核验表第 7 节。
+
+本轮对原范围的逐项核验产生了新的实施依据；不把第 46 轮 90%/80% 定性估算当作已完成的证明，不以迭代数或 LOC 再估进度，也未把目录示意、actor 建议和条件性 package 评估变成无条件重写任务。原 `.fused` 准入、诊断、旧编码、资源上限、模型/shader/研究资产保持。本轮未提交、未推送、未合并。证据目录 `/private/tmp/fruit-iteration48/`：`baseline.json`、`current-test-inventory.json`、`selected-test-evidence.json`、`project-targets.json`、`domain-command.json`/`domain.log`、`release-command.json`/`release.log`、`validation-summary.json`、`final-source-preservation.json` 和 `final-review.json`。独立只读复审先发现 Renderer 文件职责和兼容退出条件未完整列入；补齐并修正源码锚点后无新增阻塞，文档本轮 **mergeable**；整体目标继续 **needs changes / active**。
+
+## 第四十九轮：扫描初始化和预览使用根配置
+
+2026-10-05。第 48 轮原范围审计发现真实根配置缺口；上一轮用户进度询问仅核对并报告状态，没有关闭第 49 轮门槛。本轮继续已经建立的失败回归，完成修复、全量验证、原生能力提示/返回走查和独立复审。HEAD 仍为 `33984237`，开始时 12 个已有改动路径和 308 个 Swift 源文件留存摘要/副本，preflight 通过。
+
+- **已复现的根因。** ScanView 默认 Coordinator、MetalView 的 Renderer 初始化和无活动计划时的延迟设置加载使用 shared，而不是 AppDependencies.settings。隔离根设置请求 140 万点，实际初始 buffer 只有共享的 100 万点，RGB/深度预览和相机请求也来自错误来源；随后工厂按这个实际 buffer 截断计划。修复前真实 ScanView/UIViewRepresentable 创建路径的两项回归均 Failed，退出 65；不是仅构造一个替代 Renderer 的探针。
+- **修复范围。** ScanView 明确初始化由根 settings 创建的 State Coordinator，并保留已有状态/就绪/结果测试注入。ScanSettingsProviding 在 MainActor 捕获完整 RendererScanSettings；MetalView 从活动计划或根配置传入初始值，活动计划的 resourceBudget 从初始化开始生效。Renderer 保存固定 particleCapacity，初始化直接赋值而不触发 lazy 粒子分配；后续 maxPoints 始终受实际 buffer 限制。无计划预览重载也使用 Coordinator 的根 settings。默认三参数 init 和无参数 apply 的 shared 兼容包装留在既有 Application 捕获边界；Core/Renderer 不再自行读取 shared。
+- **保留的约束。** 初始容量仍为 1…300 万点，后续设置不能扩大已分配 buffer；冻结计划、analysis/live 预算、cache 失效、绑定身份/迟到回调保护、SwiftUI 重建时已有 State owner/session/plan/renderer 均保持。未变更融合/深度阈值、仅 fused 可靠准入、诊断、PLY/manifest 编码、模型、shader 或研究资产。
+- **定向修复过程。** 初次修复后的 24 项中一项新测试错误假定旧 ARSession.delegate 必须自动清空；核对真实生命周期后改为检查旧绑定回调被拒绝，未修改生产保护。随后 24/24 Passed。四项新增 ScanPlan 回归覆盖真实根 Coordinator/相机请求、实际 MetalView 初始/延迟预览及活动计划重绑、无效容量边界/固定 buffer 和被替换绑定的延迟回调；整份标准偏好与隔离仓储同时核对。
+- **全量暴露的分享夹具问题。** 首次 full 为 1076/1077，随后单独 Share 类为 7/8，均在既有 failure 回调的 1 秒等待超时。临时追踪的三次独立启动中，首轮正确回调到 1.0926 秒、普通 FIFO 主队列探针到 1.0954 秒，后两轮为 0.2201/0.2027 秒；证明当时的首轮主队列积压影响人为注入事件，未把 PointerUI 日志当作已证具体根因。临时 trace 已全部删除，删除后的 Dashboard 文件先核对为轮前原摘要。最终只在原 Share 两方法和 preparation helper 中修改夹具：模拟 completion 前独立等一个排队的主队列 turn（5 秒准备门槛），回调自身仍保留 1 秒门槛、精确失败/取消结果和 legacy 无 completion 断言，并增加异步交付、主线程、过度 fulfill 断言。一个 turn 仅隔离此前排队工作，不声称整个 UIActivity 已可交互；生产 ShareSheet 未改。此范围为全量阻塞的必要修复，原 46/47 测试块逐字保持。
+- **最后一次源码修改后的验证。** 32/32 定向方法 Passed；修正后的分享 failure/cancel 在三次独立启动中各执行一次，6 次执行通过（结果树为两个唯一方法，各含重复运行）。最终 `full`：**1077/1077 Passed、59 类、零失败/跳过/expected failure、9 步退出 0**，包括 24 文件 Domain 独立编译、全部当前 scheme XCTest 和 unsigned Release 模拟器构建。结果树明确核对四项新扫描方法及两项 Share 方法，受测 9 个源文件摘要与最终源码一致，runner 开始/结束工作区一致。结果包仍有两条 QoS runtime warning；第 47 轮也有两条，不把测试通过外推为真机调度/性能已验收。
+- **原生与 UIKit 证据分列。** 专用 iOS 模拟器安装第 49 轮 App 后，先验证新建扫描入口取消；随后实际 Dashboard→QuickScan Q9330→ScanView“不支持 AR 扫描”提示→返回 Dashboard，并验证 Home 后回到同一提示页。原生截图标题、说明、返回按钮可读，未开始采集；真实 ScanView/MetalView 初始化、State 重建和完整配置断言由 UIKit 托管回归提供，托管画布不作为真实 GPU/深度画面证据。临时赋值只新增 fruitType 与 Q9330 的 TagStore.snapshot.v1；按 bundle 寻址清理首次未找到域且未写入，改用核验后的容器文件域成功清理。清理和重新启动后，全部 **11 个 Documents 文件 SHA 不变、整份 7 项原偏好恢复**。可连接的 LiDAR iPhone 未进行物理采集，本轮不宣称真机质量或峰值验收。
+- **保护与复审。** 本轮为 7 个生产文件、2 个测试文件及本执行记录。除有意重叠的 Share 类外，11 个原 dirty 文件在写本记录前完全保留，其余 299 个 Swift 与轮前摘要相同；Dashboard 在 Share 类前后逐字相同，原 46/47/48 记录只在当前下一项更新和追加本节外保持。独立只读复审核对了 source、32 项/1077 项真实树、重复启动、六份托管附件、原生提示截图及文件/整份偏好保护，未发现源码范围阻塞。
+
+证据目录 `/private/tmp/fruit-iteration49/`：`baseline.json`、`before.xcresult`、`after-repaired.xcresult`、两次原 Share 失败包、`share-timing-repeated.xcresult`/日志、`final-targeted-tests.json`/`final-targeted-method-evidence.json`、`share-prepared-repeated-tests.json`、`final-full-method-evidence.json`、`final-implementation-preservation.json`、`native-root-validation.json`、`native-scanview-unsupported.png`。最终 full 报告为 `fruit-code-improvement-myc1bj8n/report.json`；失败报告和中间失败均保留。收尾的 `final-source-preservation.json` 和 `final-review.json` 另存仓库外。
+
+本轮 **mergeable**，未提交、未推送、未合并；原整体范围仍为 **needs changes / active**。本轮关闭的是根配置来源缺口，没有自动关闭 R1 的全部身份契约或 R5 的 GPU/物理资源验收。
+
+### 下一轮构思与提示词：GPU 排空和失败回收
+
+实际路径为 renderFrame 获取 3 个 in-flight permit 之一，完成回调释放；stagePointCloud 在 utility worker 排空全部 permit 后冻结最终点云。当前等待函数在超时时归还已取得 permit，但此前没有明确执行在途写入、部分取得后超时、重复排空或取消边界的故障回归。下一轮先建立这个现有生产边界的基线，再决定是否需要修复或仅补证据，不预判实现必有缺陷。
+
+```text
+继续 FruitTreeScanner 第50轮，读取AGENTS.md、工作流、原R0–R7核验与第49轮记录并preflight。
+49轮根Coordinator、Renderer初始容量/预览和活动计划重绑已通过32定向、1077全量、
+Domain24文件、Release与原生不支持AR提示/返回；原生11文件及整份7偏好恢复。
+保护原六项工作流、46/47/48/49本地改动与Share夹具；不要自动提交或推送。
+追踪renderFrame permit→commandBuffer completed→stagePointCloud utility worker→drain→freeze。
+先用真实Renderer/实际semaphore建立通过基线，受控占用与释放permit模拟在途GPU，
+不要在主线程阻塞等待，也不要把Semaphore逻辑测试称为真实Metal执行。
+覆盖无在途、未完成时不提前冻结、完成后放行、部分取得后超时并全部归还、
+超时后重复排空可继续、stage失败不发布文件/receipt，以及取消仍保留已发布receipt语义。
+仅在有失败证据时修复最小根因；不得缩短/移除GPU排空、放宽permit数量或跳过故障测试。
+如需让stage确定性地控制截止时间，接口必须沿用现有默认行为，避免另造副作用管线。
+保持fixed capacity、plan/resourceBudget、仅fused准入、manifest最后发布、PLY字节及生命周期身份。
+运行受影响lifecycle/storage定向、可行full/Release与独立只读复审；记录实际结果树。
+源码与模拟permit证据不能替代真GPU完成状态、同设备峰值或物理绕拍；这些继续单列。
+完成此边界后继续原领域算法/真实观测/资源目标，不将单轮通过当作整体完成。
+```
+
+## 第五十轮：GPU 完成屏障与资源回收回归
+
+2026-10-05 建立基线和夹具，2026-10-06 完成最终门禁。上一轮为 progress：根配置改造完成；本轮继续其真实 GPU 排空证据缺口。HEAD 仍为 `33984237`，轮前 20 个 dirty 路径和 308 个 Swift 留存摘要/副本，preflight 通过。原 PointCloudProcessingTests 的 **136/136 基线 Passed、退出 0**。
+
+- **问题与边界。** 正常结束先由 beginFinishingScan 关闭证据准入并停止 recording；renderFrame 获取三个 in-flight permit 之一，Metal 完成回调归还；stagePointCloud 的 utility worker 排空全部 permit 后才冻结和发布 PLY。已有代码包含部分取得后超时的归还逻辑，但旧回归没有直接证明在途 GPU 写入与这条实际 stage 路线。本轮处理这个验证缺口，没有将其预判为生产缺陷，也没有永久修改生产实现。
+- **五项新增回归。** 同一个实际 Renderer 的 commandQueue、particlesBuffer 和 inFlightSemaphore 参与测试。SharedEvent 阻止真实 Metal blit 写入，stage 取得另外两个 permit 后握手确认等待，再检查无最终缓存、无发布文件、stage 尚未返回。释放 Event 后核对实际 command completed/nil error、FinalPointCloud 和重新解析的 PLY 均含新的四点/绿色，原来有效的四点/红色不能冒充结果；同时核对源 SHA 和文件身份。其余方法覆盖无在途和重复排空、timeout 0 的部分取得归还、取消后的精确 CancellationError/无发布及再次排空，三个 permit 全部恢复，第四次立即取得必须失败。
+- **默认五秒超时的独立证据。** 真实 blit 已完成并进入 completed handler 后，用有界 CPU gate 延迟唯一 permit 归还；实际 stage 沿用生产五秒 deadline，精确抛 gpuDrainTimedOut，缓存与隔离目录仍为空。随后放行 callback，核对全部 permit 恢复并重试实际 stage/PLY 成功。CPU gate 自身截止为 15 秒，超时会使测试失败且仍由完成回调唯一归还 permit。此项证明完成回调尚持有资源时的排空超时，不能描述为 GPU 卡住五秒的验收。
+- **夹具诊断和修正。** 首版在 body 前等待 scheduled 五秒，SharedEvent 无人及时放行，触发 Metal error code 2，结果 1/5、退出 65；这是夹具失败。移除前置等待后第二版为 2/5，三项失败来自已 fulfill 却未 wait 的 gpuCompleted expectation；按是否先等待选择剩余事件后五项全 Passed。Event 与 CPU gate 在成功、throw 和最终 defer 均放行，资源保持到有界完成等待结束；测试自身不额外 signal Renderer semaphore。异步上下文的 noasync 警告通过同步探针 helper 消除，未放宽断言或跳过 Metal 条件。
+- **负控验证。** 临时把 makeFinalPointCloudSnapshot 移到 drain 之前，单个正向方法为 0/1 Failed、退出 65：提前缓存、旧坐标和红色 PLY 均被捕获。该人为变体不是原实现缺陷。变体和失败树保留仓库外，生产文件随后逐字恢复为 SHA `809f322f436fd1959e503d51e730c4bd35e5e0a7b34183c2bdc332cf0407a0e5`，正式门禁使用恢复后的源码。
+- **全量反馈与最后修正。** 首次 full 已为 1082/1082、Domain/Release 全通过，但比上一轮多一条指向 assertAvailableRendererPermits 的主线程 QoS warning。真实回溯定位到夹具立即计数探针；将全部九处调用改 await，在 utility detached worker 中做原最多四次立即取得/逐一归还，并断言探针实际非主线程，expected 2/3 与重复归还拒绝保持。此后重新执行最终存储/生命周期与 full，未沿用改动前的通过报告。
+- **最终证据。** `final-storage-lifecycle` 为 **521/521 Passed、25 类、零失败/跳过/expected failure、退出 0**，包含五 GPU 方法、发布后 owned receipt、取消与提交竞争、失败持久化 draft settlement 等精确路径。最后 `full` 为 **1082/1082 Passed、59 类、9 步退出 0**，包括 24 文件 Domain 独立编译与 unsigned Release 模拟器构建；runner 开始/结束工作区一致。五新方法与三项回执/提交/settlement 方法另存结果树核对。新增 PointCloudProcessing QoS warning 已消失，结果仍有两条 internal QoS warning，数量/消息与第 49 轮相同，具体来源和物理性能不外推。
+- **保护与证据层级。** 本轮仅新增现有测试类中的 GPU 段和 MetalKit import，并追加本记录、更新当前下一项与顶部收尾日期。去掉新增段/import 后整份原文件逐字相同，136 旧方法和 helper 全部保持；其余 307 Swift、19 个非重叠 dirty 文件与历史记录重建核对保持。仓库外 Python 导入曾生成本轮单个 pycache，已只删除该缓存并关闭后续 bytecode 写入。fused-only、诊断、容量/预算、根配置、PLY/manifest 编码与发布后回执所有权均保持。本轮无 UI 变更，无新增原生走查或物理采集；手工真实 Metal 命令不等于执行 ARKit renderFrame，不证明 LiDAR 质量、进程峰值或物理完成/重试。
+
+证据目录 `/private/tmp/fruit-iteration50/`：`baseline.json`、`task-card.md`、`baseline.xcresult`/方法树、两份夹具失败包、`final-new-tests.xcresult`、`mutation-freeze.swift`/diff/失败树、`final-storage-lifecycle.xcresult`/方法树。首 full 报告 `fruit-code-improvement-os_wdliy/report.json` 保留为中间证据；最终 full 为 `fruit-code-improvement-bt4dxx0_/report.json`。`final-source-preservation.json`、`final-full-method-evidence.json`、`final-review.json` 和 `validation-summary.json` 在收尾核对后另存。
+
+独立只读终审已核对最后源码、521/1082 真实结果树、8 个精确关键方法、负控恢复和完整保护，未发现本轮阻塞；本轮 **mergeable**。未提交、未推送、未合并；原整体范围仍为 **needs changes / active**，R5 的物理资源与完整 AR 捕获验收继续开放。
+
+### 下一轮构思与提示词：GPU 完成失败完整性
+
+收尾复查发现优先级更高的 P1 候选：实际 RendererFrameRendering 在编码时推进 count/index/revision，完成回调忽略 commandBuffer.status/error，直接归还 permit；stage 只核排空和快照。首版手工 Metal code 2 之后也曾冻结旧粒子，说明需要补充“已完成但失败”的生产边界回归；这尚不是实际 ARKit 故障或新扫描污染的运行证明。同队列 FIFO/新扫描 prefix 覆盖会限制旧正常写入的影响，不能直接猜测污染后果。下一轮先共用实际生产完成注册入口建立行为等价基线，再用实际失败命令或明确完成结果注入复现；根据失败证据处理捕获健康状态与代际隔离，不能只比较最新 revision 而忽略同一扫描更早的失败。
+
+随后恢复原 R4/R7 领域迁移候选：Core/FusionValidator.swift 的完整 Observation→投影/匹配→分配→决策编排仅依赖 Domain 纯值/数值服务，没有 buffer、Renderer、共享设置或日志，应按行为等价进入 Domain/Fusion 并更新实际 Xcode group/Sources，保持兼容入口与 fileprivate 可靠证据构造。后续可靠准入、composer、点云几何、真实观测和物理资源仍属于原目标。
+
+```text
+继续 FruitTreeScanner 第51轮，读取AGENTS.md、工作流、原R0–R7核验和第50轮并preflight。
+50轮最终521存储/生命周期、1082全量、59类、Domain24与Release均通过；
+真实Metal在途写入、部分归还、取消和默认5秒完成permit延迟已有明确范围证据。
+保护原六项工作流、46至50本地改动，所有历史记录与五GPU回归；不要自动提交/推送。
+追踪renderFrame/accumulate编码推进计数、实际completed handler、reset、stage/drain/freeze。
+现有handler忽略status/error；它是P1候选，不能先声称已复现ARKit故障或旧scan污染。
+先把真实完成注册入口共用，保持行为等价并验证50的五项基线；不要只测手工复制的回调。
+用实际Metal失败或明确完成结果故障注入建立失败回归，再选择最小健康状态/代际修复。
+要求失败仍唯一归还permit，当前capture写失败后禁止freeze/publish/receipt；
+同capture较早失败不能被后续成功清掉，reset之后迟到旧失败/成功不能破坏新状态。
+区分真正写入与仅绘制命令；捕获身份/健康状态沿既有锁和生命周期边界传递，
+不能仅比较最新pointBufferRevision而漏掉同capture早先失败。
+保留默认5秒、3permit、容量/预算、冻结plan、fused-only/诊断和发布后owned receipt。
+执行受影响storage/lifecycle和关键GPU方法树、可行full/Release及独立只读复审。
+保存最后源码/旧dirty保护、具体失败结果与恢复/重试证据，物理GPU/LiDAR另列。
+关闭此边界后恢复纯FusionValidator进入Domain，随后继续原可靠准入/composer/几何、
+真实回放和物理资源目标，不将单轮或单个Domain节点迁移当作整体完成。
+```
+
+## 第五十一轮：GPU 写入失败完整性与捕获代际隔离
+
+2026-10-06。上一轮为 progress：完成真实 Metal/drain/stage 回归；本轮处理实际 producer 忽略终态错误的根因。轮前 21 个 dirty 路径、308 个 App/Tests/UITests Swift 的摘要与原始副本留存于 `/private/tmp/fruit-iteration51/`，preflight 通过，HEAD 仍为 `33984237`。
+
+- **先建立基线和失败。** 将生产完成处理提取为共用入口，原五 GPU 回归 **5/5 Passed**，存储/生命周期 **521/521、25 类、退出 0**。随后明确注入 `.error` 终态结果，进入同一生产完成方法：两项回归均 **Failed、退出 65**，真实断言发现失败后仍能冻结旧四点/红色并发布 receipt，后续真实成功 blit 也仍能冻结/发布。这里是完成结果故障夹具，不是物理 ARKit 命令失败的复现。
+- **实际写入与粘性健康状态。** accumulatePoints 在纹理 guard 后返回实际是否编码写入；短暂持有 pointBufferLock，将编码、index/count/revision 与捕获代际一致关联，完成处理器捕获不可变 generation/wrotePoints。仅当前代的写命令在 status 非 completed 或 error 非 nil 时使捕获失败，清除缓存；失败在唯一 signal 前记录，因此 CPU 排空之后必能观察到。后续成功或较新 revision 不清除同代失败。仅显示命令错误不毒化有效捕获；旧代成功/失败只归还自己的 permit，不能改新代健康、缓存或刷新时间。
+- **reset、冻结与 stage。** reset 在既有 pointBufferLock → snapshotLock 顺序下推进 generation/revision，清健康状态与缓存/刷新节流；暂停/恢复仍保留同代状态。缓存命中、采样后的缓存写回及 live 时间预约均原子核对 generation/revision/health，锁不跨重采样、去噪或磁盘 IO。stage 在 detached worker 前固定 expected generation，沿用五秒、三个 permit 的排空，之后明确抛 gpuWriteFailed/captureChanged；不能把旧 stage 改为导出新捕获。已冻结值和发布后 owned receipt 仍由原所有者结算，没有在发布后追加取消/健康检查并丢失 receipt。
+- **九项新增回归。** 覆盖失败禁止冻结/发布、失败后真实成功仍拒绝、已有最终缓存失效、同代较新 revision 不能遮住早期失败、reset 后迟到失败/成功不能动新缓存/时间、reset 后真实 Metal 成功立即产生绿色四点预览并可导出、仅显示错误仍可导出、completed 但 error 非 nil 仍拒绝，以及 stage 排空期间 reset 后精确 captureChanged/无文件/receipt。真实命令与 renderFrame 共用标准 pointCloudCommandCompletionHandler；四点 PLY、颜色、源 SHA、文件身份和三 permit 数仍核对。
+- **复审反馈与验证范围修正。** 独立审查发现时间预约也需在两把锁下核对代际，已修复；恢复测试改为真实完成回调驱动首个 live 更新。夹具的异步加锁移入同步 helper，标准完成处理器避免测试捕获非 Sendable Renderer；没有增加 unchecked/Sendable 声明或屏蔽诊断。仓库外辅助 runner 首版只识别精确 `storage-lifecycle` 标签，两次 `final/verified-storage-lifecycle` 实际各仅 **150 项点云**，不能冒充 25 类 profile；修正标签选择并核对实际参数/结果树后才取得最终门禁，不削减任何测试。
+- **最终证据。** 最后 `accepted-storage-lifecycle` 为 **530/530 Passed、25 类、14 项 GPU 关键方法、零失败/跳过/expected failure、退出 0**，runtimeWarnings 为空。正式 `full` 为 **1091/1091 Passed、59 类、9 步退出 0**，24 源 Domain 独立 iOS 16/Swift 5 编译及 unsigned Release 模拟器构建通过；原 owned receipt、取消与已提交持久化竞争和失败 draft settlement 精确方法也通过。报告为 `/private/tmp/fruit-iteration51/fruit-code-improvement-exftkzhp/report.json`，完整叶节点与当前源码摘要核对，无测试期间源码漂移。全量仍有两条与第 50 轮记录完全相同的内部 QoS warning；不能据此推断真机性能或警告根因。
+- **保留与边界。** 本轮六个源码路径及本记录变化；302 个其他 Swift、18 个不重叠旧 dirty 路径摘要保持。重建可逐字恢复第 49 轮 Renderer 原改动、第 50 轮全部 141 测试方法和原 helper、第 50 轮及更早执行记录。固定容量、根配置/预算、仅 fused 可靠准入、诊断、编码与文件格式、manifest 最后发布和发布后 receipt 所有权保留。未提交、未推送、未合并；没有新增 UI 或真机交互证据。
+- **决策与剩余风险。** 本轮所需底层门禁完成且独立复审无阻塞，决定 **mergeable**；整体原 R0–R7 仍 **needs changes / active**。真实 ARKit/LiDAR 故障、物理扫描/内存/耗时仍未验收。当前 workflow 把 gpuWriteFailed/captureChanged 统一折为 pointCloudExport，UI 仍提示存储错误并提供同捕获重试；底层会正确拒绝发布，但用户恢复链路尚未完成，列为下一轮 P2。之后继续原领域算法、可靠准入/composer/几何、全应用协作、真实观测与资源目标，不用此轮通过替代整体完成。
+
+下一轮执行提示词：
+
+```text
+按默认改进工作流继续第 52 轮。先 preflight 并保护全部既有 dirty work。
+沿 Renderer 导出错误 → ScanFinalizationWorkflow → ScanView+Export → 生命周期恢复
+检查 GPU 写入失败被误当存储错误、同 capture 重试永远失败的实际路径。
+先用实际 finish/export 入口建立失败分类和恢复动作的失败回归，再最小修复。
+区分需要新扫描的 gpuWriteFailed、过期捕获和可重试的 GPU 排空/文件写入失败。
+复用实际 coordinator/session identity 与恢复流程，不静默重置捕获或中断较新扫描。
+提供准确本地化提示，保留旧 API、三个 permit、五秒排空、粘性健康状态、仅 fused
+准入、冻结证据和发布后 owned receipt，不在 publication 后丢失结算句柄。
+运行 lifecycle/storage、可行 full/Domain/Release，走查真实 iOS 模拟器恢复/导航，
+独立只读复审并核对结果树/当前 SHA；物理 ARKit 故障与真机质量继续单列。
+关闭这条恢复边界后继续原 FusionValidator 进入 Domain 和原 R0–R7 待完成项。
+```
+
+## 第五十二轮：无效点云错误路由与扫描恢复所有权
+
+2026-10-06 至 2026-10-07。上一轮为 progress：第 51 轮的底层 GPU 健康/代际门禁已经关闭，本轮贯通其 Application 和用户恢复路径。轮前 preflight 通过，25 个旧 dirty 路径、308 个 Swift 源摘要及原始副本留存在 `/private/tmp/fruit-iteration52/`，HEAD/分支保持 `3398423774bf3f88f3fb4a732718a4e504a752fb` / `codex/variety-draft-concurrency`。
+
+- **根因与失败证据。** 实际 Renderer stage 的 gpuWriteFailed/captureChanged 被统一折为 pointCloudExport，UI 提示存储错误并允许重试同一个不可用捕获。实际 finish/export 的两项路由回归先得到 **2 Failed、退出 65**；修复夹具参数顺序后，旧生命周期回调影响替换扫描与 failed phase 同步重入后仍发布旧失败的两项回归也得到 **2 Failed、退出 65**。夹具编译失败和原生 UIAlert accessibilityActivate 无法派发动作的失败另存，不能作为行为修复或实际触摸证据。早期 selector 写成不存在的 ScanLifecycleTests，只执行了 20 项其他测试，未算作生命周期验收；最终核对真实类 ScanLifecycleControllerTests。
+- **错误分类与可重试路径。** ScanFinalizationWorkflow 新增 pointCloudCaptureInvalid，仅将写入失败/捕获过期归入该项；同捕获重试不可用，重复 finish 保持失败。gpuDrainTimedOut 和文件写入失败仍可用原扫描身份、原计划通过 finish/retry 重试并完成。fail 在发布 phase 后再次核对存储 owner 和 phase，同步 observer reset/cancel 后不发送旧 failed 事件；已发布 receipt 的结算与提交后持久化竞争路径保留。
+- **实际 coordinator/session 与 UI。** ScanView+Export 将类型化失败交给只接受匹配身份、当前 finishing、未 teardown 的 coordinator；沿原失败路径关闭证据门、暂停采集并发布 invalidPointCloudCapture 生命周期，不静默重置底层捕获。恢复提示使用准确中英文文案，明确该采集无法估产、重新开始或放弃不生成结果。生命周期回调先核对当前完整 snapshot，排队旧事件不能取消新 workflow 或重新弹窗。
+- **弹窗选择与重启失败。** 沿既有 presentation controller 模式保存扫描 owner、唯一 choice ID 与页面 binding。真实 alert 的按钮直接调用该选择并复用原 restart/discard；系统先清 binding 时仍可消费一次，旧选择、同步 dismissal observer 更换 owner/binding、页面失效和已完成扫描均拒绝动作。重启失败仍保留旧失败采集/计划和关闭的证据门，重新提供恢复选择；相机权限故障等待实际 readiness 后生成新选择，隐藏的旧动作无效。
+- **实际触摸揭示并修复状态发布问题。** 第一版中文实际触摸两个按钮均通过状态断言，但 `.xcresult` 各有一次 SwiftUI `Publishing changes from within view updates is not allowed`。系统关闭 binding 改为下一次 main queue 执行，并核对捕获的 presentation ID；旧排队关闭不能隐藏已消费动作产生的新弹窗。新增 queued close → 立即 restart → 失败新 choice → drain → 新 discard 组合回归，以及隐式 Cancel 的撤销回归，没有屏蔽诊断或添加 unchecked Sendable。
+- **原生 UI 验收范围。** 修复后中文外部真实触摸 **2/2 Passed、退出 0、runtimeWarnings=[]**。英文首包 Discard 实际点击通过，Restart 在锁屏等待触摸期间超时，整包为 **1 Passed + 1 Failed、退出 65**；解锁后 Restart 单独重跑，实际点击 **1/1 Passed、退出 0、runtimeWarnings=[]**，保留原失败包。四份状态 JSON 证明 restart 的 scan/plan ID 更新、capture generation 1→2、健康状态恢复；discard 为 cancelled/teardown、未产生结果文件。截图已检查原生 alert 文案和恢复后页面。这里挂载真实 ScanView 到隔离测试 host、使用生产按钮/Renderer 完成入口与明确故障夹具；放弃返回该 host，不冒充完整 Dashboard 或物理 ARKit 故障验收。临时等待触摸夹具恢复后，DashboardSummaryTests 与原常规测试备份逐字/SHA 相同。
+- **工作流反馈。** 原 validate_summary 会接受上述实际 Passed + 非法发布警告。两个门禁回归先得到 **2 Failed、退出 1**；补上警告解析与精确已复现 SwiftUI 警告阻塞检查，运行全部 **36 项 Python 测试通过**，端到端失败报告保留原 test_summary/警告。再次输入真实原警告包也被拒绝。其他警告仍完整保存供复审，计数、选择类、失败/跳过及源码稳定规则未放宽，流程文档同步说明。
+- **最终源码验证。** 常规测试夹具恢复后的 `accepted-storage-lifecycle` 为 **542/542 Passed、25 类、退出 0、零失败/跳过/expected failure、runtimeWarnings=[]**。正式 full 为 **1110/1110 Passed、59 类、9 步退出 0**，24 源 Domain 独立 iOS 16/Swift 5 编译及 unsigned Release 模拟器构建通过；19 项新增恢复/本地化回归、14 项原 GPU 方法与 5 项 receipt/取消/持久化结算方法在实际结果树中均 Passed。full 保留与第 51 轮消息完全相同的两条内部 QoS warning，没有新增非法发布警告。报告：`/private/tmp/fruit-iteration52/fruit-code-improvement-uwde7pcu/report.json`；完整方法、native 状态/源码与旧 dirty 保护核对：`final-method-preservation-evidence.json`。验证期间源码无漂移，最后 diff/staged diff 空白检查通过。
+- **保留、复审与交付。** 本轮 8 个生产 Swift、2 个测试 Swift、2 个 strings、工作流/测试/流程文档及本记录变化；298 个其他 Swift、17 个不重叠旧 dirty 路径保持。两个测试文件、工作流旧内容及历史执行记录只追加，Renderer/Metal 和第 51 轮 GPU 代码/测试逐字保持；三个 permit、五秒排空、采样/容量/预算、冻结计划、仅 fused 可靠准入、全部诊断、历史编码与 manifest/owned receipt 规则保留。实现复审无明确阻塞，最后证据已核对。本轮决定 **mergeable**；未提交、未推送、未合并。真实 LiDAR、物理 GPU 故障、资源/耗时与果数精度继续单列，整体 R0–R7 仍 **needs changes / active**。
+
+下一轮执行提示词：
+
+```text
+按默认代码改进工作流继续第 53 轮，先 preflight 并保护全部旧 dirty work。
+第 52 轮恢复链路已关闭：542 定向、1110 全量、Domain24/Release、原生中英触摸
+及警告门禁证据已记录，不重做 GPU 健康/错误分类或扩展 UI。
+恢复原 R0–R7 领域化目标，检查 Core/FusionValidator.swift 的真实依赖与调用者。
+它当前只使用 Foundation/CoreGraphics/simd、领域 Observation/候选/配置和纯融合服务。
+先用当前 full 结果树建立对应融合/去重/估产基线，再按原文字节迁入 Domain/Fusion。
+维持公共入口、checked Sendable、匹配/重分配顺序、阈值、置信度与深度拒绝规则，
+不把平台缓冲/Renderer/设置/日志或额外 Core 源加入独立 Domain 编译来掩盖依赖。
+PBX 只移动既有 file reference 的 group，Sources 引用仍恰好一次；检查消费者和兼容面。
+Domain 全源门禁应由 24 变为 25，相关风险 profile、可行 full 和独立复审必须通过。
+不要扩大 ReliableYieldEvidence 构造权限；仅 fused、诊断、格式、预算和旧 dirty 保留。
+记录真实收益为依赖归属收敛，不宣称未测的性能提升或整体完成。
+之后继续可靠准入/composer/几何、ScanPlan plot/tag、应用协作、真实观测与物理资源目标。
+```
+
+## 第五十三轮：纯融合编排纳入完整 Domain 门禁
+
+2026-10-07。上一目标轮为 progress：第 52 轮恢复链路及非法状态发布门禁完成。本轮恢复原 R4/R7 领域边界目标，preflight 通过，轮前 33 个 dirty 路径、308 个 Swift 的摘要及原始副本保存在 `/private/tmp/fruit-iteration53/`；当前源码首先与第 52 轮最终实测摘要逐项吻合，HEAD/分支保持。
+
+- **真实边界与调用链。** FusionValidator 的 Observation → 投影/匹配 → 全局分配 → 深度否决 → 验证结果仅依赖 Foundation/CoreGraphics/simd 和既有 Domain 值/服务。最终 FusionEvidencePipeline 和实时 confirmedLiveFruitCount 都调用 observations 入口；CVPixelBuffer/DetectedFruit 转换留在 Infrastructure/Detection/FusionValidatorLegacyInput.swift，Core 的投影兼容 extension 仍保留。纯编排位于 Core 使完整 Domain 编译无法覆盖它的依赖边界，这是本轮的架构根因。
+- **迁移前基线。** 实际执行中央 fusion profile 的 12 个类及生产实时计数调用者 ScanLiveFruitCountTests，得到 **421/421 Passed、13 类、退出 0、零失败/跳过/expected failure、runtimeWarnings=[]**。独立原始结果树留存，不仅采用第 52 轮的汇总数量。
+- **逐字迁移与工程结构。** 将 Core/FusionValidator.swift 原文字节移至 Domain/Fusion/FusionValidator.swift，SHA 保持 `7068ed4141820c58865537d516254372a298b4fc17beff6194cefc321b903deb`。PBX 结构化比较只有 Core 与 Domain/Fusion 两个 group 的 children 变化；原 fileRef `FUSIONVAL987654321`、buildFile `FUSIONVAL279228`、App Sources phase 保持，在唯一 FruitTreeScanner target 中恰好一次。没有重复类、改变 public/internal 入口、改阈值/置信度、重排匹配或引入平台缓冲。
+- **迁移后验证。** 全部 **25 个 Domain 源**独立编译为 iOS 16 simulator / Swift 5，原递归全源 gate 未修改、未加入 Core/App/legacy 源掩盖依赖。after-fusion 为 **421/421、13 类、退出 0、runtimeWarnings=[]**，与迁移前全部方法标识/Passed 结果相同。正式 full 为 **1110/1110 Passed、59 类、9 步退出 0**，Domain25 与 unsigned Release 模拟器构建通过；原始树方法集合与第 52 轮完全一致。四类关键消费者的 93 项 validator、完整观测/存档/批量回放、builder 与实时计数方法逐项 Passed；既有固定质量/置信度及 rejected/low-depth/copyFailed/imageOnly/cloudOnly/重分配断言保持。full 两条内部 QoS warning 消息与第 52 轮完全相同，没有新增非法发布警告。
+- **保护与复审。** 307 个其他 Swift 逐字保持，迁移文件本身逐字保持，全部 308 个源归一化旧/新路径后摘要相同；32 个不重叠旧 dirty 路径与第 52 轮源/测试/工作流改动保持。执行记录仅追加，最后 diff/staged diff 空白检查通过；验证时工作区没有漂移。独立初审未发现阻塞，工程引用、依赖闭合及最终证据已核对。`fileprivate` 可靠证据构造仍在原 Core 管线内，本轮没有扩大权限或声称该准入已经领域化。
+- **证据、收益与决策。** 正式报告 `/private/tmp/fruit-iteration53/fruit-code-improvement-3wgvjcqr/report.json`；前后树、唯一 Sources 证明、93 项关键方法与全源保护位于 `/private/tmp/fruit-iteration53/` 的 `before-fusion-method-evidence.json`、`after-fusion-method-evidence.json`、`project-move-evidence.json`、`final-method-preservation-evidence.json`。实际收益是独立 Domain 门禁开始覆盖完整纯融合编排；没有性能测量或新的物理/原生 UI 验收。本轮 **mergeable**，未提交、未推送、未合并；整体 R0–R7 仍 **needs changes / active**，不能把一个编排节点的迁移当作整体完成。
+
+下一轮构思：ReliableYieldEvidence、FusionEvidencePipelineOutput 与 observations 版准入/保守输出依赖已是领域值；剩余阻碍是同文件混入的 DetectedFruit/resolvedObservation 旧缓冲入口和 Log.fusion.warning。可靠构造器与真正准入实现必须同处领域文件，继续保持 fileprivate 和 `.fused` 检查。日志应由明确领域原因值在现有编排/兼容边界消费，保留原生产告警语义；不能删除日志、注入空 logger 或把 Core Log 纳入 Domain。PointCloudCandidatePipeline、混合 CategoryFilter、composer 和物理资源缺口继续按依赖顺序单独处理。
+
+下一轮执行提示词：
+
+```text
+按默认工作流继续第 54 轮，先 preflight、保护旧 dirty work并读原 R0–R7核验。
+第 53 轮 FusionValidator 已逐字进入 Domain：before/after421、full1110/59、
+Domain25/Release和唯一Sources证据已完成，不重做该迁移或改变匹配/深度阈值。
+追踪 Core/ScanFusionPipelines 的 ReliableYieldEvidence、FusionEvidencePipelineOutput、
+observations版run/conservativeOutput及 builder/FruitCounter/composer/diagnostics 消费者。
+用实际当前管线和完整回放建立通过基线，按完整责任边界迁入同一 Domain/Fusion 文件。
+构造器/fruit仍fileprivate，仅原准入代码能从明确fused结果构造可靠证据。
+保留无观测、无对齐深度、无稳定检测、无验证、无fused各分支的原返回计数/证据/保守状态。
+DetectedFruit入口沿既有Infrastructure兼容extension仅转换为Observation，再调用纯入口。
+明确结构化的无对齐深度原因值契约；现有builder/兼容边界据它保留原warning条件与文字，
+空观测、仅不稳定或其他保守原因不能误报缺少对齐深度。不要用平台logger或空闭包伪装隔离。
+不要整份搬迁混合点云管线，不增加Core源进入Domain gate，不扩大可靠构造权限。
+检查新文件App Sources恰好一次、旧入口兼容、输出/schema/zeroYield与调试诊断保持。
+验证构造器在文件外不可调用，并证明正常外部消费者仍可读可靠结果。
+执行受影响fusion/实时计数、完整回放及full/Release；核对关键方法真实树与最终摘要。
+独立复审、关闭本轮后，再推进结果合成/几何、Plan plot/tag、应用协作、真实观测与物理资源。
+不宣称目录变化带来未测的内存/性能提升，也不标记整体完成或自动提交推送。
+```
+
+## 第五十四轮：可靠估产准入与结构化原因纳入 Domain
+
+2026-10-07。本轮继续原 R4/R7 领域边界目标，处理可靠证据构造与数值准入混在平台兼容/日志文件中的依赖问题。仅关闭该责任边界，整体 R0–R7 仍 **needs changes / active**。
+
+- **完整责任边界。** `ReliableYieldEvidence`、`FusionEvidencePipelineOutput`、observations 版准入和保守返回进入 `Domain/Fusion/ReliableYieldEvidence.swift`。原可靠类型正文逐字保持，fruit/构造器仍 fileprivate，仅 `.fused` 可以构造；对齐、稳定检测、二维去重、验证、先隔离 fused 后三维去重的顺序及所有阈值保持。原 Core 点云/深度/分类管线正文保持，只移除未使用的 os import。DetectedFruit 入口沿既有 Infrastructure extension 转换为 Observation，公共调用兼容。
+- **诊断契约。** 无对齐深度的非空输入返回明确的 `FusionEvidenceDiagnostic.missingAlignedDepthContext`；builder 的现有 diagnostics updater 和旧输入兼容边界消费它，保留原告警条件及文字。空输入、只有不稳定证据或没有匹配结果不误报该原因。既有计数、证据数组、保守标志、zeroYieldReasons 和结果格式保留，增加三项分支/兼容回归。
+- **全量暴露的测试竞争。** 本轮首次全量的历史工具输出为 1112 Passed/1 failed、退出 65：Dashboard 批量导出测试读到刚创建的 0 字节 CSV。沿真实链确认服务完成、源验证及请求身份复核后才发布 UIActivityViewController；测试仅增加八行等待真实分享界面，CSV 精确数据及完整原档字节断言均保持。没有改生产导出、固定延时或放宽断言。工作流补上异步写出完成边界规则。
+- **证据丢失与恢复边界。** 后续全量中断后，进程句柄缺失，OS 检查原进程不存在，`/private/tmp/fruit-iteration54` 原证据也已消失。上述首次失败及早期通过仅记为历史观察，不声称原结果包仍可读取，也不将中断全量算作通过。依据此前实际打印的 SHA 和未变 HEAD 重建轮前 308 Swift 快照，全部摘要匹配；32 个不重叠旧 dirty 及执行记录追加前的原文保持，303 个其他 Swift 保持。新增持久证据规则，当前原始结果重新取得并保存到仓库外 `Library/Logs`。
+- **当前可复核验证。** 重建轮前快照实跑 **421/421、13 类**；当前融合/实时计数加既有导出用例实跑 **425/425、14 类**，两者退出 0、runtimeWarnings=[]，旧 421 方法全部保留，新增选择恰为三项融合回归及一个既有导出方法。正式 full **1113/1113、59 类、9 步退出 0**，零失败/跳过/expected failure，Domain **26 源、iOS 16 simulator/Swift 5** 与 unsigned Release 模拟器构建通过。结果树中 96 项 validator、观测回放、builder 和实时计数关键方法逐项 Passed。两条内部 QoS 警告完整保留，文字与历史观察一致；旧原包已丢失，未声称重新逐包对比。没有非法状态发布警告。当前实际 CSV 附件 186 字节，ROOT41 PLOT/BATCH42/7/1.25 与总计正确，SHA 为 `952325e7c98de7913044c5171a2bb3b12803420aa1d5ff81cbe99c428241e6e7`。
+- **工程、权限与复审。** PBX 结构化比较只有两个新对象及 Domain/Fusion、App Sources 两个既有对象追加，旧引用保持，新源只进入 App 一次。独立文件读取可靠结果编译成功；尝试构造被编译器明确以 fileprivate 拒绝。验证期间源码未漂移，原类型字节、旧 dirty 和未改源码摘要已核对，diff/staged diff 空白检查通过，暂存区为空。独立只读复审未发现准入、告警、兼容或导出断言阻塞问题；当前 full 原始树和全部九步成功已另行复核。
+- **证据与决策。** 持久根为 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration54-20261007/`；正式报告 `fruit-code-improvement-sinpti36/report.json`，原始 before/after `.xcresult`、`recovered-baseline.json`、`boundary-and-project-evidence.json`、`final-method-preservation-evidence.json` 和导出附件均在该根。实际收益是可靠准入纳入完整 Domain 门禁，未测内存/性能收益不作宣称。无新 UI 或真机质量验收，本轮 **mergeable**；未提交、未推送、未合并。物理深度、真实观测回放、资源和最低系统运行仍待验收。
+
+下一轮构思：可靠准入已有受限领域输入，真实 composer 仍调用 Core 的 FruitCounter 和 ScanYieldEstimateHelpers，后者依赖三份 SimpleFruitGeometry 与 FruitEstimationQualityScorer。六个文件构成计数、可见重量及几何质量的纯数值依赖闭包，应一次迁移完整责任边界。composer 本身还依赖混合 Input、ColoredPoint、遮挡/树冠与 Core 诊断，暂不整份迁移或制造空接口。
+
+下一轮执行提示词：
+
+```text
+按默认工作流继续第 55 轮，先 preflight并保护所有旧dirty，核对原R0–R7范围。
+第54轮可靠准入已领域化：当前before421/after425、full1113/59、Domain26/Release，
+原始证据在Library/Logs/FruitTreeScanner/refactor-iteration54-20261007；旧tmp包不可用。
+追踪composer→FruitCounter可靠计数→ScanYieldEstimateHelpers可靠可见重量与质量，
+及SimpleFruitGeometryEstimator/Metrics/Categories、FruitEstimationQualityScorer依赖。
+以本次实际通过full的源摘要/方法树建立六文件整体迁移基线，保留全部原文字节。
+将完整纯计数/重量/几何质量责任纳入Domain/Yield，维持既有入口、权限及兼容重载。
+保留候选显式ID优先/只消费一次、旧10cm严格空间回退、品类一致、权重/取整、
+平均重量fallback和人工复核提示，主轴/分位跨度/球拟合/密度/阈值/Date/UUID全保持。
+不得让imageOnly/cloudOnly进入可靠产量，也不得扩大ReliableYieldEvidence构造权限。
+PBX移动既有file references，Sources条目与target归属不变且每个源恰好一次。
+独立Domain全源门禁不得排除新源或借入Core；按实际闭包预期26增至32，实测确认。
+核对FruitModelsTests、YieldEstimatorTests、builder、完整观测/存档/批量回放和实时计数，
+运行受影响定向及full/Release，逐项对比前后方法/固定数值断言和源摘要，独立复审。
+composer混合输入另行设计领域值，不把整份混合编排直接搬进Domain伪装闭合。
+关闭本轮后继续Plan plot/tag、应用协作、真实观测与物理资源目标；不宣称整体完成，
+不自动提交、推送或合并，也不以目录迁移声称未测的资源收益。
+```
+
+## 第五十五轮：计数、可见重量与几何质量的完整领域依赖闭包
+
+2026-10-07。第 54 轮已以当前持久原始结果及独立终审关闭；本轮继续原 R4/R7 算法领域边界，preflight 通过。轮前 41 个 dirty 路径、309 个 Swift 摘要和六文件原文留存于仓库外持久目录；HEAD/分支保持，暂存区为空。
+
+- **根因与完整范围。** 生产 `YieldResultComposer` 以可靠证据调用 FruitCounter 计数和 ScanYieldEstimateHelpers 估算可见重量；后者依赖三份 SimpleFruitGeometry 和 FruitEstimationQualityScorer。六文件只依赖 Foundation/simd 与既有 Domain 值，却位于 Core，独立 Domain 门禁无法覆盖这条计数/重量/质量链。将六文件整体逐字迁入 `Domain/Yield`，不拆出额外空接口。composer 的混合 Input、点云、遮挡和诊断编排仍待后续设计，本轮没有将其整体搬迁。
+- **行为与兼容保持。** 六个源的原文字节全部相同；生产 count/weightedTotal/computeYieldFromReliableEvidence 仍只接收受限 ReliableYieldEvidence。旧 ValidatedFruit 重载继续用于兼容和诊断，fileprivate 准入权限未扩大。候选显式 ID 优先、单次消费、严格 10 cm 旧空间回退、品类一致、权重/取整、均重 fallback/人工复核，以及主轴、分位跨度、球拟合、密度、质量阈值、Date/UUID 语义均保持；没有行为变更或为迁移新写镜像测试。
+- **工程与旧工作保护。** PBX 只新增 `ARCHYIELD001` group，并修改 Core/Domain 两组的 children；原六个 fileRef、buildFile 和全部 Sources phases 对象保持。各源仍只在原 App target 出现一次。309 个 Swift 归一化路径后摘要完全相同，303 个未迁移源逐字保持；40 个非 PBX 旧 dirty 在验证期间保持，最终仅追加本执行记录后，其余 39 个旧 dirty 仍保持。递归 Domain gate 原文未修改，没有排除新源、引入 Core 源或放宽规则。
+- **前后真实验证。** 迁移基线使用刚完成的第 54 轮持久 full：1113/1113、59 类、九步退出 0，迁移前 App/Test/工程/验证源摘要全部与它的受测值匹配；追加交付文档不影响该源码基线。迁移后定向 **424/424、13 类、退出 0、runtimeWarnings=[]**，与原树中相同选择的完整方法集合一致。全部 **32 个 Domain 源**独立编译为 iOS 16 simulator/Swift 5。正式 full **1113/1113、59 类、九步退出 0**，零失败/跳过/expected failure，unsigned Release 模拟器构建通过；前后全量 1113 个唯一 Passed 方法完全相同。FruitModels 126、YieldEstimator 45、FusionValidator 39、builder 42、完整观测回放 9、实时计数 6，共 **267 项**关键消费者方法逐项 Passed。两条内部 QoS 告警与本轮持久基线的原文一致，无非法状态发布告警。
+- **复审、收益与决策。** 独立只读初审及终审均无阻塞，逐字迁移、真实生产入口、纯依赖闭合、PBX 唯一归属、当前定向/full 原树、267 项关键方法及最终源码/文档保护均已核对。验证期间工作区未漂移，最后 diff/staged diff 检查通过。实际收益是完整纯计数/重量/几何质量责任纳入独立 Domain 编译，源码数量和算法实现未减少，未宣称性能/内存收益。证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration55-20261007/`，正式报告 `fruit-code-improvement-uoah4bo_/report.json`；`baseline.json`、`originals/`、`move-and-project-evidence.json`、`after-fusion-method-evidence.json`、`final-method-preservation-evidence.json` 保留原文和真实方法树。本轮 **mergeable**，未提交、未推送、未合并；整体 R0–R7 仍 **needs changes / active**。两条内部 QoS、真实观测、物理深度/资源和最低系统运行仍开放。
+
+下一轮构思：CanopyGeometryEstimator 与 OcclusionCorrector 的数值核心只依赖领域配置及 ColoredPoint；后者实际是四个不可变字段的 checked Sendable 值，却与 SceneKit 的 PointCloudData/展示模式定义在同一 Core 文件。先将纯点值和两项几何/遮挡责任纳入领域闭包，可保留原数组和所有调用入口，避免为隔离生成额外大数组或协议。之后再处理 composer 的混合输入与本地化诊断契约。
+
+下一轮执行提示词：
+
+```text
+按默认工作流继续第56轮，先preflight并保护旧dirty，读取原R0–R7核验与本轮记录。
+第55轮六文件已逐字进入Domain/Yield：before/after full1113/59方法一致，
+after424/13、Domain32/Release通过；持久证据在Library/Logs/FruitTreeScanner。
+追踪Core/PointCloudDisplayModels中的ColoredPoint与CanopyGeometryEstimator、
+OcclusionCorrector及builder/composer/点云展示/导出消费者，不按文件名猜测试类。
+ColoredPoint是pos/r/g/b四个let字段的checked Sendable纯值，保持正文、成员初始化器、
+布局和API，把它从SceneKit展示文件分离到Domain；其余展示类型和平台依赖保留。
+确认两项算法闭包后整体逐字迁入Domain，保留ColoredPoint数组入口与positions入口。
+不新增大型数组映射、第二套点表示、空协议或unchecked Sendable来伪装隔离。
+保留树冠地面/树干/相邻簇过滤、局部原点、稳健分位、1500采样、120000投影格、
+512分区及全部原边界；遮挡半径/深度/36分箱、证据可靠性和校正上限全保持。
+仅fused参与可靠估产、低置信度/拒绝深度不升级、zeroYield和诊断/格式保持。
+用当前真实full与源摘要建立基线，PBX原引用移动，新纯点文件App Sources唯一一次；
+Domain全源gate原文不变，预期32增至35并实测，不借入Core或SceneKit。
+覆盖PointCloudProcessingTests中的真实树冠方法、OcclusionCorrectorTests、
+YieldEstimatorTests、builder与完整观测/存档/批量回放，运行定向及full/Release。
+对比字节、固定结果、完整方法树和旧dirty，独立复审；遇到行为缺陷另立失败回归，
+不在纯迁移里顺手改阈值。关闭后设计composer领域输入/诊断边界，继续Plan plot/tag、
+应用协作、真实观测与物理资源；不宣称整体完成或未测性能，不自动提交推送合并。
+```
+
+## 第五十六轮：纯点值、树冠几何与遮挡校正的领域闭包
+
+2026-10-07。上一目标轮完成第 54/55 轮迁移和验证，属于 progress。本轮继续原 R4/R7 领域目标：preflight 通过，当前 App/Test/工程/验证源摘要与第 55 轮持久 full 的最终受测摘要完全一致，执行记录也与其交付摘要匹配。轮前 53 个 dirty 路径、309 个 Swift 摘要及本轮原文保存到仓库外持久目录；HEAD/分支保持，暂存区为空。
+
+- **真实根因与责任边界。** builder 直接计算树冠，composer 通过遮挡算法计算冠层半径、深度和覆盖；这些算法只需要纯数值及领域配置，但 ColoredPoint 定义在 SceneKit 展示文件中，阻碍完整 Domain 独立编译。ColoredPoint 实际为 pos/r/g/b 四个不可变字段的 checked Sendable 值。本轮将其原声明分离到 `Domain/PointCloud/ColoredPoint.swift`，并将 CanopyGeometryEstimator、OcclusionCorrector 整份逐字迁入 `Domain/Yield`。
+- **保留与资源。** 两项算法原文字节、点值声明、字段顺序、成员初始化器及 Sendable 保持。PointCloudDisplayModels 的其他展示类型原文保持，仅提取该声明并移除未用 simd import；SceneKit 仍留在展示边界。保留原 ColoredPoint 数组/positions 入口，没有额外映射、大数组拷贝、第二套点表示或空接口。树冠过滤、局部原点、分位跨度、1500 采样、120000 投影格、512 分区，以及遮挡分箱、证据可靠性、公式和上限均未修改；仅 fused、置信度/拒绝深度、zeroYield、诊断与格式保持。
+- **工程和源码保护。** PBX 结构化比较只新增纯点 fileRef/buildFile 和 PointCloud group 三对象，修改 Core/Domain/Yield/App Sources 四对象；所有原 fileRef/buildFile 保持，旧 Sources 列表只新增纯点一次。新点、两算法及原展示源均只归属原 App target。310 个当前 Swift 中，306 个未迁移源逐字保持，加上两项逐字算法共 308 个旧源归一化路径后相同；点声明和保留展示部分分别核对。验证期间 52 个非 PBX 旧 dirty 保持，最后仅追加本记录后其余 51 个旧 dirty 保持。Domain gate/工作流原文未改，没有排除新源或借入 Core/SceneKit。
+- **通过基线与定向。** 使用刚完成且当前源码匹配的第 55 轮实际 full 原始树建立迁移基线，选中央 fusion、实时计数及 PointCloudProcessingTests，得到真实基线 **574 个 Passed 方法、14 类**。迁移后独立执行同样选择，**574/574、14 类、退出 0、runtimeWarnings=[]**；前后方法标识与 Passed 结果完全一致，未删除/放宽现有测试。独立 Domain 全源编译覆盖 **35 源、iOS 16 simulator/Swift 5**；另外一个文件使用原成员初始化器读取所有字段并要求 Sendable，独立类型检查退出 0。
+- **完整验证。** 正式 full **1113/1113、59 类、九步退出 0**，零失败/跳过/expected failure，Domain35 与 unsigned Release 模拟器构建通过；前后完整 1113 个唯一 Passed 方法一致，574 项定向均包含于 full。八类关键消费者共 **431 项**：FruitModels126、YieldEstimator45、FusionValidator39、builder42、完整观测回放9、实时计数6、PointCloudProcessing150、OcclusionCorrector14，逐项 Passed；真实树冠方法和既有固定数值/存档/批量断言保持并执行。两条内部 QoS 告警消息与持久基线一致，原始警告完整保留，无非法状态发布警告。验证期间源码没有漂移。
+- **复审与证据。** 独立只读初审及终审均无阻塞，确认纯依赖、原文、API、数组和工程归属，并核对当前 full 原树、314 项受测摘要、51 项其他旧改动、仅追加记录及下一轮设计契约。最终源码摘要及 diff/staged diff 空白检查通过。证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration56-20261007/`；正式报告 `fruit-code-improvement-fprp1e3c/report.json`，`baseline.json`、`originals/`、`move-and-project-evidence.json`、`point-consumer-command.json`、`targeted-method-evidence.json`、`final-method-preservation-evidence.json` 保存原文/命令/实际原始树。本轮 **mergeable**，未提交、未推送、未合并；实际收益为纯点值及几何/遮挡依赖进入独立 Domain 门禁，不宣称未测的性能/峰值内存收益。
+
+整体 R0–R7 仍 **needs changes / active**。composer 的混合数值/装配、结构化零产原因、点云编排、Plan plot/tag、应用协作、真实观测和物理资源/最低系统运行缺口继续保留。
+
+下一轮构思及可直接使用的提示词见 [数值估产评估与结果装配边界设计](YIELD_ASSESSMENT_DESIGN_2026-10-07.md)。拟交付正产、成熟零产、非成熟未标定三分支的完整纯数值评估，现有 facade 保持冻结身份、展示/诊断文字及结果格式适配。设计明确保留两次取整、零权重分支、显式 nil 校准上下文和各分支缺省字段；第 57 轮尚未实施，不将设计稿算作已关闭缺口。
+
+## 第五十七轮：纯数值估产评估与三分支结果装配
+
+2026-10-07。上一轮已完成第 56 轮纯点值/几何/遮挡迁移与验证，属于 progress。本轮继续原 R4/R7 领域责任收敛：preflight 通过，轮前 310 个 Swift 与第 56 轮 full 的 314 项受测摘要、执行记录交付摘要均匹配；60 个旧 dirty 路径和本轮原件保存到仓库外持久目录。HEAD/分支保持，暂存区为空。
+
+- **根因与改动。** Core composer 原本同时依赖旧 builder 输入、点云管线输出、诊断/本地化和校准上下文查询，并执行计数、重量、覆盖、遮挡、校准数值及质量规则。本轮新增 Domain `YieldAssessmentInput` / 不可变评估输出与具体 evaluator，接收现有点数组、目标聚类点、受限 ReliableYieldEvidence、证据观测、候选和冻结参数，负责完整数值评估。新增 `YieldOcclusionCalculator` 接收原完整覆盖函数块，仅调整入口访问级别，其余原文保持。现有 composer 保留入口/API，适配冻结身份、展示字段、诊断/说明及 YieldResult 格式。未标定季节使用独立领域评估入口，只计算树冠和空计数，仍在聚类/融合前返回。
+- **精简与保留。** 移除迁移后无消费者的 `VisibleEstimateCorrection` 六行声明；其余重量 helper 原文保持。保留加权正数而分类取整为零时的正产分支、先遮挡取整再校准取整、Float 重量乘法顺序及校准前基线。目标点覆盖保守下界、同类别/最近位置/二维关联、失效深度禁止二维回退及全部阈值保持。可靠入口仍只接受 fused 准入值，fileprivate 构造权限未扩大；候选身份/一次消费和缺失几何平均重量规则保持。捕获 identity 存在且 context=nil 仍为 nil，只有原正产且无 identity 路径计算兼容上下文。成熟零产及未标定季节不额外填入原本为空的校准/cluster 字段；原原因顺序、说明、诊断与 schema 保持。共享现有数组/COW，不新增整云转换，不宣称物理内存收益。
+- **基线与复审修复。** 先在原实现固定两次取整、几何缺失平均重量、正权重/rawCount0、成熟零产校准字段缺省和未标定季节默认值，原实现及迁移后各 **577/577、14 类、退出 0、warnings=[]**。首次基线编译发现两处新测试参数顺序错误，已修复，失败原日志保留。独立复审指出非空可靠集合但权重为零的分支缺少契约；通过真实 FusionEvidencePipeline 的零 confidence/显式零 minConfidence 取得该证据，不伪造构造器。仅暂时恢复本轮 composer/helper 到轮前原件摘要，原实现新回归 **1/1 Passed、退出 0、warnings=[]**，随后恢复最终实现；最终 **578/578、14 类、退出 0、warnings=[]**，方法集合精确等于原 577 加该 1 项。零权重计数结果保留原始证据，YieldResult 走成熟零产并保持正产字段 nil/数组空。
+- **工程与完整验证。** 工程结构化核对只新增两个 fileRef/buildFile 四对象，修改 Yield group 与原 App Sources 两对象，新源均唯一归属 App；其余工程对象保持。完整 Domain **37 源、iOS 16 simulator、Swift 5** 独立编译通过，门禁/runner/工作流未改。正式 full **1117/1117、59 类、九步退出 0**，无失败、跳过或 expected failure；unsigned Release 模拟器构建通过。第 56 轮全部 1113 个 Passed 方法保留，新增 4 个契约均执行，最终 578 项定向完整包含于 full；全部观测回放 9 项、原校准 canonical bytes、存档/批量回放和相关数值断言均通过。两条内部 QoS 告警消息与原全量基线一致，无非法 SwiftUI 发布告警。最终 316 项受测摘要一致，验证期间没有源码漂移；307 个其它旧 Swift 逐字保持，最终其余 55 个旧 dirty 路径保持，历史记录仅追加、57 设计仅更新状态。
+- **证据与结论。** 持久根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration57-20261007/`；正式报告 `fruit-code-improvement-jzzhfr8i/report.json`。`baseline.json`、`originals/`、`before-methods.json`、`zero-weight-before-command.json`/原始单方法结果包、`after-zero-methods.json`/原始定向包、`wrapper-removal-evidence.json`、`final-method-preservation-evidence.json` 与 `delivery-evidence.json` 留存完整原件/方法树/源码保护证据。独立复审的 P2 已关闭，最终无阻塞发现；本轮决定 **mergeable**。本轮未提交、未推送、未合并。
+
+下一轮范围与可直接使用的提示词见 [结构化零产原因与原格式适配设计](ZERO_YIELD_REASON_DESIGN_2026-10-07.md)。现有 ScanDiagnosticsBuilder 仍把事实判断与本地化字符串混合；设计明确保留动态深度文本与 noDetections 相同导致的旧 cloudOnly 抑制、原因顺序、旧导出/UI 建议及未标定早返回，不把尚未实施的第 58 轮算作完成。
+
+Release 中四处既有 shared 主 actor 隔离编译告警与第 56 轮的文件/行号/消息完全一致，原日志完整保留；当前工程使用 Swift 5，迁入 Swift 6 前仍需单独修复这些入口，不把现有告警算作已解决。
+
+本轮证据归档 helper 曾因匹配 `before-*`，把固定 full 基线副本与首次编译失败尝试一起移入失败归档，原件始终保留。收尾已缩小为明确的尝试文件清单；固定副本从原正式日志恢复，原日志、归档副本和恢复副本 SHA-256 一致，原始方法证据没有丢失或重建。
+
+整体 R0–R7 仍 **needs changes / active**。结构化零产原因、点云编排、Plan plot/tag、Dashboard/批量应用协作、真实观测持久回放和物理资源/最低系统运行验收继续开放。
+
+## 第五十八轮：结构化零产原因与旧文本适配
+
+2026-10-08。上一轮第 57 轮已完成实现、完整验证与复审，属于 progress。本轮继续原 R4/R7 的诊断责任收敛：preflight 通过，第 57 轮 316 项受测摘要与交付记录/设计摘要匹配；轮前 312 个 Swift、64 个旧 dirty 路径与本轮原件保存到仓库外持久目录。HEAD/分支保持，暂存区为空。
+
+- **根因与改动。** 原 `ScanDiagnosticsBuilder.zeroYieldReasons` 同时判断模型/深度/点数/检测/候选/融合事实并生成本地化文字，未标定季节原因另在 composer 中直接写入。本轮新增 Domain `ZeroYieldReason` 与纯分类策略，接收现有值诊断和明确最小点数，返回有序原因；不导入 L10n、平台缓冲、模型服务或文件系统。Core facade 的原签名保持，新适配函数将领域原因映射为旧 `[String]`。未标定评估增加明确原因值，composer 仅替换一处原因来源，仍在聚类/融合前早返回。
+- **兼容与精简。** 原事实条件和顺序逐段核对一致。Domain 按 cloudOnly 模式且 fused 为零给出候选原因，Core 对前序字符串数组保留原元素等值 `contains` 抑制。动态深度文本恰好等于 noDetections 时仍抑制，只有子串或带后缀空格时不抑制；不反向解析文字、不去重、不 trim。动态/正式原因即使相等仍各保留一项，原前缀、分隔符、空 fallback、未标定专用中文均保持。诊断初始化与 note 函数原文保持，所有旧测试原文保留；只拆事实与格式适配，没有第二套状态。仅 fused、零权重分支、低置信度/拒绝深度否决、两次取整、校准身份、字段缺省及旧存档/研究 schema 保持。
+- **原实现基线。** 先在原实现加入六项契约：组合原因顺序、动态文本元素相等/仅含子串/尾部空格、重复正式原因、最小点数严格边界、健康空数组/default note、动态空白/空字符串区别。迁移前 **584/584、14 类、退出 0、warnings=[]**。迁移后追加三项领域契约，分别验证有序结构化事实、cloudOnly 候选不解释动态文本，以及未标定原因与原说明适配；最终定向 **587/587、14 类、退出 0、warnings=[]**。原 578 项及六项原实现契约全部保留，新增仅三项结构化契约。
+- **完整验证。** 完整 Domain **38 源、iOS 16 simulator、Swift 5** 独立编译通过，门禁/runner/工作流未改。正式 full **1126/1126、59 类、九步退出 0**，无失败、跳过或 expected failure，unsigned Release 模拟器构建通过。逐方法树证明原 1117 项全部保留，新增九项精确对应本轮契约，587 项定向完整包含于 full。关键九类 343 项、全部观测回放 9 项、原校准 canonical bytes 与存档/批量回放均通过。两条内部 QoS 运行时告警的数量及 message 与第 57 轮相同，本次第二条另有 DashboardSummaryTests.swift 的 sourceURL；四处主 actor 隔离编译告警的位置/message 集合相同，原日志的重复输出保留。无非法 SwiftUI 发布告警，既有告警没有被当作已解决。
+- **保护与复审。** 最终 317 项受测摘要一致，验证期间工作区无漂移；308 个其它旧 Swift 逐字保持，记录更新后其余 59 个旧 dirty 路径保持。工程只增加新文件的两个引用对象并更新 Yield group/App Sources，新源唯一归属 App，其余对象保持。历史执行记录仅插入本轮，58 设计仅更新顶部状态。独立只读复审源码、实际结果树、告警与摘要，无阻塞发现；本轮决定 **mergeable**。本轮未提交、未推送、未合并。
+- **证据。** 持久根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration58-20261008/`；正式报告 `fruit-code-improvement-h1qdzon4/report.json`。`baseline.json`、`originals/`、`before-methods.json`/原始定向包、`after-methods.json`/原始定向包、`final-method-preservation-evidence.json` 和 `delivery-evidence.json` 保留源码原件、方法集合、条件/适配与旧 dirty 保护证据。
+
+下一轮范围与可直接使用的提示词见 [点云候选管线与纯算法依赖闭包设计](POINT_CLOUD_CANDIDATE_DESIGN_2026-10-08.md)。当前点云编排仍接收混合 builder 输入，通用 KDTree/聚类/去噪算法尚在 Core；方案交付完整纯值管线及依赖闭包，Renderer 专用重载留适配层，不把目录迁移写成实际内存或取消性能收益。独立复审指出初稿遗漏聚类主体依赖的 `PointCloudClusterAnalysis` extension，已读取其真实实现并将整份原文迁移及 Sources/API 保护补入设计和提示词。第 59 轮尚未实施。
+
+整体原 R0–R7 仍 **needs changes / active**。点云编排、Plan plot/tag、Dashboard/批量应用协作、真实观测持久回放、同设备物理内存/阶段计时/ground truth 与最低系统运行验收继续开放。
+
+## 第五十九轮：完整点云候选管线与纯算法依赖闭包
+
+2026-10-08。第 58 轮已完成实现、全量、复审与交付记录，属于 progress。本轮继续原 R4/R7 的完整领域链：正式 preflight 通过，第 58 轮 317 项受测源码与交付记录/59 设计摘要全部匹配；轮前 313 个 Swift、68 个旧 dirty 路径及本轮原件保存到仓库外持久目录。HEAD/分支保持，暂存区为空。
+
+- **根因与完整改动。** 原点云候选编排只需点、颜色过滤器、聚类/点云实验配置，却接收含 Renderer 身份、检测诊断和结果参数的整个 Core builder 输入，算法依赖闭包尚未独立。新增 Domain `PointCloudCandidateInput` 不可变 Sendable 值及完整候选管线/output，Core 同名兼容重载解析 `colorFilter ?? fruitCategory?.colorFilter` 一次后进入纯值入口；生产 builder 保持原调用并实际经过该入口。KDTree、PointCloudCluster、完整 PointCloudClusterAnalysis extension 三份文件逐字迁移到 Domain/PointCloud，未遗漏 analyzeCluster 的颜色/尺寸/球形度/特征值实现。
+- **去噪边界与精简。** 通用统计/result/泛型 SOR/unchangedResult 进入 Domain `PointCloudDenoising.swift`；Core 原文件只保留两个 RendererPointSample 重载，默认参数与位置适配原文保持。不同文件名避免 App 编译中的重复 Swift basename。没有平行算法、空协议或扩大 Renderer 类型依赖；Core 深度候选及品类过滤余段逐字保持。旧 builder、同步/debug 聚类与 Renderer 公开入口均保持。
+- **算法和资源保留。** 过滤优先级/点顺序，SOR 的 max 准入、严格 k+1、Float/Double 累积、邻域排除自身、保留阈值/顺序/统计原样保持。三份迁移原文证明 KDTree 距离/等距/堆、DBSCAN 密度/噪点/局部间距、分析阈值/几何/候选身份规则未改变。async 最小点数早返回、userInitiated 队列与 continuation 保持。阶段数组和 COW 沿用原路径，不增加整云转换；采样、GPU/cache/revision/identity 和取消准入仍由原 owner 负责。仅 fused、拒绝/低置信度深度否决、零产诊断、校准身份/两次取整、存档及 manifest 规则保持。未声称已经测得物理内存或取消延迟收益。
+- **原实现基线与定向。** 在原实现补六项固定契约：显式过滤覆盖品类、品类 fallback/nil 过滤、max 的乘数/下限两侧与恰达五点准入、严格 k+1 及固定均值/标准差/阈值、async 空/不足/六点八面体候选几何与点身份、KDTree 最近成员及半径包含边界。原实现 **722/722、30 类、退出 0、warnings=[]**；迁移后只追加一个不依赖 Core builder 的 Domain 完整管线契约，最终 **723/723、30 类、退出 0、warnings=[]**。原 716 项、六项原实现契约及旧测试原文均保留。
+- **工程与完整验证。** PBX 只新增两份新源的四个对象，修改 Core/Domain PointCloud group 和原 App Sources 三对象；三份移动源复用原 fileRef/buildFile，全部相关源唯一归属 App，其余工程对象保持。完整 Domain **43 源、iOS 16 simulator、Swift 5** 独立编译通过，门禁/runner/工作流未改。正式 full **1133/1133、59 类、九步退出 0**，无失败/跳过/expected failure，unsigned Release 模拟器构建通过。逐方法树确认原 1126 项完整保留、新增恰为七项契约，723 定向全部包含；关键十一类 501 项、九项观测回放、原校准 canonical bytes、存档/批量回放均通过。
+- **告警与保护。** 两条内部 QoS 告警的数量/message 与第 58 轮相同，本轮两条均无 sourceURL（58 第二条包含 DashboardSummaryTests.swift 来源）；四处既有主 actor 隔离编译告警的位置/message 集合相同，重复原日志保留。无非法 SwiftUI 发布告警，不将既有告警当作已解决。最终 319 项受测摘要一致，验证期间无漂移；307 个其它旧 Swift 逐字保持，文档收尾后其余 64 个旧 dirty 路径保持。历史记录只插入本轮，59 设计只更新顶部状态。
+- **复审与证据。** 独立只读复审无阻塞发现；本轮决定 **mergeable**。持久根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration59-20261008/`，正式报告 `fruit-code-improvement-vmwvl313/report.json`。`baseline.json`、`originals/`、`before-methods.json`/原始包、`after-methods.json`/原始包、逐字迁移补丁、`final-method-preservation-evidence.json` 与 `delivery-evidence.json` 保留原件、方法树、所有权与保护证据。本轮未提交、未推送、未合并。
+
+下一轮方案与可直接使用的提示词见 [批量导出应用编排与临时文件所有权设计](BATCH_EXPORT_WORKFLOW_DESIGN_2026-10-08.md)。真实页面仍持有批量导出 Task/generation、await 后发布与临时文件清理；这属于原蓝图明确要求的 Application 长任务入口。设计完整迁移业务所有权，保持现有 writer/仓储/分享/错误恢复契约，不只换目录或添加无人使用的 service。第 60 轮尚未实施。
+
+另已核查 Plan 分类缺口：Start/Quick/Rescan 请求携带地块/标签并在 Dashboard 激活时写入独立 TagStore，ScanView/ScanPlanFactory 未传入 ScanPlan。冻结扫描分类与后续可编辑树分类的消费关系仍需完整设计，不能仅加 unused 字段就标为完成。
+
+整体原 R0–R7 仍 **needs changes / active**。Plan 地块/标签、Dashboard/批量应用编排、真实观测持久回放、COW/物理峰值与阶段耗时、ground truth/最低系统/设备验收继续开放。首次 preflight 因新的外部 output-root 尚未创建而被参数检查拒绝；创建目录后正式 preflight 通过，该次拒绝未执行任何 Xcode 验证。
+
+## 第六十轮：批量导出应用编排、文件所有权与验证就绪门禁
+
+2026-10-08。第 59 轮已完成，继续原 R6/R7 的应用编排边界。正式 preflight 通过，轮前 315 个 Swift、79 个旧 dirty 路径及原件已保存在仓库外；第 59 轮最终 319 项受测摘要匹配。当前 HEAD/分支保持，暂存区为空。任务在本轮实现与验证期间持续推进；中间一次仅回答进度的目标轮属于 no progress，随后重新核验并继续排查真实失败。
+
+- **根因与改动。** 原批量页面直接持有 Task、generation、await 后发布及临时文件删除。新增 Application `BatchExportWorkflow` 和具体 `BatchExportOperations`，页面实际通过稳定 `@StateObject` 使用；AppDependencies 装配生产操作，Dashboard 路由实际注入。页面移除重复业务状态，保留选择、格式、选项、完整请求构造、本地化失败及分享呈现。成功返回的文件由单一不可变 lease 接管；服务仍清理尚未交接的部分产物。任务跨 await 只捕获操作和弱 owner，owner 已释放时也清理迟到 URL；真实请求 reader 只捕获 store 和 State 位置，不捕获整个 View。
+- **契约保留。** 空请求、替换取消/身份失效、当前任务才能结束忙碌态、完整请求等值及原成功/失败分支差异保持。离开、重试、来源变化、旧分享回调及受管清理规则保持；不删除源档或其它 session 文件。service/repository/writer、输出格式、source/revision/hash、manifest 最后发布、未知研究字段、校准 canonical bytes 及仅 fused 可靠估产均未修改。没有新建平行生产导出路线或改变阈值。
+- **基线与所有权证据。** 原实现定向 **501/501、14 类**；最终同样选择 **515/515、14 类、退出 0**，原 501 方法完整保留，新增恰为 14 项 workflow 契约。受控服务故意忽略取消，覆盖取消后替换、旧成功/失败/defer、全部请求输入变化、失败差异/重试、离开及 owner 释放后的文件清理。实际 UIKit 宿主验证同身份页面重建仍使用原 workflow，真实 reader 不阻止 owner 在服务返回前释放。受控 continuation 在测试失败收尾时也移除后唯一恢复，原两项文件清理测试改为实际挂载页面而非访问未安装的 StateObject。
+- **实际 UI 与缺陷修复。** UIKit 的 UIAlert action `accessibilityActivate` 实测返回 false，失败原包保留，未将其算作真实点击。既有原生 UI target 增加普通生产 App 的恢复用例，独立 runner 仅新建并删除自己拥有的模拟器；通过 UUID marker 在 App 终止后植入一份合法旧档和自有目录故障，在第二个真实弹窗后仅解除该故障。实际点击 Cancel、再次导出、Retry、系统分享关闭和产品“收起”，等真实完成状态后再检查 CSV 字段、原档 SHA 与产品清理。最终 **2/2 Passed**，保留原 Variety 确认方法，runtimeWarnings=[]；fixture 准备/修复/内容检查/清理、源档保护、自有模拟器删除及源码冻结均成立。五个批量阶段截图已逐张核查并持久保存。
+- **SwiftUI 发布回归。** 实际 UI 曾记录 `Publishing changes from within view updates`：SwiftUI 在已关闭 alert 的更新中再次写 false，旧 `dismissFailure` 对 nil 重复发布。先保留原警告及 **1 项失败回归**（观察到 1 次发布，预期 0），再加 nil 幂等 guard；该方法已在最终定向和 full 实际通过，最终真实 UI 无该警告。没有放宽默认 runner 的非法发布拒绝规则。
+- **全量失败、对照与流程改进。** 首次正式 full **1091 通过/56 失败，共 1147**，全部失败报宿主缺少 UIWindowScene，源码未漂移，原始退出 65/结果包保留。CoreSimulator 日志显示该运行从关机设备启动；明确 bootstatus 就绪后保持同一份源码和测试选择，full **1147/1147** 与 Release 全通过。此对照支持明确启动前置条件，不把冷启动认定为所有 scene 缺失的唯一根因。先备份并扩展三份既有工具/流程文件范围；新回归在旧 runner 下为 **2 方法、7 个失败断言/subcase**，修改后 **39/39 工具测试通过**。默认入口仅在 XCTest 前新增所选 UDID 的 bootstatus 步骤；启动失败保留退出并阻止 tests/Release，quick/preflight 不启动设备，不改 selector、scene 断言或完整性门槛。bootstatus 不等于 foreground scene 验收。
+- **最终完整门禁。** 最后工具修改后的正式 full **1147/1147、59 类、十步全 0**，无失败/跳过/expected failure，含启动就绪、完整 Domain **43 源/iOS 16 simulator/Swift 5** 和 unsigned Release 模拟器构建。原 1133 个唯一方法全部保留，515 定向全部包含，新增恰为 14 项 BatchWorkflow。App/单元/原生 UI 源在工具范围扩展后逐字保持，既有定向/UI 原始证据仍对应同一份 App；最终 full 验证当前工具，39 项工具测试对应当前三份工具/流程摘要。最终 **324 项受测摘要**核对通过，验证期间无漂移。
+- **告警与剩余风险。** 定向和最终 full 各有两条既有内部 QoS 消息；full 第二条附 DashboardSummaryTests sourceURL，数量/message 与既有基线相同。四处既有主 actor 默认 shared 编译告警及四处旧测试 RunLoop async 告警保持；本轮新增两条测试 `WeakMutability` 样式告警，未写成“无新增告警”。真实 Retry 再次失败的弹窗时序尚未单独实测，不能宣称全部恢复时序验收。375×667 截图可见底层部分标题/主按钮裁切及完成操作靠底；相关布局源本轮未改，来源属于既有布局的判断是推断，未取得原版本同设备对照。上述限制保留为后续候选，不混入本次所有权迁移；物理 LiDAR、资源与最低系统运行仍未验收。
+- **保护、复审与交付。** 工程只新增四对象、修改 Application/App Sources/UI group/UI Sources 四对象；两个新 Swift 各唯一归属预期 target，原对象/顺序保持。runner 原文只插入 bootstatus，流程文档只插入对应一段，原工具测试 406 行全部保留，仅插入三项新方法。308 个其它旧 Swift、72 个范围外旧 dirty 逐字保持；历史执行记录只插入本轮，60 设计只更新顶部状态。独立只读复审生产链、真实 UI、工具门禁、原始方法树/告警/SHA 无阻塞发现；本轮决定 **mergeable**。未提交、未推送、未合并。
+
+持久证据根：`/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration60-20261008/`。最终正式报告 `fruit-code-improvement-qzjgmkv5/report.json`；`baseline.json`、`originals/`、`scope-extension.json`、`readiness-originals/`、`readiness-scope-extension.json`、`after-methods.json`、`batch-native-ui-ptda1xlt/`、`scene-host-diagnosis/`、两份 readiness 回归、`structural-preservation-evidence.json`、`final-method-preservation-evidence.json` 与交付摘要保留完整证据。首次失败及同源码就绪对照报告分别为 `fruit-code-improvement-37w5iq2o`、`fruit-code-improvement-t76p2gey`，没有覆盖或隐藏失败。
+
+下一轮方案和可直接使用的提示词见 [扫描分类快照的完整消费设计](PLAN_CLASSIFICATION_DESIGN_2026-10-08.md)。第 61 轮尚未实施；从 Dashboard 实际接受的启动分类冻结一次，经两条 makePlan、对应 receipt 的结束流程、事务存档、typed 读取到研究 JSON 贯通，并保持校准重存的原分类。整体原 R0–R7 仍 **needs changes / active**：Plan 分类、Dashboard 聚合、Renderer 文件编排/兼容入口、真实观测留存回放、物理内存/耗时/精度及最低系统验收继续开放。
+
+## 第六十一轮：扫描分类冻结、存档与研究消费贯通
+
+2026-10-08。继续原 R1/R6 的分类值契约，正式 preflight、原件和旧 dirty 保护均完成。第 60 轮最终 324 项受测摘要及三份交付文档已复核；轮前 317 个 Swift、89 个旧 dirty 个体路径保留在外部基线。本轮仅处理启动分类未进入扫描存档的真实消费缺口，没有启动新的功能范围。
+
+- **根因与改动。** Start/Quick/Rescan 的选择此前只写可编辑 TagStore。现在 AppDependencies 在 Dashboard 激活的同一个主 actor 同步动作中，沿用原 assignment 的过滤/去重顺序，捕获地块/标签 ID、当时名称和标签顺序，放进同一个 ScanLaunchRequest，保持原 request.id 和 GPS 对象。新增纯 Domain 不可变 `ScanClassificationSnapshot`；Dashboard 实际传入 ScanView，开始和中断重启两条 makePlan 都使用该次启动快照。后续目录改名、删标签、编辑 assignment 不改变活动 Plan；下一次激活重新捕获。
+- **实际消费与格式。** 对应 receipt 的 planID guard 保持，生产结束流程只把该 Plan 的分类传入 ScanAssessment/ExportRequest。新增可选 metadata `scanClassification`，字段内部版本为 1；显式空与旧档缺失分别为 `.empty`/nil，非法 present 或不支持版本不能静默成为空分类。typed companion → PLYParserResult → VerifiedScanRecord 沿原已解析结果透传，不为 verified record 再解析大型 JSON。研究 JSON 实际保留分类原始 envelope 及版本 1 的未知扩展键。旧无分类兼容入口仍省略字段，不回填当前目录；manifest 1–3、旧 CSV、当前 TagStore 批量分组、canonical 校准字节、仅 fused 可靠估产和诊断保持。
+- **同源重存与保护范围。** 原事务锁内保留已验证原分类；无显式值继承原值，相同显式值保留原 envelope，冲突显式值拒绝且不改已提交文件。可解析、含分类但未通过完整性验证的档案拒绝静默覆盖；仅失败验证路径需要额外有界读取。不可读、非 JSON 或超过既有上限的 metadata 继续沿用 legacy repair，不能宣称恢复其中任意历史分类；原 oversized repair 回归保留通过。实际校准 UI 只读取基线，没有重写扫描存档的生产入口，本轮验证既有服务的同源重存契约，没有制造校准写入路线。
+- **失败先行与修复记录。** 生产改动前，非法分类接受、同源重存丢分类、研究导出丢分类三项回归实际全部失败，退出 65、原包保留。首轮定向编译发现 Routing 扩展不能访问另一文件的 private 环境依赖；轻量 activateScan 委派移回 DashboardView.swift，保留私有属性。第二次定向为 **693/694**，唯一失败是新增 absent/empty 夹具的请求树名与 PLY fallback 不一致，被原 identity 校验正确拒绝；只修夹具树名，没有放宽生产校验。上述失败均未覆盖。
+- **最终验证。** `targeted3` **694/694、26 类、退出 0**，原 683 方法全部保留；新增总计 **11**（存储 8、Dashboard 2、结束流程 1）。覆盖非法字段、显式空/缺失、未知扩展、冲突拒绝、发布失败回滚/重试、根接受顺序/身份、实际挂载开始/中断重启和生产结束到研究读回。正式 full **1158/1158、59 类、十步全 0**；原 1147 方法和全部 694 定向完整包含。完整 Domain **44 源/iOS 16 simulator/Swift 5** 与 unsigned Release 模拟器构建通过。325 项受测摘要在定向、full 前后与交付源码一致。
+- **UI 与告警限制。** 两张新挂载截图和 AX 已逐张核查：CLASS61、采集中、取消/停止/查看要求均存在。测试替换了物理 AR runtime/readiness，截图为白色 AR 背景，追踪提示覆盖指标，模型身份未准备；恢复通过生产 intent，不冒充原生 UIAlert 触摸、正常 AR 布局或真机采集验收。定向/full 各两条既有 QoS；最终 full 与第 60 轮两条完整对象一致。两轮各 10 个唯一源码编译告警位置，文件/message 和位置数一致，测试行号随新增段平移；没有非法 SwiftUI 发布。现有 SDK 链接/部署告警原日志保留，不宣称无告警。
+- **保护与复审。** 为避免重复大 JSON 解析，先保存并扩展两个 reader 原件；未修改基线。299 个其它旧 Swift、77 个范围外旧 dirty 逐字保持。PBX 只新增两个对象，并向原 Domain group/App Sources 各插入一次，新源唯一归属 App。独立只读终审原始报告、方法树、源码摘要、分支、空暂存区、告警和消费链，无阻塞发现；本轮 **mergeable**。未提交、未推送、未合并。
+
+持久证据根：`/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration61-20261008/`。原始失败分别见 `regression-before`、`targeted`、`targeted2`；最终定向见 `targeted3`，正式 full 为 `fruit-code-improvement-6wcophp_/report.json`。`baseline.json`、`originals/`、`reader-originals/`、`reader-scope-extension.json`、`full-command.json`、`final-evidence.json`、`native-ui-qa/` 保留方法、输入保护及交付依据。
+
+### 剩余范围与第 62 轮候选
+
+分类贯通已关闭。整体仍 **needs changes / active**；按原目标仍有三类架构工作与一组整体验收，不能由轮数或测试数计算工作量百分比：
+
+1. **Dashboard 聚合。** `DashboardDailySummary` 仍在 Views；Hero 与 Stats 各自反复构造今日摘要。`YieldReportData` 和 `TrendsData` 仍在 SwiftUI 文件，报告/趋势通过计算属性重建筛选、去重和排序结果。聚合应由 Application 接收明确历史快照与时间上下文，页面消费结果。下一轮以这条真实链为候选，先证明现有行为与发布边界。
+2. **Renderer 文件编排与兼容退出。** 继续核对硬件捕获、GPU 排空/冻结与文件写入的责任和唯一副作用入口，满足退出条件后才删兼容路线，保留有界最终输入及取消/重试。
+3. **真实观测留存回放。** 现有合成回放不能代替真实输入；仍需有界、可还原、脱敏并带模型/配置身份的实际观测基线与黄金预期。
+4. **整体验收。** 真机 COW/峰值内存、阶段耗时、30/60/120 秒 LiDAR 采集、人工果数误差和最低系统运行尚未证明；历史遗留的 UI 恢复/删除证据与紧凑布局限制也需按实际范围收尾。设备连接、模拟器通过或估算 payload 不计作这些项目通过。
+
+第 62 轮提示词：
+
+```text
+继续原架构目标，先读取AGENTS.md、默认工作流、原R0–R7蓝图和第61轮最终证据。
+preflight保存原件，保护所有旧dirty；不提交、推送或合并。
+检查ScanHistoryStore.scanFiles→Dashboard/首页Hero与Stats→报告/趋势实际调用链。
+为今日汇总、同树最新完整记录、零产、同时间tie-break、溢出和趋势顺序建立真实基线。
+把数值筛选/去重/排序聚合收敛到Application的具体值与所有者，实际页面消费同一已发布结果；
+明确历史快照与Calendar/时间输入，避免只移动文件后仍在多个body计算属性重复全量聚合。
+设计记录刷新、删除/导入/完成扫描、日期跨日/回到前台的更新边界；异步时拒绝过期发布，
+保持每条现有公式与排序差异，不制造每次body一个Task、重复历史仓储或空壳protocol。
+先聚焦一条可完整验收的聚合链；保持本地化/导航/布局、完整性状态过滤和可靠估产规则。
+运行相关定向、Domain、full/Release；核对原方法、告警、源码冻结并独立只读复审。
+记录实际证据、未证明的资源收益和下一步；整体目标直到剩余条目逐项验收才完成。
+```
+
+## 第六十二轮：Dashboard 聚合所有权、时间上下文与一致发布
+
+2026-10-08。继续第 61 轮指定的真实 Dashboard 链。正式 preflight 通过，轮前 HEAD、空暂存区、旧 dirty、318 个 Swift 及本轮原件保存到仓库外；第 61 轮 325 项受测摘要在改动前匹配。本轮只处理历史聚合及其页面消费者，原有架构迭代保持。
+
+- **根因与改动。** 原 Hero/Stats 重复构造今日摘要，报告/趋势在 SwiftUI 计算属性重复筛选、去重和排序。原数值算法进入 Application `DashboardAggregation.swift`；每个实际 `ScanHistoryStore` 拥有一个具体聚合 owner。成功历史读取更新其输入，首页、报告、趋势观察同一个不可变 snapshot，一次发布 daily/report/trends/recent，页面不再全量聚合。自定义 historyStore 仍从实际注入实例取值，没有平行全局缓存、第二仓储、空协议或每次 body 一个 Task。
+- **时间与并发。** 主 actor 冻结 Calendar/startOfDay 和历史值，utility worker 构造结果。记录替换、跨日/时区通知、前台及页面进入触发必要更新；相同记录和时间上下文不重复启动。替换取消旧任务，await 后同时检查取消及 generation，禁止过期发布。悬挂 builder 前只捕获输入、builder 和弱 owner；释放取消工作。工作线程仅在构建前后检查取消，不能据此宣称筛选/排序中途即时停止；刷新期间保留上一份完整 snapshot，数据可能短暂落后于 scanFiles。
+- **保留与精简。** 今日按原树名计树，报告按归一化树名取最新完整记录，date/treeID/id 决胜，趋势仍为所有完整记录及原稳定时间顺序。零产、溢出、浮点累积、prefix 3/20、失败/取消历史保留、布局/路由/本地化/API 均保持。旧算法原件核对仅有值 conformance、显式 now 和预计算 prefix20 的变化。旧 Views Summary 引用退出，新 Application 源唯一进入 App Sources；现有三个 PBX 对象只按约定更新引用数组。融合、阈值、证据生命周期及存档/manifest 均未改。
+- **原实现基线与回归。** 原实现 DashboardSummaryTests **129/129**。最终 `targeted2` **137/137、退出 0**，原 129 方法和所有旧测试行保留；新增恰为八项，覆盖明确时钟/时区、取消后迟到、相同记录跨日、通知/前台、owner 释放、历史失败/取消及实际挂载页面的一致发布/空态。最后一次默认闭包修复后重新执行，无失败/跳过/expected failure。
+- **终审修复。** 初次全量虽通过，终审逐源码位置抽取编译告警时发现新增 non-Sendable 函数转 `@Sendable` 警告；将默认函数引用改为不捕获状态的显式闭包，保留修复前原始包及审查草稿，并重跑最终定向、full/Release。没有放宽 Sendable、取消、算法或测试门禁。最终告警集合与原轮对照另存，既有 SDK/QoS/Swift 6 迁移提示不算已解决。
+- **完整验证。** 最终正式 full **1166/1166、59 类、十步全 0**，原 1158 方法和全部 137 定向完整包含，新增恰为上述八项。完整 Domain **44 源/iOS 16 simulator/Swift 5** 和 unsigned Release 模拟器构建通过。最后 353 项受测摘要一致；309 个其它旧 Swift/343 个其它受测源及 preflight 范围外 95 个旧 dirty 路径（83 个存在文件、12 个删除路径）保持。最终唯一源码告警位置 11 个：前轮 10 个按文件/message/数量保留，测试行号平移；新增一条 weak owner 测试样式提示，Sendable 转换告警消失。定向/full 各两条既有 QoS，message/数量一致，sourceURL 随结果包变化；没有非法 SwiftUI 发布，不宣称无告警。
+- **界面与保护。** 最后一次源码的四张挂载截图与 AX 已逐张核对：首页 1 次/1.2 kg/1 树，报告和趋势 AGG62-NEW/3.4 kg/7 果，空态可开始扫描。测试使用实际 UIKit 宿主和页面，但替换了历史 loader/worker，不能代替原生触摸及真机输入。首页英文产品名在挂载截图有截断，布局表达式未改，但没有旧版本同设备渲染对照，仍记为风险。首轮正常 App 首页/历史进入及关闭实际观察，2504 个 Documents 文件与 8 个偏好值摘要不变。最终 full 后正常 App 已重新启动并观察首页；主窗口/紧凑窗口、Raise 和缩放坐标尝试均遇到 noWindowsAvailable，报告/趋势原生触摸走查未完成，已请求人工打开页面补齐。不能以挂载通过代替这个门禁。
+- **复审与决策。** 实现后根代理另行只读对照源码原件、生产调用链、方法树、告警、源码摘要及工程引用，修复 Sendable 转换后无阻塞源码发现；没有冒充第二位审查者签署。因原生 UI 门禁未完成，本轮当前 **needs changes**，整体仍 **needs changes / active**。记录与下一轮方案已交付，但不宣布本轮验收关闭；未提交、未推送、未合并。
+
+持久证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration62-20261008/`。原件/基线见 `baseline.json`、`originals/`、`preflight/`、`baseline/`；修复前证据见 `targeted/`、`fruit-code-improvement-zvm8uv9e/`、`pre-sendable-review/`；最终定向为 `targeted2/`，最终 full 为 `fruit-code-improvement-9m9mxy57/report.json`。方法树、源码摘要、告警差异与交付依据见 `targeted-audit.json`、`final-evidence.json`、`compile-warning-comparison.json`、`Review62.md`、`delivery-evidence.json`。
+
+### 当前剩余与下一轮设计
+
+Dashboard 的源码改造与自动验证已完成，原生报告/趋势走查仍待补。整体还剩 **两项架构工作加一组整体验收**，并有本轮这一项 UI 门禁；这些项目的工作量不同，不能按测试数或轮数折算百分比：
+
+- **Renderer 文件编排与兼容退出。** 下述设计尚未实施。
+- **真实观测留存与黄金回放。** 需有界、可还原、脱敏并带模型/配置身份的真实输入及预期，现有合成回放不计作完成。
+- **综合验收。** 真机 COW/峰值内存、阶段耗时、30/60/120 秒 LiDAR、人工果数误差、最低系统运行，以及历史 UI 恢复/删除/紧凑布局等未完成项。设备连接或模拟器通过不计作这些条目通过。
+
+Renderer 的真实生产链为 `ScanFinalizationOperations.production.exportPointCloud → ScanCoordinator.stagePointCloud(plan:...) → Renderer.stagePointCloud async → GPU 排空/捕获验证/最终云 → ScanRepository.stagePointCloud → PLYPointCloudWriter`。同一 Core 文件同时承载硬件操作、冻结值、文件格式和草稿发布；下一轮按这条链拆责任，不以目录数代替交付。
+
+1. Renderer 保留硬件、GPU 排空、capture generation 与有界最终云冻结，提供明确冻结结果；冻结与原 generation 检查顺序保持。
+2. Application 具体 staging 操作接收冻结云和扫描上下文，负责目标路径/命名、仓储写入及 StagedPointCloud 交接。生产结束流程必须实际使用该操作；避免另造无人调用的 service。
+3. Infrastructure 承载纯 PLY 格式与分块文件写入。Renderer 样本适配留 Core；FinalPointCloud 等纯值只有在完整依赖闭包核对后移动。保留 1024 点块、EINTR/write-all/fsync、独占原子发布及发布前完成 receipt 的边界。
+4. 回调 savePointCloud/exportPLY/stagePointCloud 目前只在兼容链内部互调；须重新检索生产、测试和公共 API 承诺，满足退出条件才删除，不能仅按一次文本搜索擅自破坏接口。异步 Renderer stage 有真实测试调用者，先适配保留。
+
+下一轮提示词：
+
+```text
+继续原 R0–R7 目标，先读取 AGENTS.md、默认工作流、蓝图和第62轮最终证据；
+先补齐第62轮未完成门禁，再启动新的源码改动。preflight 保存原件并保护全部旧 dirty；
+不提交、推送或合并。检查 finalization→coordinator→Renderer async stage→repository→PLY writer 的真实链，
+为 GPU drain timeout/write failure、captureChanged、空云、取消前/发布后、名称冲突和重试建立原实现基线。
+把硬件排空/冻结留 Renderer，具体文件 staging 编排放 Application，PLY 格式和有界写入放 Infrastructure；
+让生产 finalization 实际使用同一副作用入口，不增加平行发布路线或空 protocol。
+保持 generation/identity、采样和缓存、原 PLY 字节/GPS格式、原子独占发布、SHA/file identity、
+draft ownership，以及发布后即使取消仍返回 receipt 给 owner 清算的契约。
+只在完整调用者/API退出条件成立后删除旧回调；保持现有异步入口可用。
+先做最小完整职责切分，不混入阈值/算法改变，不添加整云转换或复制。
+运行 storage/lifecycle 定向、Domain、full/Release，逐方法核对保留，结构化对比编译/运行时告警，
+检查源码冻结和 PBX唯一归属，单独只读复审并记录证据、剩余风险及下一候选。
+没有真机峰值/阶段计时证据，不声称已取得资源收益；整体直到实际观测回放与设备验收通过才完成。
+```
+
+## 第六十三轮：固定最终点云与拆分文件暂存职责
+
+2026-10-08 实施及自动验证，2026-10-11 完成记录与原生补验。轮前 preflight、原件及原实现 passing baseline 留存；本轮只处理 GPU 冻结到文件暂存的真实生产链。HEAD 仍为 `3398423774bf3f88f3fb4a732718a4e504a752fb`，没有暂存、提交、推送或合并。
+
+- **根因与失败证据。** 原 combined stage 在冻结成功后遇到文件失败，重试会重新冻结 Renderer。同 capture generation 内点云 revision 继续变化，实际写入值与首次冻结值不同。新增真实 Metal/生产 finalization 回归：首次冻结 revision 50 红色点云，测试独占目标目录被普通文件阻断；随后改成 revision 51 绿色点云，修复目录并重试。原实现退出 65，身份、内存点云及 PLY 内容断言失败；修复后的同一行为回归通过，原失败结果包保留。
+- **职责与精简。** 六字段 `FinalPointCloud` 进入 Domain；Renderer 只负责有界硬件排空、capture 验证和最终值冻结；Application `PointCloudStaging` 接收冻结值及扫描上下文并调用现有 repository；Infrastructure `PLYPointCloudWriter` 持有纯格式和分块文件写入。生产 finalization 实际贯通这条唯一入口。旧无外部调用的回调链退出，仍有真实调用者的 Renderer async stage 适配保留，generation 在 MainActor 等待前固定。
+- **冻结所有权。** workflow 保存成功冻结值，文件失败只重试 stage，沿用原 ScanID/PlanID/GPS；在 IO 前核对 capture 与云 signature。取消、reset、新扫描清除冻结重试值；GPU/capture 失败分类保持。两个 await 都不强持有 workflow owner，迟到冻结不进入 IO，发布后的草稿仍返回原有清算路径。发布后不增加会丢失 receipt 的取消检查。
+- **保留。** 原采样/滤波/signature、缓存/revision、permit/锁顺序、5 秒排空截止时间、1024 点写块、EINTR/write-all/fsync、独占原子发布及发布前 SHA/file identity 不变；PLY header/vertex/GPS 编码逐体核对保持，六字段值契约保持。没有新整云转换、第二仓储或发布器，没有改变融合/阈值、fused-only、零产和置信度诊断。
+- **实际验证。** 原实现 storage/lifecycle **565/565**；最终定向 **572/572**。新增七项覆盖生产文件失败复用、原计划/GPS、capture 不匹配、stage 取消、cancel/reset 清理及两个悬挂阶段的 owner 释放/迟到草稿。最终 full **1173/1173、59 类、十步全 0**，原 1166 方法与全部 572 定向方法完整包含；零失败/跳过/expected failure。Domain **45 源/iOS 16 simulator/Swift 5**、unsigned Release 模拟器构建及 diff check 通过。当前 358 项受测源码摘要仍一致；范围外 349 个旧 Swift 与 100 个旧 dirty 路径保持，新增三个 Swift 源均唯一进入 App Sources。
+- **告警和限度。** 最终全量两条 QoS 告警与前轮 message/数量一致，定向没有运行时告警。编译告警位置由 11 增至 13，新增两条 weak owner 测试样式提示，无新增生产并发告警。测试后的模拟器诊断收集存在前轮同样的 `simctl` 查找错误 72；测试、结果树和 Release 均退出 0，不声称日志无错误或已经取得真机资源收益。
+- **独立复审与决定。** 第二位只读审查者 `/root/review_iteration63` 对照源码原件、完整调用链、取消/重试/身份、writer 字节、工程归属、方法树、受测摘要和告警，无阻塞发现；原始失败证据未弱化。本轮代码 **mergeable**，整体 **needs changes / active**。
+
+持久证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration63-20261008/`。原件与基线见 `baseline.json`、`originals/`、`preflight/`、`fruit-code-improvement-6r85g2xx/`；失败/修复回归见 `regression-original.xcresult`、`regression-repaired.xcresult`；最终定向为 `fruit-code-improvement-lt1quk3m/report.json`，full 为 `fruit-code-improvement-em289qqx/report.json`。审计及交付见 `validation-audit.json`、`compile-warning-comparison.json`、`runtime-warning-comparison.json`、`Review63.md`、`delivery-evidence.json`。
+
+### 第 62 轮原生补验与当前剩余
+
+2026-10-08/11，设备交互恢复后使用正常 App 和指定 iPhone 17/iOS 27 模拟器实际操作报告、趋势：两页显示无可靠数据，与当前两条未完成历史相符；开始扫描进入新建向导第 1/5 步，空编号的下一步不可用，取消返回首页；两页完成按钮也均返回首页。没有输入或保存扫描。原生截图逐张核对；2520 个 Documents 文件及 8 项偏好值摘要前后完全一致，证据见 `native-ui-recheck/`。该补验关闭第 62 轮待补的空态/导航触摸门禁，第 62 轮对应范围 **mergeable**。非空聚合仍以原挂载测试为证据，紧凑布局旧版对照与真实扫描不由此关闭。
+
+当前还有 **一个主要架构代码包：真实观测留存与黄金回放**，方案和完整提示词见 [下一轮设计](REAL_OBSERVATION_REPLAY_DESIGN_2026-10-08.md)。先审计现有提交/manifest/删除事务，保存实际冻结 Input 与 Float32 点位模式，使用原 builder 离线回放，不重新从四位小数 PLY 假定完整输入。真实 LiDAR 正常/退化样本、30/60/120 秒资源与阶段计时、人工果数误差、最低系统运行和其余原生恢复/删除/布局验收仍开放；最后还需按范围提交和远程交付。没有工作量权重，不换算完成百分比，也不为继续迭代增加原目标之外的改造。
+
+## 第六十四轮：实际输入留存、事务归档与本地黄金回放
+
+2026-10-11/12。关闭原 R4/R7 真实观测持久回放的主要代码缺口，实际设备验收继续开放。开始时记录 322 个 Swift/工程源摘要、112 个旧 dirty 路径、空暂存区和 HEAD；保留原件及所有失败结果到仓库外持久目录。本轮受测旧源码范围为 31 项，包含内部 Operations 构造迁移与一次旧 UI 测试完成边界修复，未扩展生产校准行为。
+
+### 根因与实现
+
+- **实际输入缺失。** 旧结果/研究 JSON 只有输出，四位小数 PLY 无法逐位重建实际 Float 输入。生产 finalization 现在保存已捕获 Input 的全部配置与无 buffer 观测、完整 renderer/plan/model/算法/源码身份；二进制点段按原 Float32 位模式/顺序分块写出，保持原 PLY 字节和原可靠估算输入。
+- **预算与执行安全。** 显式版本化 DTO、有界数组/文件/容器 reader，点/观测/样本/总字节超预算明确 unavailable，不截断估算输入。原 `minPoints=Int.max` 回放实际崩溃后，新增执行前拒绝不安全算术域；留存原始值，生产阈值不改。完整/非默认/可选字段、拒绝来源、位模式、未知 schema、重算摘要后的身份/预算/模型/矩阵变异和源码身份错配均有实际回归。
+- **唯一事务与恢复。** draft-owned 准备目录先验证，再由既有 exporter 事务发布输入 JSON/点段、metadata/CSV，manifest 最后发布。覆盖取消、重试、替换回滚、摘要与 source/revision 复核。回滚失败保存 staging/备份并保留 PLY 锚点；删除/取消清算包含新 artifact，按完整 basename/revision/UUID 归属，避免删除带点同名前缀源。reader 一次终态错误后继续拒绝读取。原失败包完整保留。
+- **重试输入所有权。** 独立复审发现 coordinator capture 消费观测后，fallible prepare IO 失败时 workflow 没有保存 raw snapshot，重试会捕获空集合。原生产回归明确复现观测/类别丢失；最初 0.1 秒样例未满足生产稳定门槛，不能据此声称正产量变零。修复为 capture/bind 两个明确内部操作，由同一 workflow 在 IO 前保留 raw，重试复用同一 ID，成功/取消/reset 释放。最终健康样例两帧间隔 0.5 秒，先用原 builder 证明正果数/产量，再断言重试完全相等、capture 一次、所有身份/观测/诊断保留和 golden 匹配；0.35 秒生产稳定门槛未改。
+- **本地独立导出。** 新 `.ftsreplay` 容器有界、流式、逐条读取，使用既有 builder 比较结果/诊断/几何；生产来源不重新执行 CoreML。导出省去显式 GPS、树名/分类标签、图像和扫描日期，保留局部坐标与帧时间关系；不自动上传。六类合成证据覆盖可靠、混合点云、低 confidence、copyFailed、image-only、cloud-only，旧固定黄金预期保留。
+
+### 实际验证、复审与保护
+
+- 最后生产/回放/点云定向 **208/208**；联合 storage/fusion/lifecycle **971/971**；最终 full **1194/1194、59 类**；Domain 独立编译 **45 源**、unsigned Release 均退出 0。零失败/跳过/预期失败，原 1173 方法全部保留，新增 21 方法。源码身份生成器 3 项 Python 测试通过。
+- 第一次最终 full **1193 通过/1 失败**，旧校准关闭测试读到尚未提交的值，Release 正确停止。只增加有界业务提交状态等待，再等待保存任务，原持久化/下一计划/较新值/冻结计划全部精确断言保留；独立回归及最后 full 通过。日志没有直接记录两个回调先后，不把推断写成已观测时序。默认工作流补充了 UIKit 消失、SwiftUI 提交、已入队保存的不同完成边界。
+- 最终源码审计保护 **291 项其它原源码**；工程仅增加所需源/身份 phase，既有 Sources 相对顺序和唯一 target 所有权保持。Debug/Release 的 `ScanReplayBuildIdentity.json` 均与当前 **309 个生产源/资源文件**一致。编译告警集合无增减，保留两条旧 QoS 告警，第二条本次带 Dashboard 测试来源；不称无告警。
+- 正常 App 实际选择观测回放包、核对说明与普通字段/分组隐藏、切回 CSV 恢复选项、关闭回首页；四张原生截图留存。**2560 个 Documents 文件、8 项偏好值**前后摘要相同，installed binary/identity 与最后受测 Debug 相同。现存两条旧记录不完整、导出按钮不可用；完整记录原生回放导出/失败弹窗没有通过本走查验收，不冒充真实设备输入。
+- 第二位审查者只读签署本轮代码/模拟器对应范围 **mergeable，无已知阻塞**；受测源码、方法树、PBX、告警、UI/数据保护均复核。证据：`/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration64-20261011/`，风险 `fruit-code-improvement-0jmog89b`，full/Release `fruit-code-improvement-t6yqp7n2`，完整审计 `validation-audit.json`，原生 `native-ui/`。原崩溃/编译/断言/回滚失败记录均保留，未把中间失败改写成通过。
+
+### 当前剩余与下一步
+
+主要架构代码主线已经落地，**整体仍 needs changes / active**，剩余不是按文件/测试数计算的百分比：
+
+1. **真实输入与物理资源/精度。** LiDAR 设备正常、退化/零产包实际留存/导出/读回与 golden；30/60/120 秒、同设备物理峰值/COW 与阶段计时、人工果数/重量对照。现有合成生产路径测试不代替这些证据。
+2. **系统与原生验收。** 最低支持系统实跑；其余原生保存失败/恢复、完整记录导出/删除和紧凑布局等原范围门禁。永久删除仅按已确认的具体测试记录与动作执行。
+3. **Git 交付。** 按范围整理对应提交、远端推送/检查与合并。本轮暂存区为空，未提交、未推送、未合并。
+
+下一步提示词见 [第 64 轮设计的验收收尾](REAL_OBSERVATION_REPLAY_DESIGN_2026-10-08.md#6-当前下一步与提示词)。先补实际验收，出现有证据的缺陷再小范围修复，不为持续迭代增加新的无依据架构包。
+
+## 第六十五轮：回放错误呈现与紧凑屏幕失败恢复验收
+
+2026-10-12。延续原目标的本机验收，未增加新的架构包。上轮只在两条不完整旧记录上验证格式切换，不能证明完整旧记录的回放失败提示。本轮扩展现有隔离 iPhone SE 原生流程，在旧 CSV 故障/取消/精确存储修复/重试/分享/内容检查/清理后执行回放失败、取消与 CSV 恢复。
+
+- **实证根因。** 初次原生 build 退出 0、UI 退出 65（1 失败/1 通过）；新增具体不可回放文案断言失败。服务抛出的 `ScanReplayError` 被 workflow 原样保留，但页面 presentation 只识别 Batch/Cocoa 错误，四类回放错误均落入 generic。新增单方法在原生产实现退出 65、实际 1 项失败，失败结果和附件全部保留。
+- **聚焦修复。** `BatchExportView` 增加四个明确 typed 错误映射并使用对应本地化文案；Batch/Cocoa 原映射、未知错误兜底、取消/重试按钮与行为保持。新增单测覆盖四类原因及未知错误；原生确认具体提示、取消恢复、宿主管理目录无残留与原档摘要保持，切回 CSV 保留原 treeID 字段状态。仓储、回放格式、融合算法与阈值均未改。
+- **最终验证。** 全部 `BatchExportServiceTests` **141/141** 通过；full **1195/1195、59 类、10 步退出 0**，Domain **45 源**与 Release 通过；原 1194 方法全保留且仅新增上述回归。隔离原生 **2/2** 通过，既有品种确认门禁保持。编译告警集合保持，两条旧 QoS 告警仍在。365 项冻结清单有 362 项不变，改动的三项为生产页面、导出单测和原生 runner；UI 测试另由原生运行快照核对，不能误算入 365。PBX 不变，116 个范围外 dirty 文件摘要保持；309 个生产源/资源身份与最终 Debug/Release/原生构建一致。
+- **复审与反馈。** 只读复审确认旧恢复断言保留、宿主独立检查和明确 typed 映射；修正审计脚本误把 UI 测试算入旧冻结清单的计数。默认工作流补充新导出格式须核对服务到页面错误映射及失败/取消/恢复路径，不能仅验证服务异常或格式切换。
+- **边界。** 本轮代码范围 `mergeable`；整体 `needs changes / active`。合成旧记录只证明本轮 UI/文件恢复，不证明完整回放包原生成功导出、实际 LiDAR 或最低系统实跑。用户暂不能采集，下一步继续本机完整回放成功链及其余恢复/删除确认/布局。永久删除按具体动作确认；未暂存、提交、推送或合并。
+
+持久证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration65-20261012/`：`baseline.json`、`originals/`、`Task65.md`、`ScopeExtension65.md`；初次原生失败 `batch-native-ui-t8hbcx0w` 与 `original-ui-attachments/`，单测原失败 `regression-original.xcresult`；最终定向 `regression-repaired.xcresult`，full `fruit-code-improvement-w7qggtic/report.json`，原生 `batch-native-ui-i3lra2qi/report.json`，审计 `validation-audit.json` 与 `final-ui-attachments/`。
+
+## 第六十六轮：合成完整档案的原生回放成功链
+
+2026-10-12。按用户“先完成本机验收”补齐原生成功路径，生产代码、PBX、算法与阈值均未改。既有六种合成证据回归始终执行；仅在本轮 UUID 和 owned 模拟器核对通过时导出生产仓储提交的六文件夹具，或消费实际原生导出包。新 runner 核对附件唯一性、文件名、字节数和 SHA 后播种空隔离目录；实际分享/完成态后才检查包，逐字节比较 JSON/Float32 输入、检查黄金段摘要和脱敏哨兵，清理后检查临时文件为空及原档摘要不变。二次生产 reader/builder 比较实际包的 identity/revision/golden、修正果数 2、融合证据 1 与产量；强制核验本轮专属黄金附件，避免可选分支未执行也被算作通过。
+
+- 首轮 fixture 1、UI 2、golden 1 均通过，但 Xcode 重装迁移沙盒后宿主引用旧路径导致末尾保护检查失败；保留整轮结果，修正为重新解析当前 owned 容器再逐项核对六文件 SHA。随后新增断言误用 `YieldResult.fusedFruitCount` 导致编译失败；独立复审定位后改为 `diagnostics.fusedFruitCount`，失败包及首次 full 编译失败均保留。
+- 最终新原生 **2/2**，fixture 与实际包黄金读回各 **1/1**；所有阶段退出 0、无失败/跳过/预期失败/运行时告警，全部宿主保护和清理标志为真。旧 CSV 故障/取消/修复重试/分享/内容/清理、回放失败/取消/CSV 恢复及品种确认原生 **2/2** 保留。两套 runner 仅删除各自 owned 模拟器。
+- 最终 full **1195/1195、59 类、10 步退出 0**，Domain **45 源**与 Release 通过；与上轮 1195 方法集合完全相同，编译告警集合及两条旧 QoS 告警保持。365 项旧冻结清单有 363 项不变，变化为回放单测和旧 runner；另核对 UI 源及新 runner 摘要。**118 项范围外 dirty**、PBX 与全部生产源保持，309 文件构建身份仍为 `f39972e7810c7a2d4718cc5d962c82e1694cbef9521bca87f120a0f7c9b2d227`。
+- 实际检查 iPhone SE 四张回放截图。另在第二 owned 模拟器用 Device Hub 点击历史 → 删除确认 → 取消，记录仍在、六文件摘要保持；弹窗漏列实际会删除的回放输入是下一轮候选，未执行永久删除。该模拟器暂留用于复验说明修复，不触碰既有模拟器和用户数据。
+
+证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration66-20261012/`：`Task66.md`、`baseline.json`、`originals/`；原失败 `replay-native-ui-smldv17n`、编译失败 `replay-native-ui-zqdtyy_z`/`fruit-code-improvement-mg2m8d1o`；最终 `replay-native-ui-mshvni6h`、`batch-native-ui-b8cy7b4d`、`fruit-code-improvement-6k49wkzo`，`validation-audit.json`、`final-replay-ui-attachments/` 和 `manual-native/`。本轮范围 **mergeable**；合成成功链不证明实际 LiDAR、最低 iOS 16 或永久删除已验收，整体 **needs changes / active**。没有 Git 交付。
+
+## 第六十七轮：准确说明历史删除的影响
+
+2026-10-12。第 66 轮 Device Hub 实际点击发现单条删除提示只枚举 PLY/CSV/结果 JSON/manifest，遗漏仓储同样会删除的回放输入。本轮仅修正 `ScanHistoryDeletionCopy` 单条/全部 fallback 及中英文对应资源，明确全部关联文件、已有观测回放数据和不可撤销后果；没有修改删除控制器、路由、文件规则、算法、阈值、测试方法或 PBX。原截图与六文件摘要作为缺陷基线保留，不增加与低影响文案实现重复的单测。
+
+最终 full **1195/1195、59 类、10 步退出 0**，Domain **45 源**与 Release 通过，原 1195 方法集合全等；编译告警集合与两条旧 QoS 告警保持。资源变化更新了生产构建身份，因此用当前构建重新生成合成完整档案，fixture **1/1**、实际回放导出/分享/内容/清理与品种确认原生 **2/2**、实际包 strict reader/原 builder 黄金读回 **1/1** 全通过，全部宿主保护为真。309 源/资源身份为 `4d2169f5cc11bf5eace5e63fac480c455edc3e967db5adcd668a34ac92234111`，Debug/Release/原生一致。
+
+在 owned iPhone SE 安装该 full Debug，安装可执行摘要一致。用 Device Hub 实际打开中英文单条/全部四个确认弹窗，全文与按钮均可读，再分别取消；六个档案文件名和 SHA 全等，截图与独立宿主检查留存。365 项旧冻结清单中 362 项保持，仅三个文案文件变化；**119 项范围外 dirty** 及 PBX 保持。永久删除未执行，设备交互工具要求动作时确认，已就唯一合成记录提出明确请求，既有用户档案不参与。
+
+证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration67-20261012/`：`Task67.md`、`baseline.json`、`originals/`、preflight `fruit-code-improvement-e3lp0ihe`；full `fruit-code-improvement-c91ge8ly`，当前身份原生 `replay-native-ui-_sqgimib`，`manual-native/` 四弹窗及取消截图、`validation-audit.json`。本轮文案与确认/取消范围 **mergeable**，整体 **needs changes / active**。英文首页 SE 指标 Today/Yield/Trees 等出现词内换行，已留存 `en-home-metric-wrapping.png`，作为下一轮有证据的紧凑布局修复；不扩大为整体 UI 重写。没有 Git 交付。
+
+第 67 轮签署后的补验：用户明确回复“允许删除本轮合成记录”，再次核对 owned 模拟器唯一记录及六文件 SHA 后，用 Device Hub 点击单条 Delete。六个关联文件全部清理，历史页实际显示 No Scan Records，仓库外六原件摘要保持。`permanent-delete-acceptance.json`、`manual-native/permanent-delete-empty-history.png` 保存授权与结果；不修改原签署时点，不外推全部删除、删除故障或用户既有档案验收。
+
+## 第六十八轮：英文窄屏指标不再词内换行
+
+2026-10-12。实际 SE 英文首页截图中 Today/Yield/Trees/scans 在单词内折行，根因是三个均分卡片内始终横排标题、数值和单位。新增独立原生回归首先在原生产布局退出 65：三个标题实际高度 24 pt、scans 21.5 pt，旧品种门禁通过；原包、几何 JSON 和截图保留。新类仅追加在既有 UI Sources 文件，旧 Batch/Replay/Variety 内容逐字保持，PBX 未改。
+
+只修改 `DashboardHeroMetric`，用既有 `ViewThatFits` 模式优先按单行固有宽度选择原横排，不足时改为标题上、数值/单位下。字体、卡片外观、聚合值、单位复数和按钮保持；长数值允许有限缩放。最终原生 **2/2** 通过，五个文字/单位高度分别为标题 **12 pt**、单位 **11 pt**，截图全文完整无省略，双主按钮可点击。Device Hub 实际检查当前构建中英文横竖屏，窄屏文字完整，宽屏横排保持，owned 空档案目录保持。
+
+最终 full **1195/1195、59 类、10 步退出 0**，Domain **45 源**及 Release 通过；原 1195 方法集合、编译告警集合和两条旧 QoS 告警保持。当前生产身份变化后重新生成完整合成档案，fixture **1/1**、回放成功/分享/清理和品种原生 **2/2**、实际包黄金读回 **1/1** 全通过。309 文件身份 `376bc2270e1e7487d4ca923f4c72cdcd83c4d2a7e4a086f3b6948ff524464b99` 与 Debug/Release/两套原生/安装产物一致。365 旧冻结清单有 364 项保持，仅 HeroPanel 变化；UI 源另核对，**119 项范围外 dirty** 和 PBX 保持。
+
+安装检查发现 67/68 的主可执行摘要相同而 App 代码 `debug.dylib` 不同。第 68 轮补验实际安装主程序、代码 dylib 与受测 Debug 全等，新增默认工作流段落防止只核对加载器；`ScopeExtension68.md` 和 `debug-loader-comparison.json` 留存依据，不将该较强检查回填为 67 签署时已执行。
+
+证据 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration68-20261012/`：`Task68.md`、`originals/`，原失败 `baseline-dashboard-native-3y0iyml7` / `baseline-attachments/`，最终 `repaired-dashboard-native-gci9q1qs` / `repaired-attachments/`，full `fruit-code-improvement-3ruqub4n`，回放 `replay-native-ui-cgyw5nhy`，`manual-native/`、`validation-audit.json`。本轮范围 **mergeable**，全目标仍 **needs changes / active**；下一步逐项核验其余本机恢复门禁及外部条件，已有合成/模拟器证据不代替最低系统、真实 LiDAR、物理资源或人工 ground truth。没有 Git 交付。
+
+## 第六十九轮：正常 App 单条删除失败与实际重试
+
+2026-10-12。本轮关闭已有 controller/仓储回归不能替代的原生证据缺口，没有发现新的业务缺陷，未修改 App、测试、工程、算法或工具。preflight `fruit-code-improvement-09cq7rn_` 通过，检查真实 ScanHistoryView → deletion controller → store → repository → 历史刷新/重试链；365 项冻结源码与第 68 轮相同。当前全量中的七个具体删除/取消/迟到/事务等待回归均有 Passed 方法证据，本轮没有重跑 XCTest。
+
+新建 owned iOS 27 SE，安装第 68 轮 full Debug，逐项核对主程序、实际承载代码的 debug.dylib 和生产身份。从生产仓储合成夹具复制六文件目标，并加入两文件 `CONTROL-KEEP-69` 控制记录，八份原件保存在仓库外。用户在动作时明确允许本轮目标的失败及重试验收；只对目标 CSV 设置可撤销 immutable 标志，不涉及既有扫描或全部删除。
+
+实际 Delete 失败弹窗准确列出 **CSV、PLY point cloud**：其余四个目标伴随文件清理，CSV/PLY 保留原摘要，控制记录保持。点击 Close 后损坏记录与警告仍在；再次对同一记录确认 Delete，又得到相同残留说明。保留该失败弹窗，仅解除 CSV 标志后点击实际 **Try Again**，目标剩余两文件清理，警告和目标记录消失，历史只显示完整控制记录。各阶段逐项核对文件和截图；宿主没有 unlink 目标或重新启动 App 代替重试。
+
+证据 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration69-20261012/`：`Task69.md`、`existing-regression-evidence.json`、`manual-native/report.json`、五阶段 JSON/PNG、`fixture-originals/` 与 `validation-audit.json`。124 项既有 dirty 文件中只有两份验收文档补记，其他文件、PBX、HEAD 和空暂存区保持。独立复审见 `Review69.md`；本轮单条失败/关闭/恢复范围 **mergeable**，不外推批量全部删除或多记录失败子集的原生通过。最低 iOS 16、真实 LiDAR/物理资源/ground truth、其余恢复门禁和 Git 交付仍开放，整体 **needs changes / active**。
+
+## 第七十轮：正常 App 历史读取失败与真实重试
+
+2026-10-12。补验冷启动无缓存与已有成功缓存的实际目录 IO 读取失败，没有发现新的业务缺陷，App、测试、工程、工具不变。preflight `fruit-code-improvement-ym69m5je` 通过；检查 Dashboard/ScanHistoryView → history store → detached disk read → repository → load presentation → Retry 的真实链。第 68 轮结果树中十个精确历史读取/取消/迟到/错误呈现方法均 Passed，本轮没有重跑 XCTest。
+
+在新 owned iOS 27 SE 安装相同 full Debug，核对主程序、代码 debug.dylib 和当前生产身份。保存外部八原件，将 scans 目录可逆改名保留，在原路径放普通文件制造真实读取错误。冷场景显示明确错误卡片而非空历史；恢复目录后点击真实 Retry，出现两条完整记录。再次阻断后，在同一 App 会话返回首页再打开历史页，显示“上次成功读取的 2 条记录”警告且保留旧列表；恢复目录再点击真实 Retry，警告消失，两条记录及数值保持。修复前后、点击前后六阶段均核对八档案 SHA，不 unlink 原档、不执行永久删除、不重启 App 代替重试。
+
+原生下拉手势尝试未取得刷新完成或失败转换的可判定证据，不计通过，也不据此宣称业务缺陷；该入口继续开放。证据 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration70-20261012/`：`Task70.md`、`manual-native/report.json`、六阶段 JSON/PNG、`fixture-originals/`、`existing-regression-evidence.json`、`validation-audit.json` 及 `Review70.md`。124 项基线 dirty 中仅两份验收文档补记，其余 122 项、365 项 freeze、PBX、HEAD 与空暂存区保持。最低 iOS 16、真实 LiDAR/资源/ground truth、全部删除/失败子集、其他门禁及 Git 交付仍开放，整体 **needs changes / active**。
+
+## 第七十一轮：历史刷新动作与取消边界
+
+2026-10-13。第 70 轮下拉缺口继续检查；preflight `fruit-code-improvement-9rf7_akr` 通过。原生自动 drag/scroll 没有可判定转换，未直接据此归因 App。追加生产 sheet 中真实 UIKit 刷新控件的公开事件回归后，悬挂读取在旧实现实际被取消，失败和更新均不发布。最小参考 ScrollView 使用同一 loader 能通过；固定 TagStore、仅移动 modifier 均不能修复。最终直接传同一 historyStore 给 ContentView，在纵向 ScrollView 的 refreshable 中显式捕获它，排除中间函数值及整个 View 捕获；水平筛选栏不再带刷新控件。View 仅发出原 reload 命令，不新增任务、磁盘工作或状态 owner。捕获变化与 SwiftUI 动作生命周期的关联是 A/B 证据推断，不声称确认了框架内部机制。
+
+新增一个生产回归方法，确认两个在途请求的 pending/loading/indicator/current/window、失败保留旧记录、第二次更新替换记录、完成均未取消 `[false,false]`，并断言仅真正纵向历史列表拥有刷新控件。全部旧测试文本保持；参考诊断方法只保存在外部。早期函数值方案虽全量通过，但新增 Sendable 编译告警，因此拒绝最终验收；字面量包装去掉告警却重现取消，也保留失败。最终直接 owner 候选没有新告警，`refresh-direct-owner` 精确方法树 1/1 Passed、runtimeWarnings=[]。
+
+最终 full `fruit-code-improvement-fjhcu48a` 和独立 `audit_build71.py` 均退出 0：**1196/1196、59 类、10 步 0、Domain 45 源/Release**，原 1195 方法全保留，规范化编译告警集合与两条旧 QoS 完全相同。严格 gate 通过后才执行当前身份 `replay-native-ui-vclkz48o`，fixture **1/1**、实际回放导出/分享/清理和品种确认原生 **2/2**、实际包黄金读回 **1/1** 通过，原档/payload/golden/owned 清理均通过。当前 365 冻结项中 362 保持，变化仅两生产视图和该测试；工程、UI 测试与工具保持。
+
+原生使用唯一 owned71 SE，旧八文件另存隐藏 baseline 目录，当前黄金六文件和控制两文件另做外部备份。真实目录故障仅改名保留与普通文件占位，修复仅改名复原，所有十六原件及外部十六备份摘要保持。自动拖动没有取得可判定转换；用户明确确认“在历史页直接下拉后出现”失败横幅。代理随后取图已是首页，因此失败图只记为同会话重开后捕获：明确上次成功读取的 2 条记录，旧列表保留。修复前后错误画面 SHA 相同。用户随后确认“横幅消失，仍有 2 条记录”；代理在未插入 Retry/Done/重开/重启的同页恢复现场取图核对：没有错误横幅，两条完整记录及 7 fruits/1.2 kg、2 fruits/0.5 kg 保持。六阶段均保留当前八档案、前八原件及外部十六原件 SHA。不把第一下拉冒称代理直接截图证明，不把自动公开事件解释为触摸证据。
+
+证据 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration71-20261013/`：`Task71.md`、三源原件/增量、失败诊断包、最终定向附件、`full-method-preservation.json`、最终 full/replay、六阶段 `manual-current/`、人工观察记录和 `validation-audit.json`。第二审查者已最终独立核对代码、文档、方法树、安装 exe/dylib、恢复现场及十六原件，限定本轮 **mergeable**、无阻塞，见 `Review71.md`。其直接检查后仅清理唯一 owned71 临时设备，清理前两个八文件目录摘要和外部十六原件保留，其他设备/default 保持；清理后再次审计通过。整体仍 **needs changes / active**，没有 Git 交付。下一步按原缺口表推进全部删除/失败子集与最低系统；真实 LiDAR 和 ground truth 依用户要求暂缓。
+
+## 第七十二轮：全部删除、混合失败与直接重试补验
+
+2026-10-13/14。按原 R6 及本机验收缺口检查 Clear All → deletion controller → history store → repository → 刷新/失败子集重试，没有发现新的业务代码缺陷。App、测试、工程和工具均未改；本轮只更新两份验收/下一步文档。125 项已有 dirty 路径保持，123 项范围外摘要与 365 项冻结源码保持，HEAD 和空暂存区保持，没有 Git 交付。
+
+- **正常清空。** 只使用 owned iOS 27 SE 和合成记录，安装第 71 轮 full Debug；核对主程序、实际代码 debug.dylib 及 309 源/资源身份。用户对本轮两记录明确授权后，实际 Delete All 清理八个目标文件，历史显示 No Scan Records；目录外控制和外部原件保持。
+- **混合失败和 Close。** 两份独立生产黄金记录各六文件及 legacy 两文件共三记录 14 文件；仅给 B.csv 和 legacy result JSON 设置可解除的 immutable 标志。用户具体授权后实际 Clear All：成功记录六文件清理，B 保留 CSV/PLY，legacy 保留 result JSON/PLY，共四残留。弹窗准确列出两失败记录和 result JSON、PLY point cloud、CSV。Close 后损坏提示/记录仍在，再次实际清空仍得到相同失败与四个原摘要残留。
+- **归因缺口保留。** 首次解除故障后的最终现场只剩 Late 控制，但按钮时间和窗口映射不足，用户明确没有手动操作；该观察保留为 `mixed-recovered-unattributed`，不作为直接 Try Again 通过。没有把后续补验回填成首次动作证据。
+- **获准补验通过。** 相同三记录重新准备，Late 两文件仅改名暂存。用户于本轮确认页明确允许再次清空失败及重试，实际得到上述两失败/四残留；归还 Late 后只解除两标志，错误弹窗画面保持。以新截图核对紧凑窗口 `deviceWindow-AppWindow-1`，直接点击 Try Again；没有 Done、重开或 App 重启。动作前后 UTC 间隔 **37.905 秒**，目录修改时间和恢复截图时间均落在该窗口；六文件变为 Late 两文件，页面只显示完整 LATE-KEEP-72、9 fruits/2.5 kg，错误弹窗/横幅消失。目录外两文件与外部 18 原件每阶段摘要保持，宿主没有 unlink 扫描目标。
+- **证据边界。** Late 只加入磁盘，未证明在点击前进入当前缓存，其存活只证明重试未扩为磁盘枚举。精确 failed-ID 子集另由实际 controller 源码和现有七个精确删除/取消/提交竞争方法证明，不能把该原生夹具夸大为缓存全列表区分。原 12 阶段和补验六阶段的 PNG/JSON、授权及有界时间证据分别保留。
+- **验证。** 本轮生产夹具回归 **1/1 Passed、退出 0、零 runtimeWarnings**。App/Test 与第 71 轮受测源码完全相同，复用其 **1196/1196、59 类、Domain 45 源、Release**，不虚增全量次数；原两条 QoS 告警的限制保持。`git diff --check` 与 staged diff check 通过。只读复审与 owned 环境清理结果另记，原生补验本身已取得所需证据；整体仍 **needs changes**，最低 iOS 16 实跑、真实 LiDAR/ground truth/物理资源及 Git 交付未完成。
+
+最终独立只读复审 `/root/review_iteration72_final` 无阻塞，限定第 72 轮 **mergeable**。审查者直接核对原图/18阶段、安装构建、live控制/18原件、七个原始精确方法及范围保护；之后按其条件再次检查并只清理 owned72。shutdown/delete 均退出 0，default 和其余设备 ID 保持、18 外部原件保持，清理后 `audit72.py` 再次退出 0。没有通过产品删除控制记录，没有清理其他环境。
+
+持久证据根 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration72-20261013/`：`Task72.md`、`baseline.json`、`originals/`、`fixture-capture.xcresult`、`existing-regression-evidence.json`、`manual-native/report.json`、`retry-action72.json`、`fixture-originals/`、`Review72.md`、`review-decision.json`、`manual-simulator-cleanup.json`、`validation-audit.json` 和 `audit72.py`。`completion-requirements72.json` 与阻塞审计保留授权前时点，最新要求状态见 `completion-requirements72-final.json`；不能视为当前仍缺本轮授权。下一轮提示词见同根 `Next73.md`。
+
+## 第七十三轮：最低系统运行条件核验
+
+2026-10-14。第 72 轮收尾后继续原 A32 最低系统验收，preflight `fruit-code-improvement-46qz4a3j` 退出 0。本轮没有修改 App、测试、工程或工具，也没有下载 runtime、改变全局 Xcode 选择或降低系统声明。当前指定 Xcode 为 27.0，宿主 macOS 27.2/arm64；simctl 仅有 iOS 27 runtime，当前五台已配对 iOS 设备均为 27.x。
+
+核对受测 Debug 实际代码 dylib 和 Release 主程序：Info 的 MinimumOSVersion 与各 Mach-O 架构的 minos 都是 **16.0**，SDK 为 27.0。它们证明构建目标声明，不能证明 iOS 16 启动或行为。Apple [官方支持表](https://developer.apple.com/xcode/system-requirements) 将 Xcode 27 的模拟器支持起点列为 iOS 17；支持较旧 runtime 的 Xcode 26.6 官方宿主范围止于 macOS 26.x，不能据此认定在当前 macOS 27.2 并行装旧 Xcode 就得到受支持的补验环境。因此最低系统缺口需要兼容宿主/工具链和实际 iOS 16 runtime，或另有 iOS 16 设备及有效安装/验收条件；**最低系统实跑仍未通过**。原生 UI target 的最低 17 声明保持，不把其 iOS 27 结果当作 App 最低版本证据。
+
+本轮范围仅两份当前执行/验收文档；125 个已有 dirty 路径、123 个范围外摘要、365 项受测源码、HEAD/空暂存区保持，diff 检查通过，没有重跑无源码变化的 XCTest。仓库外持久证据 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration73-20261014/` 保存 preflight、原件、实际工具/runtime/设备 OS 清单、Debug/Release build version、官方原始 HTML/SHA 与选定三行、`Task73.md` 及可执行的 `MinimumOS16Acceptance.md`。配对设备原始标识仅留在仓库外。独立复审另记；整体仍 **needs changes**，本轮条件核验不替代真实运行、LiDAR/ground truth/物理资源或 Git 交付。
+
+最终独立只读复审无阻塞，限定第 73 轮条件核验与文档 **mergeable**，见同根 `Review73.md`；其重新读取真实 Mach-O、私有设备清单、官方当前表格及保护摘要，结论与本轮原始证据一致。最低 iOS 16 实跑与整体目标仍为 **needs changes**。当前已询问用户是否另有可补验设备/兼容 Mac，未收到环境信息前保持待验。
+
 ## 验证记录
 
 日志与 xcresult 位于 `/Users/reece24/Library/Logs/FruitTreeScanner/architecture-reassessment-20260927/`。
@@ -1077,9 +1728,24 @@ git diff --check
 
 ## 下一轮构思与待实施项
 
+**2026-10-14 当前执行入口：** 下方 2026-10-07 更新、四项候选和后续历史提示词保留各自时点，不能直接作为当前待办。第 49–64 轮已实施根配置、GPU 屏障/错误恢复、完整领域依赖边界、批量应用编排、分类冻结、Dashboard 聚合、固定最终云/文件暂存及实际输入回放包；第 65–71 轮补齐回放错误/成功链、删除说明、窄屏布局、单条删除失败重试、历史 IO 失败与下拉恢复。当前生产身份为 `897a49c36f4a80c07945a3c6592240693297abc1c7800a6d8e4a8ec699e85907`（309 源/资源），365 项受测冻结清单保持；同源码全量为第 71 轮 1196/1196、59 类、Domain 45 源及 Release，不记作第 72 轮新执行。
+
+当前按以下顺序推进；各项没有工作量权重，不折算完成百分比，也不沿用下方历史 3/8 口径：
+
+1. **第 72 轮已关闭。** 正常清空、混合失败、Close 后再失败及获准的直接 Try Again 补验已通过；37.905 秒有界记录证明六文件变为 Late 两文件。独立复审为本轮 mergeable，owned72 安全清理、其他设备 ID/18 外部原件保护及清理后审计均通过。原未归因观察不回填。详见第 72 轮及 `Next73.md`；不重复该永久删除验收。
+2. **最低系统需要兼容环境。** 第 73 轮核对当前 macOS 27.2/Xcode 27、仅 iOS 27 runtime、已配对设备均 27.x；官方 Xcode 27 模拟器支持最低 iOS 17。当前 Debug/Release 的实际 minos 16 保持，不能把构建当实跑，也不为通过验收改变产品最低版本。下一步按 `MinimumOS16Acceptance.md` 在兼容宿主/工具链和 iOS 16 环境取得真实运行结果，逐项区分宿主测试、正常 App 触摸及物理捕获。
+3. **真实观测与物理资源。** 用户暂时无法采集，先完成可执行的本机验收。实际 LiDAR 正常/退化输入、人工果数/重量、同设备 30/60/120 秒与峰值内存/阶段计时仍未验收；合成六案例及数值 payload 不能关闭这些要求。
+4. **按范围完成 Git 交付。** 当前轮未暂存、提交、推送或合并；保留已有 dirty，交付前明确对应改动范围并使用受测最终源码。整体仍为 **needs changes**，第 72 轮原生补验通过不代表原目标完成。
+
+当前逐项核验与方法定位保存在仓库外 `/Users/reece24/Library/Logs/FruitTreeScanner/refactor-iteration72-20261013/`，`completion-audit-method-locators.json` 仅用于定位已执行方法；方法名本身不证明其断言覆盖整个要求。新的代码迭代须由实际缺陷或未闭合的原架构职责驱动，不重复已完成迁移。
+
+**2026-10-07 第 53 轮更新：** FusionValidator 逐字进入 Domain/Fusion，完整独立 Domain 编译由 24 源增至 25 源；421 前后方法和 1110 全量/Release 通过。第 52 轮更新中的纯 validator 候选现已关闭，当前继续可靠证据准入的完整责任边界，提示词见第 53 轮末。下方列表及前一更新保留各自历史时点，整体主线状态未因单节点迁移改变。
+
+**2026-10-07 更新：** 下方第 1 项保留第 51 轮时点的候选记录；其 GPU 失败分类和用户恢复代码/模拟器边界已由第 52 轮关闭，物理验收仍开放。当前下一步为纯 FusionValidator 进入 Domain，按第 52 轮末提示词执行。整体主线完成口径仍是 3/8（37.5%）已关闭、5 项部分实现；没有基于工作量的百分比，历史 90%/80% 定性估算已由第 48 轮核验撤回。
+
 根据当前代码，前述扫描/仓储边界、观测链路、质量关联、融合值服务、回放、品类/设置分层和结果/质量/诊断值归属已实施；整个 Domain 的 24 个源文件已通过独立 iOS 模块编译，门禁已接入 CI 并验证本地失败传播。接下来补齐运行证据：
 
-1. **补齐编辑草稿的重置身份边界。** 第 31–45 轮已贯通主要消费者；校准字段冲突/关联下界与品种原子字段合并已完成。下一项先复现校准待提交手势遇到同数值重置的身份问题，提示词见第 45 轮；毫米显示截断另列后续候选。不以静态检查或局部通过代替真实调用链证据。
+1. **贯通 GPU 失败分类与用户恢复。** 第 51 轮已修复并验证写入失败禁止冻结/发布、同代粘性状态、旧回调隔离及 stage 固定代际，最终 530 定向、1091 全量、Domain/Release 通过。当前 Application 仍把 GPU 失败归为 pointCloudExport，UI 解释成存储错误并重试同捕获，是有真实调用链依据的 P2 候选。下一轮先建立实际错误路由回归，区分新扫描恢复、过期捕获与可重试排空/文件错误，保持所有权和较新扫描不受旧任务影响；提示词见第 51 轮末。完成后恢复纯 FusionValidator 进入 Domain，以及 [原 R0–R7 核验](REFACTOR_COMPLETION_AUDIT_2026-10-05.md) 中的可靠准入/composer/几何、全应用协作、真实观测和资源目标。完整 ARKit/物理资源继续单列，整体目标未完成。
 2. **补齐完整记录删除流程的剩余证据。** 隔离夹具的历史读取、三种批量格式、取消/清理、校准基线导入及保存已实际核对；第 28–30 轮发现的状态、临时目录所有权和颜色问题已修复。删除确认与取消通过，永久删除尚待用户在操作时确认；得到具体确认后只操作 UI-FIXTURE-B，核对 PLY/结果 JSON/完成清单消失、其他源摘要保持及历史刷新。第 37 轮 Device Hub 已可操作，永久删除缺口仍为对应操作确认。物理完成/重试仍需另行验收，不用模拟器无 LiDAR 的页面替代。
 3. **设备回放与物理验收。** 混合几何和必须重分配的合成回放已完成，不重复。下一步设计有采样上限和脱敏规则的真实观测基线，并标明人工果数、采集条件及模型/配置身份。已发现可连接 LiDAR iPhone；实际 30/60/120 秒绕拍需要操作者与场景基准。分别记录物理内存、采集/结束耗时、深度拒绝诊断和人工果数误差，不能用模拟器通过代替。
 4. **持续构建远程验收与模块收益评估。** Domain 门禁及模拟器编译已在 PR #10 的 run `36801712785`、PR #11 的 run `36827532091` 实测成功，覆盖第 1–30 轮；第 31 轮经 PR #12 的 run `36833185872` 成功后合并为 `f440f587`。第 32–35 轮经 PR #13 的 run `36965233999` 成功后合并为 `76e15a99`；后续第 36–42 轮已交付，第 42 轮 PR #16 合并为 `75c85cc4`；第 43/44 轮按本次用户授权交付，实际远端终态见交付检查点和随后核验结果。当前有 App、单元 XCTest 和独立 UI XCTest 三个 target；Domain 类型仍使用模块内可见性。framework/package 需要按消费者定义公开 API，只有能减少实际依赖复杂度时才启动该迁移。当前维持单 App target 与完整 Domain 编译门禁，保留模型/shader 归属及 ReliableYieldEvidence 准入权限。
@@ -1087,6 +1753,8 @@ git diff --check
 这些事项尚未完成，不能用当前定向或全量 XCTest 代替它们的实现与设备验收。目标继续保持 active。
 
 ## 下一轮执行提示词
+
+以下为历史累计实施上下文；当前优先级和证据状态以上节“2026-10-14 当前执行入口”及回放设计第 6 节为准。旧候选、旧测试数量和旧永久删除记录不得直接复用为本轮待办或动作授权。
 
 ```text
 继续 FruitTreeScanner 的整体架构重构。先读取 AGENTS.md 和本执行记录，

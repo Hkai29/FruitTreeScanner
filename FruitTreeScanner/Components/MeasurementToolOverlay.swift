@@ -49,11 +49,11 @@ struct MeasurementToolOverlay: View {
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 8) {
                             measurementMarker(
-                                color: Design.Colors.apple,
+                                color: Design.Colors.Dark.warning,
                                 label: L10n.PointCloud.measurementStart
                             )
                             measurementMarker(
-                                color: Design.Colors.earth,
+                                color: Design.Colors.Dark.glow,
                                 label: L10n.PointCloud.measurementEnd
                             )
                         }
@@ -65,25 +65,24 @@ struct MeasurementToolOverlay: View {
 
                     Text(L10n.PointCloud.measurementInstruction)
                         .font(.callout)
-                        .foregroundColor(.white.opacity(0.75))
+                        .foregroundColor(Design.Colors.Dark.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let distance {
-                        Divider()
-                            .overlay(Design.Colors.Dark.hudBorder)
+                        DividerLine(color: Design.Colors.Dark.hudBorder)
 
                         distanceContent(distance: distance)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .foregroundColor(.white)
+                .foregroundColor(Design.Colors.Dark.textPrimary)
                 .padding(Design.Space.md)
-                .background(Design.Colors.Dark.hudBackground)
+                .background(Design.Colors.Dark.bgSurface.opacity(0.94))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Design.Radius.medium)
+                    RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: Design.Radius.medium))
+                .clipShape(RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous))
                 .frame(
                     maxWidth: dynamicTypeSize.isAccessibilitySize
                         ? min(max(geo.size.width - 32, 0), 520)
@@ -114,7 +113,7 @@ struct MeasurementToolOverlay: View {
         Button(action: onClose) {
             Image(systemName: "xmark.circle.fill")
                 .font(.title2.weight(.semibold))
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
                 .frame(
                     minWidth: Design.Touch.minimumWidth,
                     minHeight: Design.Touch.minimumHeight
@@ -132,12 +131,12 @@ struct MeasurementToolOverlay: View {
                 Spacer()
                 distanceContent(distance: distance)
                 .padding(16)
-                .background(Design.Colors.Dark.hudBackground)
+                .background(Design.Colors.Dark.bgSurface.opacity(0.94))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Design.Radius.medium)
+                    RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
                         .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: Design.Radius.medium))
+                .clipShape(RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous))
                 .padding(16)
             }
         }
@@ -147,11 +146,12 @@ struct MeasurementToolOverlay: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(formattedDistance(distance))
                 .font(.system(.title2, design: .monospaced).weight(.semibold))
-                .foregroundColor(Design.Colors.harvest)
+                .foregroundColor(Design.Colors.Dark.textPrimary)
 
             Text(L10n.PointCloud.measurementDistance)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.75))
+                .font(.caption)
+                .tracking(0.5)
+                .foregroundColor(Design.Colors.Dark.textMuted)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.PointCloud.measurementDistance)

@@ -16,6 +16,11 @@ extension ScanView {
             currentScanIdentity: { [weak coordinator = coordinator] in coordinator?.lifecycleSnapshot().scanIdentity },
             onStop: cancelScan
         )
+        lifecycleRecoveryPresentation.bind(
+            acceptsRecovery: { acceptsLifecycleRecovery(scanIdentity: $0) },
+            onRestart: { restartAfterInterruption(scanIdentity: $0) },
+            onDiscard: { discardAfterInterruption(scanIdentity: $0) }
+        )
         coordinator.onFruitCategoryMismatch = { mismatch in
             guard isViewActive else { return }
             categoryMismatchPresentation.present(mismatch, scanIdentity: coordinator.lifecycleSnapshot().scanIdentity)
@@ -32,30 +37,30 @@ extension ScanView {
             }
         }
         coordinator.onLifecycleStateChange = { snapshot in
-            guard isViewActive else { return }
+            guard isViewActive, snapshot == coordinator.lifecycleSnapshot() else { return }
             sessionModel.apply(snapshot)
             switch snapshot.state {
             case .systemInterrupted:
                 finalizationWorkflow.cancel()
                 pauseCoverageCompletion()
                 clearMeasurementState()
-                showLifecycleRecovery = true
+                presentLifecycleRecovery()
             case .failed(let reason):
                 finalizationWorkflow.cancel()
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 if reason.requiresCameraReadinessRecovery {
-                    showLifecycleRecovery = false
+                    lifecycleRecoveryPresentation.dismiss()
                     refreshScanReadiness(showLifecycleRecoveryWhenReady: true)
                 } else {
-                    showLifecycleRecovery = true
+                    presentLifecycleRecovery()
                 }
             case .recovering:
                 finalizationWorkflow.cancel()
                 pauseCoverageCompletion()
                 clearMeasurementState()
                 refreshScanReadiness()
-                showLifecycleRecovery = true
+                presentLifecycleRecovery()
             default:
                 break
             }
@@ -73,6 +78,7 @@ extension ScanView {
     func handleDisappear() {
         isViewActive = false
         categoryMismatchPresentation.invalidate()
+        lifecycleRecoveryPresentation.invalidate()
         finalizationWorkflow.onEvent = nil
         cancelScanReadinessRequest(clearRecoveryRequest: true)
         invalidateTemporaryNotice()
@@ -118,11 +124,11 @@ extension ScanView {
             let shouldRecoverLifecycle = pendingLifecycleRecoveryAfterReadiness
             pendingLifecycleRecoveryAfterReadiness = false
             if next == .ready, shouldRecoverLifecycle {
-                showLifecycleRecovery = true
+                presentLifecycleRecovery()
             }
             if next != .ready {
                 if shouldRecoverLifecycle {
-                    showLifecycleRecovery = false
+                    lifecycleRecoveryPresentation.dismiss()
                 }
                 let scanWasActive = lifecycleSnapshot.state == .recording
                     || lifecycleSnapshot.state == .userPaused
@@ -155,10 +161,40 @@ extension ScanView {
     }
 
     var lifecycleAlertTitle: String {
-        if case .failed = lifecycleSnapshot.state {
+        let state = lifecycleRecoveryPresentation.presentation?.snapshot.state ?? lifecycleSnapshot.state
+        if state == .failed(.invalidPointCloudCapture) {
+            return L10n.Scan.pointCloudCaptureFailedTitle
+        }
+        if case .failed = state {
             return L10n.Scan.sessionFailureTitle
         }
         return L10n.Scan.interruptionTitle
+    }
+
+    var lifecycleAlertMessage: String {
+        let state = lifecycleRecoveryPresentation.presentation?.snapshot.state ?? lifecycleSnapshot.state
+        if state == .failed(.invalidPointCloudCapture) {
+            return L10n.Scan.pointCloudCaptureFailedMessage
+        }
+        return L10n.Scan.interruptionMessage
+    }
+
+    func presentLifecycleRecovery() {
+        let current = coordinator.lifecycleSnapshot()
+        switch current.state {
+        case .systemInterrupted, .recovering, .failed:
+            lifecycleRecoveryPresentation.present(current)
+        default:
+            break
+        }
+    }
+
+    func acceptsLifecycleRecovery(scanIdentity: UUID?) -> Bool {
+        guard let scanIdentity, coordinator.lifecycleSnapshot().scanIdentity == scanIdentity else { return false }
+        switch coordinator.lifecycleSnapshot().state {
+        case .systemInterrupted, .recovering, .failed: return true
+        default: return false
+        }
     }
 
     func openAppSettings() {

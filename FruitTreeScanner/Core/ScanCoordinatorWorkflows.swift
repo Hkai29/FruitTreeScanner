@@ -18,7 +18,7 @@ extension ScanCoordinator {
         if let plan = activeScanPlan {
             renderer?.applyScanQualitySettings(plan.rendererSettings, resourceBudget: plan.resourceBudget)
         } else {
-            renderer?.applyScanQualitySettings()
+            renderer?.applyScanQualitySettings(settings.rendererScanSettings())
         }
     }
 
@@ -350,6 +350,20 @@ extension ScanCoordinator {
 
     @MainActor
     func handleSessionFailure(_ error: Error) {
+        applyScanFailure(ScanSessionFailureClassifier.reason(for: error))
+    }
+
+    @MainActor
+    @discardableResult
+    func handleInvalidPointCloudCapture(scanIdentity: UUID) -> Bool {
+        let current = lifecycleSnapshot()
+        guard !isTornDown, current.scanIdentity == scanIdentity, current.state == .finishing else { return false }
+        applyScanFailure(.invalidPointCloudCapture)
+        return true
+    }
+
+    @MainActor
+    private func applyScanFailure(_ reason: ScanFailureReason) {
         guard !isTornDown else { return }
         invalidateReliableEvidenceImmediately()
         clearCameraTrackingSuspension()
@@ -357,7 +371,7 @@ extension ScanCoordinator {
         publishDepthRuntimeStatus(requestedSceneDepth ? .waitingForDepth : .unsupportedSceneDepth)
         hudState?.update(fusionStatus: "Failed")
         publishLifecycleSnapshot(
-            scanSession.fail(ScanSessionFailureClassifier.reason(for: error))
+            scanSession.fail(reason)
         )
     }
 
@@ -413,42 +427,18 @@ extension ScanCoordinator {
         publishLifecycleSnapshot(scanSession.cancel())
     }
 
-    func exportPLY(treeID: String, lat: Double, lon: Double,
-                   completion: @escaping (String?) -> Void) {
-        stagePointCloud(treeID: treeID, lat: lat, lon: lon) {
-            completion($0?.draft.sourceFilename)
-        }
-    }
-
-    func stagePointCloud(treeID: String, lat: Double, lon: Double,
-                         completion: @escaping (StagedPointCloud?) -> Void) {
-        guard let renderer else {
-            Log.export.error("Export failed: renderer is nil")
-            completion(nil)
-            return
-        }
-
-        Log.export.info("Exporting PLY for tree \(treeID)")
-        renderer.stagePointCloud(treeID: treeID, gpsLat: lat, gpsLon: lon) { staged in
-            if let staged {
-                Log.export.info("PLY exported: \(staged.draft.sourceFilename)")
-            } else {
-                Log.export.error("PLY export failed: file write error")
-            }
-            completion(staged)
-        }
-    }
-
     @MainActor
-    func stagePointCloud(plan: ScanPlan, lat: Double, lon: Double,
-                         repository: ScanRepository = .shared) async throws -> StagedPointCloud {
+    func freezePointCloud(plan: ScanPlan) async throws -> FrozenPointCloudExport {
         guard activeScanPlan?.id == plan.id, lifecycleSnapshot().state == .finishing else {
             throw ScanEvidenceError.mismatchedInput
         }
         guard let renderer else { throw PointCloudExportError.rendererUnavailable }
         let context = ScanContext(scanID: lifecycleSnapshot().scanIdentity, planID: plan.id)
-        return try await renderer.stagePointCloud(treeID: plan.treeID, gpsLat: lat, gpsLon: lon,
-                                                 context: context, repository: repository)
+        let fallbackFolder = renderer.currentFolder
+        let cloud = try await renderer.freezeFinalPointCloudForExport()
+        return FrozenPointCloudExport(pointCloud: cloud,
+                                      captureIdentity: ScanCaptureIdentity(context: context, pointCloud: cloud.identity),
+                                      fallbackFolder: fallbackFolder)
     }
 
     func extractFinalPointCloud() -> FinalPointCloud? {

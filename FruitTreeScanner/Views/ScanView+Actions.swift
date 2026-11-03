@@ -112,7 +112,8 @@ extension ScanView {
             treeID: treeID,
             season: season,
             selectedCategory: selectedFruitCategory,
-            renderer: coordinator.renderer
+            renderer: coordinator.renderer,
+            classification: classification
         )
         coordinator.startRecording(plan: plan)
         sessionModel.apply(coordinator.lifecycleSnapshot())
@@ -166,9 +167,11 @@ extension ScanView {
         dismiss()
     }
 
-    func restartAfterInterruption() {
+    func restartAfterInterruption(scanIdentity: UUID? = nil) {
+        guard acceptsLifecycleRecovery(scanIdentity: scanIdentity ?? lifecycleRecoveryPresentation.scanIdentity) else { return }
         guard scanReadiness == .ready else {
             showTemporaryNotice(scanReadiness.title)
+            refreshScanReadiness(showLifecycleRecoveryWhenReady: true)
             return
         }
         discardCurrentScanArtifacts()
@@ -178,22 +181,24 @@ extension ScanView {
             treeID: treeID,
             season: season,
             selectedCategory: selectedFruitCategory,
-            renderer: coordinator.renderer
+            renderer: coordinator.renderer,
+            classification: classification
         )
         let restarted = coordinator.restartInterruptedScan(plan: plan)
         sessionModel.apply(coordinator.lifecycleSnapshot())
         guard restarted else {
-            showLifecycleRecovery = true
+            presentLifecycleRecovery()
             showTemporaryNotice(L10n.Scan.sessionFailureTitle)
             return
         }
         beginCoverageCompletionForNewScan()
         showGuide = false
-        showLifecycleRecovery = false
+        lifecycleRecoveryPresentation.dismiss()
     }
 
-    func discardAfterInterruption() {
-        showLifecycleRecovery = false
+    func discardAfterInterruption(scanIdentity: UUID? = nil) {
+        guard acceptsLifecycleRecovery(scanIdentity: scanIdentity ?? lifecycleRecoveryPresentation.scanIdentity) else { return }
+        lifecycleRecoveryPresentation.dismiss()
         coordinator.discardInterruptedScan()
         discardCurrentScanArtifacts()
         coordinator.teardown()

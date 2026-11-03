@@ -420,6 +420,36 @@ final class FruitParametersStoreTests: XCTestCase {
         )
     }
 
+    func testVarietyDiameterDisplayRoundsFloatBoundariesConsistentlyForSingleAndRange() {
+        let cases: [(Float, String)] = [
+            (0.0049999994, "5"), (0.034999996, "35"), (0.14999999, "150"),
+            (0.15049, "150"), (0.1505, "151"), (0.15051, "151"), (0.6999999, "700")
+        ]
+        for identifier in ["en_US", "zh_CN", "fr_FR"] {
+            let locale = Locale(identifier: identifier)
+            for (meters, expected) in cases {
+                XCTAssertEqual(VarietyParameterFormatter.millimeters(meters, locale: locale), "\(expected) mm")
+                XCTAssertEqual(VarietyParameterFormatter.diameterRange(minimumMeters: meters, maximumMeters: meters,
+                                                                     locale: locale), "\(expected)–\(expected) mm")
+            }
+            XCTAssertEqual(VarietyParameterFormatter.diameterRange(minimumMeters: 0.034999996,
+                                                                 maximumMeters: 0.14999999, locale: locale), "35–150 mm")
+        }
+    }
+
+    func testVarietyDiameterDisplayKeepsEveryEditorStepAtItsIntendedMillimeters() {
+        let locale = Locale(identifier: "en_US")
+        for millimeters in 5...50 {
+            // The minimum slider's 1 mm grid arrives as Float meter values.
+            let meters = Float(0.005) + Float(millimeters - 5) * Float(0.001)
+            XCTAssertEqual(VarietyParameterFormatter.millimeters(meters, locale: locale), "\(millimeters) mm")
+        }
+        for step in 0...50 {
+            let meters = Float(0.05) + Float(step) * Float(0.005)
+            XCTAssertEqual(VarietyParameterFormatter.millimeters(meters, locale: locale), "\(50 + step * 5) mm")
+        }
+    }
+
     func testVarietySearchMatcherSupportsLocalizedNamesAndStableIdentifiers() {
         XCTAssertTrue(
             VarietySearchMatcher.matches(

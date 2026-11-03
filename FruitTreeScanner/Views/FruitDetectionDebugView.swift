@@ -37,7 +37,7 @@ struct FruitDetectionDebugView: View {
     
     private var statsCard: some View {
         HStack(spacing: Design.Space.lg) {
-            StatItem(label: "图像检测", value: "\(detectedFruits.count)", color: Design.Colors.forest)
+            StatItem(label: "图像检测", value: "\(detectedFruits.count)", color: Design.Colors.Dark.glow)
             StatItem(
                 label: "高置信度",
                 value: "\(detectedFruits.filter { $0.confidence > 0.7 }.count)",
@@ -52,17 +52,20 @@ struct FruitDetectionDebugView: View {
         VStack(alignment: .leading, spacing: Design.Space.md) {
             HStack {
                 Text("图像检测")
-                    .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.system(.caption2, design: .default).weight(.semibold))
+                    .tracking(0.6)
+                    .textCase(.uppercase)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
                 Spacer()
                 Text("\(detectedFruits.count) 个")
-                    .font(Design.Typography.caption)
+                    .font(.system(.caption, design: .monospaced))
+                    .monospacedDigit()
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
             
             if detectedFruits.isEmpty {
                 Text("暂无检测结果")
-                    .font(.system(size: 13))
+                    .font(.subheadline)
                     .foregroundColor(Design.Colors.Dark.textSecondary)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -86,11 +89,14 @@ struct StatItem: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(value)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(.title2, design: .default).weight(.semibold))
+                .monospacedDigit()
                 .foregroundColor(color)
             Text(label)
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.system(.caption2, design: .default).weight(.semibold))
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundColor(Design.Colors.Dark.textMuted)
         }
         .frame(maxWidth: .infinity)
     }
@@ -102,11 +108,11 @@ struct DetectedFruitCard: View {
     var body: some View {
         HStack(spacing: Design.Space.sm) {
             Text(fruit.category.displayName.prefix(1))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Design.Colors.harvest)
+                .font(.system(.footnote, design: .default).weight(.semibold))
+                .foregroundColor(Design.Colors.Dark.glow)
                 .frame(width: 28, height: 28)
-                .background(Design.Colors.harvest.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .background(Design.Colors.Dark.glow.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -115,12 +121,14 @@ struct DetectedFruitCard: View {
                         .foregroundColor(Design.Colors.Dark.textPrimary)
                     Spacer()
                     Text(String(format: "%.0f%%", fruit.confidence * 100))
-                        .font(Design.Typography.caption)
-                        .foregroundColor(fruit.confidence > 0.7 ? Design.Colors.forest : Design.Colors.warning)
+                        .font(.system(.caption, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundColor(fruit.confidence > 0.7 ? Design.Colors.Dark.success : Design.Colors.Dark.warning)
                 }
 
                 Text("边界框: \(Int(fruit.boundingBox.minX)), \(Int(fruit.boundingBox.minY)) - \(Int(fruit.boundingBox.maxX)), \(Int(fruit.boundingBox.maxY))")
-                    .font(Design.Typography.caption)
+                    .font(.system(.caption, design: .monospaced))
+                    .monospacedDigit()
                     .foregroundColor(Design.Colors.Dark.textSecondary)
             }
         }

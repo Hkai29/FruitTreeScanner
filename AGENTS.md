@@ -23,6 +23,38 @@ Codex must:
 - Validate risky app changes with targeted tests and, when feasible, full iOS simulator tests.
 - End with a clear decision: `mergeable`, `needs changes`, or `do not merge`.
 
+## Required Code Improvement Workflow
+
+For future code improvements in this repository, read and follow
+[the code improvement workflow](docs/implementation/CODE_IMPROVEMENT_WORKFLOW.md)
+by default. This applies to bug fixes, behavior changes, performance work and
+refactoring; the user does not need to invoke the workflow again.
+
+- Start with `python3 tools/code_improvement_workflow.py preflight`, inspect the
+  real call chain, and distinguish existing dirty work from this iteration.
+- Select one evidenced root cause and explicit completion criteria. Establish
+  a failing regression for a behavior defect or a passing baseline for a move.
+- Implement a focused change, run the relevant risk profiles, and complete
+  feasible full iOS simulator validation for high-risk changes.
+- Review the resulting diff separately from implementation. Feed blocking
+  findings back into repair and rerun the affected checks after the last edit.
+- Record the root cause, fix, actual validation evidence, review findings,
+  remaining risk, decision and candidate next step for each iteration.
+- Continue repair/review iterations within the user's requested scope until
+  its completion criteria are met. When the user explicitly requests ongoing
+  improvement, choose the next evidenced issue by severity after closing the
+  current iteration. Completing one task does not authorize unrelated work or
+  an indefinite background run.
+- Improve the workflow itself when an observed failure reveals a missing gate:
+  update the relevant procedure, selector or runner and validate that change.
+  Never obtain a passing result by weakening reliability invariants, dropping
+  critical tests, accepting missing evidence or hiding failures.
+
+The runner records and validates evidence; the engineer or agent performs the
+inspection, changes and review. Background scheduling, commits and pushes
+require their own authorization. Preserve all rules below, including device
+acceptance and protection of unrelated working-tree changes.
+
 ## Current Architecture
 
 The current app architecture is pipeline-based and service-split. Do not rely on older descriptions that treat the project as one or two monolithic algorithm files.

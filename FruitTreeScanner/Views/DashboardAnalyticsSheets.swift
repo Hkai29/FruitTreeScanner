@@ -1,59 +1,12 @@
 // DashboardAnalyticsSheets.swift
-// 首页分析类 sheet
+// 产量报告 / 趋势：采收后的复核页。
+//
+// 数据全部来自 `DashboardAggregationStore` 的真实聚合
+// （`YieldReportData` / `TrendsData`），界面不发明任何指标。
 
 import SwiftUI
 
-struct YieldReportData {
-    let completeRecords: [ScanFileRecord]
-    let latestRecordsByTree: [ScanFileRecord]
-    let totalYield: Float?
-    let totalFruit: Int?
-
-    var totalScans: Int { completeRecords.count }
-    var totalTrees: Int { latestRecordsByTree.count }
-    var averageYield: Float? { totalYield.map { totalTrees > 0 ? $0 / Float(totalTrees) : 0 } }
-    var visibleRecords: [ScanFileRecord] { Array(latestRecordsByTree.prefix(20)) }
-    var isEmpty: Bool { latestRecordsByTree.isEmpty }
-
-    init(records: [ScanFileRecord]) {
-        let completeRecords = records.filter { $0.persistenceState == .complete }
-        self.completeRecords = completeRecords
-        latestRecordsByTree = Self.latestRecordsByTree(from: completeRecords)
-        let totals = ScanRecordTotals(records: latestRecordsByTree)
-        totalYield = totals.yieldKg
-        totalFruit = totals.fruitCount
-    }
-
-    private static func latestRecordsByTree(
-        from records: [ScanFileRecord]
-    ) -> [ScanFileRecord] {
-        var latestByTreeID: [String: ScanFileRecord] = [:]
-        for record in records {
-            let treeID = TreeIdentifierPolicy.normalized(record.treeID)
-            guard let existing = latestByTreeID[treeID] else {
-                latestByTreeID[treeID] = record
-                continue
-            }
-            if isOrderedBefore(record, existing) {
-                latestByTreeID[treeID] = record
-            }
-        }
-        return latestByTreeID.values.sorted(by: isOrderedBefore)
-    }
-
-    private static func isOrderedBefore(
-        _ lhs: ScanFileRecord,
-        _ rhs: ScanFileRecord
-    ) -> Bool {
-        if lhs.scanDate != rhs.scanDate {
-            return lhs.scanDate > rhs.scanDate
-        }
-        if lhs.treeID != rhs.treeID {
-            return lhs.treeID < rhs.treeID
-        }
-        return lhs.id < rhs.id
-    }
-}
+// MARK: - 产量报告
 
 struct YieldReportMetricPresentation: Equatable {
     let title: String
@@ -183,10 +136,17 @@ struct YieldReportPresentation {
     }
 }
 
+/// 产量报告：采收后的复核页。
+///
+/// 三个关键数字（扫描次数、总产量、单株均值）占据最大视觉权重，
+/// 每棵树的明细在下面按档案行的写法排列。
 struct YieldReportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
-    @ObservedObject private var historyStore: ScanHistoryStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var aggregation: DashboardAggregationStore
+    private let historyStore: ScanHistoryStore
     private let onStartScan: (() -> Void)?
     private let bundle: Bundle
 
@@ -194,11 +154,13 @@ struct YieldReportSheet: View {
     init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main, historyStore: ScanHistoryStore? = nil) {
         self.onStartScan = onStartScan
         self.bundle = bundle
-        self.historyStore = historyStore ?? .shared
+        let historyStore = historyStore ?? .shared
+        self.historyStore = historyStore
+        self.aggregation = historyStore.dashboardAggregation
     }
 
     private var reportData: YieldReportData {
-        YieldReportData(records: historyStore.scanFiles)
+        aggregation.snapshot.report
     }
 
     private var presentation: YieldReportPresentation {
@@ -206,22 +168,24 @@ struct YieldReportSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
+                Design.Colors.Workspace.background.ignoresSafeArea()
 
                 if reportData.isEmpty {
-                    DashboardSheetEmptyState(
-                        icon: "chart.pie",
-                        imageName: "FeatureYieldReport",
-                        title: presentation.emptyTitle,
-                        message: presentation.emptyMessage,
-                        primaryAction: action(
-                            title: presentation.startScan,
-                            icon: "viewfinder",
-                            handler: onStartScan
+                    // 空状态必须可滚动：辅助字号下说明文字会把操作按钮顶出视口。
+                    ScrollView {
+                        DashboardSheetEmptyState(
+                            icon: "chart.pie",
+                            title: presentation.emptyTitle,
+                            message: presentation.emptyMessage,
+                            primaryAction: action(
+                                title: presentation.startScan,
+                                icon: "viewfinder",
+                                handler: onStartScan
+                            )
                         )
-                    )
+                    }
                 } else {
                     reportContent
                 }
@@ -229,20 +193,26 @@ struct YieldReportSheet: View {
             .navigationTitle(presentation.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .onAppear {
+                aggregation.refreshTimeContext()
                 historyStore.loadRecords()
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active { aggregation.refreshTimeContext() }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(presentation.done) { dismiss() }
-                        .foregroundColor(Design.Colors.harvest)
+                        .foregroundColor(Design.Colors.Workspace.accent)
                         .accessibilityHint(Text(presentation.doneHint))
                 }
             }
         }
     }
+
+    // MARK: - 内容
 
     private var reportContent: some View {
         let metrics = presentation.metricPresentations(
@@ -254,51 +224,156 @@ struct YieldReportSheet: View {
         )
 
         return ScrollView {
-            VStack(spacing: 14) {
-                DashboardToolHeader(
-                    imageName: "FeatureYieldReport",
-                    title: presentation.title,
-                    subtitle: presentation.headerSubtitle,
-                    icon: "chart.pie",
-                    accent: Design.Colors.harvest
-                )
+            VStack(alignment: .leading, spacing: 18) {
+                Text(presentation.headerSubtitle)
+                    .font(.footnote)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                DashboardSheetMetricGrid(
-                    items: metrics.map {
-                        DashboardSheetMetric(title: $0.title, value: $0.value, unit: $0.unit)
-                    }
-                )
-
-                perTreeBreakdown
-            }
-            .padding(Design.Space.lg)
+                keyFigures(Array(metrics.prefix(3)))
+                secondaryFigures(Array(metrics.dropFirst(3)))
+                perTreeChart
+                perTreeList            }
+            .frame(maxWidth: 1080, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
     }
 
-    private var perTreeBreakdown: some View {
-        let visibleRecords = reportData.visibleRecords
-
-        return VStack(alignment: .leading, spacing: 0) {
-            Text(presentation.treeDetailsTitle)
-                .font(.headline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
-                .accessibilityAddTraits(.isHeader)
-
-            ForEach(Array(visibleRecords.enumerated()), id: \.element.id) { index, record in
-                YieldReportRecordRow(
-                    presentation: presentation.recordPresentation(for: record, locale: locale)
-                )
-                if index < visibleRecords.count - 1 {
-                    Divider()
-                        .background(Design.Colors.Dark.glassBorder)
-                        .padding(.leading, 14)
+    /// 关键数字：扫描次数、总产量、单株均值。
+    ///
+    /// 三个数字用 `InstrumentDatum`（大字），是整页视觉权重最高的读数。
+    private func keyFigures(_ metrics: [YieldReportMetricPresentation]) -> some View {
+        InstrumentPanel {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
+                            if index > 0 { DividerLine() }
+                            datum(metric)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
+                            if index > 0 { divider }
+                            datum(metric)
+                        }
+                    }
                 }
             }
         }
-        .darkSurface(cornerRadius: 10)
+    }
+
+    /// 次要读数：果实总数与树体数量。比关键数字小一号，不与它争注意力。
+    private func secondaryFigures(_ metrics: [YieldReportMetricPresentation]) -> some View {
+        InstrumentStatStrip {
+            HStack(spacing: 0) {
+                ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
+                    if index > 0 { divider }
+                    secondaryDatum(
+                        label: metric.title,
+                        value: metric.unit.isEmpty ? metric.value : "\(metric.value) \(metric.unit)"
+                    )
+                }
+                divider
+                secondaryDatum(
+                    label: L10n.Dashboard.treeIDs,
+                    value: "\(reportData.totalTrees) \(L10n.Dashboard.treeCountUnit(reportData.totalTrees))"
+                )
+            }
+        }
+    }
+
+    private func datum(_ metric: YieldReportMetricPresentation) -> some View {
+        InstrumentDatum(
+            label: metric.title,
+            value: metric.value,
+            unit: metric.unit.isEmpty ? nil : metric.unit
+        )
+    }
+
+    /// 次要读数：标签在上、数字在下，数字比关键读数小一号。
+    private func secondaryDatum(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .instrumentLabel()
+            Text(value)
+                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .monospacedDigit()
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(Design.Colors.Workspace.line)
+            .frame(width: 0.5, height: 34)
+            .accessibilityHidden(true)
+    }
+
+    // MARK: - 每棵树
+
+    private var perTreeChart: some View {
+        InstrumentPanel(label: WorkspaceText.estimatedYield, systemImage: "chart.bar") {
+            InstrumentBarChart(bars: barEntries)
+        }
+    }
+
+    private var barEntries: [InstrumentBarChart.Bar] {
+        reportData.visibleRecords.map { record in
+            let tier = InstrumentRecord.tier(for: record)
+            return InstrumentBarChart.Bar(
+                id: record.id,
+                label: record.treeID,
+                value: Double(record.yieldKg),
+                displayValue: presentation.recordPresentation(for: record, locale: locale).yield,
+                tint: tier == .complete
+                    ? Design.Colors.Workspace.accent
+                    : tier.tint
+            )
+        }
+    }
+
+    private var perTreeList: some View {
+        let visibleRecords = reportData.visibleRecords
+        let reviewCount = visibleRecords.filter { InstrumentRecord.tier(for: $0) != .complete }.count
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(presentation.treeDetailsTitle)
+                    .instrumentLabel()
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                InstrumentInlineDatum(
+                    label: L10n.Dashboard.treeIDs,
+                    value: "\(visibleRecords.count) / \(reportData.totalTrees)"
+                )
+                if reviewCount > 0 {
+                    InstrumentInlineDatum(
+                        label: WorkspaceText.review,
+                        value: "\(reviewCount)"
+                    )
+                }
+            }
+
+            InstrumentRowGroup {
+                ForEach(Array(visibleRecords.enumerated()), id: \.element.id) { index, record in
+                    InstrumentScanRow(record: record)
+                    if index < visibleRecords.count - 1 {
+                        DividerLine(inset: 0)
+                    }
+                }
+            }
+        }
     }
 
     private func action(title: String, icon: String, handler: (() -> Void)?) -> DashboardSheetAction? {
@@ -307,52 +382,7 @@ struct YieldReportSheet: View {
     }
 }
 
-private struct YieldReportRecordRow: View {
-    let presentation: YieldReportRecordPresentation
-
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(presentation.treeID)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text(presentation.date)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(presentation.yield)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Design.Colors.harvest)
-
-                Text(presentation.fruit)
-                    .font(.system(size: 11))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-struct TrendsData {
-    let records: [ScanFileRecord]
-    let maxYield: Float
-
-    var isEmpty: Bool { records.isEmpty }
-
-    init(records: [ScanFileRecord]) {
-        self.records = records
-            .filter { $0.persistenceState == .complete }
-            .sorted { $0.scanDate < $1.scanDate }
-        maxYield = max(self.records.map(\.yieldKg).max() ?? 1, 1)
-    }
-}
+// MARK: - 趋势
 
 struct TrendsRecordPresentation: Equatable {
     let treeID: String
@@ -381,6 +411,7 @@ struct TrendsPresentation {
     private let fruitUnitOne: String
     private let fruitUnitOther: String
     private let kilogramsUnit: String
+    private let insufficientDaysFormat: String
 
     init(bundle: Bundle = .main) {
         func localized(_ key: String, fallback: String) -> String {
@@ -405,6 +436,15 @@ struct TrendsPresentation {
         fruitUnitOne = localized("trends.unit.fruit_one", fallback: "个")
         fruitUnitOther = localized("trends.unit.fruit_other", fallback: "个")
         kilogramsUnit = localized("trends.unit.kilograms", fallback: "kg")
+        insufficientDaysFormat = localized(
+            "trends.insufficient_days",
+            fallback: "产量趋势至少需要 2 天的完整扫描，当前只有 %d 天。"
+        )
+    }
+
+    /// 数据不足时的说明：说清缺什么，而不是画一条平线。
+    func insufficientDaysMessage(dayCount: Int, locale: Locale) -> String {
+        String(format: insufficientDaysFormat, locale: locale, dayCount)
     }
 
     func recordPresentation(
@@ -449,10 +489,15 @@ struct TrendsPresentation {
     }
 }
 
+/// 趋势：产量随时间的变化。
+///
+/// 折线由**按天聚合的真实产量**驱动；只有一天数据时说明缺什么，不画平线。
 struct TrendsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
-    @ObservedObject private var historyStore: ScanHistoryStore
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var aggregation: DashboardAggregationStore
+    private let historyStore: ScanHistoryStore
     private let onStartScan: (() -> Void)?
     private let bundle: Bundle
 
@@ -460,33 +505,37 @@ struct TrendsSheet: View {
     init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main, historyStore: ScanHistoryStore? = nil) {
         self.onStartScan = onStartScan
         self.bundle = bundle
-        self.historyStore = historyStore ?? .shared
+        let historyStore = historyStore ?? .shared
+        self.historyStore = historyStore
+        self.aggregation = historyStore.dashboardAggregation
     }
 
-    private var trendsData: TrendsData { TrendsData(records: historyStore.scanFiles) }
+    private var trendsData: TrendsData { aggregation.snapshot.trends }
 
     private var presentation: TrendsPresentation {
         TrendsPresentation(bundle: bundle)
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
+                Design.Colors.Workspace.background.ignoresSafeArea()
 
                 if trendsData.isEmpty {
-                    DashboardSheetEmptyState(
-                        icon: "chart.xyaxis.line",
-                        imageName: "FeatureTrends",
-                        title: presentation.emptyTitle,
-                        message: presentation.emptyMessage,
-                        accent: Design.Colors.Dark.info,
-                        primaryAction: action(
-                            title: presentation.startScan,
-                            icon: "viewfinder",
-                            handler: onStartScan
+                    // 空状态必须可滚动：辅助字号下说明文字会把操作按钮顶出视口。
+                    ScrollView {
+                        DashboardSheetEmptyState(
+                            icon: "chart.xyaxis.line",
+                            title: presentation.emptyTitle,
+                            message: presentation.emptyMessage,
+                            accent: Design.Colors.Workspace.information,
+                            primaryAction: action(
+                                title: presentation.startScan,
+                                icon: "viewfinder",
+                                handler: onStartScan
+                            )
                         )
-                    )
+                    }
                 } else {
                     trendsContent
                 }
@@ -494,216 +543,192 @@ struct TrendsSheet: View {
             .navigationTitle(presentation.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .onAppear {
+                aggregation.refreshTimeContext()
                 historyStore.loadRecords()
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active { aggregation.refreshTimeContext() }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(presentation.done) { dismiss() }
-                        .foregroundColor(Design.Colors.harvest)
+                        .foregroundColor(Design.Colors.Workspace.accent)
                         .accessibilityHint(Text(presentation.doneHint))
                 }
             }
         }
     }
 
+    // MARK: - 内容
+
     private var trendsContent: some View {
         ScrollView {
-            VStack(spacing: 14) {
-                DashboardToolHeader(
-                    imageName: "FeatureTrends",
-                    title: presentation.title,
-                    subtitle: presentation.headerSubtitle,
-                    icon: "chart.xyaxis.line",
-                    accent: Design.Colors.Dark.info
-                )
+            VStack(alignment: .leading, spacing: 18) {
+                Text(presentation.headerSubtitle)
+                    .font(.footnote)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                trendChart
-                trendsTable
+                trendPanel
+                recordList
             }
-            .padding(Design.Space.lg)
+            .frame(maxWidth: 1080, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
+    }
+
+    private var trendPanel: some View {
+        InstrumentPanel(label: presentation.chartTitle, systemImage: "chart.xyaxis.line") {
+            if dailyPoints.count > 1 {
+                VStack(alignment: .leading, spacing: 12) {
+                    InstrumentTrendChart(points: chartPoints)
+                    endLabels
+                }
+            } else {
+                InstrumentNotice(
+                    message: presentation.insufficientDaysMessage(
+                        dayCount: dailyPoints.count,
+                        locale: locale
+                    ),
+                    tone: .attention,
+                    systemImage: "chart.xyaxis.line"
+                )
+            }
+        }
+    }
+
+    /// 端点读数：等宽数字，首尾两天的真实日产量。
+    private var endLabels: some View {
+        HStack(spacing: 0) {
+            if let first = dailyPoints.first {
+                InstrumentDatum(
+                    label: first.label,
+                    value: Self.formatted(first.value, locale: locale),
+                    unit: "kg"
+                )
+            }
+            Rectangle()
+                .fill(Design.Colors.Workspace.line)
+                .frame(width: 0.5, height: 34)
+                .accessibilityHidden(true)
+            if let last = dailyPoints.last {
+                InstrumentDatum(
+                    label: last.label,
+                    value: Self.formatted(last.value, locale: locale),
+                    unit: "kg"
+                )
+            }
+        }
+    }
+
+    private var chartPoints: [InstrumentTrendChart.Point] {
+        dailyPoints.enumerated().map { index, point in
+            InstrumentTrendChart.Point(id: index, label: point.label, value: point.value)
+        }
+    }
+
+    /// 按天聚合的真实日产量。
+    private var dailyPoints: [DailyYield] {
+        let calendar = aggregation.snapshot.context.calendar
+        let grouped = Dictionary(grouping: trendsData.records) { record in
+            calendar.startOfDay(for: record.scanDate)
+        }
+        return grouped
+            .map { day, records in
+                DailyYield(
+                    day: day,
+                    label: day.formatted(.dateTime.month(.abbreviated).day()),
+                    value: Double(records.reduce(Float(0)) { $0 + $1.yieldKg })
+                )
+            }
+            .sorted { $0.day < $1.day }
+    }
+
+    private var recordList: some View {
+        let records = trendsData.records
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(presentation.recordsTitle)
+                    .instrumentLabel()
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                InstrumentInlineDatum(
+                    label: L10n.Dashboard.totalScans,
+                    value: "\(records.count)"
+                )
+            }
+
+            InstrumentRowGroup {
+                ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
+                    InstrumentScanRow(record: record)
+                    if index < records.count - 1 {
+                        DividerLine(inset: 0)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func formatted(_ value: Double, locale: Locale) -> String {
+        value.formatted(
+            .number
+                .locale(locale)
+                .grouping(.automatic)
+                .precision(.fractionLength(1))
+        )
     }
 
     private func action(title: String, icon: String, handler: (() -> Void)?) -> DashboardSheetAction? {
         guard let handler else { return nil }
         return DashboardSheetAction(title: title, icon: icon, action: handler)
     }
-
-    private var trendChart: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(presentation.chartTitle)
-                .font(.headline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: 10) {
-                    ForEach(trendsData.records) { record in
-                        let recordPresentation = presentation.recordPresentation(
-                            for: record,
-                            locale: locale
-                        )
-                        TrendsChartPoint(
-                            presentation: recordPresentation,
-                            yieldRatio: CGFloat(record.yieldKg / trendsData.maxYield),
-                            color: barColor(for: record.yieldKg)
-                        )
-                    }
-                }
-                .padding(.vertical, 6)
-            }
-        }
-        .padding(14)
-        .darkSurface(cornerRadius: 10)
-    }
-
-    private var trendsTable: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(presentation.recordsTitle)
-                .font(.headline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
-                .accessibilityAddTraits(.isHeader)
-
-            ForEach(Array(trendsData.records.enumerated()), id: \.element.id) { index, record in
-                TrendsRecordRow(
-                    presentation: presentation.recordPresentation(for: record, locale: locale)
-                )
-                if index < trendsData.records.count - 1 {
-                    Divider()
-                        .background(Design.Colors.Dark.glassBorder)
-                        .padding(.leading, 14)
-                }
-            }
-        }
-        .darkSurface(cornerRadius: 10)
-    }
-
-    private func barColor(for yield: Float) -> Color {
-        let ratio = yield / trendsData.maxYield
-        if ratio > 0.7 { return Design.Colors.harvest }
-        if ratio > 0.4 { return Design.Colors.Dark.info }
-        return Design.Colors.Dark.textMuted
-    }
 }
 
-struct TrendsChartPoint: View {
-    let presentation: TrendsRecordPresentation
-    let yieldRatio: CGFloat
-    let color: Color
+/// 一天的产量聚合。
+private struct DailyYield: Identifiable {
+    let day: Date
+    let label: String
+    let value: Double
 
-    @ScaledMetric(relativeTo: .caption2) private var scaledBarWidth: CGFloat = 24
-    @ScaledMetric(relativeTo: .caption2) private var scaledColumnWidth: CGFloat = 48
-
-    private var barWidth: CGFloat { min(scaledBarWidth, 36) }
-    private var columnWidth: CGFloat { min(max(scaledColumnWidth, 48), 160) }
-
-    var body: some View {
-        VStack(spacing: 5) {
-            Text(presentation.yieldValue)
-                .font(.caption2.monospacedDigit().weight(.medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-
-            RoundedRectangle(cornerRadius: 3)
-                .fill(color)
-                .frame(
-                    width: barWidth,
-                    height: max(6, min(max(yieldRatio, 0), 1) * 120)
-                )
-
-            Text(presentation.chartDate)
-                .font(.caption2)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .lineLimit(1)
-        }
-        .frame(width: columnWidth)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(presentation.treeID))
-        .accessibilityValue(Text(presentation.chartAccessibilityValue))
-    }
+    var id: Date { day }
 }
 
-struct TrendsRecordRow: View {
-    let presentation: TrendsRecordPresentation
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                accessibilityLayout
-            } else {
-                horizontalLayout
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var horizontalLayout: some View {
-        HStack(spacing: 12) {
-            identityColumn
-
-            Spacer()
-
-            measurementColumn(alignment: .trailing)
-        }
-    }
-
-    private var accessibilityLayout: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            identityColumn
-            measurementColumn(alignment: .leading)
-        }
-    }
-
-    private var identityColumn: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(presentation.treeID)
-                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-
-            Text(presentation.recordDate)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-    }
-
-    private func measurementColumn(alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: 4) {
-            Text(presentation.yieldText)
-                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
-                .foregroundColor(Design.Colors.harvest)
-
-            Text(presentation.fruitText)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-    }
-}
+// MARK: - 地图
 
 @available(iOS 17, *)
 struct MapSheet: View {
     private let onStartScan: (() -> Void)?
+    /// 「按树复扫」的能力：地图里的档案要能带着**这一棵树**进入扫描。
+    private let onRescanTree: ((String) -> Void)?
     private let bundle: Bundle
     private let historyStore: ScanHistoryStore
 
     @MainActor
-    init(onStartScan: (() -> Void)? = nil, bundle: Bundle = .main, historyStore: ScanHistoryStore? = nil) {
+    init(
+        onStartScan: (() -> Void)? = nil,
+        onRescanTree: ((String) -> Void)? = nil,
+        bundle: Bundle = .main,
+        historyStore: ScanHistoryStore? = nil
+    ) {
         self.onStartScan = onStartScan
+        self.onRescanTree = onRescanTree
         self.bundle = bundle
         self.historyStore = historyStore ?? .shared
     }
 
     var body: some View {
-        OrchardMapView(onStartScan: onStartScan, bundle: bundle, historyStore: historyStore)
+        OrchardMapView(
+            onStartScan: onStartScan,
+            onRescanTree: onRescanTree,
+            bundle: bundle,
+            historyStore: historyStore
+        )
     }
 }

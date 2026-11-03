@@ -1,6 +1,12 @@
 import SwiftUI
 import MapKit
 
+/// 果园地图的文案与数据边界。
+///
+/// 重要语义（见 docs/implementation/UI_DESIGN_SYSTEM.md 第 1 节）：
+/// 地图只呈现**有真实坐标**的完整扫描。没有坐标的记录不会被画成标记，
+/// 但它们仍然留在档案里可以查阅，因此地图上必须把这条回退路径说清楚，
+/// 而不是让记录无声地消失。
 struct OrchardMapPresentation: Equatable {
     let closeMap: String
     let closeMapHint: String
@@ -23,6 +29,13 @@ struct OrchardMapPresentation: Equatable {
     let closeDetailsHint: String
     let selectTreeHint: String
     let requiresIOS17: String
+
+    /// 无定位记录的读数标签。
+    let unlocatedRecordsTitle: String
+    /// 没有定位的记录仍然可以在档案中查阅。
+    let archiveActionTitle: String
+    /// 回退路径的完整说明。
+    let unlocatedFallbackFormat: String
 
     private let confidenceHigh: String
     private let confidenceMedium: String
@@ -75,6 +88,12 @@ struct OrchardMapPresentation: Equatable {
         closeDetailsHint = localized("orchard_map.details.close_hint", fallback: "隐藏当前树体的扫描详情。")
         selectTreeHint = localized("orchard_map.pin.select_hint", fallback: "显示这棵树的扫描详情。")
         requiresIOS17 = localized("orchard_map.requires_ios17", fallback: "果园地图需要 iOS 17 或更高版本。")
+        unlocatedRecordsTitle = localized("orchard_map.unlocated_records", fallback: "无定位记录")
+        archiveActionTitle = localized("workspace.open_archives", fallback: "查看已有档案")
+        unlocatedFallbackFormat = localized(
+            "orchard_map.unlocated_fallback",
+            fallback: "%d 条记录没有定位，无法显示在地图上；它们仍然可以在档案中查阅。"
+        )
         confidenceHigh = localized("orchard_map.confidence.high", fallback: "高")
         confidenceMedium = localized("orchard_map.confidence.medium", fallback: "中")
         confidenceLow = localized("orchard_map.confidence.low", fallback: "低")
@@ -104,6 +123,11 @@ struct OrchardMapPresentation: Equatable {
         case .medium: return yieldMedium
         case .low: return yieldLow
         }
+    }
+
+    /// 无定位记录的说明：说清有多少条、为什么不上图、去哪里找。
+    func unlocatedFallbackMessage(count: Int, locale: Locale) -> String {
+        String(format: unlocatedFallbackFormat, locale: locale, count)
     }
 
     func confidenceLabel(_ value: String) -> String {
@@ -205,14 +229,21 @@ extension EnvironmentValues {
     }
 }
 
+/// 地图的数据边界。
+///
+/// - `trees`：只有**完整落盘**且**带真实坐标**的记录才会变成地图上的树体。
+/// - `unlocatedRecordCount`：没有任何坐标的记录数量。它们不会出现在地图上，
+///   但仍然在档案里可查，因此这个数字必须被界面说出来。
 struct OrchardMapData {
     let trees: [TreeAnnotation]
+    let unlocatedRecordCount: Int
 
-    init(records: [ScanFileRecord]) {
+    init(records: [ScanFileRecord], surveyPoints: [TreeSurveyPoint] = []) {
+        let pointsByTreeID = Dictionary(surveyPoints.map { ($0.treeID, $0) }, uniquingKeysWith: { first, _ in first })
         let locatedRecords = records
             .filter {
                 $0.persistenceState == .complete &&
-                    ($0.gpsLat != 0 || $0.gpsLon != 0)
+                    ($0.gpsLat != 0 || $0.gpsLon != 0 || pointsByTreeID[TreeIdentifierPolicy.normalized($0.treeID)] != nil)
             }
         var latestRecordByTreeID: [String: ScanFileRecord] = [:]
         for record in locatedRecords {
@@ -227,7 +258,12 @@ struct OrchardMapData {
 
         trees = latestRecordByTreeID.values
             .sorted(by: Self.isOrderedBefore)
-            .map(TreeAnnotation.init(record:))
+            .map { TreeAnnotation(record: $0, surveyPoint: pointsByTreeID[TreeIdentifierPolicy.normalized($0.treeID)]) }
+
+        // 没有坐标的记录：既不上图，也不消失。
+        unlocatedRecordCount = records.filter {
+            $0.gpsLat == 0 && $0.gpsLon == 0 && pointsByTreeID[TreeIdentifierPolicy.normalized($0.treeID)] == nil
+        }.count
     }
 
     private static func isOrderedBefore(
@@ -252,6 +288,7 @@ struct TreeAnnotation: Identifiable, Hashable {
     let confidence: String
     let scanDate: Date
     let fruitCount: Int
+    let surveyPoint: TreeSurveyPoint?
 
     init(
         id: String,
@@ -260,7 +297,8 @@ struct TreeAnnotation: Identifiable, Hashable {
         weight: Double,
         confidence: String,
         scanDate: Date,
-        fruitCount: Int
+        fruitCount: Int,
+        surveyPoint: TreeSurveyPoint? = nil
     ) {
         self.id = id
         self.treeID = treeID
@@ -269,18 +307,25 @@ struct TreeAnnotation: Identifiable, Hashable {
         self.confidence = confidence
         self.scanDate = scanDate
         self.fruitCount = fruitCount
+        self.surveyPoint = surveyPoint
     }
 
-    init(record: ScanFileRecord) {
+    init(record: ScanFileRecord, surveyPoint: TreeSurveyPoint? = nil) {
         self.init(
             id: record.id,
             treeID: record.treeID,
-            coordinate: CLLocationCoordinate2D(latitude: record.gpsLat, longitude: record.gpsLon),
+            coordinate: surveyPoint?.coordinate ?? CLLocationCoordinate2D(latitude: record.gpsLat, longitude: record.gpsLon),
             weight: Double(record.yieldKg),
             confidence: record.confidence,
             scanDate: record.scanDate,
-            fruitCount: record.fruitCount
+            fruitCount: record.fruitCount,
+            surveyPoint: surveyPoint
         )
+    }
+
+    var positionDescription: String {
+        guard let surveyPoint else { return "扫描时手机位置参考 · 未归档定位误差" }
+        return surveyPoint.method.title + " · " + surveyPoint.accuracyDescription + " · 现场待核验"
     }
 
     var yieldLevel: YieldLevel {
@@ -305,9 +350,9 @@ enum YieldLevel: CaseIterable {
 
     var color: Color {
         switch self {
-        case .high: return Design.Colors.Dark.success
-        case .medium: return Design.Colors.Dark.warning
-        case .low: return Design.Colors.Dark.error
+        case .high: return Design.Colors.Workspace.accent
+        case .medium: return Design.Colors.Workspace.attention
+        case .low: return Design.Colors.Workspace.failure
         }
     }
 

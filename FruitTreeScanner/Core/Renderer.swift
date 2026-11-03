@@ -32,12 +32,7 @@ final class Renderer: NSObject {
     public var scanDuration: TimeInterval { scanProgress.scanDuration }
 
     var maxPoints: Int = 1000000
-
-    @MainActor
-    func applyScanQualitySettings() {
-        let settings = RendererScanSettings(store: SettingsStore.shared, particleCapacity: particlesBuffer.count)
-        applyScanQualitySettings(settings)
-    }
+    let particleCapacity: Int
 
     @MainActor
     func applyScanQualitySettings(_ settings: RendererScanSettings, resourceBudget: ScanResourceBudget = .default) {
@@ -47,7 +42,7 @@ final class Renderer: NSObject {
         }
         snapshotResourceBudget = resourceBudget
         snapshotLock.unlock()
-        maxPoints = min(settings.maxPoints, particlesBuffer.count)
+        maxPoints = min(max(settings.maxPoints, 1), particlesBuffer.count)
         pointCloudUniforms.maxPoints = Int32(maxPoints)
         rgbRadius = settings.rgbRadius
         minDepth = settings.minDepth
@@ -137,10 +132,14 @@ final class Renderer: NSObject {
         return u
     }()
     var pointCloudUniformsBuffers = [MetalBuffer<PointCloudUniforms>]()
-    public lazy var particlesBuffer: MetalBuffer<ParticleUniforms> = .init(device: device, count: maxPoints, index: kParticleUniforms.rawValue)
+    public lazy var particlesBuffer: MetalBuffer<ParticleUniforms> = .init(device: device, count: particleCapacity, index: kParticleUniforms.rawValue)
     var currentPointIndex = 0
     var currentPointCount = 0
     var pointBufferRevision: UInt64 = 0
+    // Protected by pointBufferLock. A failed write invalidates the whole
+    // capture until reset, even when later commands succeed.
+    var pointCaptureGeneration: UInt64 = 0
+    var pointCaptureWriteFailed = false
 
     let snapshotLock = NSLock()
     let pointBufferLock = NSLock()
@@ -209,11 +208,22 @@ final class Renderer: NSObject {
 
     // MARK: - Init
     init(session: ARSession, metalDevice device: MTLDevice,
-         renderDestination: MTKView) {
+         renderDestination: MTKView, initialSettings: RendererScanSettings,
+         resourceBudget: ScanResourceBudget = .default) {
         self.session = session
         self.device = device
         self.renderDestination = renderDestination
-        maxPoints = SettingsStore.shared.maxPointCount
+        particleCapacity = RendererScanSettings.boundedParticleCapacity(initialSettings.maxPoints)
+        maxPoints = particleCapacity
+        rgbRadius = initialSettings.rgbRadius
+        minDepth = initialSettings.minDepth
+        maxDepth = initialSettings.maxDepth
+        snapshotVoxelSize = initialSettings.snapshotVoxelSize
+        confidenceThreshold = initialSettings.confidenceThreshold
+        depthEdgeThreshold = initialSettings.depthEdgeThreshold
+        minimumStableDepthNeighborCount = initialSettings.minimumStableDepthNeighborCount
+        depthConfiguration = initialSettings.depthConfiguration
+        snapshotResourceBudget = resourceBudget
         // super.init() must be LAST: all let properties must be initialized before super.init()
         library = device.makeDefaultLibrary()!
         commandQueue = device.makeCommandQueue()!

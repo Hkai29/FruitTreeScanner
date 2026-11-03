@@ -1,3 +1,10 @@
+// ScanStatusBarPresentation.swift
+// 采集状态的颜色与文案映射。
+//
+// 颜色只有三档：可靠(绿) / 注意(琥珀) / 失败(锈红)。
+// 连续量（覆盖度、质量分）用分段电平表表达连续信息，
+// 颜色只做三档强化，避免彩虹色阶。
+
 import SwiftUI
 
 @MainActor
@@ -24,33 +31,31 @@ struct ScanStatusBarPresentation {
         recordingRouteHint = Self.recordingRouteHint(for: hudState.scanCompletion.discoveryTrend)
         visionStatusText = Self.visionStatusText(for: hudState.visionModelStatus)
         visionDetailText = Self.visionDetailText(for: hudState.visionModelDetail)
-        visionStatusColor = hudState.visionModelStatus == "CoreML" ? Design.Colors.forest : Design.Colors.warning
+        visionStatusColor = hudState.visionModelStatus == "CoreML" ? Design.Colors.Dark.success : Design.Colors.Dark.warning
         depthStatusText = Self.depthStatusText(for: hudState.depthRuntimeStatus)
         depthStatusColor = Self.depthStatusColor(for: hudState.depthRuntimeStatus)
         pointCloudStatusText = Self.pointCloudStatusText(for: hudState.exportablePointStatus)
-        pointCloudStatusColor = hudState.exportablePointStatus == "Ready" ? Design.Colors.forest : Design.Colors.warning
+        pointCloudStatusColor = hudState.exportablePointStatus == "Ready" ? Design.Colors.Dark.success : Design.Colors.Dark.warning
         fusionStatusText = Self.fusionStatusText(for: hudState.fusionStatus)
-        fusionStatusColor = hudState.fusionStatus == "OK" ? Design.Colors.forest : Design.Colors.warning
+        fusionStatusColor = hudState.fusionStatus == "OK" ? Design.Colors.Dark.success : Design.Colors.Dark.warning
         processedFrameText = hudState.processedImageFrames > 0 ? "\(hudState.processedImageFrames)" : "--"
-        processedFrameColor = hudState.processedImageFrames > 0 ? Design.Colors.harvest : Design.Colors.warning
-        pointDensityColor = qualityMonitor.pointDensity > 100 ? Design.Colors.harvest : Design.Colors.warning
+        processedFrameColor = hudState.processedImageFrames > 0 ? Design.Colors.Dark.glow : Design.Colors.Dark.warning
+        pointDensityColor = qualityMonitor.pointDensity > 100 ? Design.Colors.Dark.glow : Design.Colors.Dark.warning
     }
 
+    /// 三档色阶：差 / 一般 / 好。连续分值由电平表承担。
     private static func qualityColor(for score: Float) -> Color {
         switch score {
-        case 0..<30: return Design.Colors.apple
-        case 30..<50: return Design.Colors.harvestDark
-        case 50..<70: return Design.Colors.harvest
-        case 70..<90: return Design.Colors.forest
-        default: return Design.Colors.earth
+        case 0..<40: return Design.Colors.Dark.error
+        case 40..<70: return Design.Colors.Dark.warning
+        default: return Design.Colors.Dark.success
         }
     }
 
     private static func coverageColor(for percent: Int) -> Color {
-        if percent >= 85 { return Design.Colors.harvest }
-        if percent >= 60 { return Design.Colors.forest }
-        if percent >= 30 { return Design.Colors.warning }
-        return Design.Colors.apple
+        if percent >= 85 { return Design.Colors.Dark.success }
+        if percent >= 50 { return Design.Colors.Dark.warning }
+        return Design.Colors.Dark.error
     }
 
     private static func recordingRouteHint(for trend: VoxelDiscoveryTrend) -> String {
@@ -96,9 +101,10 @@ struct ScanStatusBarPresentation {
 
     private static func depthStatusColor(for status: String) -> Color {
         switch status {
-        case "LiDAR": return Design.Colors.forest
-        case "Wait": return Design.Colors.harvest
-        default: return Design.Colors.warning
+        case "LiDAR": return Design.Colors.Dark.success
+        case "Wait": return Design.Colors.Dark.warning
+        case "NoDepth", "NoAR": return Design.Colors.Dark.error
+        default: return Design.Colors.Dark.warning
         }
     }
 

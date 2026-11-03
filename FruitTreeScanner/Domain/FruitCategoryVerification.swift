@@ -15,7 +15,7 @@ extension FruitCategory {
     }
 }
 
-struct FruitCategorySuggestion: Sendable, Equatable {
+struct FruitCategorySuggestion: Sendable, Equatable, Codable {
     let category: FruitCategory
     let confidence: Float
     let supportingFrameCount: Int
@@ -31,7 +31,7 @@ struct FruitCategoryMismatch: Sendable, Equatable, Identifiable {
     var id: String { "\(selectedCategory.rawValue)-\(dominantDetectedCategory.rawValue)" }
 }
 
-struct FruitCategoryVerificationSummary: Sendable, Equatable {
+struct FruitCategoryVerificationSummary: Sendable, Equatable, Codable {
     var selectedCategory: FruitCategory
     var detectedCategoryCounts: [String: Int]
     var nonTargetDetectionCount: Int

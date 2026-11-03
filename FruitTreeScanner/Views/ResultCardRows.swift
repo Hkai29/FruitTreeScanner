@@ -1,3 +1,6 @@
+// ResultCardRows.swift
+// 结果页的分段与行。以小标签 + 发丝线分段，不用白色卡片套白色卡片。
+
 import SwiftUI
 
 struct ResultDetailRowLayoutPolicy: Equatable, Sendable {
@@ -13,38 +16,34 @@ struct ResultDetailRowLayoutPolicy: Equatable, Sendable {
     }
 }
 
+/// 结果页的一个分段：小标签标题 + 发丝线 + 内容。
 struct ResultSectionCard<Content: View>: View {
     let title: String
     let icon: String
     let color: Color
     @ViewBuilder let content: () -> Content
 
-    @ScaledMetric(relativeTo: .headline) private var iconFontSize: CGFloat = 16
-    @ScaledMetric(relativeTo: .headline) private var titleFontSize: CGFloat = 15
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 7) {
                 Image(systemName: icon)
-                    .font(.system(size: iconFontSize))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(color)
-
+                    .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: titleFontSize, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .instrumentLabel()
+                    .foregroundColor(color)
                     .fixedSize(horizontal: false, vertical: true)
-
-                Spacer()
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
             }
-
-            Divider()
-                .background(Design.Colors.Dark.glassBorder)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Design.Colors.Workspace.line).frame(height: 0.5)
+            }
+            .padding(.bottom, 2)
 
             content()
         }
-        .padding(15)
-        .resultSurface(cornerRadius: 10)
-        .padding(.horizontal, 18)
     }
 }
 
@@ -54,8 +53,6 @@ struct ResultInfoRow: View {
     var highlight: Bool = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var labelFontSize: CGFloat = 14
-    @ScaledMetric(relativeTo: .body) private var valueFontSize: CGFloat = 14
 
     private var layoutPolicy: ResultDetailRowLayoutPolicy {
         ResultDetailRowLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
@@ -83,15 +80,16 @@ struct ResultInfoRow: View {
 
     private var labelText: some View {
         Text(label)
-            .font(.system(size: labelFontSize))
-            .foregroundColor(Design.Colors.Dark.textSecondary)
+            .font(.subheadline)
+            .foregroundColor(Design.Colors.Workspace.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var valueText: some View {
         Text(value)
-            .font(.system(size: valueFontSize, weight: highlight ? .semibold : .medium, design: .monospaced))
-            .foregroundColor(highlight ? Design.Colors.forest : Design.Colors.Dark.textPrimary)
+            .font(.subheadline.weight(highlight ? .semibold : .regular))
+            .monospacedDigit()
+            .foregroundColor(Design.Colors.Workspace.ink)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -100,24 +98,21 @@ struct ResultParameterRow: View {
     let title: String
     let value: String
     let detail: String
-    var tint: Color = Design.Colors.Dark.textPrimary
+    var tint: Color = Design.Colors.Workspace.ink
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var titleFontSize: CGFloat = 14
-    @ScaledMetric(relativeTo: .body) private var valueFontSize: CGFloat = 14
-    @ScaledMetric(relativeTo: .caption) private var detailFontSize: CGFloat = 12
 
     private var layoutPolicy: ResultDetailRowLayoutPolicy {
         ResultDetailRowLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
             parameterHeading
 
             Text(detail)
-                .font(.system(size: detailFontSize))
-                .foregroundColor(Design.Colors.Dark.textMuted)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Workspace.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -145,14 +140,15 @@ struct ResultParameterRow: View {
 
     private var titleText: some View {
         Text(title)
-            .font(.system(size: titleFontSize, weight: .medium))
-            .foregroundColor(Design.Colors.Dark.textSecondary)
+            .font(.subheadline)
+            .foregroundColor(Design.Colors.Workspace.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var valueText: some View {
         Text(value)
-            .font(.system(size: valueFontSize, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
             .foregroundColor(tint)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -161,18 +157,16 @@ struct ResultParameterRow: View {
 struct DiagnosticRecommendationRow: View {
     let recommendation: String
 
-    @ScaledMetric(relativeTo: .caption) private var iconFontSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .subheadline) private var recommendationFontSize: CGFloat = 13
-
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "lightbulb.fill")
-                .font(.system(size: iconFontSize, weight: .semibold))
-                .foregroundColor(Design.Colors.harvest)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.accent)
                 .padding(.top, 2)
+                .accessibilityHidden(true)
             Text(recommendation)
-                .font(.system(size: recommendationFontSize, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Workspace.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -183,14 +177,6 @@ struct DiagnosticRecommendationRow: View {
 
 extension View {
     func resultSurface(cornerRadius: CGFloat) -> some View {
-        self
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Design.Colors.Dark.glassFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
-            )
+        workspaceSurface(cornerRadius: cornerRadius)
     }
 }

@@ -1,9 +1,622 @@
 import XCTest
+import Combine
 import SwiftUI
 import UIKit
 @testable import FruitTreeScanner
 
 final class BatchExportServiceTests: XCTestCase {
+
+    func testScanClassificationInvalidPresentFieldCannotBecomeComplete() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "classification.ply")
+        let duplicate = ["id": "00000000-0000-0000-0000-000000000061", "name": "tag"]
+        let invalid: [Any] = [NSNull(), [:],
+            ["version": 2, "plot": NSNull(), "tags": []],
+            ["version": true, "plot": NSNull(), "tags": []],
+            ["version": 1, "plot": "invalid", "tags": []],
+            ["version": 1, "plot": NSNull(), "tags": [["id": "not-a-uuid", "name": "tag"]]],
+            ["version": 1, "plot": NSNull(), "tags": [duplicate, duplicate]]]
+        for value in invalid {
+            let payload: [String: Any] = ["fruitCount": 12, "yieldKg": 3.45, "scanClassification": value]
+            XCTAssertNil(ScanLegacyArchiveCodec.metadata(from: payload), "Invalid present fields must not look like absent classification")
+            try JSONSerialization.data(withJSONObject: payload).write(to: directory.appendingPathComponent("classification_result.json"))
+            XCTAssertEqual(try ScanRepository(scansDirectory: directory).readRecord(at: source)?.persistenceState, .invalid)
+        }
+    }
+
+    func testScanClassificationSameSourceResaveRetainsFrozenEnvelope() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "classification.ply")
+        let expected = try seedClassification61(source: source)
+        let originalSource = try Data(contentsOf: source)
+        let request = ScanResultExportService.ExportRequest(
+            treeID: "classification", fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1),
+            gpsLat: 0, gpsLon: 0, sourceFilename: source.lastPathComponent, result: makeYieldResult()
+        )
+        let service = ScanResultExportService(scansDirectory: directory)
+        let first = try XCTUnwrap(service.exportIfNeeded(request))
+        let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: XCTUnwrap(first.metadataURL))) as? [String: Any])
+        XCTAssertEqual(metadata["scanClassification"] as? NSDictionary, expected as NSDictionary)
+        let second = try XCTUnwrap(service.exportIfNeeded(request))
+        XCTAssertEqual(second.exportRevision, first.exportRevision)
+        XCTAssertEqual(try Data(contentsOf: source), originalSource)
+        XCTAssertEqual(try ScanRepository(scansDirectory: directory).readRecord(at: source)?.persistenceState, .complete)
+    }
+
+    func testScanClassificationResearchExportRetainsVerifiedFrozenEnvelope() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "classification.ply")
+        let expected = try seedClassification61(source: source)
+        let repository = ScanRepository(scansDirectory: directory)
+        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source)).summary
+        let data = try repository.researchExportRecordData(for: record)
+        let exported = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(exported["scanClassification"] as? NSDictionary, expected as NSDictionary)
+    }
+
+    private func seedClassification61(source: URL) throws -> [String: Any] {
+        let classification: [String: Any] = [
+            "version": 1,
+            "plot": ["id": "00000000-0000-0000-0000-000000000062", "name": "原地块"],
+            "tags": [["id": "00000000-0000-0000-0000-000000000063", "name": "第二标签"],
+                     ["id": "00000000-0000-0000-0000-000000000061", "name": "第一标签"]],
+            "auditExtension": ["instrument": "fixture61"]
+        ]
+        let payload: [String: Any] = ["treeID": "classification", "fruitType": "apple", "fruitCount": 12,
+                                      "yieldKg": 3.45, "scanClassification": classification]
+        try JSONSerialization.data(withJSONObject: payload).write(to: source.deletingLastPathComponent().appendingPathComponent("classification_result.json"))
+        return classification
+    }
+
+    func testScanClassificationLegacyAbsenceAndExplicitEmptyRemainDistinct() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = ScanResultExportService(scansDirectory: directory)
+        let repository = ScanRepository(scansDirectory: directory)
+        for (filename, classification) in [("absent.ply", Optional<ScanClassificationSnapshot>.none),
+                                            ("empty.ply", Optional(ScanClassificationSnapshot.empty))] {
+            let source = try writeMinimalPointCloud(in: directory, filename: filename)
+            let request = ScanResultExportService.ExportRequest(treeID: source.deletingPathExtension().lastPathComponent, fruitType: "apple",
+                scanDate: Date(timeIntervalSince1970: 1), gpsLat: 0, gpsLon: 0,
+                sourceFilename: filename, result: makeYieldResult(), classification: classification)
+            _ = try service.exportIfNeeded(request)
+            let verified = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+            XCTAssertEqual(verified.classification, classification)
+            let exported = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: repository.researchExportRecordData(for: verified.summary)) as? [String: Any])
+            XCTAssertEqual(exported.keys.contains("scanClassification"), classification != nil)
+            XCTAssertEqual(try ScanClassificationArchiveCodec.snapshot(in: exported), classification)
+        }
+    }
+
+    func testScanClassificationExplicitSnapshotRoundTripsWithoutCatalogLookup() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "classification.ply")
+        let seeded = try seedClassification61(source: source)
+        let frozen = try XCTUnwrap(ScanClassificationArchiveCodec.snapshot(in: ["scanClassification": seeded]))
+        XCTAssertEqual(frozen.tags.map(\.name), ["第二标签", "第一标签"])
+        let service = ScanResultExportService(scansDirectory: directory)
+        let request = ScanResultExportService.ExportRequest(treeID: "classification", fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1), gpsLat: 0, gpsLon: 0,
+            sourceFilename: source.lastPathComponent, result: makeYieldResult(), classification: frozen)
+        let first = try XCTUnwrap(service.exportIfNeeded(request))
+        XCTAssertEqual(try ScanRepository(scansDirectory: directory).readVerifiedRecord(at: source)?.classification, frozen)
+        XCTAssertEqual(PLYParserHelper.readCompanionMetadata(for: source)?.classification, frozen)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: XCTUnwrap(first.metadataURL))) as? [String: Any])
+        XCTAssertEqual(payload["scanClassification"] as? NSDictionary, seeded as NSDictionary,
+                       "Matching explicit values must retain unknown classification extensions")
+        XCTAssertEqual(try service.exportIfNeeded(request)?.exportRevision, first.exportRevision)
+    }
+
+    func testScanClassificationConflictingRewriteCannotAlterCommittedFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "classification.ply")
+        _ = try seedClassification61(source: source)
+        let service = ScanResultExportService(scansDirectory: directory)
+        let request = ScanResultExportService.ExportRequest(treeID: "classification", fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1), gpsLat: 0, gpsLon: 0,
+            sourceFilename: source.lastPathComponent, result: makeYieldResult())
+        _ = try service.exportIfNeeded(request)
+        let paths = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        let before = try Dictionary(uniqueKeysWithValues: paths.map { ($0, try Data(contentsOf: $0)) })
+        let conflicting = ScanResultExportService.ExportRequest(treeID: request.treeID, fruitType: request.fruitType,
+            scanDate: request.scanDate, gpsLat: 0, gpsLon: 0, sourceFilename: request.sourceFilename,
+            result: request.result, classification: .empty)
+        XCTAssertThrowsError(try service.exportIfNeeded(conflicting)) {
+            guard case ScanClassificationArchiveError.conflictingSnapshot = $0 else { return XCTFail("Unexpected error: \($0)") }
+        }
+        for (path, bytes) in before { XCTAssertEqual(try Data(contentsOf: path), bytes) }
+        XCTAssertNotNil(try ScanRepository(scansDirectory: directory).readVerifiedRecord(at: source))
+    }
+
+    func testScanClassificationFailedPublishRestoresOriginalAndRetryRetainsSnapshot() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "classification.ply")
+        let expected = try seedClassification61(source: source)
+        let metadataURL = directory.appendingPathComponent("classification_result.json")
+        let oldMetadata = try Data(contentsOf: metadataURL)
+        let oldSource = try Data(contentsOf: source)
+        var failManifest = true
+        let service = ScanResultExportService(scansDirectory: directory, publishFile: { from, to in
+            if to.lastPathComponent == "classification_complete.json", failManifest {
+                failManifest = false
+                throw NSError(domain: "Classification61-publish", code: 1)
+            }
+            if FileManager.default.fileExists(atPath: to.path) { try FileManager.default.removeItem(at: to) }
+            try FileManager.default.moveItem(at: from, to: to)
+        })
+        let request = ScanResultExportService.ExportRequest(treeID: "classification", fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1), gpsLat: 0, gpsLon: 0,
+            sourceFilename: source.lastPathComponent, result: makeYieldResult())
+        XCTAssertThrowsError(try service.exportIfNeeded(request))
+        XCTAssertEqual(try Data(contentsOf: metadataURL), oldMetadata)
+        XCTAssertEqual(try Data(contentsOf: source), oldSource)
+        XCTAssertNotNil(try ScanRepository(scansDirectory: directory).readVerifiedRecord(at: source))
+        _ = try service.exportIfNeeded(request)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: metadataURL)) as? [String: Any])
+        XCTAssertEqual(payload["scanClassification"] as? NSDictionary, expected as NSDictionary)
+        XCTAssertNotNil(try ScanRepository(scansDirectory: directory).readVerifiedRecord(at: source))
+    }
+
+    func testScanClassificationInvalidArchiveCannotBeSilentlyRewritten() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try writeMinimalPointCloud(in: directory, filename: "classification.ply")
+        let original = try seedClassification61(source: source)
+        let service = ScanResultExportService(scansDirectory: directory)
+        let request = ScanResultExportService.ExportRequest(treeID: "classification", fruitType: "apple",
+            scanDate: Date(timeIntervalSince1970: 1), gpsLat: 0, gpsLon: 0,
+            sourceFilename: source.lastPathComponent, result: makeYieldResult())
+        let files = try XCTUnwrap(service.exportIfNeeded(request))
+        let metadataURL = try XCTUnwrap(files.metadataURL)
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: metadataURL)) as? [String: Any])
+        payload["fruitCount"] = 999 // Known classification but invalid original file digest.
+        try JSONSerialization.data(withJSONObject: payload).write(to: metadataURL)
+        let invalidBytes = try Data(contentsOf: metadataURL)
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) {
+            guard case ScanClassificationArchiveError.unverifiedArchive = $0 else { return XCTFail("Unexpected error: \($0)") }
+        }
+        XCTAssertEqual(try Data(contentsOf: metadataURL), invalidBytes)
+        payload["scanClassification"] = NSNull()
+        try JSONSerialization.data(withJSONObject: payload).write(to: metadataURL)
+        XCTAssertThrowsError(try service.exportIfNeeded(request))
+        XCTAssertThrowsError(try ScanResearchArchiveCodec.encodeRecord(
+            makeRecord(treeID: "classification", fileURL: source), sidecar: payload))
+        var duplicate = try XCTUnwrap(ScanClassificationArchiveCodec.snapshot(in: ["scanClassification": original]))
+        duplicate = .init(plot: duplicate.plot, tags: duplicate.tags + duplicate.tags)
+        XCTAssertThrowsError(try ScanClassificationArchiveCodec.payload(for: duplicate))
+    }
+
+    // MARK: - Application batch-export ownership contracts
+
+    @MainActor
+    func testBatchWorkflowRedundantFailureDismissalDoesNotPublishViewUpdates() {
+        let workflow = BatchExportWorkflow()
+        var publications = 0
+        let observation = workflow.objectWillChange.sink { publications += 1 }
+        workflow.dismissFailure()
+        XCTAssertEqual(publications, 0, "SwiftUI can close an already-cleared alert while updating its views")
+        withExtendedLifetime(observation) {}
+    }
+
+    @MainActor
+    func testBatchWorkflowMountedPageKeepsAttemptAcrossSameIdentityRebuild() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let store = await workflowStore60()
+        let tags = try workflowTags60()
+        let ui = try await BatchExportNativeUI60()
+        defer { ui.close() }
+        ui.mount(BatchExportRebuildHost60(store: store, tags: tags, operations: control.operations))
+        try await ui.waitFor { ui.element(label: L10n.Export.primaryExportTitle(recordCount: 1)) != nil }
+        let entered = expectation(description: "Native page called the injected export operation")
+        control.onStarted = { if $0 == 0 { entered.fulfill() } }
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Export.primaryExportTitle(recordCount: 1))).accessibilityActivate())
+        await fulfillment(of: [entered], timeout: 5)
+        try await ui.waitFor { ui.element(label: L10n.Export.primaryCancel) != nil }
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: "Rebuild page")).accessibilityActivate())
+        try await ui.waitFor { ui.element(label: "Revision 1") != nil }
+        XCTAssertNotNil(ui.element(label: L10n.Export.primaryCancel), "Same page identity must retain its active workflow")
+        XCTAssertEqual(control.requests.count, 1)
+        control.fail(0, error: CancellationError())
+        try await ui.waitFor { ui.element(label: L10n.Export.primaryExportTitle(recordCount: 1)) != nil }
+        XCTAssertEqual(control.wasCancelled[0], false, "Rebuilding the page must not cancel its task")
+        try ui.attach(to: self, name: "BatchWorkflow60-Rebuild")
+    }
+
+    @MainActor
+    func testBatchWorkflowMountedRequestReaderReleasesOwnerBeforeLateServiceReturn() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let store = await workflowStore60()
+        let tags = try workflowTags60()
+        var ui: BatchExportNativeUI60? = try await BatchExportNativeUI60()
+        defer { ui?.close() }
+        weak var owner: BatchExportWorkflow?
+        func page() -> BatchExportView {
+            let workflow = BatchExportWorkflow(operations: control.operations)
+            owner = workflow
+            return BatchExportView(store: store, tagStore: tags, workflow: workflow)
+        }
+        ui?.mount(page())
+        try await ui?.waitFor { ui?.element(label: L10n.Export.primaryExportTitle(recordCount: 1)) != nil }
+        let entered = expectation(description: "Mounted page request reader is retained by pending service")
+        control.onStarted = { if $0 == 0 { entered.fulfill() } }
+        XCTAssertTrue(try XCTUnwrap(ui?.element(label: L10n.Export.primaryExportTitle(recordCount: 1))).accessibilityActivate())
+        await fulfillment(of: [entered], timeout: 5)
+        XCTAssertNotNil(owner)
+        ui?.close()
+        ui = nil
+        try await waitForWorkflowRelease60 { owner == nil }
+        XCTAssertNil(owner, "The real reader's State locations must not retain the StateObject")
+        let url = try workflowFile60("late native page return")
+        defer { BatchExportService.removeTemporaryExport(at: url) }
+        let cleaned = expectation(description: "Released mounted page late URL was cleaned")
+        control.cleanup.observeRemoval { if $0 == url { cleaned.fulfill() } }
+        control.succeed(0, url: url)
+        await fulfillment(of: [cleaned], timeout: 5)
+        XCTAssertEqual(control.wasCancelled[0], true)
+        XCTAssertEqual(control.cleanup.urls, [url])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor
+    func testBatchWorkflowMountedFailurePresentsLocalizedRecovery() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let workflow = BatchExportWorkflow(operations: control.operations)
+        let store = await workflowStore60()
+        let tags = try workflowTags60()
+        let ui = try await BatchExportNativeUI60()
+        defer { ui.close() }
+        ui.mount(BatchExportView(store: store, tagStore: tags, workflow: workflow))
+        try await ui.waitFor { ui.element(label: L10n.Export.primaryExportTitle(recordCount: 1)) != nil }
+        let first = expectation(description: "Native first export")
+        control.onStarted = { if $0 == 0 { first.fulfill() } }
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Export.primaryExportTitle(recordCount: 1))).accessibilityActivate())
+        await fulfillment(of: [first], timeout: 5)
+        control.fail(0, error: CocoaError(.fileWriteOutOfSpace))
+        try await ui.waitFor { ui.controller.presentedViewController is UIAlertController }
+        let alert = try XCTUnwrap(ui.controller.presentedViewController as? UIAlertController)
+        XCTAssertEqual(alert.message, L10n.Export.outOfSpaceRecovery)
+        try ui.attach(to: self, name: "BatchWorkflow60-Failure")
+        XCTAssertNotNil(ui.element(label: L10n.Export.failureCancel))
+        XCTAssertNotNil(ui.element(label: L10n.Export.failureRetry))
+        // UIAlert actions require an actual UI driver. The isolated
+        // BatchExportRecoveryTests covers Cancel/Retry through XCUIApplication.
+        workflow.dismissFailure()
+        try await ui.waitFor { ui.controller.presentedViewController == nil && workflow.failure == nil }
+        let second = expectation(description: "Native second export")
+        control.onStarted = { if $0 == 1 { second.fulfill() } }
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Export.primaryExportTitle(recordCount: 1))).accessibilityActivate())
+        await fulfillment(of: [second], timeout: 5)
+        control.fail(1, error: CocoaError(.fileWriteNoPermission))
+        try await ui.waitFor { ui.controller.presentedViewController is UIAlertController }
+        XCTAssertEqual((ui.controller.presentedViewController as? UIAlertController)?.message, L10n.Export.fileWriteRecovery)
+        XCTAssertNotNil(ui.element(label: L10n.Export.failureCancel))
+        XCTAssertNotNil(ui.element(label: L10n.Export.failureRetry))
+        XCTAssertFalse(workflow.isExporting)
+        XCTAssertEqual(control.requests.count, 2)
+    }
+
+    func testBatchReplayFailurePresentationRetainsSpecificRecoveryReason() {
+        let errors: [ScanReplayError] = [.unavailable, .invalidArchive, .budgetExceeded, .algorithmMismatch]
+        for error in errors {
+            let presentation = BatchExportFailurePresentation(error: error)
+            XCTAssertEqual(presentation.message, error.localizedDescription)
+            XCTAssertNotEqual(presentation.message, L10n.Export.genericFailureRecovery)
+        }
+        XCTAssertEqual(BatchExportFailurePresentation(error: NSError(domain: "UnknownExport", code: 1)).message,
+                       L10n.Export.genericFailureRecovery)
+    }
+
+    @MainActor
+    private func waitForWorkflowRelease60(_ released: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while !released(), Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertTrue(released(), "Removed page controller must release its workflow before the service returns")
+        if !released() { throw BatchExportNativeTimeout60.stateNotReached }
+    }
+
+    @MainActor
+    private func workflowStore60() async -> ScanHistoryStore {
+        let records = workflowRequest60().records
+        let store = ScanHistoryStore(recordsLoader: { .success(records) })
+        await store.reloadRecords()
+        return store
+    }
+
+    @MainActor
+    private func workflowTags60() throws -> TagStore {
+        let suite = "BatchWorkflow60-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        return TagStore(defaults: defaults)
+    }
+
+
+    @MainActor
+    func testBatchWorkflowEmptyRequestPreservesExistingResultWithoutStartingWork() throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let url = try workflowFile60("existing")
+        defer { BatchExportService.removeTemporaryExport(at: url) }
+        let workflow = BatchExportWorkflow(operations: control.operations, exportedURL: url)
+        let request = BatchExportRequestSnapshot(records: [], selectedRecordIDs: [], format: .csv, options: .init())
+        XCTAssertNil(workflow.start(request, currentRequest: { request }))
+        XCTAssertFalse(workflow.isExporting)
+        XCTAssertEqual(workflow.exportedURL, url)
+        XCTAssertTrue(control.requests.isEmpty)
+        XCTAssertTrue(control.cleanup.urls.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: url), Data("existing".utf8))
+    }
+
+    @MainActor
+    func testBatchWorkflowPublishesOnlyCompletedFrozenRequestAndOwnsItsFile() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let workflow = BatchExportWorkflow(operations: control.operations)
+        var options = BatchExportService.ExportOptions()
+        options.includeDate = false
+        options.includeGPS = false
+        options.groupBy = .plot
+        options.plotNameByTreeID = ["WORKFLOW60": "North block"]
+        let request = workflowRequest60(format: .json, options: options)
+        var comparisons = 0
+        let task = try await beginWorkflow60(workflow, control: control, request: request) {
+            comparisons += 1
+            return request
+        }
+        XCTAssertEqual(control.requests, [request])
+        XCTAssertTrue(workflow.isExporting)
+        XCTAssertNil(workflow.exportedURL)
+        XCTAssertEqual(comparisons, 0)
+        let url = try workflowFile60("completed research output")
+        defer { BatchExportService.removeTemporaryExport(at: url) }
+        control.succeed(0, url: url)
+        await task.value
+        XCTAssertEqual(comparisons, 1)
+        XCTAssertEqual(workflow.exportedURL, url)
+        XCTAssertFalse(workflow.isExporting)
+        XCTAssertNil(workflow.failure)
+        XCTAssertEqual(try Data(contentsOf: url), Data("completed research output".utf8))
+        workflow.clearExportedFile()
+        XCTAssertNil(workflow.exportedURL)
+        XCTAssertEqual(control.cleanup.urls, [url])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor
+    func testBatchWorkflowCancelledLateSuccessCannotPublishOrFinishReplacement() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let workflow = BatchExportWorkflow(operations: control.operations)
+        let request = workflowRequest60()
+        let first = try await beginWorkflow60(workflow, control: control, request: request)
+        workflow.cancel()
+        let second = try await beginWorkflow60(workflow, control: control, request: request)
+        let oldURL = try workflowFile60("old")
+        let newURL = try workflowFile60("new")
+        defer { [oldURL, newURL].forEach { BatchExportService.removeTemporaryExport(at: $0) } }
+        control.succeed(0, url: oldURL)
+        await first.value
+        XCTAssertEqual(control.wasCancelled[0], true)
+        XCTAssertTrue(workflow.isExporting, "Old defer must not finish the replacement")
+        XCTAssertNil(workflow.exportedURL)
+        XCTAssertNil(workflow.failure)
+        XCTAssertEqual(control.cleanup.urls, [oldURL])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oldURL.path))
+        XCTAssertEqual(try Data(contentsOf: newURL), Data("new".utf8))
+        control.succeed(1, url: newURL)
+        await second.value
+        XCTAssertFalse(workflow.isExporting)
+        XCTAssertEqual(workflow.exportedURL, newURL)
+        workflow.clearExportedFile()
+    }
+
+    @MainActor
+    func testBatchWorkflowReplacedLateFailureCannotOverwriteNewAttempt() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let workflow = BatchExportWorkflow(operations: control.operations)
+        let request = workflowRequest60()
+        let first = try await beginWorkflow60(workflow, control: control, request: request)
+        let second = try await beginWorkflow60(workflow, control: control, request: request)
+        control.fail(0, error: CocoaError(.fileWriteOutOfSpace))
+        await first.value
+        XCTAssertEqual(control.wasCancelled[0], true)
+        XCTAssertTrue(workflow.isExporting)
+        XCTAssertNil(workflow.failure)
+        let url = try workflowFile60("replacement")
+        defer { BatchExportService.removeTemporaryExport(at: url) }
+        control.succeed(1, url: url)
+        await second.value
+        XCTAssertEqual(workflow.exportedURL, url)
+        XCTAssertNil(workflow.failure)
+        XCTAssertTrue(control.cleanup.urls.isEmpty)
+        workflow.clearExportedFile()
+    }
+
+    @MainActor
+    func testBatchWorkflowFullCurrentRequestComparisonRejectsChangedInputs() async throws {
+        let original = workflowRequest60()
+        var plotOptions = original.options
+        plotOptions.plotNameByTreeID = ["WORKFLOW60": "Changed plot"]
+        var columnOptions = original.options
+        columnOptions.includeYield = false
+        let variants = [
+            workflowRequest60(format: .json),
+            workflowRequest60(options: plotOptions),
+            workflowRequest60(options: columnOptions),
+            workflowRequest60(fruitCount: 99)
+        ]
+        for changed in variants {
+            let control = ControlledBatchExport60()
+            defer { control.finishPending() }
+            let workflow = BatchExportWorkflow(operations: control.operations)
+            var current = original
+            let task = try await beginWorkflow60(workflow, control: control, request: original) { current }
+            current = changed
+            XCTAssertNotEqual(original, current)
+            let url = try workflowFile60("invalidated")
+            defer { BatchExportService.removeTemporaryExport(at: url) }
+            control.succeed(0, url: url)
+            await task.value
+            XCTAssertNil(workflow.exportedURL)
+            XCTAssertNil(workflow.failure)
+            XCTAssertFalse(workflow.isExporting)
+            XCTAssertEqual(control.cleanup.urls, [url])
+            XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        }
+    }
+
+    @MainActor
+    func testBatchWorkflowCurrentFailureKeepsOriginalRequestCheckDifferenceAndCanRetry() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let workflow = BatchExportWorkflow(operations: control.operations)
+        let request = workflowRequest60()
+        var current = request
+        let failed = try await beginWorkflow60(workflow, control: control, request: request) { current }
+        current = workflowRequest60(format: .excel)
+        control.fail(0, error: CocoaError(.fileWriteOutOfSpace))
+        await failed.value
+        let error = try XCTUnwrap(workflow.failure)
+        XCTAssertEqual(BatchExportFailurePresentation(error: error).kind, .outOfSpace)
+        XCTAssertFalse(workflow.isExporting)
+        XCTAssertNil(workflow.exportedURL)
+        workflow.dismissFailure()
+        let retry = try await beginWorkflow60(workflow, control: control, request: current)
+        let url = try workflowFile60("retry")
+        defer { BatchExportService.removeTemporaryExport(at: url) }
+        control.succeed(1, url: url)
+        await retry.value
+        XCTAssertNil(workflow.failure)
+        XCTAssertEqual(workflow.exportedURL, url)
+        XCTAssertEqual(control.requests.map(\.format), [.csv, .excel])
+        workflow.clearExportedFile()
+    }
+
+    @MainActor
+    func testBatchWorkflowCancellationErrorIsSilentAndReleasesBusyState() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let workflow = BatchExportWorkflow(operations: control.operations)
+        let task = try await beginWorkflow60(workflow, control: control, request: workflowRequest60())
+        control.fail(0, error: CancellationError())
+        await task.value
+        XCTAssertFalse(workflow.isExporting)
+        XCTAssertNil(workflow.failure)
+        XCTAssertNil(workflow.exportedURL)
+        XCTAssertTrue(control.cleanup.urls.isEmpty)
+    }
+
+    @MainActor
+    func testBatchWorkflowLeavingClearsCompletedFileAndCleansLateReturn() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let completed = try workflowFile60("completed before retry")
+        let late = try workflowFile60("late after leaving")
+        defer { [completed, late].forEach { BatchExportService.removeTemporaryExport(at: $0) } }
+        let workflow = BatchExportWorkflow(operations: control.operations, exportedURL: completed)
+        let task = try await beginWorkflow60(workflow, control: control, request: workflowRequest60())
+        XCTAssertEqual(control.cleanup.urls, [completed])
+        workflow.cancel()
+        workflow.clearExportedFile()
+        control.succeed(0, url: late)
+        await task.value
+        XCTAssertNil(workflow.exportedURL)
+        XCTAssertNil(workflow.failure)
+        XCTAssertFalse(workflow.isExporting)
+        XCTAssertEqual(control.cleanup.urls, [completed, late])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: completed.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: late.path))
+    }
+
+    @MainActor
+    func testBatchWorkflowReleasedOwnerCancelsTaskAndCleansLateURLWithoutRetainCycle() async throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        var workflow: BatchExportWorkflow? = BatchExportWorkflow(operations: control.operations)
+        weak var owner = workflow
+        let task = try await beginWorkflow60(try XCTUnwrap(workflow), control: control, request: workflowRequest60())
+        workflow = nil
+        XCTAssertNil(owner, "The pending operation must not retain its page owner")
+        let url = try workflowFile60("returned after release")
+        defer { BatchExportService.removeTemporaryExport(at: url) }
+        control.succeed(0, url: url)
+        await task.value
+        XCTAssertEqual(control.wasCancelled[0], true)
+        XCTAssertEqual(control.cleanup.urls, [url])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor
+    func testBatchWorkflowReleasedOwnerPreservesUnownedSourceAndOtherSessionFiles() throws {
+        let control = ControlledBatchExport60()
+        defer { control.finishPending() }
+        let sourceRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let otherSession = BatchExportService.temporaryStorage.rootDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: sourceRoot)
+            try? FileManager.default.removeItem(at: otherSession)
+        }
+        for directory in [sourceRoot, otherSession] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let url = directory.appendingPathComponent("source.ply")
+            let bytes = Data("unowned original source".utf8)
+            try bytes.write(to: url)
+            var workflow: BatchExportWorkflow? = BatchExportWorkflow(operations: control.operations, exportedURL: url)
+            weak var owner = workflow
+            workflow = nil
+            XCTAssertNil(owner)
+            XCTAssertEqual(try Data(contentsOf: url), bytes)
+        }
+    }
+
+    @MainActor
+    private func beginWorkflow60(
+        _ workflow: BatchExportWorkflow,
+        control: ControlledBatchExport60,
+        request: BatchExportRequestSnapshot,
+        currentRequest: (@MainActor () -> BatchExportRequestSnapshot)? = nil
+    ) async throws -> Task<Void, Never> {
+        let started = expectation(description: "Controlled export has entered its asynchronous operation")
+        started.assertForOverFulfill = true
+        let index = control.requests.count
+        control.onStarted = { if $0 == index { started.fulfill() } }
+        let task = try XCTUnwrap(workflow.start(request, currentRequest: currentRequest ?? { request }))
+        await fulfillment(of: [started], timeout: 5)
+        return task
+    }
+
+    private func workflowRequest60(
+        format: BatchExportService.ExportFormat = .csv,
+        options: BatchExportService.ExportOptions = .init(),
+        fruitCount: Int = 7
+    ) -> BatchExportRequestSnapshot {
+        let record = ScanFileRecord(id: "workflow60.ply", treeID: "WORKFLOW60",
+                                    fileURL: URL(fileURLWithPath: "/tmp/workflow60.ply"),
+                                    scanDate: Date(timeIntervalSince1970: 1_700_000_000),
+                                    fruitCount: fruitCount, yieldKg: 1.25)
+        return BatchExportRequestSnapshot(records: [record], selectedRecordIDs: [record.id], format: format, options: options)
+    }
+
+    private func workflowFile60(_ content: String) throws -> URL {
+        let directory = try BatchExportService.temporaryStorage.prepareDirectory()
+        let url = directory.appendingPathComponent("workflow60-\(UUID().uuidString).csv")
+        try Data(content.utf8).write(to: url)
+        return url
+    }
+
 
     func testInjectedRepositoryUsesItsDirectoryAndRejectsCrossDirectoryCommit() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -410,7 +1023,7 @@ final class BatchExportServiceTests: XCTestCase {
         let files = try XCTUnwrap(ScanResultExportService(scansDirectory: directory).exportIfNeeded(request))
         let matching = makeRecord(fruitCount: 7, yieldKg: 1.25, fileURL: directory.appendingPathComponent("scan.ply"))
         let stale = makeRecord(fruitCount: 8, yieldKg: 1.25, fileURL: matching.fileURL)
-        for format in BatchExportService.ExportFormat.allCases {
+        for format in [BatchExportService.ExportFormat.csv, .excel, .json] {
             let valid = try await BatchExportService.shared.export(records: [matching], format: format, options: .init())
             try FileManager.default.removeItem(at: valid.url)
             do {
@@ -419,6 +1032,15 @@ final class BatchExportServiceTests: XCTestCase {
             } catch BatchExportError.inconsistentRecord {
             }
         }
+        do {
+            let current = try XCTUnwrap(ScanRepository(scansDirectory: directory).summary(at: matching.fileURL))
+            _ = try await BatchExportService.shared.export(records: [current], format: .replay, options: .init())
+            XCTFail("A legacy record without captured input cannot become a replay package")
+        } catch ScanReplayError.unavailable { }
+        do {
+            _ = try await BatchExportService.shared.export(records: [stale], format: .replay, options: .init())
+            XCTFail("Replay must reject a stale history row before reading its input")
+        } catch BatchExportError.inconsistentRecord { }
         try Data("corrupt".utf8).write(to: try XCTUnwrap(files.csvURL))
         for format in BatchExportService.ExportFormat.allCases {
             do {
@@ -873,9 +1495,14 @@ final class BatchExportServiceTests: XCTestCase {
             records: [makeRecord()], format: .csv, options: .init()
         )
         defer { BatchExportService.removeTemporaryExport(at: result.url) }
-        let view = BatchExportView(exportedURL: result.url)
-
-        view.clearExportedFile()
+        let store = await workflowStore60()
+        let tags = try workflowTags60()
+        let ui = try await BatchExportNativeUI60()
+        defer { ui.close() }
+        ui.mount(BatchExportView(store: store, tagStore: tags, exportedURL: result.url))
+        try await ui.waitFor { ui.element(label: L10n.Export.completionDismiss) != nil }
+        XCTAssertTrue(try XCTUnwrap(ui.element(label: L10n.Export.completionDismiss)).accessibilityActivate())
+        try await ui.waitFor { ui.element(label: L10n.Export.completionDismiss) == nil }
 
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: result.url.path),
@@ -884,7 +1511,7 @@ final class BatchExportServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testBatchExportViewTeardownPreservesUnownedTemporaryFiles() throws {
+    func testBatchExportViewTeardownPreservesUnownedTemporaryFiles() async throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
             .appendingPathComponent("UnownedExport-\(UUID().uuidString)", isDirectory: true)
@@ -894,14 +1521,26 @@ final class BatchExportServiceTests: XCTestCase {
             try? fileManager.removeItem(at: root)
             try? fileManager.removeItem(at: otherSession)
         }
+        let store = await workflowStore60()
+        let tags = try workflowTags60()
         for directory in [root, otherSession] {
+            var ui: BatchExportNativeUI60? = try await BatchExportNativeUI60()
+            defer { ui?.close() }
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             let url = directory.appendingPathComponent("keep.csv")
             let bytes = Data("belongs to another owner".utf8)
             try bytes.write(to: url)
-            let view = BatchExportView(exportedURL: url)
-
-            view.handleDisappear()
+            weak var owner: BatchExportWorkflow?
+            func page() -> BatchExportView {
+                let workflow = BatchExportWorkflow(exportedURL: url)
+                owner = workflow
+                return BatchExportView(store: store, tagStore: tags, workflow: workflow)
+            }
+            ui?.mount(page())
+            try await ui?.waitFor { ui?.element(label: L10n.Export.completionDismiss) != nil }
+            ui?.close()
+            ui = nil
+            try await waitForWorkflowRelease60 { owner == nil }
 
             XCTAssertEqual(try Data(contentsOf: url), bytes, "View teardown must preserve unowned data")
         }
@@ -3502,4 +4141,182 @@ final class BatchExportServiceTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+}
+
+
+// Controlled completion ignores cancellation deliberately, modelling a service
+// which returns after its successful file-ownership handoff races cancellation.
+@MainActor
+private final class ControlledBatchExport60 {
+    private(set) var requests: [BatchExportRequestSnapshot] = []
+    private var pending: [Int: CheckedContinuation<BatchExportService.ExportResult, Error>] = [:]
+    private(set) var wasCancelled: [Int: Bool] = [:]
+    var onStarted: ((Int) -> Void)?
+    let cleanup = BatchExportCleanup60()
+
+    var operations: BatchExportOperations {
+        BatchExportOperations(export: { [self] request in
+            let index = requests.count
+            requests.append(request)
+            defer { wasCancelled[index] = Task.isCancelled }
+            return try await withCheckedThrowingContinuation { continuation in
+                pending[index] = continuation
+                onStarted?(index)
+            }
+        }, removeTemporaryExport: { [cleanup] in cleanup.remove($0) })
+    }
+
+    func succeed(_ index: Int, url: URL) {
+        pending.removeValue(forKey: index)?.resume(returning: .init(
+            url: url, recordCount: 1, totalYield: 1.25, totalFruitCount: 7, excludedIncompleteCount: 0
+        ))
+    }
+
+    func finishPending() {
+        let remaining = Array(pending.values)
+        pending.removeAll()
+        remaining.forEach { $0.resume(throwing: CancellationError()) }
+    }
+
+    func fail(_ index: Int, error: Error) {
+        pending.removeValue(forKey: index)?.resume(throwing: error)
+    }
+}
+
+private final class BatchExportCleanup60: @unchecked Sendable {
+    private let lock = NSLock()
+    private var removed: [URL] = []
+    private var observer: ((URL) -> Void)?
+
+    func observeRemoval(_ observer: @escaping (URL) -> Void) {
+        lock.lock()
+        self.observer = observer
+        lock.unlock()
+    }
+    var urls: [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return removed
+    }
+
+    func remove(_ url: URL) {
+        lock.lock()
+        removed.append(url)
+        let notify = observer
+        lock.unlock()
+        BatchExportService.removeTemporaryExport(at: url)
+        notify?(url)
+    }
+}
+
+private struct BatchExportRebuildHost60: View {
+    let store: ScanHistoryStore
+    let tags: TagStore
+    let operations: BatchExportOperations
+    @State private var revision = 0
+
+    var body: some View {
+        let value = revision
+        VStack {
+            Button("Rebuild page") { revision += 1 }.accessibilityIdentifier("workflow60.rebuild")
+            Text("Revision \(value)")
+            BatchExportView(onStartScan: { _ = value }, store: store, tagStore: tags, operations: operations)
+        }
+    }
+}
+
+@MainActor
+private final class BatchExportNativeUI60 {
+    let controller = UIHostingController(rootView: AnyView(EmptyView()))
+    let window: UIWindow
+    private let previousKeyWindow: UIWindow?
+
+    init() async throws {
+        func foregroundScene() -> UIWindowScene? {
+            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+                .first { $0.activationState == .foregroundActive }
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while foregroundScene() == nil, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let scene = try XCTUnwrap(foregroundScene(), "The iOS host must have an active scene before mounting its page")
+        previousKeyWindow = scene.keyWindow
+        window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+    }
+
+    func mount<V: View>(_ view: V) {
+        controller.rootView = AnyView(view)
+        window.layoutIfNeeded()
+    }
+
+    func close() {
+        controller.rootView = AnyView(EmptyView())
+        controller.presentedViewController?.dismiss(animated: false)
+        window.isHidden = true
+        window.rootViewController = nil
+        previousKeyWindow?.makeKey()
+    }
+
+    private var elements: [NSObject] {
+        var seen = Set<ObjectIdentifier>()
+        var found: [NSObject] = []
+        func visit(_ object: NSObject, depth: Int = 0) {
+            guard depth < 32, seen.insert(ObjectIdentifier(object)).inserted else { return }
+            found.append(object)
+            let count = object.accessibilityElementCount()
+            if count > 0 && count < 100 {
+                for index in 0..<count {
+                    if let child = object.accessibilityElement(at: index) as? NSObject { visit(child, depth: depth + 1) }
+                }
+            }
+            if let view = object as? UIView { view.subviews.forEach { visit($0, depth: depth + 1) } }
+        }
+        var current: UIViewController = controller
+        while let presented = current.presentedViewController { current = presented }
+        visit(current.view)
+        return found
+    }
+
+    func element(label: String) -> NSObject? {
+        let matches = elements.filter { $0.accessibilityLabel == label }
+        return matches.first { $0.accessibilityTraits.contains(.button) } ?? matches.first
+    }
+
+    func waitFor(_ condition: () -> Bool) async throws {
+        func settled(_ current: UIViewController) -> Bool {
+            current.transitionCoordinator == nil && !current.isBeingPresented && !current.isBeingDismissed &&
+                current.children.allSatisfy(settled) && (current.presentedViewController.map(settled) ?? true)
+        }
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            window.layoutIfNeeded()
+            if settled(controller) && condition() { return }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        } while Date() < deadline
+        let snapshot = elements.map { "\(type(of: $0)): \($0.accessibilityLabel ?? "nil")" }.joined(separator: "\n")
+        let attachment = XCTAttachment(string: snapshot)
+        attachment.name = "Native export accessibility timeout"
+        attachment.lifetime = .keepAlways
+        XCTContext.runActivity(named: "Native export timeout evidence") { $0.add(attachment) }
+        XCTFail("Native export page did not reach the required state")
+        throw BatchExportNativeTimeout60.stateNotReached
+    }
+
+    func attach(to test: XCTestCase, name: String) throws {
+        let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+        }
+        let attachment = XCTAttachment(image: image)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        test.add(attachment)
+    }
+}
+
+private enum BatchExportNativeTimeout60: Error {
+    case stateNotReached
 }

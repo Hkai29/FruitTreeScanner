@@ -1,5 +1,7 @@
 // StartConfirmationView.swift
-// 新建扫描流程的最终确认步骤
+// 第 5 步：启动前检查。
+//
+// 只复述已经选定的真实值：编号、地块、估算阶段、标签与定位状态。
 
 import SwiftUI
 
@@ -13,97 +15,112 @@ struct Step5_Confirmation: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            StartStepHeader(
-                step: 5,
-                totalSteps: 5,
-                title: L10n.StartSetup.text(.confirmationTitle),
-                subtitle: L10n.StartSetup.text(.confirmationSubtitle)
-            )
+        VStack(alignment: .leading, spacing: 16) {
+            identifierPanel
 
-            VStack(spacing: Design.Space.md) {
-                ConfirmationRow(
-                    icon: "number",
-                    label: L10n.StartSetup.text(.identifierFieldLabel),
-                    value: treeID
-                )
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                fruitCategoryPicker
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                ConfirmationRow(
-                    icon: "map.fill",
-                    label: L10n.StartSetup.text(.plotTitle),
-                    value: plot?.name ?? L10n.StartSetup.text(.confirmationUnassigned),
-                    valueColor: plot != nil ? Design.Colors.forest : Color(hex: "8E8E93")
-                )
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                ConfirmationRow(
-                    icon: season == .mature ? "apple.logo" : "leaf.fill",
-                    label: L10n.StartSetup.text(.seasonTitle),
-                    value: season == .mature
-                        ? L10n.StartSetup.text(.confirmationMatureSeason)
-                        : L10n.StartSetup.text(.confirmationOffSeason),
-                    valueColor: Design.Colors.harvest
-                )
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                tagSummary
-
-                Divider().background(Design.Colors.Dark.glassBorder)
-
-                gpsSummary
-            }
-            .padding(Design.Space.lg)
-            .startSurface(cornerRadius: 10)
+            reviewGroup
 
             StartNoteRow(
                 icon: "camera.metering.center.weighted",
                 text: L10n.StartSetup.text(.confirmationNote),
-                tint: Design.Colors.harvest
+                tone: .accent
             )
         }
     }
 
-    private var fruitCategoryPicker: some View {
+    // MARK: - 编号
+
+    private var identifierPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.StartSetup.text(.identifierFieldLabel))
+                .instrumentLabel()
+            Text(treeID)
+                .font(.system(.title2, design: .monospaced).weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .startSurface(cornerRadius: Design.Radius.medium)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.StartSetup.text(.identifierFieldLabel))
+        .accessibilityValue(treeID)
+    }
+
+    // MARK: - 复核
+
+    private var reviewGroup: some View {
+        InstrumentRowGroup {
+            fruitCategoryRow
+
+            DividerLine(inset: 0)
+
+            ConfirmationRow(
+                icon: "map.fill",
+                label: L10n.StartSetup.text(.plotTitle),
+                value: plot?.name ?? L10n.StartSetup.text(.confirmationUnassigned),
+                valueColor: plot != nil ? Design.Colors.Workspace.ink : Design.Colors.Workspace.secondary
+            )
+
+            DividerLine(inset: 0)
+
+            ConfirmationRow(
+                icon: season == .mature ? "sun.max" : "leaf.fill",
+                label: L10n.StartSetup.text(.seasonTitle),
+                value: season == .mature
+                    ? L10n.StartSetup.text(.confirmationMatureSeason)
+                    : L10n.StartSetup.text(.confirmationOffSeason),
+                valueColor: Design.Colors.Workspace.ink
+            )
+
+            DividerLine(inset: 0)
+
+            tagSummaryRow
+
+            DividerLine(inset: 0)
+
+            gpsRow
+        }
+    }
+
+    // MARK: - 水果类别
+
+    private var fruitCategoryRow: some View {
         Group {
             switch layoutPolicy.arrangement {
             case .horizontal:
-                HStack(spacing: Design.Space.md) {
+                HStack(spacing: 10) {
                     fruitCategoryLabel
-                    Spacer(minLength: Design.Space.sm)
+                    Spacer(minLength: 8)
                     fruitCategoryMenu
                 }
             case .vertical:
-                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                VStack(alignment: .leading, spacing: 8) {
                     fruitCategoryLabel
                     fruitCategoryMenu
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
+        .padding(.vertical, 12)
+        .frame(minHeight: Design.Touch.minimumHeight)
     }
 
     private var fruitCategoryLabel: some View {
-        HStack(alignment: .top, spacing: Design.Space.md) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: "leaf.fill")
-                .font(.body)
-                .foregroundColor(Design.Colors.harvest)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 20)
                 .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.FruitCategoryVerification.selectionTitle)
-                    .font(.body)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
                 Text(L10n.FruitCategoryVerification.fixedForScan)
                     .font(.caption)
-                    .foregroundColor(Design.Colors.Dark.textMuted)
+                    .foregroundColor(Design.Colors.Workspace.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -116,134 +133,43 @@ struct Step5_Confirmation: View {
             }
         }
         .pickerStyle(.menu)
-        .tint(Design.Colors.harvest)
+        .tint(Design.Colors.Workspace.accent)
+        .frame(minWidth: Design.Touch.minimumWidth, minHeight: Design.Touch.minimumHeight)
         .accessibilityLabel(L10n.FruitCategoryVerification.selectedAccessibilityLabel)
         .accessibilityValue(L10n.FruitCategoryVerification.selectionAccessibilityValue(selectedFruitCategory))
         .accessibilityHint(L10n.FruitCategoryVerification.selectedAccessibilityHint)
     }
 
-    private var tagSummary: some View {
-        Group {
-            switch layoutPolicy.arrangement {
-            case .horizontal:
-                HStack(spacing: Design.Space.md) {
-                    tagSummaryLabel
-                    Spacer(minLength: Design.Space.sm)
-                    compactTagSummaryValue
-                }
-            case .vertical:
-                VStack(alignment: .leading, spacing: Design.Space.sm) {
-                    tagSummaryLabel
-                    Text(tagSummaryText)
-                        .font(.body.weight(.medium))
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(tagLabelText)
-        .accessibilityValue(tagSummaryText)
-    }
+    // MARK: - 标签
 
-    private var tagSummaryLabel: some View {
-        HStack(spacing: Design.Space.md) {
-            Image(systemName: "tag.fill")
-                .font(.body)
-                .foregroundColor(Design.Colors.harvest)
-                .frame(width: 24)
-                .accessibilityHidden(true)
-
-            Text(tagLabelText)
-                .font(.body)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-    }
-
-    @ViewBuilder
-    private var compactTagSummaryValue: some View {
-        if tags.isEmpty {
-            Text(emptyTagsText)
-                .font(.body)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        } else {
-            HStack(spacing: Design.Space.xs) {
-                ForEach(tags.prefix(3)) { tag in
-                    Circle()
-                        .fill(Color(hex: tag.colorHex))
-                        .frame(width: 8, height: 8)
-                        .accessibilityHidden(true)
-                    Text(tag.name)
-                        .font(.caption)
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                }
-                if tags.count > 3 {
-                    Text("+\(tags.count - 3)")
-                        .font(.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                }
-            }
-        }
+    private var tagSummaryRow: some View {
+        ConfirmationRow(
+            icon: "tag.fill",
+            label: L10n.StartSetup.text(.tagsTitle),
+            value: tagSummaryText,
+            valueColor: tags.isEmpty ? Design.Colors.Workspace.secondary : Design.Colors.Workspace.ink
+        )
     }
 
     private var tagSummaryText: String {
-        guard !tags.isEmpty else { return emptyTagsText }
+        guard !tags.isEmpty else { return L10n.StartSetup.text(.confirmationNone) }
         return L10n.StartSetup.tagSummary(
             names: tags.prefix(3).map(\.name),
             remainingCount: max(tags.count - 3, 0)
         )
     }
 
-    private var tagLabelText: String { L10n.StartSetup.text(.tagsTitle) }
+    // MARK: - 定位
 
-    private var emptyTagsText: String { L10n.StartSetup.text(.confirmationNone) }
-
-    private var gpsSummary: some View {
-        Group {
-            switch layoutPolicy.arrangement {
-            case .horizontal:
-                HStack(spacing: Design.Space.md) {
-                    gpsLabel
-                    Spacer(minLength: Design.Space.sm)
-                    gpsValue
-                }
-            case .vertical:
-                VStack(alignment: .leading, spacing: Design.Space.sm) {
-                    gpsLabel
-                    gpsValue
-                }
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("GPS")
-        .accessibilityValue(gpsValueText)
-    }
-
-    private var gpsLabel: some View {
-        HStack(spacing: Design.Space.md) {
-            Image(systemName: gps.isAvailable ? "location.fill" : "location.slash")
-                .font(.body)
-                .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.slate)
-                .frame(width: 24)
-                .accessibilityHidden(true)
-
-            Text("GPS")
-                .font(.body)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-    }
-
-    private var gpsValue: some View {
-        Text(gpsValueText)
-            .font(.subheadline.monospaced())
-            .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
-    }
-
-    private var gpsValueText: String {
-        gps.isAvailable
-            ? L10n.StartSetup.text(.confirmationGPSAvailable)
-            : L10n.StartSetup.text(.confirmationGPSPending)
+    private var gpsRow: some View {
+        ConfirmationRow(
+            icon: gps.isAvailable ? "location.fill" : "location.slash",
+            label: "GPS",
+            value: gps.isAvailable
+                ? L10n.StartSetup.text(.confirmationGPSAvailable)
+                : L10n.StartSetup.text(.confirmationGPSPending),
+            valueColor: gps.isAvailable ? Design.Colors.Workspace.accent : Design.Colors.Workspace.secondary
+        )
     }
 
     private var layoutPolicy: StartStepContentLayoutPolicy {
@@ -251,53 +177,56 @@ struct Step5_Confirmation: View {
     }
 }
 
+/// 复核行：标签 + 值。
 struct ConfirmationRow: View {
     let icon: String
     let label: String
     let value: String
-    var valueColor: Color = Design.Colors.Dark.textPrimary
+    var valueColor: Color = Design.Colors.Workspace.ink
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Group {
             switch layoutPolicy.arrangement {
             case .horizontal:
-                HStack(spacing: Design.Space.md) {
+                HStack(spacing: 10) {
                     rowLabel
-                    Spacer(minLength: Design.Space.sm)
+                    Spacer(minLength: 8)
                     rowValue
                         .multilineTextAlignment(.trailing)
                 }
             case .vertical:
-                VStack(alignment: .leading, spacing: Design.Space.sm) {
+                VStack(alignment: .leading, spacing: 4) {
                     rowLabel
                     rowValue
                         .multilineTextAlignment(.leading)
                 }
             }
         }
+        .padding(.vertical, 12)
+        .frame(minHeight: Design.Touch.minimumHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(value)
     }
 
     private var rowLabel: some View {
-        HStack(spacing: Design.Space.md) {
+        HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.body)
-                .foregroundColor(Design.Colors.harvest)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 20)
                 .accessibilityHidden(true)
 
             Text(label)
-                .font(.body)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Workspace.secondary)
         }
     }
 
     private var rowValue: some View {
         Text(value)
-            .font(.body.weight(.medium))
+            .font(.subheadline.weight(.semibold))
             .foregroundColor(valueColor)
             .fixedSize(horizontal: false, vertical: true)
     }

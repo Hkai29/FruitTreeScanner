@@ -33,13 +33,13 @@ struct ScanAssessment: Sendable {
 
     init(receipt: ScanEvidenceReceipt, estimate: ScanEstimate,
          treeID: String, fruitType: String, scanDate: Date, gpsLat: Double, gpsLon: Double,
-         includeCSV: Bool) {
+         includeCSV: Bool, classification: ScanClassificationSnapshot = .empty) {
         self.draft = receipt.draft
         self.evidenceReceipt = receipt
         resultEvidence = estimate.evidenceIdentity
         exportRequest = .init(treeID: treeID, fruitType: fruitType, scanDate: scanDate,
                               gpsLat: gpsLat, gpsLon: gpsLon, sourceFilename: draft.sourceFilename,
-                              result: estimate.result, includeCSV: includeCSV)
+                              result: estimate.result, includeCSV: includeCSV, classification: classification)
     }
 
     func validateEvidence() throws {
@@ -79,10 +79,12 @@ struct CalibrationScanBaseline: Sendable {
 struct VerifiedScanRecord: Sendable {
     let summary: ScanFileRecord
     let manifest: CompletionManifestDTO?
+    let classification: ScanClassificationSnapshot?
 
-    fileprivate init(summary: ScanFileRecord, manifest: CompletionManifestDTO?) {
+    fileprivate init(summary: ScanFileRecord, manifest: CompletionManifestDTO?, classification: ScanClassificationSnapshot?) {
         self.summary = summary
         self.manifest = manifest
+        self.classification = classification
     }
 }
 
@@ -208,9 +210,28 @@ final class ScanRepository: @unchecked Sendable {
         }
     }
 
-    func bindEvidence(_ identity: ScanEvidenceIdentity, to draft: DraftScan) throws -> ScanEvidenceReceipt {
+    func bindEvidence(_ identity: ScanEvidenceIdentity, to draft: DraftScan,
+                      replayInput: ScanFusionYieldBuilder.Input? = nil, plan: ScanPlan? = nil) throws -> ScanEvidenceReceipt {
         try withScanTransaction(at: draft.sourceURL) {
-            try access.bindEvidence(identity, to: draft)
+            guard access.canBindEvidence(identity, to: draft) else { throw ScanEvidenceError.mismatchedInput }
+            let replay: PreparedScanReplay?
+            if let replayInput, let plan {
+                guard try ScanSourceFileIdentity.read(at: draft.sourceURL) == draft.fileIdentity,
+                      try ScanCompanionIntegrity.digestFile(at: draft.sourceURL) == draft.sourceSHA256 else {
+                    throw ScanSourceFileError.invalidOrChanged
+                }
+                replay = try ScanReplayArchive.prepare(input: replayInput, identity: identity, plan: plan, draft: draft)
+            } else {
+                guard replayInput == nil, plan == nil else { throw ScanEvidenceError.mismatchedInput }
+                replay = nil
+            }
+            do {
+                try Task.checkCancellation()
+                return try access.bindEvidence(identity, to: draft, replay: replay)
+            } catch {
+                if let directory = replay?.directory { try? FileManager.default.removeItem(at: directory) }
+                throw error
+            }
         }
     }
 
@@ -252,7 +273,8 @@ final class ScanRepository: @unchecked Sendable {
         let manifestURL = sourceURL.deletingLastPathComponent()
             .appendingPathComponent("\(sourceURL.deletingPathExtension().lastPathComponent)_complete.json")
         return VerifiedScanRecord(summary: makeSummary(at: sourceURL, result: result),
-                                  manifest: ScanLegacyArchiveCodec.readManifest(at: manifestURL))
+                                  manifest: ScanLegacyArchiveCodec.readManifest(at: manifestURL),
+                                  classification: result.classification)
     }
 
     func summary(at sourceURL: URL) throws -> ScanFileRecord? {
@@ -351,6 +373,42 @@ final class ScanRepository: @unchecked Sendable {
         return try ScanResearchArchiveCodec.encodeRecord(record, sidecar: payload)
     }
 
+    /// Blocking bounded IO; callers use their existing background operation.
+    func appendObservationReplay(for record: ScanFileRecord, to handle: FileHandle) throws {
+        try withScanTransaction(at: record.fileURL) {
+            guard let current = verifiedRecordUnlocked(at: record.fileURL),
+                  current.summary == record else { throw ScanReplayError.invalidArchive }
+            guard let manifest = current.manifest, let descriptor = manifest.observationReplay,
+                  descriptor.status == "complete" else { throw ScanReplayError.unavailable }
+            guard let metadata = PLYParserHelper.readValidatedCompanionMetadataPayload(for: record.fileURL) else {
+                throw ScanReplayError.invalidArchive
+            }
+            try ScanReplayBundle.append(source: record.fileURL, descriptor: descriptor, exportRevision: manifest.exportRevision,
+                goldenData: ScanObservationReplay.goldenData(from: metadata), to: handle)
+            guard try ScanCompanionIntegrity.digestFile(at: record.fileURL) == manifest.sourcePLYSHA256,
+                  ScanLegacyArchiveCodec.readManifest(at: record.fileURL.deletingLastPathComponent()
+                    .appendingPathComponent("\(record.fileURL.deletingPathExtension().lastPathComponent)_complete.json"))?.exportRevision
+                    == manifest.exportRevision else { throw ScanReplayError.invalidArchive }
+        }
+    }
+
+    func observationReplay(for record: ScanFileRecord) throws -> ScanObservationReplayRecord {
+        try withScanTransaction(at: record.fileURL) {
+            guard let current = verifiedRecordUnlocked(at: record.fileURL),
+                  current.summary.treeID == record.treeID, current.summary.fruitCount == record.fruitCount,
+                  current.summary.yieldKg == record.yieldKg else { throw ScanReplayError.invalidArchive }
+            guard let manifest = current.manifest,
+                  let descriptor = manifest.observationReplay else { throw ScanReplayError.unavailable }
+            guard let metadata = PLYParserHelper.readValidatedCompanionMetadataPayload(for: record.fileURL) else {
+                throw ScanReplayError.invalidArchive
+            }
+            let (dto, input) = try ScanReplayArchive.read(source: record.fileURL, descriptor: descriptor)
+            guard dto.identity.sourceSHA256 == manifest.sourcePLYSHA256 else { throw ScanReplayError.invalidArchive }
+            return ScanObservationReplayRecord(identity: dto.identity, producer: dto.producer, input: input,
+                goldenData: try ScanObservationReplay.goldenData(from: metadata), exportRevision: manifest.exportRevision)
+        }
+    }
+
     func readCalibrationBaseline(for record: ScanFileRecord) throws -> CalibrationScanBaseline? {
         try withScanTransaction(at: record.fileURL) {
             let baseName = record.fileURL.deletingPathExtension().lastPathComponent
@@ -397,7 +455,16 @@ final class ScanRepository: @unchecked Sendable {
         guard let exported = try (service ?? exporter).exportAssessment(assessment) else {
             throw ScanSourceFileError.invalidOrChanged
         }
-        return try confirm(exported, for: assessment.draft)
+        let committed = try confirm(exported, for: assessment.draft)
+        if let directory = assessment.evidenceReceipt?.replay?.directory {
+            do { try FileManager.default.removeItem(at: directory) }
+            catch {
+                if FileManager.default.fileExists(atPath: directory.path) {
+                    Log.export.error("Committed replay preparation cleanup failed: \(error.localizedDescription)")
+                }
+            }
+        }
+        return committed
     }
 
     /// The export service releases the per-scan lock before returning. A new
@@ -440,9 +507,12 @@ final class ScanRepository: @unchecked Sendable {
             return try withScanTransaction(at: draft.sourceURL) {
                 let manager = FileManager.default
                 let base = draft.sourceURL.deletingPathExtension()
+                let replayURLs = ScanReplayArchive.artifactURLs(for: draft.sourceURL)
+                let staging = try ScanResultExportService.stagingDirectories(for: draft.sourceURL)
                 let companions = [base.appendingPathExtension("csv"),
                     base.deletingLastPathComponent().appendingPathComponent("\(base.lastPathComponent)_result.json"),
-                    base.deletingLastPathComponent().appendingPathComponent("\(base.lastPathComponent)_complete.json")]
+                    base.deletingLastPathComponent().appendingPathComponent("\(base.lastPathComponent)_complete.json"),
+                    replayURLs.input, replayURLs.points, ScanReplayArchive.preparedDirectory(for: draft)] + staging
                 guard manager.fileExists(atPath: draft.sourceURL.path) else {
                     guard !companions.contains(where: { manager.fileExists(atPath: $0.path) }) else {
                         return .requiresRecovery("Source missing with companion files remaining")
@@ -460,6 +530,12 @@ final class ScanRepository: @unchecked Sendable {
                 }
                 guard access.ownsDraft(draft) else {
                     return .requiresRecovery("Draft ownership changed; preserved the current record")
+                }
+                for directory in staging {
+                    let contents = try manager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+                    if contents.contains(where: { $0.lastPathComponent.hasPrefix("backup-") }) {
+                        return .requiresRecovery("Archive rollback incomplete; preserved source and backups")
+                    }
                 }
                 // Preserve the history anchor when companion cleanup fails.
                 for url in companions where manager.fileExists(atPath: url.path) { try removeItem(url) }
@@ -519,12 +595,26 @@ final class ScanRepository: @unchecked Sendable {
     ) -> ScanHistoryRecordDeletionResult {
         let baseName = record.fileURL.deletingPathExtension().lastPathComponent
         let directory = record.fileURL.deletingLastPathComponent()
-        let companions: [(ScanHistoryDeletionArtifact.Kind, URL)] = [
+        let replayURLs = ScanReplayArchive.artifactURLs(for: record.fileURL)
+        var companions: [(ScanHistoryDeletionArtifact.Kind, URL)] = [
             (.csv, record.fileURL.deletingPathExtension().appendingPathExtension("csv")),
             (.resultJSON, directory.appendingPathComponent("\(baseName)_result.json")),
+            (.replayInput, replayURLs.input), (.replayPoints, replayURLs.points),
             (.completionManifest, directory.appendingPathComponent("\(baseName)_complete.json"))
         ]
         var residualArtifacts: [ScanHistoryDeletionArtifact] = []
+        do {
+            companions += try ScanReplayArchive.pendingDirectories(for: record.fileURL).map { (.replayPreparation, $0) }
+        } catch {
+            residualArtifacts.append(.init(kind: .replayPreparation, url: directory,
+                                           reason: .removalFailed(error.localizedDescription)))
+        }
+        do {
+            companions += try ScanResultExportService.stagingDirectories(for: record.fileURL).map { (.archiveRecovery, $0) }
+        } catch {
+            residualArtifacts.append(.init(kind: .archiveRecovery, url: directory,
+                                           reason: .removalFailed(error.localizedDescription)))
+        }
 
         // The PLY is the history anchor. A failed companion removal must leave
         // it discoverable so the incomplete deletion remains visible.

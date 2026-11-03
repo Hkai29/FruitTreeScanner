@@ -1,3 +1,8 @@
+// CalibrationRecordsSection.swift
+// 校准记录区：状态提示、真实记录列表与空状态。
+//
+// 记录本身由 CalibrationRecordsController 负责加载与落盘，这里只呈现。
+
 import SwiftUI
 
 struct CalibrationRecordsSection: View {
@@ -9,22 +14,8 @@ struct CalibrationRecordsSection: View {
     let onDelete: (CalibrationRecord) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            HStack {
-                Image(systemName: "list.bullet.clipboard")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.glow)
-                    .accessibilityHidden(true)
-
-                Text(L10n.Calibration.recordsTitle)
-                    .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .accessibilityAddTraits(.isHeader)
-
-                Spacer()
-            }
-
-            Divider()
+        VStack(alignment: .leading, spacing: 10) {
+            InstrumentSectionLabel(title: L10n.Calibration.recordsTitle)
 
             if state != .ready {
                 CalibrationRecordsStatusView(
@@ -36,22 +27,21 @@ struct CalibrationRecordsSection: View {
 
             if records.isEmpty, state.canModify {
                 CalibrationEmptyRecordState(onAdd: onAdd)
-            } else {
-                ForEach(records) { record in
-                    CalibrationRecordRow(
-                        record: record,
-                        isDeleteEnabled: state.canModify,
-                        onDelete: { onDelete(record) }
-                    )
+            } else if !records.isEmpty {
+                InstrumentRowGroup {
+                    ForEach(records) { record in
+                        CalibrationRecordRow(
+                            record: record,
+                            isDeleteEnabled: state.canModify,
+                            onDelete: { onDelete(record) }
+                        )
+                        if record.id != records.last?.id {
+                            DividerLine()
+                        }
+                    }
                 }
             }
         }
-        .padding(Design.Space.md)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.Dark.bgSurface)
-                .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
-        )
     }
 }
 
@@ -59,19 +49,17 @@ private struct CalibrationEmptyRecordState: View {
     let onAdd: () -> Void
 
     var body: some View {
-        DashboardSheetEmptyState(
-            icon: "plus",
-            imageName: "FeatureCalibration",
+        InstrumentEmptyState(
+            systemImage: "plus",
             title: L10n.Calibration.emptyRecordsTitle,
-            message: L10n.Calibration.emptyRecordsMessage,
-            accent: Design.Colors.Dark.info,
-            primaryAction: DashboardSheetAction(
-                title: L10n.Calibration.addRecord,
-                icon: "plus",
-                action: onAdd
-            ),
-            outerPadding: false
-        )
+            message: L10n.Calibration.emptyRecordsMessage
+        ) {
+            Button(action: onAdd) {
+                Label(L10n.Calibration.addRecord, systemImage: "plus")
+            }
+            .buttonStyle(WorkspacePrimaryButtonStyle())
+            .padding(.top, 4)
+        }
     }
 }
 
@@ -81,33 +69,38 @@ private struct CalibrationRecordsStatusView: View {
     let onDismissSaveFailure: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
+        VStack(alignment: .leading, spacing: 10) {
             statusContent
 
             switch state {
             case .loadFailed:
                 Button(action: onRetry) {
                     Label(L10n.Calibration.retry, systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.bordered)
-                .tint(Design.Colors.Dark.info)
+                .buttonStyle(WorkspaceSecondaryButtonStyle(tint: Design.Colors.Workspace.information))
                 .accessibilityHint(L10n.Calibration.retryHint)
                 .accessibilityIdentifier("calibration.retryLoad")
 
             case .saveFailed:
-                Button(L10n.Calibration.dismiss, action: onDismissSaveFailure)
-                    .buttonStyle(.bordered)
-                    .tint(Design.Colors.Dark.info)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                Button(action: onDismissSaveFailure) {
+                    Text(L10n.Calibration.dismiss)
+                }
+                .buttonStyle(WorkspaceQuietButtonStyle(tint: Design.Colors.Workspace.information))
+                .frame(maxWidth: .infinity, alignment: .trailing)
 
             case .loading, .ready, .saving:
                 EmptyView()
             }
         }
-        .padding(Design.Space.md)
-        .background(statusTint.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: Design.Radius.medium))
+        .padding(12)
+        .background(
+            statusTint.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                .stroke(statusTint.opacity(0.28), lineWidth: 1)
+        )
         .accessibilityIdentifier("calibration.recordsStatus")
     }
 
@@ -164,9 +157,9 @@ private struct CalibrationRecordsStatusView: View {
     private var statusTint: Color {
         switch state {
         case .loadFailed, .saveFailed:
-            return Design.Colors.Dark.error
+            return Design.Colors.Workspace.failure
         case .loading, .ready, .saving:
-            return Design.Colors.Dark.info
+            return Design.Colors.Workspace.information
         }
     }
 
@@ -176,29 +169,30 @@ private struct CalibrationRecordsStatusView: View {
         message: String?,
         showsProgress: Bool
     ) -> some View {
-        HStack(alignment: .top, spacing: Design.Space.sm) {
+        HStack(alignment: .top, spacing: 10) {
             Group {
                 if showsProgress {
                     ProgressView()
                         .tint(statusTint)
                 } else {
                     Image(systemName: icon)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(statusTint)
                 }
             }
-            .frame(width: 24, height: 24)
+            .frame(width: 22, height: 22)
             .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: Design.Space.xs) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(Design.Typography.subheadlineMedium)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let message {
                     Text(message)
-                        .font(Design.Typography.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
+                        .font(.caption)
+                        .foregroundColor(Design.Colors.Workspace.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

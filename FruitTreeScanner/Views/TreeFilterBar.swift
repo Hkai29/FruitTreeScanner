@@ -1,5 +1,8 @@
 // TreeFilterBar.swift
-// Horizontal filter controls for the tree list.
+// 果树档案筛选条：地块、标签、状态。
+//
+// 地块与标签是"从库里挑一个"的集合，用菜单型筛选片；
+// 状态只有固定几种，直接用筛选片一行排开，所见即所得。
 
 import SwiftUI
 
@@ -11,23 +14,32 @@ struct TreeFilterBar: View {
     @Binding var selectedStatus: ScanStatus?
 
     private var selectedPlotTitle: String {
-        guard let selectedPlotId else { return "全部地块" }
-        return tagStore.getPlot(id: selectedPlotId)?.name ?? "地块"
+        guard let selectedPlotId else { return TreeFilterText.allPlots }
+        return tagStore.getPlot(id: selectedPlotId)?.name ?? L10n.History.plotFallback
+    }
+
+    private var selectedTagTitle: String {
+        selectedTagIds.isEmpty
+            ? TreeFilterText.allTags
+            : TreeFilterText.selectedTagsFormat(selectedTagIds.count)
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Design.Space.sm) {
+        VStack(alignment: .leading, spacing: 10) {
+            FlowLayout(spacing: 8) {
                 plotFilter
                 tagFilter
-                statusFilter
+            }
+
+            FlowLayout(spacing: 8) {
+                statusChips
             }
         }
     }
 
     private var plotFilter: some View {
         FilterChip(title: selectedPlotTitle, isSelected: selectedPlotId != nil) {
-            Button("全部地块") { selectedPlotId = nil }
+            Button(TreeFilterText.allPlots) { selectedPlotId = nil }
             Divider()
             ForEach(tagStore.plots) { plot in
                 Button(plot.name) { selectedPlotId = plot.id }
@@ -36,11 +48,8 @@ struct TreeFilterBar: View {
     }
 
     private var tagFilter: some View {
-        FilterChip(
-            title: selectedTagIds.isEmpty ? "全部标签" : "\(selectedTagIds.count) 个标签",
-            isSelected: !selectedTagIds.isEmpty
-        ) {
-            Button("全部标签") { selectedTagIds.removeAll() }
+        FilterChip(title: selectedTagTitle, isSelected: !selectedTagIds.isEmpty) {
+            Button(TreeFilterText.allTags) { selectedTagIds.removeAll() }
             Divider()
             ForEach(tagStore.tags) { tag in
                 Button {
@@ -57,15 +66,18 @@ struct TreeFilterBar: View {
         }
     }
 
-    private var statusFilter: some View {
-        FilterChip(
-            title: selectedStatus == nil ? "全部状态" : (selectedStatus?.rawValue ?? "状态"),
-            isSelected: selectedStatus != nil
-        ) {
-            Button("全部状态") { selectedStatus = nil }
-            Divider()
+    private var statusChips: some View {
+        Group {
+            InstrumentChip(title: TreeFilterText.allStatuses, isSelected: selectedStatus == nil) {
+                selectedStatus = nil
+            }
             ForEach(ScanStatus.allCases, id: \.self) { status in
-                Button(status.rawValue) { selectedStatus = status }
+                InstrumentChip(
+                    title: L10n.History.statusName(for: status),
+                    isSelected: selectedStatus == status
+                ) {
+                    selectedStatus = status
+                }
             }
         }
     }

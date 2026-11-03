@@ -1,11 +1,7 @@
 import SwiftUI
 
 struct DashboardStatusStrip: View {
-    let records: [ScanFileRecord]
-
-    private var summary: DashboardDailySummary {
-        DashboardDailySummary(records: records)
-    }
+    let summary: DashboardDailySummary
 
     var body: some View {
         HStack(spacing: 10) {

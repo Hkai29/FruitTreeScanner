@@ -2,7 +2,7 @@ import Foundation
 
 /// Value identity only; no dependency on Metal buffers or renderer lifetime.
 /// The existing name remains source-compatible with renderer callers.
-struct RendererSnapshotSignature: Equatable, Hashable, Sendable {
+struct RendererSnapshotSignature: Equatable, Hashable, Sendable, Codable {
     let pointCount: Int
     let pointIndex: Int
     let voxelSize: Float
@@ -21,20 +21,20 @@ struct RendererSnapshotSignature: Equatable, Hashable, Sendable {
     }
 }
 
-struct ScanContext: Equatable, Sendable {
+struct ScanContext: Equatable, Sendable, Codable {
     let scanID: UUID
     let planID: UUID
 }
 
 /// Recorded when the point cloud is written, before observations are drained.
-struct ScanCaptureIdentity: Equatable, Sendable {
+struct ScanCaptureIdentity: Equatable, Sendable, Codable {
     let context: ScanContext
     let pointCloud: RendererSnapshotSignature
 }
 
 /// An in-memory input identity. This does not replace the historical scanID
 /// (file basename) stored in archive schemas 1–3.
-struct ScanEvidenceIdentity: Equatable, Sendable {
+struct ScanEvidenceIdentity: Equatable, Sendable, Codable {
     let capture: ScanCaptureIdentity
     let snapshotID: UUID
     let sourceOwnershipID: UUID
