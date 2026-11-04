@@ -574,11 +574,15 @@ private final class RootLaunchUIHarness {
         image.name = "RootLaunch-\(phase)"
         image.lifetime = .keepAlways
         test.add(image)
-        let text = XCTAttachment(string: elements.compactMap {
-            guard let label = $0.accessibilityLabel else { return nil }
-            return String(describing: type(of: $0)) + " [" + String($0.accessibilityTraits.rawValue) +
-                "] control=" + String($0 is UIControl) + " " + label + " = " + ($0.accessibilityValue ?? "")
-        }.joined(separator: "\n"))
+        let lines: [String] = elements.compactMap { element -> String? in
+            guard let label = element.accessibilityLabel else { return nil }
+            let typeName = String(describing: type(of: element))
+            let traits = String(element.accessibilityTraits.rawValue)
+            let isControl = String(element is UIControl)
+            let value = element.accessibilityValue ?? ""
+            return "\(typeName) [\(traits)] control=\(isControl) \(label) = \(value)"
+        }
+        let text = XCTAttachment(string: lines.joined(separator: "\n"))
         text.name = "RootLaunch-\(phase)-accessibility"
         text.lifetime = .keepAlways
         test.add(text)
@@ -3582,11 +3586,14 @@ final class DashboardSummaryTests: XCTestCase {
             image.name = "RootSettings-\(phase)"
             image.lifetime = .keepAlways
             add(image)
-            let text = XCTAttachment(string: elements(in: window).compactMap {
-                guard let label = $0.accessibilityLabel else { return nil }
-                return String(describing: type(of: $0)) + " [" + String($0.accessibilityTraits.rawValue) + "] " +
-                    label + " = " + ($0.accessibilityValue ?? "")
-            }.joined(separator: "\n"))
+            let lines: [String] = elements(in: window).compactMap { element -> String? in
+                guard let label = element.accessibilityLabel else { return nil }
+                let typeName = String(describing: type(of: element))
+                let traits = String(element.accessibilityTraits.rawValue)
+                let value = element.accessibilityValue ?? ""
+                return "\(typeName) [\(traits)] \(label) = \(value)"
+            }
+            let text = XCTAttachment(string: lines.joined(separator: "\n"))
             text.name = "RootSettings-\(phase)-accessibility"
             text.lifetime = .keepAlways
             add(text)
