@@ -44,9 +44,6 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 60
-    env:
-      FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/FruitTreeScanner-ci-evidence
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,6 +68,7 @@ jobs:
         run: |
           task_xcode_directory="$(xcode-select -p)"
           printf 'DEVELOPER_DIR=%s\n' "$task_xcode_directory" >> "$GITHUB_ENV"
+          printf 'FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - name: Validate Domain dependencies
         shell: bash

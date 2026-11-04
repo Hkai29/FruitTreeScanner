@@ -132,8 +132,8 @@ class CIWiringTests(unittest.TestCase):
     def test_evidence_upload_must_use_the_dedicated_output_and_keep_all_files(self):
         mutations = (
             ("path: ${{ runner.temp }}/FruitTreeScanner-ci-evidence/", "path: ${{ runner.temp }}/", "dedicated"),
-            ("FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/FruitTreeScanner-ci-evidence",
-             "FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/wrong-output", "output directory"),
+            ("FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence",
+             "FTS_CI_EVIDENCE_DIR=%s/wrong-output", "output directory"),
             ("if-no-files-found: error", "if-no-files-found: ignore", "missing evidence"),
             ("include-hidden-files: true", "include-hidden-files: false", "complete result"),
             ("overwrite: false", "overwrite: true", "overwrite"),
@@ -152,6 +152,37 @@ class CIWiringTests(unittest.TestCase):
     def test_new_evidence_helper_triggers_both_events(self):
         self.assert_rejected(self.mutated_workflow("      - 'tools/ci_evidence.py'\n", "", 1),
                              "does not trigger on")
+
+    def test_job_environment_rejects_runner_context_property_and_index_forms(self):
+        job_env = "    env:\n      FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/FruitTreeScanner-ci-evidence\n"
+        without = self.source.replace(job_env, "")
+        base = without.replace("    steps:\n", job_env + "    steps:\n", 1)
+        self.assert_rejected(base, "runner context is unavailable in job env")
+        for value in ("${{ runner['temp'] }}", "${{ runner [ 'temp' ] }}", "${{ runner }}"):
+            with self.subTest(value=value):
+                self.assert_rejected(base.replace(job_env,
+                    "    env:\n      BAD_CONTEXT: " + value + "\n"),
+                    "runner context is unavailable in job env")
+        for env in ("    env: { BAD_CONTEXT: \"${{ runner['temp'] }}\" }\n",
+                    "    env:\n      BAD_CONTEXT: >-\n        ${{ runner.temp }}\n"):
+            self.assert_rejected(without.replace("    steps:\n", env + "    steps:\n", 1),
+                                 "runner context is unavailable in job env")
+
+    def test_job_environment_can_contain_runner_as_a_string_literal(self):
+        for expression in ("format('runner.temp')", "vars.runner", "needs . runner . outputs . value"):
+            with self.subTest(expression=expression):
+                text = self.source.replace("    steps:\n",
+                    "    env:\n      LEGAL_VALUE: ${{ " + expression + " }}\n    steps:\n", 1)
+                ok, findings = self.check_text(text)
+                self.assertTrue(ok, findings)
+
+    def test_runtime_evidence_export_is_required_before_build_and_tests(self):
+        export = "          printf 'FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"\n"
+        without = self.source.replace(export, "")
+        self.assert_rejected(without, "runtime evidence output directory export")
+        # A valid export after XCTest is too late for either producer.
+        late = without + "\n      - name: Too late export\n        run: |\n" + export
+        self.assert_rejected(late, "evidence export must precede")
 
 
 class RegistrationGateExecutionTests(unittest.TestCase):

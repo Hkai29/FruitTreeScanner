@@ -39,6 +39,7 @@ XCTest_GATE_MARKER = "tools/ci_xctest_gate.sh"
 SIMULATOR_BUILD_MARKER = "tools/ci_simulator_build.sh"
 EVIDENCE_HELPER = "tools/ci_evidence.py"
 EVIDENCE_DIRECTORY = "${{ runner.temp }}/FruitTreeScanner-ci-evidence"
+EVIDENCE_EXPORT = "printf 'FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\""
 REQUIRED_EVENTS = ("push", "pull_request")
 
 
@@ -92,7 +93,7 @@ def parse_workflow(text):
     events = {}
     permissions = {}
     steps = []
-    job_environment = {}
+    job_environment_sources = []
 
     section = None
     event = None
@@ -151,10 +152,11 @@ def parse_workflow(text):
 
         if section == "jobs":
             if indent == 4:
-                in_job_environment = stripped == "env:"
-            if in_job_environment and indent == 6 and ":" in stripped:
-                key, value = stripped.split(":", 1)
-                job_environment[key.strip()] = value.strip().strip("'\"")
+                in_job_environment = stripped.startswith("env:")
+                if in_job_environment:
+                    job_environment_sources.append(stripped)
+            if in_job_environment and indent > 4:
+                job_environment_sources.append(stripped)
                 continue
             if indent == 4 and stripped == "steps:":
                 in_steps = True
@@ -198,7 +200,20 @@ def parse_workflow(text):
         raise WorkflowShapeError("no event block found in the workflow")
     if not steps:
         raise WorkflowShapeError("no steps found in the workflow")
-    return {"events": events, "permissions": permissions, "steps": steps, "job_environment": job_environment}
+    return {"events": events, "permissions": permissions, "steps": steps,
+            "job_environment_sources": job_environment_sources}
+
+
+def references_runner_context(value):
+    # GitHub expression string literals use single quotes ('' escapes a quote).
+    # Removing literals preserves runner.temp, runner['temp'] and bare runner,
+    # without confusing a legal literal such as format('runner.temp') for access.
+    for expression in re.findall(r"\$\{\{(.*?)\}\}", value, re.DOTALL):
+        code = re.sub(r"'(?:''|[^'])*'", "", expression)
+        code = re.sub(r"\s+", "", code)
+        if re.search(r"(?<![\w.])runner\b", code):
+            return True
+    return False
 
 
 def check(workflow_path):
@@ -277,8 +292,21 @@ def check(workflow_path):
     for step in test_steps + uploads:
         if step["continue-on-error"] not in (None, "false"):
             findings.append("CI gate/evidence step must not set continue-on-error")
-    if workflow["job_environment"].get("FTS_CI_EVIDENCE_DIR") != EVIDENCE_DIRECTORY:
-        findings.append("CI evidence output directory does not match the upload")
+    if references_runner_context("\n".join(workflow["job_environment_sources"])):
+        findings.append("runner context is unavailable in job env; export it at step runtime")
+    exporters = [index for index, step in enumerate(steps) if EVIDENCE_EXPORT in step["run"]]
+    producers = [index for index, step in enumerate(steps)
+                 if any(marker in line for marker in (XCTest_GATE_MARKER, SIMULATOR_BUILD_MARKER)
+                        for line in step["run"])]
+    if len(exporters) != 1:
+        findings.append("exactly one runtime evidence output directory export is required")
+    else:
+        export_index = exporters[0]
+        if producers and export_index >= min(producers):
+            findings.append("CI evidence export must precede both build and XCTest gate")
+        exporter = steps[export_index]
+        if exporter["continue-on-error"] not in (None, "false") or exporter["if"] is not None:
+            findings.append("runtime evidence output directory export must be unconditional and hard-failing")
     for upload in uploads:
         if upload["if"] not in ("always()", "${{ always() }}"):
             findings.append("CI evidence upload requires if: always()")
