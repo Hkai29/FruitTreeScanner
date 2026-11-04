@@ -123,6 +123,36 @@ class CIWiringTests(unittest.TestCase):
         mutated = self.mutated_workflow("    branches: [ main ]", "    branches: [ main, develop ]")
         self.assert_rejected(mutated, "main branch only")
 
+    def test_evidence_upload_cannot_be_removed_or_skip_failures(self):
+        for replacement in ("if: success()", "if: failure()", "if: cancelled()"):
+            self.assert_rejected(self.mutated_workflow("if: always()", replacement), "always()")
+        self.assert_rejected(self.mutated_workflow("actions/upload-artifact@v7", "actions/cache@v4"),
+                             "evidence upload")
+
+    def test_evidence_upload_must_use_the_dedicated_output_and_keep_all_files(self):
+        mutations = (
+            ("path: ${{ runner.temp }}/FruitTreeScanner-ci-evidence/", "path: ${{ runner.temp }}/", "dedicated"),
+            ("FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/FruitTreeScanner-ci-evidence",
+             "FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/wrong-output", "output directory"),
+            ("if-no-files-found: error", "if-no-files-found: ignore", "missing evidence"),
+            ("include-hidden-files: true", "include-hidden-files: false", "complete result"),
+            ("overwrite: false", "overwrite: true", "overwrite"),
+            ("ios-evidence-${{ github.run_id }}-${{ github.run_attempt }}", "ios-evidence", "run identity"),
+        )
+        for old, new, finding in mutations:
+            with self.subTest(finding=finding):
+                self.assert_rejected(self.mutated_workflow(old, new), finding)
+
+    def test_xctest_and_upload_cannot_be_made_nonblocking(self):
+        for name in ("XCTest gate", "Retain CI evidence"):
+            self.assert_rejected(self.mutated_workflow(
+                "      - name: " + name + "\n",
+                "      - name: " + name + "\n        continue-on-error: true\n"), "continue-on-error")
+
+    def test_new_evidence_helper_triggers_both_events(self):
+        self.assert_rejected(self.mutated_workflow("      - 'tools/ci_evidence.py'\n", "", 1),
+                             "does not trigger on")
+
 
 class RegistrationGateExecutionTests(unittest.TestCase):
     """The step CI runs must fail the job when a UI test file is unregistered."""

@@ -13,14 +13,30 @@ set -euo pipefail
 task_repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 task_build_root="${FTS_CI_BUILD_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/FruitTreeScanner-ci-tests}"
 mkdir -p "$task_build_root"
-task_test_log="$task_build_root/xctest.log"
-task_result_bundle="$task_build_root/tests.xcresult"
+task_evidence_tool="$task_repo_root/tools/ci_evidence.py"
+task_evidence_root="${FTS_CI_EVIDENCE_DIR:-$task_build_root/evidence}"
+task_run_root="$(python3 "$task_evidence_tool" prepare --root "$task_evidence_root" \
+  --build-root "$task_build_root" --repo "$task_repo_root" --phase tests)"
+task_test_log="$task_run_root/xctest.log"
+task_result_bundle="$task_run_root/tests.xcresult"
+
+finish_ci_evidence() {
+  task_primary_status=$?
+  trap - EXIT
+  set +e
+  python3 "$task_evidence_tool" finish "$task_run_root" --status "$task_primary_status"
+  task_evidence_status=$?
+  if (( task_primary_status != 0 )); then exit "$task_primary_status"; fi
+  exit "$task_evidence_status"
+}
+trap finish_ci_evidence EXIT
+
 if [[ -z "${DEVELOPER_DIR:-}" ]]; then
   DEVELOPER_DIR="$(xcode-select -p)"
 fi
 export DEVELOPER_DIR
-
-rm -rf "$task_result_bundle"
+python3 "$task_evidence_tool" toolchain "$task_run_root"
+task_work_root="$(mktemp -d "$task_build_root/work.XXXXXX")"
 
 # 目的地必须是具体模拟器：generic 目的地跑不了测试。
 # 优先用 FTS_CI_TEST_DESTINATION；否则从可用设备里挑一台 iPhone。
@@ -87,7 +103,8 @@ for runtime, entries in (devices.get("devices") or {}).items():
   fi
 fi
 if [[ -n "$task_udid" ]]; then
-  if ! xcrun simctl bootstatus "$task_udid" -b; then
+  if ! python3 "$task_evidence_tool" run --name simulator-bootstatus --log simulator-bootstatus.log \
+    "$task_run_root" -- xcrun simctl bootstatus "$task_udid" -b; then
     printf 'simulator %s did not finish booting for the XCTest gate\n' "$task_udid" >&2
     exit 2
   fi
@@ -96,16 +113,15 @@ else
 fi
 
 # A conditional preserves xcodebuild's status even under bash -e -o pipefail.
-if xcodebuild test \
+if python3 "$task_evidence_tool" run --name xctest --log xctest.log "$task_run_root" -- xcodebuild test \
   -project "$task_repo_root/FruitTreeScanner.xcodeproj" \
   -scheme FruitTreeScanner \
   -configuration Debug \
   -destination "$task_destination" \
-  -derivedDataPath "$task_build_root/DerivedData" \
+  -derivedDataPath "$task_work_root/DerivedData" \
   -resultBundlePath "$task_result_bundle" \
   -parallel-testing-enabled NO \
-  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
-  > "$task_test_log" 2>&1; then
+  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
   task_test_status=0
 else
   task_test_status=$?
@@ -123,4 +139,5 @@ if [[ ! -d "$task_result_bundle" ]]; then
 fi
 
 # 判定只有这一份：摘要计数、零跳过、阻塞警告、声明类是否真的跑过。
-python3 "$task_repo_root/tools/xctest_gate.py" "$task_result_bundle" --repo "$task_repo_root"
+python3 "$task_evidence_tool" run --name xctest-gate --log gate.log "$task_run_root" -- \
+  python3 "$task_repo_root/tools/xctest_gate.py" "$task_result_bundle" --repo "$task_repo_root"

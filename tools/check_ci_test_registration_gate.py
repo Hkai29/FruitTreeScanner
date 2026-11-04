@@ -37,6 +37,8 @@ WIRING_CHECK = "tools/check_ci_test_registration_gate.py"
 UI_TEST_SOURCES = "FruitTreeScannerUITests/**"
 XCTest_GATE_MARKER = "tools/ci_xctest_gate.sh"
 SIMULATOR_BUILD_MARKER = "tools/ci_simulator_build.sh"
+EVIDENCE_HELPER = "tools/ci_evidence.py"
+EVIDENCE_DIRECTORY = "${{ runner.temp }}/FruitTreeScanner-ci-evidence"
 REQUIRED_EVENTS = ("push", "pull_request")
 
 
@@ -90,6 +92,7 @@ def parse_workflow(text):
     events = {}
     permissions = {}
     steps = []
+    job_environment = {}
 
     section = None
     event = None
@@ -97,6 +100,7 @@ def parse_workflow(text):
     in_steps = False
     current_step = None
     run_block_indent = None
+    in_job_environment = False
 
     for number, line in lines:
         indent = _indent(line)
@@ -146,6 +150,12 @@ def parse_workflow(text):
             continue
 
         if section == "jobs":
+            if indent == 4:
+                in_job_environment = stripped == "env:"
+            if in_job_environment and indent == 6 and ":" in stripped:
+                key, value = stripped.split(":", 1)
+                job_environment[key.strip()] = value.strip().strip("'\"")
+                continue
             if indent == 4 and stripped == "steps:":
                 in_steps = True
                 continue
@@ -153,11 +163,15 @@ def parse_workflow(text):
                 continue
             if indent == 6 and stripped.startswith("- "):
                 current_step = {"line": number, "name": "", "run": [], "uses": "",
-                                "continue-on-error": None, "if": None}
+                                "continue-on-error": None, "if": None, "with": {}}
                 steps.append(current_step)
                 first = stripped[2:].strip()
                 if first.startswith("name:"):
                     current_step["name"] = first.split(":", 1)[1].strip().strip("'\"")
+                continue
+            if current_step is not None and indent == 10 and ":" in stripped:
+                key, value = stripped.split(":", 1)
+                current_step["with"][key.strip()] = value.strip().strip("'\"")
                 continue
             if current_step is None:
                 continue
@@ -184,7 +198,7 @@ def parse_workflow(text):
         raise WorkflowShapeError("no event block found in the workflow")
     if not steps:
         raise WorkflowShapeError("no steps found in the workflow")
-    return {"events": events, "permissions": permissions, "steps": steps}
+    return {"events": events, "permissions": permissions, "steps": steps, "job_environment": job_environment}
 
 
 def check(workflow_path):
@@ -201,7 +215,7 @@ def check(workflow_path):
             findings.append("the workflow has no %r event" % name)
             continue
         paths = event["paths"]
-        for required in (UI_TEST_SOURCES, REGISTRATION_CHECK, WIRING_CHECK):
+        for required in (UI_TEST_SOURCES, REGISTRATION_CHECK, WIRING_CHECK, EVIDENCE_HELPER):
             if required not in paths:
                 findings.append("the %r event does not trigger on %r" % (name, required))
 
@@ -254,6 +268,36 @@ def check(workflow_path):
         if event is not None and event["branches"] != ["main"]:
             findings.append("the %r event no longer targets the main branch only: %s"
                             % (name, event["branches"]))
+
+    # Diagnostics remain available when compilation, tests or the shared gate fail.
+    test_steps = [step for step in steps if any(XCTest_GATE_MARKER in line for line in step["run"])]
+    uploads = [step for step in steps if step["uses"] == "actions/upload-artifact@v7"]
+    if len(uploads) != 1:
+        findings.append("exactly one CI evidence upload is required")
+    for step in test_steps + uploads:
+        if step["continue-on-error"] not in (None, "false"):
+            findings.append("CI gate/evidence step must not set continue-on-error")
+    if workflow["job_environment"].get("FTS_CI_EVIDENCE_DIR") != EVIDENCE_DIRECTORY:
+        findings.append("CI evidence output directory does not match the upload")
+    for upload in uploads:
+        if upload["if"] not in ("always()", "${{ always() }}"):
+            findings.append("CI evidence upload requires if: always()")
+        if upload["with"].get("path") != EVIDENCE_DIRECTORY + "/":
+            findings.append("CI evidence upload must use only the dedicated evidence directory")
+        if upload["with"].get("if-no-files-found") != "error":
+            findings.append("CI upload must fail on missing evidence")
+        if upload["with"].get("include-hidden-files") != "true":
+            findings.append("CI upload must retain complete result bundles, including hidden files")
+        if upload["with"].get("overwrite") != "false":
+            findings.append("CI evidence upload must not overwrite earlier artifacts")
+        name = upload["with"].get("name", "")
+        if "${{ github.run_id }}" not in name or "${{ github.run_attempt }}" not in name:
+            findings.append("CI evidence artifact name must retain run identity and attempt")
+        preceding = [index for index, step in enumerate(steps)
+                     if any(marker in line for marker in (XCTest_GATE_MARKER, SIMULATOR_BUILD_MARKER)
+                            for line in step["run"])]
+        if not preceding or steps.index(upload) <= max(preceding):
+            findings.append("CI evidence upload must follow both build and XCTest gate")
     return not findings, findings
 
 

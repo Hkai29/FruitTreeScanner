@@ -100,5 +100,22 @@ and warning summary when GitHub's reporting paths are present. A compilation
 failure remains a failure even if report writing also fails. Report writing
 failure also returns a nonzero status after successful compilation.
 
+Both CI Bash entrypoints use `ci_evidence.py` to create a new attempt directory
+under `FTS_CI_EVIDENCE_DIR` (default: `<build-directory>/evidence`). Existing
+attempts are never deleted or reused. Each attempt retains the full compiler or
+XCTest log, command arguments and actual exits, selected Xcode/SDK versions,
+and a final `report.json`. XCTest attempts also retain the real `tests.xcresult`
+and independently export raw `summary.json` / `tree.json`, including each
+export's stderr and status even after a failed test build. A missing result or
+unavailable summary is recorded explicitly; it is never replaced with a passing
+payload. The shared XCTest gate still decides acceptance. An original compiler
+failure remains authoritative; missing required evidence after success fails CI.
+
+The workflow always uploads only its dedicated evidence directory, with a unique
+run/attempt artifact name and no overwrite. DerivedData and unsigned App products
+remain in separate work directories and are not uploaded. This also preserves
+the preceding simulator compilation log if XCTest never starts. The artifact
+contains CI test fixtures and diagnostics; it is not a device acceptance report.
+
 This builds an unsigned simulator app. It does not execute XCTest, produce a
 signed IPA, or verify physical LiDAR quality.

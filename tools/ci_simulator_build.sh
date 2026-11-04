@@ -4,21 +4,37 @@ set -euo pipefail
 task_repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 task_build_root="${FTS_CI_BUILD_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/FruitTreeScanner-ci-build}"
 mkdir -p "$task_build_root"
-task_build_log="$task_build_root/simulator-build.log"
+task_evidence_tool="$task_repo_root/tools/ci_evidence.py"
+task_evidence_root="${FTS_CI_EVIDENCE_DIR:-$task_build_root/evidence}"
+task_run_root="$(python3 "$task_evidence_tool" prepare --root "$task_evidence_root" \
+  --build-root "$task_build_root" --repo "$task_repo_root" --phase build)"
+task_build_log="$task_run_root/simulator-build.log"
+finish_ci_evidence() {
+  task_primary_status=$?
+  trap - EXIT
+  set +e
+  python3 "$task_evidence_tool" finish "$task_run_root" --status "$task_primary_status"
+  task_evidence_status=$?
+  if (( task_primary_status != 0 )); then exit "$task_primary_status"; fi
+  exit "$task_evidence_status"
+}
+trap finish_ci_evidence EXIT
 if [[ -z "${DEVELOPER_DIR:-}" ]]; then
   DEVELOPER_DIR="$(xcode-select -p)"
 fi
 export DEVELOPER_DIR
+python3 "$task_evidence_tool" toolchain "$task_run_root"
+task_work_root="$(mktemp -d "$task_build_root/work.XXXXXX")"
 
 # A conditional preserves the compiler's status even under bash -e -o pipefail.
-if xcodebuild -quiet \
+if python3 "$task_evidence_tool" run --name simulator-build --log simulator-build.log "$task_run_root" -- xcodebuild -quiet \
   -project "$task_repo_root/FruitTreeScanner.xcodeproj" \
   -scheme FruitTreeScanner \
   -configuration Debug \
   -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath "$task_build_root/DerivedData" \
+  -derivedDataPath "$task_work_root/DerivedData" \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
-  build > "$task_build_log" 2>&1; then
+  build; then
   task_build_status=0
 else
   task_build_status=$?

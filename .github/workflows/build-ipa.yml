@@ -12,6 +12,7 @@ on:
       - 'tools/validate_fusion_domain.sh'
       - 'tools/ci_simulator_build.sh'
       - 'tools/ci_xctest_gate.sh'
+      - 'tools/ci_evidence.py'
       - 'tools/xctest_gate.py'
       - 'tools/check_test_target_registration.py'
       - 'tools/check_ci_test_registration_gate.py'
@@ -28,6 +29,7 @@ on:
       - 'tools/validate_fusion_domain.sh'
       - 'tools/ci_simulator_build.sh'
       - 'tools/ci_xctest_gate.sh'
+      - 'tools/ci_evidence.py'
       - 'tools/xctest_gate.py'
       - 'tools/check_test_target_registration.py'
       - 'tools/check_ci_test_registration_gate.py'
@@ -42,6 +44,8 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 60
+    env:
+      FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/FruitTreeScanner-ci-evidence
 
     steps:
       - name: Checkout
@@ -80,3 +84,14 @@ jobs:
       - name: XCTest gate
         shell: bash
         run: bash tools/ci_xctest_gate.sh
+
+      - name: Retain CI evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/FruitTreeScanner-ci-evidence/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: false
+          include-hidden-files: true

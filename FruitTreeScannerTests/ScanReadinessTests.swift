@@ -3662,12 +3662,16 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
         defer { coordinator.teardown() }
         coordinator.startRecording(plan: plan)
-        let samples = (0..<9).flatMap { row in (0..<9).map { column in
-            ObservationDepthSample(normalizedImageX: 0.485 + 0.03 * (Float(column) + 0.5) / 9,
-                normalizedImageY: 0.485 + 0.03 * (Float(row) + 0.5) / 9,
-                depthMeters: 2, row: row, column: column)
-        } }
-        let observations = (0..<2).map { index in
+        var samples: [ObservationDepthSample] = []
+        for row in 0..<9 {
+            for column in 0..<9 {
+                let normalizedX: Float = 0.485 + 0.03 * (Float(column) + 0.5) / 9
+                let normalizedY: Float = 0.485 + 0.03 * (Float(row) + 0.5) / 9
+                samples.append(ObservationDepthSample(normalizedImageX: normalizedX,
+                    normalizedImageY: normalizedY, depthMeters: 2, row: row, column: column))
+            }
+        }
+        let observations: [Observation] = (0..<2).map { index in
             Observation(id: UUID(), frameID: FrameID(), category: .apple,
                 boundingBox: CGRect(x: 0.485, y: 0.485, width: 0.03, height: 0.03), confidence: 0.9,
                 // Production requires two observations spanning at least 0.35 s.
@@ -4461,7 +4465,7 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
     @MainActor
     func testCancelledWorkflowIsReleasedWhileEstimatorIsStillSuspended() async {
         var workflow: ScanFinalizationWorkflow? = ScanFinalizationWorkflow()
-        weak let weakWorkflow = workflow
+        weak var weakWorkflow = workflow
         let harness = ScanFinalizationTestHarness()
         workflow?.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
         await waitUntil { harness.exportCompletions.count == 1 }
