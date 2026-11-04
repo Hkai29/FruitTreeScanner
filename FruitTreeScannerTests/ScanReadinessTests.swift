@@ -3648,7 +3648,11 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
     @MainActor
     func testProductionReplayPreparationRetryPreservesConsumedObservations() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        var persistenceCompleted = false
+        defer {
+            // A failed wait must not delete a fixture that production IO still owns.
+            if persistenceCompleted { try? FileManager.default.removeItem(at: directory) }
+        }
         let repository = ScanRepository(scansDirectory: directory)
         let defaultsName = "ReplayPreparationRetry-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
@@ -3705,9 +3709,20 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
             persistResult: original.persistResult, markCompleted: original.markCompleted,
             refreshHistory: original.refreshHistory, discardArtifacts: original.discardArtifacts)
         let workflow = ScanFinalizationWorkflow()
+        let preparationFailed = expectation(description: "Replay preparation reports its retryable failure")
+        let persisted = expectation(description: "Production retry commits the archive")
+        workflow.onEvent = { event in
+            switch event {
+            case .failed: preparationFailed.fulfill()
+            case .completed: persisted.fulfill()
+            default: break
+            }
+        }
+        defer { workflow.onEvent = nil }
         workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: operations)
-        await waitUntil { workflow.retryAction == .estimateYield }
+        await fulfillment(of: [preparationFailed], timeout: 10)
         XCTAssertEqual(workflow.retryAction, .estimateYield)
+        guard workflow.retryAction == .estimateYield else { return }
         XCTAssertTrue(coordinator.fusionEstimateObservationsSnapshot().isEmpty, "Capture consumed the coordinator's observations")
         let captured = try XCTUnwrap(workflow.capturedSnapshot)
         XCTAssertEqual(Set(captured.input.observations.map(\.id)), Set(observations.map(\.id)))
@@ -3716,8 +3731,10 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         XCTAssertGreaterThan(baseline.yieldFinalKg, 0)
         try FileManager.default.removeItem(at: XCTUnwrap(obstacle))
         workflow.retry()
-        await waitUntil { workflow.phase == .completed }
+        await fulfillment(of: [persisted], timeout: 10)
         XCTAssertEqual(workflow.phase, .completed)
+        guard workflow.phase == .completed else { return }
+        persistenceCompleted = true
         let source = try repository.pointCloudDestination(filename: "preparation-retry.ply")
         let record = try XCTUnwrap(repository.summary(at: source))
         let replay = try repository.observationReplay(for: record)

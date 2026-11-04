@@ -2190,8 +2190,10 @@ final class BatchExportServiceTests: XCTestCase {
     }
 
     func testGroupByDateProducesYYYYMMDDLabels() async throws {
-        let date1 = Date(timeIntervalSince1970: 1717200000)
-        let date2 = Date(timeIntervalSince1970: 1717884800)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let date1 = try XCTUnwrap(calendar.date(from: DateComponents(year: 2024, month: 6, day: 1, hour: 12)))
+        let date2 = try XCTUnwrap(calendar.date(from: DateComponents(year: 2024, month: 6, day: 9, hour: 12)))
         let records = [
             makeRecord(id: "a.ply", scanDate: date1, fruitType: "apple"),
             makeRecord(id: "b.ply", scanDate: date2, fruitType: "pear"),
