@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 sys.dont_write_bytecode = True
@@ -283,6 +284,94 @@ class CommandLineGateTests(unittest.TestCase):
             bundle.mkdir()
             result = self.run_gate([str(bundle)], env={"PATH": directory + os.pathsep + os.environ["PATH"]})
             self.assertNotEqual(result.returncode, 0)
+
+
+class ReaderToolchainGateTests(unittest.TestCase):
+    """Use a newer result reader without changing the compiling parent process."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="xcresult-reader-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.bundle = self.root / "tests.xcresult"
+        self.bundle.mkdir()
+        self.repo = self.root / "repo"
+        (self.repo / "FruitTreeScannerTests").mkdir(parents=True)
+        (self.repo / "FruitTreeScannerTests/Sample.swift").write_text(
+            "final class ArchiveGateTests: XCTestCase {}\n")
+        self.summary_file = self.root / "summary.json"
+        self.summary_file.write_text(json.dumps(summary()))
+        self.tree_file = self.root / "tree.json"
+        self.tree_file.write_text(json.dumps(tree()))
+        self.trace = self.root / "reader-trace.jsonl"
+        self.compiler = str(self.root / "Xcode_16.4.app/Contents/Developer")
+        self.reader = str(self.root / "Xcode_26.2.app/Contents/Developer")
+        stub = self.root / "xcrun"
+        stub.write_text("#!/usr/bin/env python3\n" + '''import json, os, sys
+selected = os.environ.get("DEVELOPER_DIR")
+with open(os.environ["READER_TRACE"], "a") as trace:
+    trace.write(json.dumps({"developer_dir": selected, "argv": sys.argv[1:]}) + "\\n")
+if selected not in (os.environ["COMPILER_DIR"], os.environ["READER_DIR"]):
+    print("requested result reader is unavailable", file=sys.stderr)
+    raise SystemExit(72)
+if os.environ.get("READER_FAIL"):
+    print("configured result reader failed", file=sys.stderr)
+    raise SystemExit(70)
+if "summary" in sys.argv:
+    with open(os.environ["SUMMARY_JSON"]) as handle: payload = json.load(handle)
+    if selected != os.environ["READER_DIR"] or os.environ.get("OMIT_RUNTIME_WARNINGS"):
+        payload.pop("runtimeWarnings", None)
+else:
+    with open(os.environ["TREE_JSON"]) as handle: payload = json.load(handle)
+print(json.dumps(payload))
+''')
+        stub.chmod(0o755)
+        self.environment = dict(os.environ, PATH=str(self.root) + os.pathsep + os.environ["PATH"],
+            DEVELOPER_DIR=self.compiler, FTS_XCRESULT_DEVELOPER_DIR=self.reader,
+            COMPILER_DIR=self.compiler, READER_DIR=self.reader, READER_TRACE=str(self.trace),
+            SUMMARY_JSON=str(self.summary_file), TREE_JSON=str(self.tree_file))
+
+    def cli(self, **overrides):
+        return subprocess.run([sys.executable, str(MODULE_PATH), str(self.bundle), "--repo", str(self.repo)],
+            capture_output=True, text=True, env=dict(self.environment, **overrides))
+
+    def test_only_reader_subprocess_uses_override_parent_compiler_is_preserved(self):
+        with mock.patch.dict(os.environ, self.environment, clear=True):
+            report = gate.check_result_bundle(self.bundle, {CLASS})
+            self.assertEqual(report["counts"]["passedTests"], 1)
+            self.assertEqual(os.environ["DEVELOPER_DIR"], self.compiler)
+        calls = [json.loads(line) for line in self.trace.read_text().splitlines()]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual({call["developer_dir"] for call in calls}, {self.reader})
+
+    def test_real_cli_uses_configured_reader_and_preserves_strict_missing_field_gate(self):
+        result = self.cli()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("XCTest gate passed", result.stdout)
+        result = self.cli(OMIT_RUNTIME_WARNINGS="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot inspect warning evidence", result.stderr)
+
+    def test_missing_or_failed_configured_reader_does_not_fall_back(self):
+        for settings in ({"FTS_XCRESULT_DEVELOPER_DIR": "/missing/reader"},
+                         {"FTS_XCRESULT_DEVELOPER_DIR": ""}, {"READER_FAIL": "1"}):
+            with self.subTest(settings=settings):
+                self.assertNotEqual(self.cli(**settings).returncode, 0)
+
+    def test_without_reader_override_old_summary_still_fails_closed(self):
+        environment = dict(self.environment)
+        environment.pop("FTS_XCRESULT_DEVELOPER_DIR")
+        with mock.patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(gate.GateFailure, "cannot inspect warning evidence"):
+                gate.check_result_bundle(self.bundle, {CLASS})
+            self.assertEqual(os.environ["DEVELOPER_DIR"], self.compiler)
+
+    def test_new_reader_does_not_weaken_blocking_warning_rejection(self):
+        self.summary_file.write_text(json.dumps(summary(runtimeWarnings=[{
+            "message": "Publishing changes from within view updates is not allowed"}])))
+        result = self.cli()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Unsafe SwiftUI runtime warning", result.stderr)
 
 
 if __name__ == "__main__":

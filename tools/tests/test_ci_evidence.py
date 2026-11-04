@@ -28,6 +28,14 @@ class CIEvidenceExecutionTests(unittest.TestCase):
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.stub("xcodebuild", '''import os, pathlib, sys
+if os.environ.get("STUB_TOOL_TRACE"):
+    import json
+    with pathlib.Path(os.environ["STUB_TOOL_TRACE"]).open("a") as trace:
+        print(json.dumps({"tool": "xcodebuild", "argv": sys.argv[1:],
+                          "developer_dir": os.environ.get("DEVELOPER_DIR")}), file=trace)
+if os.environ.get("STUB_MISSING_READER") and os.environ.get("DEVELOPER_DIR") == os.environ.get("STUB_EXPECTED_READER"):
+    print("Explicit result reader is unavailable", file=sys.stderr)
+    raise SystemExit(127)
 if "-version" in sys.argv:
     print("Xcode Stub\\nBuild version stub")
     raise SystemExit(0)
@@ -41,12 +49,26 @@ raise SystemExit(int(os.environ.get("STUB_PRIMARY_EXIT", "0")))
 ''')
         self.stub("xcrun", '''import json, os, pathlib, sys
 args = sys.argv[1:]
+if os.environ.get("STUB_TOOL_TRACE"):
+    with pathlib.Path(os.environ["STUB_TOOL_TRACE"]).open("a") as trace:
+        print(json.dumps({"tool": "xcrun", "argv": args,
+                          "developer_dir": os.environ.get("DEVELOPER_DIR")}), file=trace)
+if os.environ.get("STUB_MISSING_READER") and os.environ.get("DEVELOPER_DIR") == os.environ.get("STUB_EXPECTED_READER"):
+    print("Explicit result reader is unavailable", file=sys.stderr)
+    raise SystemExit(127)
 if args[0] == "--sdk":
-    print("stub-sdk")
+    version = os.environ.get("STUB_SDK_VERSION", "18.5")
+    if os.environ.get("DEVELOPER_DIR") == os.environ.get("STUB_EXPECTED_READER"):
+        version = os.environ.get("STUB_READER_SDK_VERSION", "26.2")
+    print(version if "--show-sdk-version" in args else "stub-sdk")
+elif args[:2] == ["--find", "xcresulttool"]:
+    print(os.environ["DEVELOPER_DIR"] + "/usr/bin/xcresulttool")
 elif args[:2] == ["simctl", "bootstatus"]:
     print("Booted stub simulator")
 elif args[0] == "simctl":
-    print(json.dumps({"devices": {"iOS-stub": [{"isAvailable": True, "name": "iPhone Stub", "udid": "STUB-ID"}]}}))
+    print(os.environ.get("STUB_SIMULATORS_JSON") or json.dumps({"devices": {
+        "com.apple.CoreSimulator.SimRuntime.iOS-18-5": [
+            {"isAvailable": True, "name": "iPhone Stub", "udid": "STUB-ID"}]}}))
 elif args[0] == "xcresulttool":
     counter = pathlib.Path(os.environ["STUB_COUNTER"])
     number = int(counter.read_text()) + 1 if counter.exists() else 1
@@ -57,9 +79,14 @@ elif args[0] == "xcresulttool":
         raise SystemExit(7)
     if "summary" in args:
         bad = bool(os.environ.get("STUB_GATE_FAIL"))
-        print(json.dumps({"result": "Failed" if bad else "Passed", "totalTestCount": 1,
-                          "passedTests": 0 if bad else 1, "failedTests": 1 if bad else 0,
-                          "skippedTests": 0, "expectedFailures": 0, "runtimeWarnings": []}))
+        summary = {"result": "Failed" if bad else "Passed", "totalTestCount": 1,
+                   "passedTests": 0 if bad else 1, "failedTests": 1 if bad else 0,
+                   "skippedTests": 0, "expectedFailures": 0}
+        old_reader = (os.environ.get("STUB_OMIT_WARNINGS_UNLESS_READER") and
+                      os.environ.get("DEVELOPER_DIR") != os.environ.get("STUB_EXPECTED_READER"))
+        if not os.environ.get("STUB_ALWAYS_OMIT_WARNINGS") and not old_reader:
+            summary["runtimeWarnings"] = []
+        print(json.dumps(summary))
     else:
         print(json.dumps({"testNodes": [{"nodeType": "Unit test bundle", "name": "FruitTreeScannerTests", "children": [
             {"nodeType": "Test Suite", "name": "LocalTests", "children": [
@@ -132,6 +159,148 @@ else: raise SystemExit(9)
         result = self.run_script(STUB_EXPORT_FAIL_AFTER="2")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(self.report(self.runs()[0])["primary_exit"], 0)
+
+    def test_xctest_run_pins_chinese_baseline_without_selection_filters(self):
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        command = next(item for item in self.report(self.runs()[0])["commands"]
+                       if item["name"] == "xctest")
+        argv = command["argv"]
+        self.assertEqual(argv.count("-testLanguage"), 1,
+                         "The Chinese golden tests require an explicit app language")
+        self.assertEqual(argv[argv.index("-testLanguage") + 1], "zh-Hans")
+        self.assertNotIn("-testRegion", argv)
+        self.assertFalse(any(argument.startswith(("-only-testing", "-skip-testing",
+                                                 "-only-test-configuration", "-skip-test-configuration"))
+                             for argument in argv), "The language baseline must keep the full test selection")
+
+    def test_default_destination_prefers_sdk_runtime_over_newer_installed_runtimes(self):
+        devices = {"devices": {
+            "com.apple.CoreSimulator.SimRuntime.iOS-18-5": [
+                {"isAvailable": True, "name": "iPhone 16", "udid": "SDK-18-5"}],
+            "com.apple.CoreSimulator.SimRuntime.iOS-18-6": [
+                {"isAvailable": True, "name": "iPhone 16", "udid": "NEWER-18-6"}],
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-2": [
+                {"isAvailable": True, "name": "iPhone 17 Pro", "udid": "NEWER-26-2"}],
+        }}
+        result = self.run_script(FTS_CI_TEST_DESTINATION="", STUB_SDK_VERSION="18.5",
+                                 STUB_SIMULATORS_JSON=json.dumps(devices))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        run = self.runs()[0]
+        argv = next(item["argv"] for item in self.report(run)["commands"] if item["name"] == "xctest")
+        self.assertEqual(argv[argv.index("-destination") + 1], "platform=iOS Simulator,id=SDK-18-5")
+        self.assertEqual(argv[argv.index("-testLanguage") + 1], "zh-Hans")
+        self.assertFalse(any(argument.startswith(("-only-testing", "-skip-testing")) for argument in argv))
+        selection = json.loads((run / "selection.json").read_text())
+        self.assertEqual(selection["sdk_version"], "18.5")
+        self.assertEqual(selection["runtime"], "com.apple.CoreSimulator.SimRuntime.iOS-18-5")
+        self.assertEqual(selection["device"]["udid"], "SDK-18-5")
+        self.assertEqual(selection["reason"], "exact_sdk_runtime")
+
+    def test_default_destination_orders_versions_numerically_when_exact_runtime_is_absent(self):
+        devices = {"devices": {
+            "com.apple.CoreSimulator.SimRuntime.iOS-18-9": [
+                {"isAvailable": True, "name": "iPhone Stub", "udid": "OLDER-18-9"}],
+            "com.apple.CoreSimulator.SimRuntime.iOS-18-10": [
+                {"isAvailable": True, "name": "iPhone Stub", "udid": "SDK-18-10"}],
+        }}
+        result = self.run_script(FTS_CI_TEST_DESTINATION="", STUB_SDK_VERSION="18.11",
+                                 STUB_SIMULATORS_JSON=json.dumps(devices))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        run = self.runs()[0]
+        argv = next(item["argv"] for item in self.report(run)["commands"] if item["name"] == "xctest")
+        self.assertEqual(argv[argv.index("-destination") + 1], "platform=iOS Simulator,id=SDK-18-10")
+        selection = json.loads((run / "selection.json").read_text())
+        self.assertEqual(selection["runtime_version"], "18.10")
+        self.assertEqual(selection["reason"], "newest_compatible_runtime")
+
+    def test_default_destination_fails_before_tests_when_no_compatible_runtime_exists(self):
+        devices = {"devices": {"com.apple.CoreSimulator.SimRuntime.iOS-26-2": [
+            {"isAvailable": True, "name": "iPhone 17 Pro", "udid": "NEWER-26-2"}]}}
+        result = self.run_script(FTS_CI_TEST_DESTINATION="", STUB_SDK_VERSION="18.5",
+                                 STUB_SIMULATORS_JSON=json.dumps(devices))
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        run = self.runs()[0]
+        report = self.report(run)
+        self.assertEqual(report["primary_exit"], 2)
+        self.assertFalse(any(item["name"] == "xctest" for item in report["commands"]))
+        selection = json.loads((run / "selection.json").read_text())
+        self.assertEqual(selection["sdk_version"], "18.5")
+        self.assertIn("No SDK-compatible", selection["error"])
+
+    def test_default_destination_excludes_other_platforms_unavailable_devices_and_nonphones(self):
+        devices = {"devices": {
+            "com.apple.CoreSimulator.SimRuntime.iOS-18-5": [
+                {"isAvailable": False, "name": "iPhone 16", "udid": "UNAVAILABLE"},
+                {"isAvailable": True, "name": "Apple TV", "udid": "WRONG-FAMILY"}],
+            "com.apple.CoreSimulator.SimRuntime.tvOS-18-5": [
+                {"isAvailable": True, "name": "iPhone Misnamed", "udid": "WRONG-PLATFORM"}],
+            "com.apple.CoreSimulator.SimRuntime.iPadOS-18-4": [
+                {"isAvailable": True, "name": "iPad Stub", "udid": "COMPATIBLE-IPAD"}],
+        }}
+        result = self.run_script(FTS_CI_TEST_DESTINATION="", STUB_SDK_VERSION="18.5",
+                                 STUB_SIMULATORS_JSON=json.dumps(devices))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        argv = next(item["argv"] for item in self.report(self.runs()[0])["commands"] if item["name"] == "xctest")
+        self.assertEqual(argv[argv.index("-destination") + 1], "platform=iOS Simulator,id=COMPATIBLE-IPAD")
+
+    def test_explicit_destination_preserves_the_callers_runtime_override(self):
+        explicit = "platform=iOS Simulator,id=EXPLICIT-26-2"
+        result = self.run_script(FTS_CI_TEST_DESTINATION=explicit, STUB_SDK_VERSION="18.5")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        argv = next(item["argv"] for item in self.report(self.runs()[0])["commands"] if item["name"] == "xctest")
+        self.assertEqual(argv[argv.index("-destination") + 1], explicit)
+
+    def test_explicit_result_reader_preserves_compiler_sdk_and_handles_gate_and_exports(self):
+        trace = self.root / "tool-trace.jsonl"
+        devices = {"devices": {
+            "com.apple.CoreSimulator.SimRuntime.iOS-18-5": [
+                {"isAvailable": True, "name": "iPhone 16", "udid": "SDK-18-5"}],
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-2": [
+                {"isAvailable": True, "name": "iPhone 17 Pro", "udid": "NEWER-26-2"}],
+        }}
+        result = self.run_script(FTS_CI_TEST_DESTINATION="", STUB_SDK_VERSION="18.5",
+                                 STUB_SIMULATORS_JSON=json.dumps(devices), STUB_TOOL_TRACE=str(trace),
+                                 FTS_XCRESULT_DEVELOPER_DIR="/stub/Reader", STUB_EXPECTED_READER="/stub/Reader",
+                                 STUB_OMIT_WARNINGS_UNLESS_READER="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        run = self.runs()[0]
+        report = self.report(run)
+        compiler = next(item for item in report["commands"] if item["name"] == "xctest")
+        self.assertEqual(compiler["developer_dir"], "/stub/Developer")
+        self.assertEqual(compiler["argv"][compiler["argv"].index("-destination") + 1],
+                         "platform=iOS Simulator,id=SDK-18-5")
+        self.assertEqual((run / "simulator-sdk-version.log").read_text().strip(), "18.5")
+        selection = json.loads((run / "selection.json").read_text())
+        self.assertEqual(selection["sdk_version"], "18.5")
+        for name in ("reader-xcode-version", "reader-xcresulttool-path", "export-summary", "export-tree"):
+            entry = next(item for item in report["commands"] if item["name"] == name)
+            self.assertEqual(entry["developer_dir"], "/stub/Reader")
+            self.assertEqual(entry["exit_code"], 0)
+        calls = [json.loads(line) for line in trace.read_text().splitlines()]
+        readers = [item for item in calls if item["tool"] == "xcrun" and item["argv"][0] == "xcresulttool"]
+        self.assertEqual(len(readers), 4, "The real gate and retained exports must each read summary and tree")
+        self.assertTrue(all(item["developer_dir"] == "/stub/Reader" for item in readers))
+        actual_tests = [item for item in calls if item["tool"] == "xcodebuild" and "test" in item["argv"]]
+        self.assertEqual(len(actual_tests), 1)
+        self.assertEqual(actual_tests[0]["developer_dir"], "/stub/Developer")
+
+    def test_explicit_result_reader_does_not_accept_a_missing_warning_schema(self):
+        result = self.run_script(FTS_XCRESULT_DEVELOPER_DIR="/stub/Reader", STUB_EXPECTED_READER="/stub/Reader",
+                                 STUB_ALWAYS_OMIT_WARNINGS="1")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        run = self.runs()[0]
+        self.assertEqual(self.report(run)["primary_exit"], 1)
+        self.assertIn("cannot inspect warning evidence", (run / "gate.log").read_text())
+
+    def test_unavailable_explicit_reader_fails_before_running_tests(self):
+        result = self.run_script(FTS_XCRESULT_DEVELOPER_DIR="/stub/Reader", STUB_EXPECTED_READER="/stub/Reader",
+                                 STUB_MISSING_READER="1")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        report = self.report(self.runs()[0])
+        self.assertFalse(any(item["name"] == "xctest" for item in report["commands"]))
+        self.assertTrue(any(item["name"] == "reader-xcresulttool-path" and item["exit_code"] == 127
+                            for item in report["commands"]))
 
     def test_repeated_runs_preserve_the_first_directory_and_exclude_build_products(self):
         first = self.run_script()

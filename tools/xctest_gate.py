@@ -159,7 +159,15 @@ def validate_test_tree(tree, expected):
 
 def _xcresulttool(*args):
     command = ["xcrun", "xcresulttool", *args]
-    result = subprocess.run(command, capture_output=True, text=True)
+    environment = dict(os.environ)
+    reader_directory = environment.get("FTS_XCRESULT_DEVELOPER_DIR")
+    if reader_directory is not None:
+        if not reader_directory.strip():
+            raise GateFailure("FTS_XCRESULT_DEVELOPER_DIR must name a result reader toolchain.", 2)
+        # A newer official result reader may expose fields absent from the
+        # compiling Xcode's API. Only this child uses it; compilation stays put.
+        environment["DEVELOPER_DIR"] = reader_directory
+    result = subprocess.run(command, capture_output=True, text=True, env=environment)
     if result.returncode != 0:
         raise GateFailure(
             "Cannot read XCTest evidence via xcresulttool: "

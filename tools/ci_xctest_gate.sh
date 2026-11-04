@@ -38,45 +38,10 @@ export DEVELOPER_DIR
 python3 "$task_evidence_tool" toolchain "$task_run_root"
 task_work_root="$(mktemp -d "$task_build_root/work.XXXXXX")"
 
-# 目的地必须是具体模拟器：generic 目的地跑不了测试。
-# 优先用 FTS_CI_TEST_DESTINATION；否则从可用设备里挑一台 iPhone。
-task_destination="${FTS_CI_TEST_DESTINATION:-}"
-if [[ -z "$task_destination" ]]; then
-  task_udid="$(python3 - <<'PY'
-import json, subprocess, sys
-
-raw = subprocess.run(["xcrun", "simctl", "list", "devices", "available", "-j"],
-                     capture_output=True, text=True)
-if raw.returncode != 0:
-    sys.exit(0)
-try:
-    devices = json.loads(raw.stdout)
-except Exception:
-    sys.exit(0)
-
-best = None
-for runtime, entries in (devices.get("devices") or {}).items():
-    if "iOS" not in runtime and "iPadOS" not in runtime:
-        continue
-    for device in entries:
-        if not device.get("isAvailable"):
-            continue
-        name = device.get("name", "")
-        if "iPhone" not in name and "iPad" not in name:
-            continue
-        candidate = (runtime, device.get("udid", ""))
-        if best is None or candidate[0] > best[0]:
-            best = candidate
-if best:
-    print(best[1])
-PY
-)"
-  if [[ -z "$task_udid" ]]; then
-    printf 'no available iOS simulator found for the XCTest gate\n' >&2
-    exit 2
-  fi
-  task_destination="platform=iOS Simulator,id=$task_udid"
-fi
+# Preserve an explicit caller destination. The default must use a runtime no
+# newer than this Xcode's SDK, chosen from the already retained toolchain logs.
+task_destination="$(python3 "$task_evidence_tool" destination "$task_run_root" \
+  --override "${FTS_CI_TEST_DESTINATION:-}")"
 
 printf 'XCTest destination: %s\n' "$task_destination"
 
@@ -118,6 +83,7 @@ if python3 "$task_evidence_tool" run --name xctest --log xctest.log "$task_run_r
   -scheme FruitTreeScanner \
   -configuration Debug \
   -destination "$task_destination" \
+  -testLanguage zh-Hans \
   -derivedDataPath "$task_work_root/DerivedData" \
   -resultBundlePath "$task_result_bundle" \
   -parallel-testing-enabled NO \

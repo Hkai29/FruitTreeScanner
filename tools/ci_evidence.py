@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -19,17 +20,20 @@ def write_json(path, value):
     path.write_text(json.dumps(value, indent=2) + "\n")
 
 
-def command(run, name, argv, log, stderr=None):
+def command(run, name, argv, log, stderr=None, developer_dir=None):
+    environment = dict(os.environ)
+    if developer_dir is not None:
+        environment["DEVELOPER_DIR"] = developer_dir
     record = {"name": name, "argv": argv, "started_at_utc": stamp(),
-              "log": log, "stderr": stderr, "developer_dir": os.environ.get("DEVELOPER_DIR")}
+              "log": log, "stderr": stderr, "developer_dir": environment.get("DEVELOPER_DIR")}
     status = 2
     try:
         with (run / log).open("w") as output:
             if stderr:
                 with (run / stderr).open("w") as errors:
-                    status = subprocess.run(argv, stdout=output, stderr=errors).returncode
+                    status = subprocess.run(argv, stdout=output, stderr=errors, env=environment).returncode
             else:
-                status = subprocess.run(argv, stdout=output, stderr=subprocess.STDOUT).returncode
+                status = subprocess.run(argv, stdout=output, stderr=subprocess.STDOUT, env=environment).returncode
     except OSError as error:
         record["launch_error"] = str(error)
         print(f"Cannot execute {name}: {error}", file=sys.stderr)
@@ -75,8 +79,83 @@ def toolchain(run):
     results = {}
     for name, argv in commands:
         results[name] = {"exit_code": command(run, name, argv, name + ".log"), "log": name + ".log"}
-    write_json(run / "toolchain.json", {"developer_dir": os.environ.get("DEVELOPER_DIR"), "commands": results})
+    reader = os.environ.get("FTS_XCRESULT_DEVELOPER_DIR") or None
+    if reader:
+        for name, argv in (("reader-xcode-version", ["xcodebuild", "-version"]),
+                           ("reader-xcresulttool-path", ["xcrun", "--find", "xcresulttool"])):
+            results[name] = {"exit_code": command(run, name, argv, name + ".log", developer_dir=reader),
+                             "log": name + ".log"}
+    write_json(run / "toolchain.json", {"developer_dir": os.environ.get("DEVELOPER_DIR"),
+                                        "reader_developer_dir": reader, "commands": results})
     return 2 if any(value["exit_code"] for value in results.values()) else 0
+
+
+def version_tuple(value):
+    if not isinstance(value, str) or not re.fullmatch(r"\d+(?:\.\d+){0,2}", value):
+        raise ValueError("Invalid simulator SDK/runtime version: " + repr(value))
+    parts = tuple(int(part) for part in value.split("."))
+    return parts + (0,) * (3 - len(parts))
+
+
+def runtime_version(identifier):
+    if not isinstance(identifier, str):
+        return None
+    match = re.search(r"(?:^|\.)(iOS|iPadOS)-(\d+(?:-\d+){0,2})$", identifier)
+    return match.group(2).replace("-", ".") if match else None
+
+
+def select_simulator(sdk_version, payload):
+    sdk = version_tuple(sdk_version)
+    devices = payload.get("devices") if isinstance(payload, dict) else None
+    if not isinstance(devices, dict):
+        raise ValueError("Available simulator evidence has no devices object")
+    candidates = []
+    for runtime, entries in devices.items():
+        version = runtime_version(runtime)
+        if version is None or version_tuple(version) > sdk or not isinstance(entries, list):
+            continue
+        for device in entries:
+            if not isinstance(device, dict) or device.get("isAvailable") is not True:
+                continue
+            name = device.get("name", "")
+            udid = device.get("udid", "")
+            device_type = device.get("deviceTypeIdentifier", "")
+            family = device_type if device_type else name
+            if not isinstance(family, str) or not any(kind in family for kind in ("iPhone", "iPad")):
+                continue
+            if not isinstance(udid, str) or not udid:
+                continue
+            candidates.append({"runtime": runtime, "runtime_version": version,
+                               "device": {"name": name, "udid": udid, "device_type": device_type}})
+    if not candidates:
+        raise ValueError("No SDK-compatible available iPhone/iPad runtime at or below simulator SDK " + sdk_version)
+    selected = max(candidates, key=lambda item: version_tuple(item["runtime_version"]))
+    return dict(selected, sdk_version=sdk_version, mode="automatic",
+                reason="exact_sdk_runtime" if version_tuple(selected["runtime_version"]) == sdk
+                       else "newest_compatible_runtime",
+                destination="platform=iOS Simulator,id=" + selected["device"]["udid"])
+
+
+def destination(run, override):
+    selection = {"source_logs": {"sdk": "simulator-sdk-version.log", "devices": "simulators.log"},
+                 "mode": "explicit" if override else "automatic"}
+    try:
+        sdk = (run / "simulator-sdk-version.log").read_text().strip()
+        selection["sdk_version"] = sdk
+        if override:
+            # Preserve the caller's destination verbatim, including an intentional
+            # runtime override. xcodebuild remains responsible for validating it.
+            selection.update(destination=override, reason="explicit_caller_override")
+        else:
+            payload = json.loads((run / "simulators.log").read_text())
+            selection.update(select_simulator(sdk, payload))
+    except (OSError, ValueError) as error:
+        selection["error"] = str(error)
+        write_json(run / "selection.json", selection)
+        raise
+    write_json(run / "selection.json", selection)
+    print(selection["destination"])
+    return 0
 
 
 def finish(run, primary):
@@ -97,7 +176,8 @@ def finish(run, primary):
                 continue
             status = command(run, "export-" + section,
                 ["xcrun", "xcresulttool", "get", "test-results", kind, "--path", str(bundle), "--format", "json"],
-                section + ".json", section + ".stderr")
+                section + ".json", section + ".stderr",
+                developer_dir=os.environ.get("FTS_XCRESULT_DEVELOPER_DIR") or None)
             valid = False
             try:
                 valid = isinstance(json.loads((run / (section + ".json")).read_text()), dict)
@@ -129,11 +209,13 @@ def main():
     init.add_argument("--build-root", type=Path, required=True)
     init.add_argument("--repo", type=Path, required=True)
     init.add_argument("--phase", choices=("build", "tests"), required=True)
-    for action in ("toolchain", "finish", "run"):
+    for action in ("toolchain", "destination", "finish", "run"):
         item = sub.add_parser(action)
         item.add_argument("directory", type=Path)
         if action == "finish":
             item.add_argument("--status", type=int, required=True)
+        elif action == "destination":
+            item.add_argument("--override", default="")
         elif action == "run":
             item.add_argument("--name", required=True)
             item.add_argument("--log", required=True)
@@ -144,6 +226,8 @@ def main():
             return prepare(args)
         if args.action == "toolchain":
             return toolchain(args.directory)
+        if args.action == "destination":
+            return destination(args.directory, args.override)
         if args.action == "finish":
             return finish(args.directory, args.status)
         argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv

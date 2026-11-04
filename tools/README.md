@@ -111,11 +111,22 @@ unavailable summary is recorded explicitly; it is never replaced with a passing
 payload. The shared XCTest gate still decides acceptance. An original compiler
 failure remains authoritative; missing required evidence after success fails CI.
 
+The XCTest default destination is selected numerically from the retained device
+inventory, at or below the compiling Xcode's simulator SDK. `selection.json`
+records the selected runtime and reason; `FTS_CI_TEST_DESTINATION` preserves an
+explicit caller override. The Chinese golden baseline uses `-testLanguage
+zh-Hans`, while existing independent English/Chinese localization tests remain.
+`FTS_XCRESULT_DEVELOPER_DIR` optionally selects an official result-reader Xcode
+only for result inspection and exports. The compiling `DEVELOPER_DIR` and SDK
+stay unchanged; both toolchains are recorded. Missing warning fields still fail
+the shared gate, and an unavailable configured reader does not silently fall back.
+
 The workflow always uploads only its dedicated evidence directory, with a unique
 run/attempt artifact name and no overwrite. DerivedData and unsigned App products
 remain in separate work directories and are not uploaded. This also preserves
 the preceding simulator compilation log if XCTest never starts. The artifact
 contains CI test fixtures and diagnostics; it is not a device acceptance report.
 
-This builds an unsigned simulator app. It does not execute XCTest, produce a
-signed IPA, or verify physical LiDAR quality.
+The simulator-build entrypoint builds an unsigned simulator app; the XCTest
+entrypoint executes the tests. Neither produces a signed IPA or verifies
+physical LiDAR quality.

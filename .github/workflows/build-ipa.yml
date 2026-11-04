@@ -69,6 +69,7 @@ jobs:
           task_xcode_directory="$(xcode-select -p)"
           printf 'DEVELOPER_DIR=%s\n' "$task_xcode_directory" >> "$GITHUB_ENV"
           printf 'FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'FTS_XCRESULT_DEVELOPER_DIR=%s\n' '/Applications/Xcode_26.2.app/Contents/Developer' >> "$GITHUB_ENV"
 
       - name: Validate Domain dependencies
         shell: bash
