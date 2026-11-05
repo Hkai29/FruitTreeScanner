@@ -56,10 +56,10 @@ final class DesignReviewGalleryTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        window.isHidden = true
-        window.rootViewController = nil
+        window?.isHidden = true
+        window?.rootViewController = nil
         previousKeyWindow?.makeKey()
-        try? FileManager.default.removeItem(at: directory)
+        if let directory { try? FileManager.default.removeItem(at: directory) }
     }
 
     // MARK: - 工具

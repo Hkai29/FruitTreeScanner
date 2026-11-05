@@ -2108,7 +2108,8 @@ final class BatchExportServiceTests: XCTestCase {
         options.groupBy = .fruitType
         let csv = try await exportCSVContent(records: records, options: options)
         let lines = csv.components(separatedBy: "\n").filter { !$0.isEmpty }
-        XCTAssertTrue(lines.first?.hasPrefix("分组") ?? false)
+        let header = stripBOM(lines.first ?? "")
+        XCTAssertTrue(header.hasPrefix("分组"))
         XCTAssertTrue(lines.dropFirst().contains(where: { $0.hasPrefix("apple,") || $0.hasPrefix("\"apple\",") }))
         XCTAssertTrue(lines.dropFirst().contains(where: { $0.hasPrefix("banana,") || $0.hasPrefix("\"banana\",") }))
     }
