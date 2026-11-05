@@ -38,6 +38,8 @@ UI_TEST_SOURCES = "FruitTreeScannerUITests/**"
 XCTest_GATE_MARKER = "tools/ci_xctest_gate.sh"
 SIMULATOR_BUILD_MARKER = "tools/ci_simulator_build.sh"
 EVIDENCE_HELPER = "tools/ci_evidence.py"
+RESULT_READER_HELPER = "tools/ci_result_reader.py"
+UI_HOST_SETUP_HELPER = "tools/ci_ui_host_setup.py"
 EVIDENCE_DIRECTORY = "${{ runner.temp }}/FruitTreeScanner-ci-evidence"
 EVIDENCE_EXPORT = "printf 'FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\""
 REQUIRED_EVENTS = ("push", "pull_request")
@@ -230,7 +232,8 @@ def check(workflow_path):
             findings.append("the workflow has no %r event" % name)
             continue
         paths = event["paths"]
-        for required in (UI_TEST_SOURCES, REGISTRATION_CHECK, WIRING_CHECK, EVIDENCE_HELPER):
+        for required in (UI_TEST_SOURCES, REGISTRATION_CHECK, WIRING_CHECK, EVIDENCE_HELPER,
+                         RESULT_READER_HELPER, UI_HOST_SETUP_HELPER):
             if required not in paths:
                 findings.append("the %r event does not trigger on %r" % (name, required))
 

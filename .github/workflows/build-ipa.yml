@@ -13,6 +13,8 @@ on:
       - 'tools/ci_simulator_build.sh'
       - 'tools/ci_xctest_gate.sh'
       - 'tools/ci_evidence.py'
+      - 'tools/ci_result_reader.py'
+      - 'tools/ci_ui_host_setup.py'
       - 'tools/xctest_gate.py'
       - 'tools/check_test_target_registration.py'
       - 'tools/check_ci_test_registration_gate.py'
@@ -30,6 +32,8 @@ on:
       - 'tools/ci_simulator_build.sh'
       - 'tools/ci_xctest_gate.sh'
       - 'tools/ci_evidence.py'
+      - 'tools/ci_result_reader.py'
+      - 'tools/ci_ui_host_setup.py'
       - 'tools/xctest_gate.py'
       - 'tools/check_test_target_registration.py'
       - 'tools/check_ci_test_registration_gate.py'
@@ -69,7 +73,6 @@ jobs:
           task_xcode_directory="$(xcode-select -p)"
           printf 'DEVELOPER_DIR=%s\n' "$task_xcode_directory" >> "$GITHUB_ENV"
           printf 'FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-          printf 'FTS_XCRESULT_DEVELOPER_DIR=%s\n' '/Applications/Xcode_26.2.app/Contents/Developer' >> "$GITHUB_ENV"
 
       - name: Validate Domain dependencies
         shell: bash

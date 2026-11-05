@@ -68,4 +68,8 @@ if (( task_build_status != 0 )); then
   exit "$task_build_status"
 fi
 # A successful compiler run must also report failures writing CI evidence.
-exit "$task_report_status"
+if (( task_report_status != 0 )); then exit "$task_report_status"; fi
+task_host_app="$task_work_root/DerivedData/Build/Products/Debug-iphonesimulator/FruitTreeScanner.app"
+python3 "$task_evidence_tool" run --name publish-host-app --log publish-host-app.log "$task_run_root" -- \
+  python3 "$task_repo_root/tools/ci_ui_host_setup.py" publish --app "$task_host_app" \
+    --receipt "$task_run_root/host-app.json" --github-env "${GITHUB_ENV:-}"

@@ -11,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 
+from ci_result_reader import select_reader
+
 
 def stamp():
     return datetime.now(timezone.utc).isoformat()
@@ -79,15 +81,35 @@ def toolchain(run):
     results = {}
     for name, argv in commands:
         results[name] = {"exit_code": command(run, name, argv, name + ".log"), "log": name + ".log"}
-    reader = os.environ.get("FTS_XCRESULT_DEVELOPER_DIR") or None
+    reader = None
+    reader_error = None
+    phase = json.loads((run / "run.json").read_text())["phase"]
+    compiler = os.environ.get("DEVELOPER_DIR")
+    if phase == "tests" and not any(item["exit_code"] for item in results.values()):
+        try:
+            reader = select_reader(run, compiler, os.environ.get("FTS_XCRESULT_DEVELOPER_DIR"),
+                                   "FTS_XCRESULT_DEVELOPER_DIR" in os.environ, command)["developer_dir"]
+        except ValueError as error:
+            reader_error = str(error)
+            print(f"Cannot select XCTest result reader: {error}", file=sys.stderr)
     if reader:
         for name, argv in (("reader-xcode-version", ["xcodebuild", "-version"]),
                            ("reader-xcresulttool-path", ["xcrun", "--find", "xcresulttool"])):
             results[name] = {"exit_code": command(run, name, argv, name + ".log", developer_dir=reader),
                              "log": name + ".log"}
-    write_json(run / "toolchain.json", {"developer_dir": os.environ.get("DEVELOPER_DIR"),
-                                        "reader_developer_dir": reader, "commands": results})
-    return 2 if any(value["exit_code"] for value in results.values()) else 0
+    write_json(run / "toolchain.json", {"developer_dir": compiler, "reader_developer_dir": reader,
+                                        "reader_error": reader_error, "commands": results})
+    return 2 if reader_error or any(value["exit_code"] for value in results.values()) else 0
+
+
+def reader_directory(run):
+    toolchain = json.loads((run / "toolchain.json").read_text())
+    selection = json.loads((run / "reader-selection.json").read_text())
+    directory = toolchain.get("reader_developer_dir")
+    if not directory or selection.get("status") != "selected" or selection.get("developer_dir") != directory:
+        raise ValueError("Required XCTest result reader was not selected")
+    print(directory)
+    return 0
 
 
 def version_tuple(value):
@@ -209,7 +231,7 @@ def main():
     init.add_argument("--build-root", type=Path, required=True)
     init.add_argument("--repo", type=Path, required=True)
     init.add_argument("--phase", choices=("build", "tests"), required=True)
-    for action in ("toolchain", "destination", "finish", "run"):
+    for action in ("toolchain", "reader-directory", "destination", "finish", "run"):
         item = sub.add_parser(action)
         item.add_argument("directory", type=Path)
         if action == "finish":
@@ -226,6 +248,8 @@ def main():
             return prepare(args)
         if args.action == "toolchain":
             return toolchain(args.directory)
+        if args.action == "reader-directory":
+            return reader_directory(args.directory)
         if args.action == "destination":
             return destination(args.directory, args.override)
         if args.action == "finish":

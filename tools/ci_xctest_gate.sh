@@ -36,6 +36,8 @@ if [[ -z "${DEVELOPER_DIR:-}" ]]; then
 fi
 export DEVELOPER_DIR
 python3 "$task_evidence_tool" toolchain "$task_run_root"
+task_reader_directory="$(python3 "$task_evidence_tool" reader-directory "$task_run_root")"
+export FTS_XCRESULT_DEVELOPER_DIR="$task_reader_directory"
 task_work_root="$(mktemp -d "$task_build_root/work.XXXXXX")"
 
 # Preserve an explicit caller destination. The default must use a runtime no
@@ -48,8 +50,19 @@ printf 'XCTest destination: %s\n' "$task_destination"
 # 模拟器先确认启动完成，避免冷启动时宿主场景没就绪（既有 workflow 的同一条要求）。
 # 目的地是 UDID 就直接用；给的是名字就查一次；都拿不到就跳过这一步并说明
 # （xcodebuild 自己对无效目的地会失败，不必在这里编一个错误原因）。
-task_udid="$(printf '%s' "$task_destination" | sed -n 's/.*id=\([^,]*\).*/\1/p')"
-if [[ -z "$task_udid" ]]; then
+task_concrete_udid="$(python3 - "$task_destination" <<'PY'
+import sys
+
+fields = [part.partition("=") for part in sys.argv[1].split(",")]
+platforms = [value.strip() for key, sep, value in fields if sep and key.strip() == "platform"]
+ids = [value.strip() for key, sep, value in fields if sep and key.strip() == "id"]
+has_name = any(sep and key.strip() == "name" for key, sep, _ in fields)
+if platforms == ["iOS Simulator"] and len(ids) == 1 and not has_name:
+    print(ids[0])
+PY
+)"
+task_udid="$task_concrete_udid"
+if [[ -z "$task_udid" && -z "${FTS_CI_HOST_APP_PATH:-}" && "${GITHUB_ACTIONS:-}" != "true" ]]; then
   task_name="$(printf '%s' "$task_destination" | sed -n 's/.*name=\([^,]*\).*/\1/p')"
   if [[ -n "$task_name" ]]; then
     task_udid="$(xcrun simctl list devices available -j 2>/dev/null | python3 -c '
@@ -75,6 +88,16 @@ if [[ -n "$task_udid" ]]; then
   fi
 else
   printf 'could not resolve a simulator UDID from the destination; skipping the bootstatus precondition\n' >&2
+fi
+
+# The permission and AX fixture must exist before XCTest can launch its host.
+# Setup mutates only the concrete destination UUID, never a name-based guess.
+if ! python3 "$task_evidence_tool" run --name ui-host-setup --log ui-host-setup.log "$task_run_root" -- \
+  python3 "$task_repo_root/tools/ci_ui_host_setup.py" setup --app "${FTS_CI_HOST_APP_PATH:-}" \
+    --simulator "$task_concrete_udid" --devices "$task_run_root/simulators.log" \
+    --output "$task_run_root/ui-host"; then
+  cat "$task_run_root/ui-host-setup.log" >&2
+  exit 2
 fi
 
 # A conditional preserves xcodebuild's status even under bash -e -o pipefail.

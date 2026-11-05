@@ -117,9 +117,19 @@ records the selected runtime and reason; `FTS_CI_TEST_DESTINATION` preserves an
 explicit caller override. The Chinese golden baseline uses `-testLanguage
 zh-Hans`, while existing independent English/Chinese localization tests remain.
 `FTS_XCRESULT_DEVELOPER_DIR` optionally selects an official result-reader Xcode
-only for result inspection and exports. The compiling `DEVELOPER_DIR` and SDK
-stay unchanged; both toolchains are recorded. Missing warning fields still fail
-the shared gate, and an unavailable configured reader does not silently fall back.
+only for result inspection and exports. Without it, the CI test entrypoint
+probes installed Xcode candidates using the official summary schema and keeps
+the probe output and reason in `reader-selection.json` and `reader-probes/`.
+The compiling `DEVELOPER_DIR` and SDK stay unchanged. Missing warning fields
+fail the shared gate; an explicitly configured unsupported reader is rejected.
+
+The CI build records and hands off the actual unsigned simulator App. Before
+the test host first launches, CI installs that App on the selected simulator,
+grants its WhenInUse location fixture, and sets and reads back three AX inspection
+preferences. `ui-host/report.json` retains the scope, App identity and command
+evidence. A standalone run without an explicit host App path leaves simulator
+preferences alone; explicit local setup also requires `FTS_CI_OWNED_SIMULATOR_ID`
+to match the selected UUID.
 
 The workflow always uploads only its dedicated evidence directory, with a unique
 run/attempt artifact name and no overwrite. DerivedData and unsigned App products

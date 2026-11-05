@@ -21,7 +21,8 @@ class CIEvidenceExecutionTests(unittest.TestCase):
         (self.repo / "tools").mkdir(parents=True)
         (self.repo / "FruitTreeScannerTests").mkdir()
         (self.repo / "FruitTreeScannerTests/LocalTests.swift").write_text("class LocalTests: XCTestCase {}")
-        for name in ("ci_xctest_gate.sh", "ci_simulator_build.sh", "ci_evidence.py", "xctest_gate.py"):
+        for name in ("ci_xctest_gate.sh", "ci_simulator_build.sh", "ci_evidence.py", "xctest_gate.py",
+                     "ci_result_reader.py", "ci_ui_host_setup.py"):
             source = REPOSITORY / "tools" / name
             if source.exists():
                 shutil.copy2(source, self.repo / "tools" / name)
@@ -70,6 +71,14 @@ elif args[0] == "simctl":
         "com.apple.CoreSimulator.SimRuntime.iOS-18-5": [
             {"isAvailable": True, "name": "iPhone Stub", "udid": "STUB-ID"}]}}))
 elif args[0] == "xcresulttool":
+    if "--schema" in args:
+        required = [] if os.environ.get("STUB_UNSUPPORTED_SCHEMA") else ["runtimeWarnings"]
+        print(json.dumps({"schemas": {
+            "Summary": {"type": "object", "required": required, "properties": {
+                "runtimeWarnings": {"type": "array", "items": {"$ref": "#/schemas/Issue"}}}},
+            "Issue": {"type": "object", "required": ["message"], "properties": {
+                "message": {"type": "string"}}}}}))
+        raise SystemExit(0)
     counter = pathlib.Path(os.environ["STUB_COUNTER"])
     number = int(counter.read_text()) + 1 if counter.exists() else 1
     counter.write_text(str(number))
@@ -107,6 +116,10 @@ else: raise SystemExit(9)
                            STUB_COUNTER=str(self.root / "counter"))
         environment.pop("GITHUB_ENV", None)
         environment.pop("GITHUB_STEP_SUMMARY", None)
+        environment.pop("GITHUB_ACTIONS", None)
+        environment.pop("FTS_CI_HOST_APP_PATH", None)
+        environment.pop("FTS_CI_OWNED_SIMULATOR_ID", None)
+        environment.pop("FTS_XCRESULT_DEVELOPER_DIR", None)
         environment.update(overrides)
         return subprocess.run(["bash", str(self.repo / "tools" / script)], cwd=self.repo,
                               env=environment, capture_output=True, text=True)
@@ -278,7 +291,8 @@ else: raise SystemExit(9)
             self.assertEqual(entry["developer_dir"], "/stub/Reader")
             self.assertEqual(entry["exit_code"], 0)
         calls = [json.loads(line) for line in trace.read_text().splitlines()]
-        readers = [item for item in calls if item["tool"] == "xcrun" and item["argv"][0] == "xcresulttool"]
+        readers = [item for item in calls if item["tool"] == "xcrun" and item["argv"][0] == "xcresulttool"
+                   and "--schema" not in item["argv"]]
         self.assertEqual(len(readers), 4, "The real gate and retained exports must each read summary and tree")
         self.assertTrue(all(item["developer_dir"] == "/stub/Reader" for item in readers))
         actual_tests = [item for item in calls if item["tool"] == "xcodebuild" and "test" in item["argv"]]
@@ -299,8 +313,17 @@ else: raise SystemExit(9)
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         report = self.report(self.runs()[0])
         self.assertFalse(any(item["name"] == "xctest" for item in report["commands"]))
-        self.assertTrue(any(item["name"] == "reader-xcresulttool-path" and item["exit_code"] == 127
+        self.assertTrue(any(item["name"].startswith("reader-summary-schema-") and item["exit_code"] == 127
                             for item in report["commands"]))
+
+    def test_executable_reader_without_required_schema_fails_before_running_tests(self):
+        result = self.run_script(FTS_XCRESULT_DEVELOPER_DIR="/stub/Reader", STUB_UNSUPPORTED_SCHEMA="1")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        run = self.runs()[0]
+        self.assertFalse(any(item["name"] == "xctest" for item in self.report(run)["commands"]))
+        reader = json.loads((run / "reader-selection.json").read_text())
+        self.assertEqual(reader["status"], "failed")
+        self.assertIn("not required", reader["probes"][0]["rejection_reason"])
 
     def test_repeated_runs_preserve_the_first_directory_and_exclude_build_products(self):
         first = self.run_script()

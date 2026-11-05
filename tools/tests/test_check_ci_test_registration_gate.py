@@ -153,6 +153,16 @@ class CIWiringTests(unittest.TestCase):
         self.assert_rejected(self.mutated_workflow("      - 'tools/ci_evidence.py'\n", "", 1),
                              "does not trigger on")
 
+    def test_reader_and_ui_host_helpers_trigger_both_events(self):
+        for name in ("ci_result_reader.py", "ci_ui_host_setup.py"):
+            line = "      - 'tools/" + name + "'\n"
+            for occurrence in (0, 1):
+                with self.subTest(name=name, occurrence=occurrence):
+                    before, first, middle = self.source.partition(line)
+                    self.assertEqual(first, line)
+                    mutated = before + middle if occurrence == 0 else before + first + middle.replace(line, "", 1)
+                    self.assert_rejected(mutated, "does not trigger on")
+
     def test_job_environment_rejects_runner_context_property_and_index_forms(self):
         job_env = "    env:\n      FTS_CI_EVIDENCE_DIR: ${{ runner.temp }}/FruitTreeScanner-ci-evidence\n"
         without = self.source.replace(job_env, "")
