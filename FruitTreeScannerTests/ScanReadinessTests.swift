@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 import ARKit
 import AVFoundation
 import MetalKit
@@ -336,6 +337,19 @@ private final class ControlledScanReadinessDeterminer {
 }
 
 final class ScanControlLocalizationTests: XCTestCase {
+    func testInvalidPointCloudCaptureRecoveryCopyIsAccurateInBothLanguages() throws {
+        let values = [
+            "en": ["Point Cloud Capture Incomplete",
+                   "This capture cannot be used to estimate yield. Restart the scan. Discarding it will not create a result."],
+            "zh": ["本次点云采集未完成", "本次采集数据无法用于估产。请重新开始扫描；放弃不会生成结果。"]
+        ]
+        for (language, expected) in values {
+            let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
+            XCTAssertEqual(bundle.localizedString(forKey: "scan.point_cloud_capture_failed.title", value: nil, table: nil), expected[0])
+            XCTAssertEqual(bundle.localizedString(forKey: "scan.point_cloud_capture_failed.message", value: nil, table: nil), expected[1])
+        }
+    }
+
     func testScanControlCopyIsCompleteInEnglishAndChinese() throws {
         let expectedCopy: [String: [String: String]] = [
             "en": [
@@ -915,6 +929,19 @@ final class CoverageMapLocalizationTests: XCTestCase {
 }
 
 final class ScanLifecycleControllerTests: XCTestCase {
+    func testInvalidPointCloudCaptureRetainsFailureUntilExplicitNewScan() {
+        let session = ScanSession()
+        let old = session.startNewScan()
+        _ = session.beginFinishing()
+        let failed = session.fail(.invalidPointCloudCapture)
+        XCTAssertEqual(session.interruptionEnded(), failed)
+        XCTAssertFalse(failed.acceptsReliableEvidence)
+        XCTAssertFalse(ScanFailureReason.invalidPointCloudCapture.requiresCameraReadinessRecovery)
+        let replacement = session.startNewScan()
+        XCTAssertNotEqual(replacement.scanIdentity, old.scanIdentity)
+        XCTAssertEqual(replacement.state, .recording)
+    }
+
     func testRecordingToInactiveStopsReliableEvidenceAndDoesNotAutoResume() {
         let controller = ScanLifecycleController()
         let recording = controller.startNewScan()
@@ -1029,6 +1056,28 @@ final class ScanSessionSnapshotTests: XCTestCase {
 
 @MainActor
 final class ScanCoordinatorSessionRestartTests: XCTestCase {
+    func testInvalidCaptureFailureRequiresMatchingFinishingOwnerAndFailedRestartStaysClosed() {
+        let coordinator = ScanCoordinator(calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        let old = coordinator.scanSession.startNewScan()
+        XCTAssertFalse(coordinator.handleInvalidPointCloudCapture(scanIdentity: old.scanIdentity))
+        let finishing = coordinator.scanSession.beginFinishing()
+        XCTAssertFalse(coordinator.handleInvalidPointCloudCapture(scanIdentity: UUID()))
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), finishing)
+        XCTAssertTrue(coordinator.handleInvalidPointCloudCapture(scanIdentity: old.scanIdentity))
+        XCTAssertEqual(coordinator.lifecycleSnapshot().state, .failed(.invalidPointCloudCapture))
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        XCTAssertFalse(coordinator.restartInterruptedScan(selectedCategory: .apple), "No bound AR session may not create a replacement")
+        XCTAssertEqual(coordinator.lifecycleSnapshot().scanIdentity, old.scanIdentity)
+        guard case .failed = coordinator.lifecycleSnapshot().state else { return XCTFail("Restart must remain failed") }
+        XCTAssertFalse(coordinator.acceptsReliableEvidence())
+        _ = coordinator.scanSession.startNewScan()
+        _ = coordinator.scanSession.beginFinishing()
+        let completed = coordinator.scanSession.complete()
+        XCTAssertFalse(coordinator.handleInvalidPointCloudCapture(scanIdentity: completed.scanIdentity))
+        XCTAssertEqual(coordinator.lifecycleSnapshot(), completed)
+    }
+
     func testCameraUnauthorizedFailureRequiresCameraReadinessRecovery() {
         let coordinator = ScanCoordinator()
         _ = coordinator.scanLifecycle.startNewScan()
@@ -1412,6 +1461,170 @@ final class MetalViewBindingLifecycleTests: XCTestCase {
 
 @MainActor
 final class ScanReadinessRecoveryBindingTests: XCTestCase {
+    func testLifecycleRecoveryQueuedDismissalCannotHideFailedRestartChoice() async throws {
+        let session = ScanSession()
+        _ = session.startNewScan()
+        let failed = session.fail(.invalidPointCloudCapture)
+        let controller = ScanLifecycleRecoveryPresentationController()
+        var restarts = 0
+        var discards = 0
+        controller.bind(acceptsRecovery: { _ in session.snapshot() == failed }, onRestart: { _ in
+            restarts += 1
+            controller.present(session.snapshot())
+        }, onDiscard: { _ in discards += 1 })
+        controller.present(failed)
+        let old = try XCTUnwrap(controller.presentation)
+        controller.dismissFromSystem(presentationID: old.id)
+        controller.restart(presentationID: old.id)
+        let retry = try XCTUnwrap(controller.presentation)
+        XCTAssertNotEqual(retry.id, old.id)
+        await drainMainQueue()
+        XCTAssertEqual(controller.presentation?.id, retry.id)
+        controller.restart(presentationID: old.id)
+        controller.discard(presentationID: old.id)
+        XCTAssertEqual(restarts, 1)
+        XCTAssertEqual(discards, 0)
+        controller.discard(presentationID: retry.id)
+        XCTAssertEqual(discards, 1)
+        XCTAssertNil(controller.presentation)
+    }
+
+    func testLifecycleRecoverySystemDismissalDefersPublicationAndProtectsReplacement() async throws {
+        let session = ScanSession()
+        _ = session.startNewScan()
+        let failed = session.fail(.invalidPointCloudCapture)
+        let controller = ScanLifecycleRecoveryPresentationController()
+        var actions = 0
+        controller.bind(acceptsRecovery: { _ in true }, onRestart: { _ in actions += 1 }, onDiscard: { _ in actions += 1 })
+        controller.present(failed)
+        let old = try XCTUnwrap(controller.presentation)
+        controller.dismissFromSystem(presentationID: old.id)
+        XCTAssertEqual(controller.presentation?.id, old.id, "The system binding must not synchronously publish during a view update")
+        controller.dismiss()
+        controller.present(failed)
+        let replacement = try XCTUnwrap(controller.presentation)
+        await drainMainQueue()
+        XCTAssertEqual(controller.presentation?.id, replacement.id)
+        controller.restart(presentationID: old.id)
+        XCTAssertEqual(actions, 0)
+        controller.dismissFromSystem(presentationID: replacement.id)
+        await drainMainQueue()
+        XCTAssertNil(controller.presentation)
+        controller.restart(presentationID: replacement.id)
+        controller.discard(presentationID: replacement.id)
+        XCTAssertEqual(actions, 0, "Implicit cancel must revoke the old action after dismissal")
+    }
+
+    func testLifecycleRecoveryChoiceSurvivesBindingDismissalAndIsConsumedOnce() throws {
+        let session = ScanSession()
+        _ = session.startNewScan()
+        let failed = session.fail(.invalidPointCloudCapture)
+        let controller = ScanLifecycleRecoveryPresentationController()
+        var restarts: [UUID] = []
+        var discards: [UUID] = []
+        controller.bind(acceptsRecovery: { _ in session.snapshot() == failed },
+                        onRestart: { restarts.append($0) }, onDiscard: { discards.append($0) })
+        controller.present(failed)
+        let first = try XCTUnwrap(controller.presentation)
+        controller.present(failed)
+        XCTAssertEqual(controller.presentation?.id, first.id)
+        controller.presentation = nil // Native alert dismissal can precede its action.
+        controller.restart(presentationID: first.id)
+        controller.restart(presentationID: first.id)
+        controller.discard(presentationID: first.id)
+        XCTAssertEqual(restarts, [failed.scanIdentity])
+        XCTAssertEqual(discards, [])
+        controller.present(failed)
+        let second = try XCTUnwrap(controller.presentation)
+        XCTAssertNotEqual(second.id, first.id)
+        controller.restart(presentationID: first.id)
+        XCTAssertEqual(controller.presentation?.id, second.id)
+        controller.discard(presentationID: second.id)
+        XCTAssertEqual(discards, [failed.scanIdentity])
+        XCTAssertNil(controller.presentation)
+    }
+
+    func testLifecycleRecoveryDismissalReentryRejectsChangedScanAndPageBinding() throws {
+        for replaceScan in [true, false] {
+            let session = ScanSession()
+            _ = session.startNewScan()
+            let failed = session.fail(.invalidPointCloudCapture)
+            let controller = ScanLifecycleRecoveryPresentationController()
+            var actions = 0
+            controller.bind(acceptsRecovery: { _ in session.snapshot() == failed },
+                            onRestart: { _ in actions += 1 }, onDiscard: { _ in actions += 1 })
+            controller.present(failed)
+            let choice = try XCTUnwrap(controller.presentation)
+            var replaced = false
+            let observer = controller.$presentation.dropFirst().sink { next in
+                guard next == nil, !replaced else { return }
+                replaced = true
+                if replaceScan {
+                    _ = session.startNewScan()
+                } else {
+                    controller.bind(acceptsRecovery: { _ in true },
+                                    onRestart: { _ in actions += 100 }, onDiscard: { _ in actions += 100 })
+                }
+            }
+            controller.restart(presentationID: choice.id)
+            XCTAssertTrue(replaced)
+            XCTAssertEqual(actions, 0, "Dismissing an old alert must not execute against a replacement owner")
+            controller.discard(presentationID: choice.id)
+            XCTAssertEqual(actions, 0)
+            observer.cancel()
+        }
+    }
+
+    func testLifecycleRecoveryFailedRestartCanOfferANewChoice() throws {
+        let session = ScanSession()
+        _ = session.startNewScan()
+        let failed = session.fail(.invalidPointCloudCapture)
+        let controller = ScanLifecycleRecoveryPresentationController()
+        var restarts = 0
+        var discards = 0
+        controller.bind(acceptsRecovery: { _ in session.snapshot() == failed }, onRestart: { _ in
+            restarts += 1
+            controller.present(session.snapshot())
+        }, onDiscard: { _ in discards += 1 })
+        controller.present(failed)
+        let old = try XCTUnwrap(controller.presentation)
+        controller.restart(presentationID: old.id)
+        let retry = try XCTUnwrap(controller.presentation)
+        XCTAssertNotEqual(retry.id, old.id)
+        controller.discard(presentationID: old.id)
+        XCTAssertEqual(discards, 0)
+        controller.discard(presentationID: retry.id)
+        XCTAssertEqual(restarts, 1)
+        XCTAssertEqual(discards, 1)
+    }
+
+    func testLifecycleRecoveryChoiceRejectsIneligibleOwnerAndInvalidatedBinding() throws {
+        let session = ScanSession()
+        _ = session.startNewScan()
+        let failed = session.fail(.invalidPointCloudCapture)
+        let controller = ScanLifecycleRecoveryPresentationController()
+        var eligible = true
+        var actions = 0
+        controller.bind(acceptsRecovery: { $0 == session.snapshot().scanIdentity && eligible },
+                        onRestart: { _ in actions += 1 }, onDiscard: { _ in actions += 1 })
+        controller.present(failed)
+        let old = try XCTUnwrap(controller.presentation)
+        eligible = false // The owner can complete/cancel while its alert is still visible.
+        controller.restart(presentationID: old.id)
+        controller.discard(presentationID: old.id)
+        XCTAssertEqual(actions, 0)
+        eligible = true
+        _ = session.startNewScan()
+        controller.restart(presentationID: old.id)
+        controller.discard(presentationID: old.id)
+        XCTAssertEqual(actions, 0)
+        controller.invalidate()
+        controller.present(session.snapshot())
+        controller.restart(presentationID: old.id)
+        XCTAssertNil(controller.presentation)
+        XCTAssertEqual(actions, 0)
+    }
+
     func testReadinessBlockPreservesParentBindingsAcrossRendererRebind() async throws {
         let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
         let coordinator = ScanCoordinator(
@@ -2337,6 +2550,270 @@ private actor FixedScanModelIdentityProvider: ScanModelIdentityProviding {
 
 final class ScanPlanTests: XCTestCase {
     @MainActor
+    func testScanViewConstructsCoordinatorFromRootSettings() async throws {
+        await FruitParametersStore.shared.waitForPendingSave()
+        let domain = try XCTUnwrap(Bundle.main.bundleIdentifier)
+        let standardBefore = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
+        let suite = "ScanRootCoordinator-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let settings = SettingsStore(defaults: defaults)
+        settings.cameraResolution = SettingsStore.shared.cameraResolution == "720p" ? "4K" : "720p"
+        settings.cameraFrameRate = SettingsStore.shared.cameraFrameRate == "30fps" ? "60fps" : "30fps"
+        let root = AppDependencies(settings: settings, scanRepository: ScanRepository(scansDirectory: directory),
+                                   tagStore: TagStore(defaults: defaults), parametersStore: FruitParametersStore(defaults: defaults))
+        await root.parametersStore.waitForPendingSave()
+        let readiness = ScanReadinessRequestController(determine: { .ready })
+        let scan = ScanView(treeID: "ROOT49", gps: GPSRecorder(), season: .mature,
+                            selectedFruitCategory: .pear, appDependencies: root, onScanNextTree: {},
+                            showGuide: false, readinessRequestController: readiness)
+        defer { scan.coordinator.teardown() }
+        XCTAssertTrue(scan.coordinator.settings === settings,
+                      "The actual ScanView initializer must pass its root settings to the coordinator")
+        XCTAssertEqual(scan.coordinator.currentCameraRequest(),
+                       ScanCameraRequest(resolution: settings.cameraResolution, frameRate: settings.cameraFrameRate))
+        guard scan.coordinator.settings === settings else { return }
+        let controller = UIHostingController(rootView: AnyView(scan))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive })
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer {
+            controller.rootView = AnyView(EmptyView())
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        let deadline = Date().addingTimeInterval(3)
+        while scan.coordinator.renderer == nil && Date() < deadline {
+            window.layoutIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let renderer = try XCTUnwrap(scan.coordinator.renderer)
+        let session = try XCTUnwrap(scan.coordinator.session)
+        let plan = root.scanPlanFactory.makePlan(treeID: "ROOT49", season: .mature,
+                                                selectedCategory: .pear, renderer: renderer)
+        _ = scan.coordinator.scanSession.startNewScan(plan: plan)
+        controller.rootView = AnyView(ScanView(treeID: "ROOT49", gps: scan.gps, season: .mature,
+            selectedFruitCategory: .pear, appDependencies: root, onScanNextTree: {},
+            showGuide: true, readinessRequestController: readiness))
+        window.layoutIfNeeded()
+        try await Task.sleep(nanoseconds: 650_000_000)
+        XCTAssertTrue(scan.coordinator.session === session, "SwiftUI rebuilding the view must retain the original owner")
+        XCTAssertTrue(scan.coordinator.renderer === renderer)
+        XCTAssertEqual(scan.coordinator.activeScanPlan?.id, plan.id)
+        XCTAssertEqual(renderer.maxPoints, plan.rendererSettings.maxPoints)
+        let image = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+        })
+        image.name = "Root49-ScanView-rebuilt"
+        image.lifetime = .keepAlways
+        add(image)
+        controller.rootView = AnyView(EmptyView())
+        window.layoutIfNeeded()
+        scan.coordinator.teardown()
+        await FruitParametersStore.shared.waitForPendingSave()
+        XCTAssertEqual(UserDefaults.standard.persistentDomain(forName: domain) as NSDictionary? ?? [:],
+                       standardBefore as NSDictionary)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty,
+                      "This composition test must not create a source scan")
+    }
+
+    @MainActor
+    func testMetalViewCreationAndDeferredPreviewUseRootSettings() async throws {
+        await FruitParametersStore.shared.waitForPendingSave()
+        let domain = try XCTUnwrap(Bundle.main.bundleIdentifier)
+        let standardBefore = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
+        let suite = "MetalRootPreview-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.maxPointCount = SettingsStore.shared.maxPointCount == 1_400_000 ? 100_000 : 1_400_000
+        settings.rgbRadius = SettingsStore.shared.rgbRadius == 7.25 ? 9.25 : 7.25
+        settings.depthRangeMin = 0.8
+        settings.depthRangeMax = 4.2
+        settings.qualityPreset = "低"
+        let initial = RendererScanSettings(store: settings, particleCapacity: settings.maxPointCount)
+        let coordinator = ScanCoordinator(settings: settings,
+            sessionRuntime: ScanSessionRuntime(isWorldTrackingSupported: { false }, run: { _, _, _ in }),
+            calibrationRecordsLoader: { [] })
+        let controller = UIHostingController(rootView: AnyView(ScanRenderLayer(
+            scanReadiness: .ready, coordinator: coordinator, qualityMonitor: ScanQualityMonitor())))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive })
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer {
+            controller.rootView = AnyView(EmptyView())
+            window.isHidden = true
+            window.rootViewController = nil
+            coordinator.teardown()
+            previousWindow?.makeKey()
+        }
+        let deadline = Date().addingTimeInterval(3)
+        while coordinator.renderer == nil && Date() < deadline {
+            window.layoutIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let renderer = try XCTUnwrap(coordinator.renderer, "Actual UIViewRepresentable.makeUIView must bind Renderer")
+        let metalView = try XCTUnwrap(coordinator.mtkView)
+        XCTAssertTrue(metalView.delegate === renderer)
+        XCTAssertEqual(renderer.maxPoints, initial.maxPoints, "Capacity must come from root before any deferred load")
+        XCTAssertEqual(renderer.particlesBuffer.count, initial.maxPoints)
+        XCTAssertEqual(renderer.rgbRadius, initial.rgbRadius)
+        XCTAssertEqual(renderer.minDepth, initial.minDepth)
+        XCTAssertEqual(renderer.maxDepth, initial.maxDepth)
+        XCTAssertEqual(renderer.snapshotVoxelSize, initial.snapshotVoxelSize)
+        let buffer = try XCTUnwrap(renderer.particlesBuffer.metalBuffer)
+
+        // A pending preview load may read newer root settings, but cannot resize its allocated buffer.
+        settings.maxPointCount = 3_000_000
+        settings.rgbRadius = 1.75
+        settings.depthRangeMin = 1.1
+        settings.qualityPreset = "中"
+        let updated = RendererScanSettings(store: settings, particleCapacity: initial.maxPoints)
+        try await Task.sleep(nanoseconds: 650_000_000)
+        XCTAssertEqual(renderer.maxPoints, updated.maxPoints)
+        XCTAssertEqual(renderer.rgbRadius, updated.rgbRadius)
+        XCTAssertEqual(renderer.minDepth, updated.minDepth)
+        XCTAssertEqual(renderer.snapshotVoxelSize, updated.snapshotVoxelSize)
+        XCTAssertTrue(renderer.particlesBuffer.metalBuffer === buffer, "Deferred settings must reuse the same allocation")
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] },
+                                     resourceBudget: ScanResourceBudget(liveSnapshotSampleLimit: 200, analysisInputSampleLimit: 100))
+        let plan = factory.makePlan(treeID: "ROOT49", season: .mature, selectedCategory: .pear, renderer: renderer)
+        XCTAssertEqual(plan.rendererSettings.maxPoints, initial.maxPoints,
+                       "Plan clamping must use the root-created capacity, never an unrelated shared capacity")
+        // Freeze without beginning physical capture or creating a source file.
+        _ = coordinator.scanSession.startNewScan(plan: plan)
+        settings.maxPointCount = 100_000
+        settings.rgbRadius = 10
+        coordinator.loadSettings()
+        XCTAssertEqual(renderer.maxPoints, plan.rendererSettings.maxPoints)
+        XCTAssertEqual(renderer.rgbRadius, plan.rendererSettings.rgbRadius)
+        XCTAssertEqual(renderer.liveSnapshotInputSampleLimit, 200)
+        XCTAssertEqual(renderer.analysisInputSampleLimit, 100)
+        XCTAssertTrue(renderer.particlesBuffer.metalBuffer === buffer)
+        controller.rootView = AnyView(EmptyView())
+        window.layoutIfNeeded()
+        while coordinator.renderer != nil && Date() < deadline.addingTimeInterval(3) {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertNil(coordinator.renderer, "The removed UIViewRepresentable must release its binding")
+        controller.rootView = AnyView(ScanRenderLayer(scanReadiness: .ready, coordinator: coordinator,
+                                                    qualityMonitor: ScanQualityMonitor()))
+        let rebindDeadline = Date().addingTimeInterval(3)
+        while coordinator.renderer == nil && Date() < rebindDeadline {
+            window.layoutIfNeeded()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let rebound = try XCTUnwrap(coordinator.renderer)
+        XCTAssertFalse(rebound === renderer)
+        XCTAssertEqual(coordinator.activeScanPlan?.id, plan.id)
+        XCTAssertEqual(rebound.maxPoints, plan.rendererSettings.maxPoints,
+                       "A bound plan must supply initial capacity before deferred setup")
+        XCTAssertEqual(rebound.rgbRadius, plan.rendererSettings.rgbRadius)
+        XCTAssertEqual(rebound.liveSnapshotInputSampleLimit, 200)
+        XCTAssertEqual(rebound.analysisInputSampleLimit, 100)
+        XCTAssertEqual(rebound.particlesBuffer.count, initial.maxPoints)
+        try await Task.sleep(nanoseconds: 650_000_000)
+        XCTAssertEqual(rebound.maxPoints, plan.rendererSettings.maxPoints)
+        XCTAssertEqual(rebound.rgbRadius, plan.rendererSettings.rgbRadius)
+        XCTAssertEqual(rebound.analysisInputSampleLimit, 100)
+        controller.rootView = AnyView(EmptyView())
+        window.layoutIfNeeded()
+        coordinator.teardown()
+        await FruitParametersStore.shared.waitForPendingSave()
+        XCTAssertEqual(UserDefaults.standard.persistentDomain(forName: domain) as NSDictionary? ?? [:],
+                       standardBefore as NSDictionary, "The real MetalView test must not write shared preferences")
+    }
+
+    @MainActor
+    func testExplicitRendererCapacityIsBoundedAndRemainsStableAcrossReload() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let suite = "RendererCapacity-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.maxPointCount = 200_000
+        let captured = settings.rendererScanSettings()
+        let view = MTKView(frame: .zero, device: device)
+        let renderer = Renderer(session: ARSession(), metalDevice: device, renderDestination: view,
+                                initialSettings: captured)
+        settings.maxPointCount = 100_000
+        renderer.applyScanQualitySettings(settings.rendererScanSettings())
+        let buffer = try XCTUnwrap(renderer.particlesBuffer.metalBuffer)
+        XCTAssertEqual(renderer.particlesBuffer.count, 200_000, "A preview reload cannot change the captured allocation capacity")
+        XCTAssertEqual(renderer.maxPoints, 100_000)
+        settings.maxPointCount = 3_000_000
+        renderer.fullAnalysisSnapshotSignature = RendererSnapshotSignature(pointCount: 0, pointIndex: 0,
+                                                                          voxelSize: 0.005, confidenceThreshold: 1)
+        renderer.applyScanQualitySettings(settings.rendererScanSettings(),
+                                          resourceBudget: ScanResourceBudget(analysisInputSampleLimit: 1))
+        XCTAssertEqual(renderer.maxPoints, 200_000)
+        XCTAssertEqual(renderer.pointCloudUniforms.maxPoints, 200_000)
+        XCTAssertTrue(renderer.particlesBuffer.metalBuffer === buffer)
+        XCTAssertNil(renderer.fullAnalysisSnapshotSignature)
+        XCTAssertEqual(renderer.analysisInputSampleLimit, 1)
+        for (requested, expected) in [(Int.min, 1), (-1, 1), (0, 1), (1, 1), (3_000_000, 3_000_000), (Int.max, 3_000_000)] {
+            let explicit = RendererScanSettings(maxPoints: requested, rgbRadius: captured.rgbRadius,
+                minDepth: captured.minDepth, maxDepth: captured.maxDepth, confidenceThreshold: captured.confidenceThreshold,
+                depthEdgeThreshold: captured.depthEdgeThreshold, minimumStableDepthNeighborCount: captured.minimumStableDepthNeighborCount,
+                snapshotVoxelSize: captured.snapshotVoxelSize, depthConfiguration: captured.depthConfiguration)
+            let bounded = Renderer(session: ARSession(), metalDevice: device, renderDestination: view, initialSettings: explicit)
+            XCTAssertEqual(bounded.particleCapacity, expected)
+            XCTAssertEqual(bounded.maxPoints, expected)
+            XCTAssertEqual(bounded.pointCloudUniforms.maxPoints, Int32(expected))
+            if expected == 1 {
+                XCTAssertEqual(bounded.particlesBuffer.count, 1)
+                bounded.applyScanQualitySettings(explicit)
+                XCTAssertEqual(bounded.maxPoints, 1)
+            }
+        }
+    }
+
+    @MainActor
+    func testDeferredPreviewReloadCannotMutateRendererFromReplacedBinding() async throws {
+        let suite = "RendererRebind-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        settings.maxPointCount = 100_000
+        settings.rgbRadius = 4.25
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let coordinator = ScanCoordinator(settings: settings,
+            sessionRuntime: ScanSessionRuntime(isWorldTrackingSupported: { false }, run: { _, _, _ in }),
+            calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        let oldSession = ARSession(), oldView = MTKView(frame: .zero, device: device)
+        let old = Renderer(session: oldSession, metalDevice: device, renderDestination: oldView,
+                           initialSettings: settings.rendererScanSettings())
+        coordinator.bind(session: oldSession, renderer: old, mtkView: oldView)
+        settings.rgbRadius = 8.25
+        let session = ARSession(), view = MTKView(frame: .zero, device: device)
+        let current = Renderer(session: session, metalDevice: device, renderDestination: view,
+                               initialSettings: settings.rendererScanSettings())
+        coordinator.bind(session: session, renderer: current, mtkView: view)
+        settings.rgbRadius = 2.75
+        try await Task.sleep(nanoseconds: 650_000_000)
+        XCTAssertEqual(old.rgbRadius, 4.25, "A stale binding callback must not read the new root configuration")
+        XCTAssertEqual(current.rgbRadius, 2.75)
+        XCTAssertTrue(coordinator.renderer === current)
+        XCTAssertFalse(coordinator.acceptsBindingCallback(from: oldSession, renderer: old, mtkView: oldView),
+                       "Rebinding rejects stale callbacks without relying on ARKit to release a delegate")
+    }
+
+    @MainActor
     func testRendererSettingsCapturePreservesPresetAndFrozenValues() throws {
         let suite = "RendererCapture-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -2792,10 +3269,19 @@ private final class ScanFinalizationTestHarness {
                 self.setState(.finishing)
                 return true
             },
-            exportPointCloud: { plan, _, _ in
-                self.exportCount += 1
+            freezePointCloud: { plan in
                 let context = ScanContext(scanID: self.snapshot.scanIdentity, planID: plan.id)
                 self.captureContext = context
+                let signature = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005,
+                                                           confidenceThreshold: 1, pointBufferRevision: 1)
+                return FrozenPointCloudExport(pointCloud: FinalPointCloud(
+                    identity: signature, points: [], inputSampleCount: 0, retainedSampleCount: 0,
+                    buildDuration: 0, estimatedPeakPayloadBytes: 0
+                ), captureIdentity: ScanCaptureIdentity(context: context, pointCloud: signature), fallbackFolder: "scans")
+            },
+            stagePointCloud: { input in
+                self.exportCount += 1
+                let context = try XCTUnwrap(input.frozen.captureIdentity).context
                 return try await withCheckedThrowingContinuation { continuation in
                     self.exportCompletions.append { filename in
                         if let filename {
@@ -2806,7 +3292,7 @@ private final class ScanFinalizationTestHarness {
                     }
                 }
             },
-            prepareSnapshot: { season, staged in
+            captureSnapshot: { season, staged in
                 self.preparationCount += 1
                 if self.shouldFailPreparation {
                     throw ScanYieldEstimationController.PreparationError.snapshotUnavailable
@@ -2819,7 +3305,10 @@ private final class ScanFinalizationTestHarness {
                     defaultParams: params, clusterConfig: .default, fusionConfig: .default,
                     colorFilter: nil, season: season, finalPointCloudIdentity: cloud.identity
                 ))
-                return try await ScanEvidenceSnapshot.freeze(snapshot: input, draft: staged.draft)
+                return input
+            },
+            bindSnapshot: { input, staged, _ in
+                try await ScanEvidenceSnapshot.freeze(snapshot: input, draft: staged.draft)
             },
             estimateYield: { snapshot in
                 self.estimateCount += 1
@@ -2910,6 +3399,429 @@ private final class ScanFinalizationTestHarness {
 
 final class ScanFinalizationWorkflowTests: XCTestCase {
     @MainActor
+    func testFrozenCaptureMismatchIsRejectedBeforeFileStaging() async throws {
+        for mismatch in ["missing", "scan", "plan", "signature"] {
+            let harness = ScanFinalizationTestHarness()
+            let original = harness.operations
+            let plan = makePlan()
+            var stages = 0
+            let operations = ScanFinalizationOperations(
+                lifecycleSnapshot: original.lifecycleSnapshot,
+                beginFinishing: original.beginFinishing,
+                freezePointCloud: { request in
+                    let value = try await original.freezePointCloud(request)
+                    let capture = try XCTUnwrap(value.captureIdentity)
+                    let signature = mismatch == "signature"
+                        ? RendererSnapshotSignature(pointCount: 2, pointIndex: 1, voxelSize: 0.005, confidenceThreshold: 1)
+                        : capture.pointCloud
+                    return FrozenPointCloudExport(pointCloud: value.pointCloud,
+                        captureIdentity: mismatch == "missing" ? nil : ScanCaptureIdentity(
+                            context: ScanContext(scanID: mismatch == "scan" ? UUID() : capture.context.scanID,
+                                                 planID: mismatch == "plan" ? UUID() : capture.context.planID),
+                            pointCloud: signature), fallbackFolder: value.fallbackFolder)
+                },
+                stagePointCloud: { _ in stages += 1; throw CocoaError(.fileWriteUnknown) },
+                captureSnapshot: original.captureSnapshot,
+                bindSnapshot: original.bindSnapshot,
+                estimateYield: original.estimateYield,
+                persistResult: original.persistResult,
+                markCompleted: original.markCompleted,
+                refreshHistory: original.refreshHistory,
+                discardArtifacts: original.discardArtifacts
+            )
+            let workflow = ScanFinalizationWorkflow()
+            workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: operations)
+            await waitUntil { !workflow.isWorking }
+            XCTAssertEqual(workflow.phase, .failed(.pointCloudCaptureInvalid), mismatch)
+            XCTAssertEqual(workflow.retryAction, .unavailable, mismatch)
+            XCTAssertNil(workflow.frozenPointCloud, mismatch)
+            XCTAssertEqual(stages, 0, mismatch)
+            XCTAssertEqual(harness.preparationCount, 0, mismatch)
+            XCTAssertEqual(harness.persistenceCount, 0, mismatch)
+        }
+    }
+
+    @MainActor
+    func testFileRetryFreezesOnceAndKeepsOriginalPlanAndLocation() async throws {
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var freezes = 0
+        var inputs: [PointCloudStageInput] = []
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            freezePointCloud: { plan in
+                freezes += 1
+                return try await original.freezePointCloud(plan)
+            },
+            stagePointCloud: { input in
+                inputs.append(input)
+                if inputs.count == 1 { throw CocoaError(.fileWriteUnknown) }
+                return try await original.stagePointCloud(input)
+            },
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        let workflow = ScanFinalizationWorkflow()
+        let plan = makePlan()
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
+        await waitUntil { workflow.phase == .failed(.pointCloudExport) }
+        let frozen = try XCTUnwrap(workflow.frozenPointCloud)
+        workflow.finish(plan: makePlan(), latitude: 90, longitude: 180, operations: operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("frozen-input-retry.ply")
+        await waitUntil { harness.estimateCompletions.count == 1 }
+        XCTAssertNil(workflow.frozenPointCloud, "Staged cloud owns the successful handoff")
+        harness.estimateCompletions[0](YieldResult(yieldFinalKg: 2), nil)
+        await waitUntil { workflow.phase == .completed }
+        XCTAssertEqual(freezes, 1)
+        XCTAssertEqual(inputs.count, 2)
+        for input in inputs {
+            XCTAssertEqual(input.treeID, plan.treeID)
+            XCTAssertEqual(input.latitude, 1)
+            XCTAssertEqual(input.longitude, 2)
+            XCTAssertEqual(input.frozen.captureIdentity, frozen.captureIdentity)
+            XCTAssertEqual(input.frozen.pointCloud.identity, frozen.pointCloud.identity)
+        }
+        XCTAssertEqual(harness.persistenceCount, 1)
+    }
+
+    @MainActor
+    func testCancelAndResetClearFrozenFileRetryInput() async throws {
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            freezePointCloud: original.freezePointCloud,
+            stagePointCloud: { _ in throw CocoaError(.fileWriteUnknown) },
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        let workflow = ScanFinalizationWorkflow()
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { workflow.phase == .failed(.pointCloudExport) }
+        XCTAssertNotNil(workflow.frozenPointCloud)
+        workflow.cancel()
+        XCTAssertNil(workflow.frozenPointCloud)
+        workflow.resetForNewScan()
+        XCTAssertNil(workflow.frozenPointCloud)
+        let replacement = ScanFinalizationTestHarness()
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: replacement.operations)
+        await waitUntil { replacement.exportCompletions.count == 1 }
+        XCTAssertEqual(workflow.frozenPointCloud?.captureIdentity?.context.scanID, replacement.snapshot.scanIdentity)
+        XCTAssertNotEqual(workflow.frozenPointCloud?.captureIdentity?.context.scanID, harness.snapshot.scanIdentity)
+        workflow.cancel()
+        replacement.exportCompletions[0](nil)
+    }
+
+    @MainActor
+    func testWorkflowOwnerCanReleaseWhileFreezeIsSuspended() async throws {
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var pending: CheckedContinuation<FrozenPointCloudExport, Error>?
+        let returned = expectation(description: "Late freeze returns a value after owner release")
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            freezePointCloud: { _ in
+                let value = try await withCheckedThrowingContinuation { pending = $0 }
+                returned.fulfill()
+                return value
+            },
+            stagePointCloud: { _ in XCTFail("Released owner must not start file staging"); throw CancellationError() },
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        var workflow: ScanFinalizationWorkflow? = ScanFinalizationWorkflow()
+        weak var weakWorkflow = workflow
+        let plan = makePlan()
+        workflow?.finish(plan: plan, latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { pending != nil }
+        workflow = nil
+        XCTAssertNil(weakWorkflow)
+        pending?.resume(returning: try await original.freezePointCloud(plan))
+        await fulfillment(of: [returned], timeout: 2)
+        XCTAssertEqual(harness.exportCount, 0)
+        XCTAssertEqual(harness.persistenceCount, 0)
+    }
+
+    @MainActor
+    func testWorkflowOwnerCanReleaseWhileStageIsSuspendedAndSettlesLateDraft() async {
+        let harness = ScanFinalizationTestHarness()
+        var workflow: ScanFinalizationWorkflow? = ScanFinalizationWorkflow()
+        weak var weakWorkflow = workflow
+        workflow?.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        workflow = nil
+        XCTAssertNil(weakWorkflow)
+        harness.exportCompletions[0]("released-stage.ply")
+        await waitUntil { harness.discardedFilenames == ["released-stage.ply"] }
+        XCTAssertEqual(harness.preparationCount, 0)
+        XCTAssertEqual(harness.persistenceCount, 0)
+    }
+
+    @MainActor
+    func testCancelPropagatesToTheInFlightStageTask() async {
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var started = false
+        var cancelled = false
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            freezePointCloud: original.freezePointCloud,
+            stagePointCloud: { _ in
+                started = true
+                do {
+                    try await Task.sleep(nanoseconds: 30_000_000_000)
+                    throw PointCloudExportError.emptyPointCloud
+                } catch {
+                    cancelled = Task.isCancelled
+                    throw error
+                }
+            },
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        let workflow = ScanFinalizationWorkflow()
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { started }
+        XCTAssertNotNil(workflow.frozenPointCloud)
+        workflow.cancel()
+        await waitUntil { cancelled }
+        XCTAssertNil(workflow.frozenPointCloud)
+        XCTAssertEqual(harness.discardedFilenames, [])
+    }
+
+    @MainActor
+    func testProductionFinalizationPersistsActualReplayInput() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repository = ScanRepository(scansDirectory: directory)
+        let coordinator = ScanCoordinator(calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        let plan = makePlan()
+        coordinator.startRecording(plan: plan)
+        let production = ScanFinalizationOperations.production(coordinator: coordinator, repository: repository,
+                                                               refreshHistory: {})
+        let points = [ColoredPoint(pos: SIMD3<Float>(1.1234567, -0.0000123, -2.7654321),
+                                   r: 0.1234567, g: 0.7654321, b: 0.5)]
+        let workflow = ScanFinalizationWorkflow()
+        workflow.finish(plan: plan, latitude: 31.2, longitude: 121.5,
+            operations: operationsWithSyntheticCapture(production: production, coordinator: coordinator,
+                repository: repository, filename: "actual-replay.ply", points: points))
+        await waitUntil { workflow.phase == .completed }
+        XCTAssertEqual(workflow.phase, .completed)
+        let source = try repository.pointCloudDestination(filename: "actual-replay.ply")
+        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+        let research = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: repository.researchExportRecordData(for: record.summary)) as? [String: Any])
+        XCTAssertEqual((research["observationReplay"] as? [String: Any])?["status"] as? String, "complete")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("actual-replay_replay.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("actual-replay_replay.f32").path))
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePointCloudData(at: source))
+        XCTAssertNotEqual(try XCTUnwrap(parsed.vertices.first).x.bitPattern, points[0].pos.x.bitPattern,
+                          "Four-decimal PLY must not be mistaken for the original estimator input")
+    }
+
+    @MainActor
+    func testProductionReplayPreparationRetryPreservesConsumedObservations() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        var persistenceCompleted = false
+        defer {
+            // A failed wait must not delete a fixture that production IO still owns.
+            if persistenceCompleted { try? FileManager.default.removeItem(at: directory) }
+        }
+        let repository = ScanRepository(scansDirectory: directory)
+        let defaultsName = "ReplayPreparationRetry-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        defer { defaults.removePersistentDomain(forName: defaultsName) }
+        let settings = SettingsStore(defaults: defaults)
+        let factory = ScanPlanFactory(settings: settings, calibrationRecordsLoader: { [] },
+            modelIdentityProvider: FixedScanModelIdentityProvider(identity: .verified("replay-retry-model")),
+            parametersStore: FruitParametersStore(defaults: defaults))
+        await factory.prepareModelIdentity()
+        let plan = factory.makePlan(treeID: "replay-retry", season: .mature, selectedCategory: .apple, renderer: nil)
+        let coordinator = ScanCoordinator(settings: settings, calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        coordinator.startRecording(plan: plan)
+        var samples: [ObservationDepthSample] = []
+        for row in 0..<9 {
+            for column in 0..<9 {
+                let normalizedX: Float = 0.485 + 0.03 * (Float(column) + 0.5) / 9
+                let normalizedY: Float = 0.485 + 0.03 * (Float(row) + 0.5) / 9
+                samples.append(ObservationDepthSample(normalizedImageX: normalizedX,
+                    normalizedImageY: normalizedY, depthMeters: 2, row: row, column: column))
+            }
+        }
+        let observations: [Observation] = (0..<2).map { index in
+            Observation(id: UUID(), frameID: FrameID(), category: .apple,
+                boundingBox: CGRect(x: 0.485, y: 0.485, width: 0.03, height: 0.03), confidence: 0.9,
+                // Production requires two observations spanning at least 0.35 s.
+                timestamp: 10 + Double(index) * 0.5, cameraTransform: matrix_identity_float4x4,
+                cameraIntrinsics: simd_float3x3(SIMD3(1000, 0, 0), SIMD3(0, 1000, 0), SIMD3(500, 500, 1)),
+                imageSize: CGSize(width: 1000, height: 1000), coordinateConvention: .visionNormalizedLowerLeft,
+                depthConfidenceProvenance: .available, hasDepthMap: true, roiDepthSamples: samples,
+                projectionDepthSamples: Array(repeating: 2, count: 81), rejectionReasons: [])
+        }
+        await coordinator.appendDetectedFruits(observations.map(DetectedFruit.init(observation:)))
+        XCTAssertEqual(Set(coordinator.fusionEstimateObservationsSnapshot().map(\.id)), Set(observations.map(\.id)))
+        let points = [ColoredPoint(pos: SIMD3(0, 0, -2), r: 0.32, g: 0.45, b: 0.18)]
+        let production = ScanFinalizationOperations.production(coordinator: coordinator, repository: repository, refreshHistory: {})
+        let original = operationsWithSyntheticCapture(production: production, coordinator: coordinator,
+            repository: repository, filename: "preparation-retry.ply", points: points)
+        var obstacle: URL?
+        var captureCount = 0
+        let operations = ScanFinalizationOperations(lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing, freezePointCloud: original.freezePointCloud,
+            stagePointCloud: { input in
+                let staged = try await original.stagePointCloud(input)
+                let url = ScanReplayArchive.preparedDirectory(for: staged.draft)
+                try Data("unwritable replay directory".utf8).write(to: url)
+                obstacle = url
+                return staged
+            }, captureSnapshot: { season, staged in
+                captureCount += 1
+                return try await original.captureSnapshot(season, staged)
+            }, bindSnapshot: original.bindSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult, markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory, discardArtifacts: original.discardArtifacts)
+        let workflow = ScanFinalizationWorkflow()
+        let preparationFailed = expectation(description: "Replay preparation reports its retryable failure")
+        let persisted = expectation(description: "Production retry commits the archive")
+        workflow.onEvent = { event in
+            switch event {
+            case .failed: preparationFailed.fulfill()
+            case .completed: persisted.fulfill()
+            default: break
+            }
+        }
+        defer { workflow.onEvent = nil }
+        workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: operations)
+        await fulfillment(of: [preparationFailed], timeout: 10)
+        XCTAssertEqual(workflow.retryAction, .estimateYield)
+        guard workflow.retryAction == .estimateYield else { return }
+        XCTAssertTrue(coordinator.fusionEstimateObservationsSnapshot().isEmpty, "Capture consumed the coordinator's observations")
+        let captured = try XCTUnwrap(workflow.capturedSnapshot)
+        XCTAssertEqual(Set(captured.input.observations.map(\.id)), Set(observations.map(\.id)))
+        let (baseline, _) = await ScanFusionYieldBuilder.build(from: captured.input)
+        XCTAssertGreaterThan(baseline.nLidar, 0, "Healthy retry input: \(baseline.diagnostics.zeroYieldReasons)")
+        XCTAssertGreaterThan(baseline.yieldFinalKg, 0)
+        try FileManager.default.removeItem(at: XCTUnwrap(obstacle))
+        workflow.retry()
+        await fulfillment(of: [persisted], timeout: 10)
+        XCTAssertEqual(workflow.phase, .completed)
+        guard workflow.phase == .completed else { return }
+        persistenceCompleted = true
+        let source = try repository.pointCloudDestination(filename: "preparation-retry.ply")
+        let record = try XCTUnwrap(repository.summary(at: source))
+        let replay = try repository.observationReplay(for: record)
+        XCTAssertEqual(captureCount, 1, "IO retry must not capture coordinator evidence again")
+        XCTAssertEqual(replay.identity.snapshotID, captured.id)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        XCTAssertEqual(try encoder.encode(replay.input.imageDiagnostics), try encoder.encode(captured.input.imageDiagnostics))
+        XCTAssertEqual(Set(replay.input.observations.map(\.id)), Set(observations.map(\.id)))
+        XCTAssertEqual(replay.input.categoryVerification?.detectedCategoryCounts, ["apple": 2])
+        XCTAssertGreaterThan(record.fruitCount, 0, "Retry must preserve the original reliable yield")
+        XCTAssertGreaterThan(record.yieldKg, 0)
+        XCTAssertEqual(record.fruitCount, baseline.nLidar)
+        XCTAssertEqual(record.yieldKg, baseline.yieldFinalKg)
+        XCTAssertNil(workflow.capturedSnapshot)
+        XCTAssertNil(workflow.estimationSnapshot)
+        let report = try await ScanObservationReplay.run(replay)
+        XCTAssertTrue(report.matchesGolden, "\(report.differences)")
+    }
+
+    @MainActor
+    func testCancelWhileReplayBindingSuspendsReleasesCapturedInput() async throws {
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var resume: CheckedContinuation<Void, Never>?
+        let returned = expectation(description: "Cancelled binding returns")
+        let operations = ScanFinalizationOperations(lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing, freezePointCloud: original.freezePointCloud,
+            stagePointCloud: original.stagePointCloud, captureSnapshot: original.captureSnapshot,
+            bindSnapshot: { input, staged, plan in
+                await withCheckedContinuation { resume = $0 }
+                defer { returned.fulfill() }
+                return try await original.bindSnapshot(input, staged, plan)
+            }, estimateYield: original.estimateYield, persistResult: original.persistResult,
+            markCompleted: original.markCompleted, refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts)
+        let workflow = ScanFinalizationWorkflow()
+        workflow.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { harness.exportCompletions.count == 1 }
+        harness.exportCompletions[0]("cancel-binding.ply")
+        await waitUntil { resume != nil }
+        XCTAssertNotNil(workflow.capturedSnapshot)
+        XCTAssertNil(workflow.estimationSnapshot)
+        workflow.cancel()
+        XCTAssertNil(workflow.capturedSnapshot)
+        XCTAssertNil(workflow.estimationSnapshot)
+        resume?.resume()
+        await fulfillment(of: [returned], timeout: 2)
+        await waitUntil { workflow.cancellationSettlement != nil }
+        XCTAssertEqual(workflow.phase, .cancelled)
+        XCTAssertEqual(harness.estimateCount, 0)
+        XCTAssertEqual(harness.persistenceCount, 0)
+        XCTAssertEqual(harness.discardedFilenames, ["cancel-binding.ply"])
+        workflow.resetForNewScan()
+        XCTAssertNil(workflow.capturedSnapshot)
+    }
+
+    @MainActor
+    func testProductionFinalizationCommitsPlanClassificationAndResearchReadsIt() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repository = ScanRepository(scansDirectory: directory)
+        let coordinator = ScanCoordinator(calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        let frozen = ScanClassificationSnapshot(plot: .init(id: UUID(), name: "扫描时地块"),
+            tags: [.init(id: UUID(), name: "第二标签"), .init(id: UUID(), name: "第一标签")])
+        let plan = makePlan(classification: frozen)
+        coordinator.startRecording(plan: plan)
+        let production = ScanFinalizationOperations.production(coordinator: coordinator, repository: repository,
+                                                               refreshHistory: {})
+        let workflow = ScanFinalizationWorkflow()
+        workflow.finish(plan: plan, latitude: 1, longitude: 2,
+            operations: operationsWithSyntheticCapture(production: production, coordinator: coordinator,
+                repository: repository, filename: "classification-finalization.ply"))
+        await waitUntil { workflow.phase == .completed }
+        XCTAssertEqual(workflow.phase, .completed)
+        let source = try repository.pointCloudDestination(filename: "classification-finalization.ply")
+        let record = try XCTUnwrap(repository.readVerifiedRecord(at: source))
+        XCTAssertEqual(record.classification, frozen)
+        XCTAssertEqual(try repository.readRecord(at: source)?.classification, frozen)
+        let exported = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: repository.researchExportRecordData(for: record.summary)) as? [String: Any])
+        XCTAssertEqual(try ScanClassificationArchiveCodec.snapshot(in: exported), frozen)
+        XCTAssertEqual(record.summary.yieldKg, workflow.result?.yieldFinalKg)
+    }
+
+    @MainActor
     func testProductionFinalizationUsesInjectedRepositoryAndHistoryCallback() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -2975,27 +3887,33 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         production: ScanFinalizationOperations,
         coordinator: ScanCoordinator,
         repository: ScanRepository,
-        filename: String
+        filename: String,
+        points: [ColoredPoint] = [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)]
     ) -> ScanFinalizationOperations {
         ScanFinalizationOperations(
             lifecycleSnapshot: production.lifecycleSnapshot,
             beginFinishing: production.beginFinishing,
-            exportPointCloud: { plan, latitude, longitude in
+            freezePointCloud: { plan in
                 // Replace only the physical LiDAR boundary unavailable on Simulator.
                 let context = ScanContext(scanID: coordinator.lifecycleSnapshot().scanIdentity, planID: plan.id)
-                let signature = RendererSnapshotSignature(pointCount: 1, pointIndex: 1, voxelSize: 0.005, confidenceThreshold: 1)
-                let points = [ColoredPoint(pos: SIMD3<Float>(1, 2, 3), r: 1, g: 0, b: 0)]
-                let source = try repository.pointCloudDestination(filename: filename)
-                let draft = try repository.stagePointCloud(to: source, captureIdentity: ScanCaptureIdentity(context: context, pointCloud: signature)) {
-                    try PLYPointCloudWriter.write(points: points, treeID: plan.treeID, scanDate: "2026-09-28 00:00:00",
-                                                  gpsLat: latitude, gpsLon: longitude, to: source)
-                }
-                return StagedPointCloud(draft: draft, pointCloud: FinalPointCloud(
-                    identity: signature, points: points, inputSampleCount: 1, retainedSampleCount: 1,
+                let signature = RendererSnapshotSignature(pointCount: points.count, pointIndex: points.count,
+                                                          voxelSize: 0.005, confidenceThreshold: 1)
+                return FrozenPointCloudExport(pointCloud: FinalPointCloud(
+                    identity: signature, points: points, inputSampleCount: points.count, retainedSampleCount: points.count,
                     buildDuration: 0, estimatedPeakPayloadBytes: 0
-                ))
+                ), captureIdentity: ScanCaptureIdentity(context: context, pointCloud: signature), fallbackFolder: "scans")
             },
-            prepareSnapshot: production.prepareSnapshot,
+            stagePointCloud: { input in
+                let source = try repository.pointCloudDestination(filename: filename)
+                let draft = try repository.stagePointCloud(to: source, captureIdentity: input.frozen.captureIdentity) {
+                    try PLYPointCloudWriter.write(points: input.frozen.pointCloud.points, treeID: input.treeID,
+                                                  scanDate: "2026-09-28 00:00:00",
+                                                  gpsLat: input.latitude, gpsLon: input.longitude, to: source)
+                }
+                return StagedPointCloud(draft: draft, pointCloud: input.frozen.pointCloud)
+            },
+            captureSnapshot: production.captureSnapshot,
+            bindSnapshot: production.bindSnapshot,
             estimateYield: production.estimateYield,
             persistResult: production.persistResult,
             markCompleted: production.markCompleted,
@@ -3013,9 +3931,11 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         let operations = ScanFinalizationOperations(
             lifecycleSnapshot: original.lifecycleSnapshot,
             beginFinishing: original.beginFinishing,
-            exportPointCloud: original.exportPointCloud,
-            prepareSnapshot: { season, staged in
-                let prepared = try await original.prepareSnapshot(season, staged)
+            freezePointCloud: original.freezePointCloud,
+            stagePointCloud: original.stagePointCloud,
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: { input, staged, plan in
+                let prepared = try await original.bindSnapshot(input, staged, plan)
                 let originalDraft = staged.draft
                 let replacement = DraftScan(
                     sourceURL: originalDraft.sourceURL.deletingLastPathComponent().appendingPathComponent("other-source.ply"),
@@ -3159,7 +4079,7 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         let operations = ScanFinalizationOperations(
             lifecycleSnapshot: original.lifecycleSnapshot,
             beginFinishing: original.beginFinishing,
-            exportPointCloud: { _, _, _ in
+            freezePointCloud: { _ in
                 started = true
                 do {
                     try await Task.sleep(nanoseconds: 30_000_000_000)
@@ -3169,7 +4089,9 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
                     throw error
                 }
             },
-            prepareSnapshot: original.prepareSnapshot,
+            stagePointCloud: original.stagePointCloud,
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
             estimateYield: original.estimateYield,
             persistResult: original.persistResult,
             markCompleted: original.markCompleted,
@@ -3238,6 +4160,162 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         XCTAssertEqual(workflow.phase, .cancelled)
         XCTAssertEqual(harness.estimateCount, 0)
         XCTAssertEqual(harness.discardedFilenames, ["late.ply"])
+    }
+
+    @MainActor
+    func testGPUWriteFailureRequiresNewScanInsteadOfRetryingExport() async {
+        await assertNonRetryableCaptureExport(PointCloudExportError.gpuWriteFailed)
+    }
+
+    @MainActor
+    func testExpiredCaptureRequiresNewScanInsteadOfRetryingExport() async {
+        await assertNonRetryableCaptureExport(PointCloudExportError.captureChanged)
+    }
+
+    @MainActor
+    func testReentrantFailureResetDoesNotPublishOldFailureEvent() async {
+        let workflow = ScanFinalizationWorkflow()
+        let originalHarness = ScanFinalizationTestHarness()
+        let replacement = ScanFinalizationTestHarness()
+        let original = originalHarness.operations
+        var reset = false
+        var failures: [UUID?] = []
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            freezePointCloud: { _ in throw PointCloudExportError.gpuWriteFailed },
+            stagePointCloud: original.stagePointCloud,
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        let plan = makePlan()
+        workflow.onEvent = { event in
+            switch event {
+            case .phaseChanged(.failed) where !reset:
+                reset = true
+                workflow.cancel()
+                workflow.resetForNewScan()
+                workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: replacement.operations)
+            case .failed(let identity, _):
+                failures.append(identity)
+            default:
+                break
+            }
+        }
+        workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { replacement.exportCompletions.count == 1 }
+        XCTAssertTrue(failures.isEmpty, "A phase observer replaced the scan; do not emit its obsolete failure")
+        XCTAssertEqual(workflow.phase, .exportingPointCloud)
+        XCTAssertEqual(workflow.scanIdentity, replacement.snapshot.scanIdentity)
+        workflow.onEvent = nil
+        workflow.cancel()
+        replacement.exportCompletions[0](nil)
+    }
+
+    @MainActor
+    private func assertNonRetryableCaptureExport(_ error: Error) async {
+        let workflow = ScanFinalizationWorkflow()
+        let harness = ScanFinalizationTestHarness()
+        let original = harness.operations
+        var exports = 0
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: original.lifecycleSnapshot,
+            beginFinishing: original.beginFinishing,
+            freezePointCloud: { _ in
+                exports += 1
+                throw error
+            },
+            stagePointCloud: original.stagePointCloud,
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
+            estimateYield: original.estimateYield,
+            persistResult: original.persistResult,
+            markCompleted: original.markCompleted,
+            refreshHistory: original.refreshHistory,
+            discardArtifacts: original.discardArtifacts
+        )
+        let plan = makePlan()
+        workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { !workflow.isWorking }
+        XCTAssertEqual(workflow.scanIdentity, harness.snapshot.scanIdentity)
+        XCTAssertEqual(workflow.phase, .failed(.pointCloudCaptureInvalid), "Invalid capture must be classified precisely")
+        XCTAssertEqual(workflow.retryAction, .unavailable, "The same capture cannot recover by repeating export")
+        workflow.retry()
+        await waitUntil { !workflow.isWorking }
+        workflow.finish(plan: plan, latitude: 0, longitude: 0, operations: operations)
+        await waitUntil { !workflow.isWorking }
+        XCTAssertEqual(exports, 1, "Only an explicit new scan may replace a failed capture")
+        XCTAssertNil(workflow.filename)
+        XCTAssertNil(workflow.stagedPointCloud)
+        XCTAssertEqual(harness.preparationCount, 0)
+        XCTAssertEqual(harness.estimateCount, 0)
+        XCTAssertEqual(harness.persistenceCount, 0)
+        XCTAssertEqual(harness.discardedFilenames, [])
+        workflow.cancel()
+    }
+
+    @MainActor
+    func testTransientDrainAndFileFailuresRetryOriginalScanAndComplete() async {
+        let errors: [Error] = [PointCloudExportError.gpuDrainTimedOut, CocoaError(.fileWriteUnknown)]
+        for error in errors {
+            for retryThroughFinish in [false, true] {
+                let workflow = ScanFinalizationWorkflow()
+                let harness = ScanFinalizationTestHarness()
+                let original = harness.operations
+                var attempts = 0
+                let operations = ScanFinalizationOperations(
+                    lifecycleSnapshot: original.lifecycleSnapshot,
+                    beginFinishing: original.beginFinishing,
+                    freezePointCloud: { plan in
+                        if error is PointCloudExportError {
+                            attempts += 1
+                            if attempts == 1 { throw error }
+                        }
+                        return try await original.freezePointCloud(plan)
+                    },
+                    stagePointCloud: { input in
+                        if !(error is PointCloudExportError) {
+                            attempts += 1
+                            if attempts == 1 { throw error }
+                        }
+                        return try await original.stagePointCloud(input)
+                    },
+                    captureSnapshot: original.captureSnapshot,
+                    bindSnapshot: original.bindSnapshot,
+                    estimateYield: original.estimateYield,
+                    persistResult: original.persistResult,
+                    markCompleted: original.markCompleted,
+                    refreshHistory: original.refreshHistory,
+                    discardArtifacts: original.discardArtifacts
+                )
+                let plan = makePlan()
+                workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
+                await waitUntil { workflow.phase == .failed(.pointCloudExport) }
+                let identity = workflow.scanIdentity
+                XCTAssertEqual(workflow.retryAction, .exportPointCloud)
+                if retryThroughFinish {
+                    workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
+                } else {
+                    workflow.retry()
+                }
+                await waitUntil { harness.exportCompletions.count == 1 }
+                harness.exportCompletions[0]("retry52-\(UUID()).ply")
+                await waitUntil { harness.estimateCompletions.count == 1 }
+                harness.estimateCompletions[0](YieldResult(yieldFinalKg: 2), nil)
+                await waitUntil { workflow.phase == .completed }
+                XCTAssertEqual(attempts, 2)
+                XCTAssertEqual(workflow.scanIdentity, identity)
+                XCTAssertEqual(harness.preparationCount, 1)
+                XCTAssertEqual(harness.persistenceCount, 1)
+                XCTAssertEqual(harness.historyRefreshCount, 1)
+                XCTAssertEqual(workflow.result?.yieldFinalKg, 2)
+            }
+        }
     }
 
     @MainActor
@@ -3316,8 +4394,10 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
         let operations = ScanFinalizationOperations(
             lifecycleSnapshot: original.lifecycleSnapshot,
             beginFinishing: original.beginFinishing,
-            exportPointCloud: original.exportPointCloud,
-            prepareSnapshot: original.prepareSnapshot,
+            freezePointCloud: original.freezePointCloud,
+            stagePointCloud: original.stagePointCloud,
+            captureSnapshot: original.captureSnapshot,
+            bindSnapshot: original.bindSnapshot,
             estimateYield: original.estimateYield,
             persistResult: { _, _, _, _, _ in
                 try await withCheckedThrowingContinuation { pending = $0 }
@@ -3402,7 +4482,7 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
     @MainActor
     func testCancelledWorkflowIsReleasedWhileEstimatorIsStillSuspended() async {
         var workflow: ScanFinalizationWorkflow? = ScanFinalizationWorkflow()
-        weak let weakWorkflow = workflow
+        weak var weakWorkflow = workflow
         let harness = ScanFinalizationTestHarness()
         workflow?.finish(plan: makePlan(), latitude: 0, longitude: 0, operations: harness.operations)
         await waitUntil { harness.exportCompletions.count == 1 }
@@ -3417,7 +4497,7 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
     }
 
     @MainActor
-    private func makePlan() -> ScanPlan {
+    private func makePlan(classification: ScanClassificationSnapshot = .empty) -> ScanPlan {
         ScanPlanFactory(
             settings: SettingsStore.shared,
             calibrationRecordsLoader: { [] },
@@ -3426,7 +4506,8 @@ final class ScanFinalizationWorkflowTests: XCTestCase {
             treeID: "T-finalization",
             season: .mature,
             selectedCategory: .apple,
-            renderer: nil
+            renderer: nil,
+            classification: classification
         )
     }
 

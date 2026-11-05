@@ -1,3 +1,6 @@
+// TagManagementPlotListView.swift
+// 地块列表：白底列表组 + 发丝线分隔，树数来自真实分配关系。
+
 import SwiftUI
 
 struct PlotListView: View {
@@ -7,45 +10,44 @@ struct PlotListView: View {
     let onDelete: (Plot) -> Void
     let onAdd: () -> Void
 
+    private let contentWidth: CGFloat = 1080
+
     var body: some View {
-        List {
-            ForEach(plots) { plot in
-                let count = treeCount(plot.id)
-                Button {
-                    onEdit(plot)
-                } label: {
-                    PlotRowView(plot: plot, treeCount: count)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(plot.name)
-                .accessibilityValue(L10n.TagManagement.treeCount(count))
-                .accessibilityHint(L10n.TagManagement.editPlotHint)
-                .accessibilityAction(named: Text(L10n.TagManagement.deletePlotAction)) {
-                    onDelete(plot)
-                }
-            }
-            .onDelete { indexSet in
-                for index in indexSet {
-                    onDelete(plots[index])
-                }
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .overlay {
-            if plots.isEmpty {
-                TagManagementEmptyState(
-                    icon: "map",
-                    imageName: "FeatureTagManagement",
-                    title: L10n.TagManagement.plotsEmptyTitle,
-                    message: L10n.TagManagement.plotsEmptyMessage,
-                    primaryAction: DashboardSheetAction(
-                        title: L10n.TagManagement.addPlot,
-                        icon: "plus",
-                        action: onAdd
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if plots.isEmpty {
+                    TagManagementEmptyState(
+                        icon: "map",
+                        imageName: "FeatureTagManagement",
+                        title: L10n.TagManagement.plotsEmptyTitle,
+                        message: L10n.TagManagement.plotsEmptyMessage,
+                        primaryAction: DashboardSheetAction(
+                            title: L10n.TagManagement.addPlot,
+                            icon: "plus",
+                            action: onAdd
+                        )
                     )
-                )
+                } else {
+                    InstrumentRowGroup {
+                        ForEach(Array(plots.enumerated()), id: \.element.id) { index, plot in
+                            PlotRowView(
+                                plot: plot,
+                                treeCount: treeCount(plot.id),
+                                onEdit: { onEdit(plot) },
+                                onDelete: { onDelete(plot) }
+                            )
+                            if index < plots.count - 1 {
+                                DividerLine(inset: 0)
+                            }
+                        }
+                    }
+                }
             }
+            .frame(maxWidth: contentWidth, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 24)
+            .frame(maxWidth: .infinity)
         }
     }
 }

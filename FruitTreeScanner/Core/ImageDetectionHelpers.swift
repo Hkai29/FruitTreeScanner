@@ -143,7 +143,7 @@ struct ModelLabelCompatibilityDiagnostics: Sendable, Equatable {
     }
 }
 
-struct ImageDetectionDiagnostics: Sendable, Equatable {
+struct ImageDetectionDiagnostics: Sendable, Equatable, Codable {
     var modelStatus: String = "--"
     var modelName: String = "--"
     var modelFailureReason: String = ""

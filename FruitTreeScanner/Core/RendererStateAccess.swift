@@ -22,6 +22,13 @@ extension Renderer {
             currentPointIndex = 0
             currentPointCount = 0
             pointBufferRevision &+= 1
+            pointCaptureGeneration &+= 1
+            pointCaptureWriteFailed = false
+            snapshotLock.lock()
+            snapshotPoints = []
+            fullAnalysisSnapshotSignature = nil
+            lastSnapshotUpdateTime = .distantPast
+            snapshotLock.unlock()
         }
         coverageVoxels.removeAll()
         scanProgress.reset()
@@ -51,10 +58,33 @@ extension Renderer {
         captureDiagnosticsLock.unlock()
     }
 
-    func pointBufferSnapshot() -> (count: Int, index: Int, revision: UInt64) {
+    struct PointCloudCaptureState: Equatable {
+        let count: Int
+        let index: Int
+        let revision: UInt64
+        let generation: UInt64
+        let writeFailed: Bool
+    }
+
+    func pointBufferSnapshot() -> PointCloudCaptureState {
         pointBufferLock.lock()
         defer { pointBufferLock.unlock() }
-        return (currentPointCount, currentPointIndex, pointBufferRevision)
+        return pointBufferSnapshotLocked()
+    }
+
+    /// Caller holds pointBufferLock. The lock order is pointBufferLock then
+    /// snapshotLock whenever capture state and cached points change together.
+    func pointBufferSnapshotLocked() -> PointCloudCaptureState {
+        PointCloudCaptureState(
+            count: currentPointCount, index: currentPointIndex, revision: pointBufferRevision,
+            generation: pointCaptureGeneration, writeFailed: pointCaptureWriteFailed
+        )
+    }
+
+    func validatePointCloudCapture(generation: UInt64) throws {
+        let capture = pointBufferSnapshot()
+        guard capture.generation == generation else { throw PointCloudExportError.captureChanged }
+        guard !capture.writeFailed else { throw PointCloudExportError.gpuWriteFailed }
     }
 
     /// Wait until every submitted render command buffer has completed. Call

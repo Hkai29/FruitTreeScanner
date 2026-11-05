@@ -4,7 +4,7 @@
 import Foundation
 import simd
 
-struct ColorFilter: Encodable, Sendable {
+struct ColorFilter: Codable, Sendable {
     var rMin: Float = 0
     var rMax: Float = 1
     var gMin: Float = 0
@@ -66,7 +66,7 @@ struct ColorFilter: Encodable, Sendable {
     }
 }
 
-struct HSVFilter: Encodable, Sendable {
+struct HSVFilter: Codable, Sendable {
     var hMin: Float = 0
     var hMax: Float = 360
     var sMin: Float = 0
@@ -87,7 +87,7 @@ struct HSVFilter: Encodable, Sendable {
     }
 }
 
-struct LabFilter: Encodable, Sendable {
+struct LabFilter: Codable, Sendable {
     var lMin: Float = 0
     var lMax: Float = 100
     var aMin: Float = -128

@@ -1,11 +1,12 @@
 // DashboardView.swift
-// 全新主界面 - 自然有机风格
+// 果园工作台：果园空间 / 档案 / 分析
 
 import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var router: NavigationRouter
     @EnvironmentObject private var appDependencies: AppDependencies
+    @Environment(\.scenePhase) private var scenePhase
     @State var destination: DashboardDestination?
     @State var scanLaunchPresentationState = ScanLaunchPresentationState<ScanLaunchRequest>()
     @State var activeScanRequest: ScanLaunchRequest?
@@ -21,6 +22,10 @@ struct DashboardView: View {
 
     var scanImportOperations: ScanImportOperations {
         appDependencies.importOperations()
+    }
+
+    var batchExportOperations: BatchExportOperations {
+        appDependencies.batchExportOperations()
     }
 
     var calibrationScanSource: CalibrationScanSource {
@@ -43,14 +48,13 @@ struct DashboardView: View {
         appDependencies.rescanRequest(treeID: treeID)
     }
 
-    private var recentScans: [ScanFileRecord] {
-        Array(historyStore.scanFiles.prefix(3))
+    func activateScan(_ request: ScanLaunchRequest) {
+        activeScanRequest = appDependencies.activateScanRequest(request)
     }
 
     var body: some View {
         DashboardHomeLayoutView(
-            records: historyStore.scanFiles,
-            recentScans: recentScans,
+            aggregation: historyStore.dashboardAggregation,
             onSettingsTap: showSettings,
             onHistoryTap: showHistory,
             onStartScan: showStartScan,
@@ -71,7 +75,8 @@ struct DashboardView: View {
                 season: request.season,
                 selectedFruitCategory: request.selectedFruitCategory,
                 appDependencies: appDependencies,
-                onScanNextTree: requestNextTreeScan
+                onScanNextTree: requestNextTreeScan,
+                classification: request.classification
             )
         }
         .onChange(of: router.pendingDestination) { nav in
@@ -79,9 +84,13 @@ struct DashboardView: View {
             presentPendingNavigationIfPossible()
         }
         .onAppear {
+            historyStore.dashboardAggregation.refreshTimeContext()
             historyStore.loadRecords()
             router.consumePendingUserDefaults()
             presentPendingNavigationIfPossible()
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { historyStore.dashboardAggregation.refreshTimeContext() }
         }
     }
 }

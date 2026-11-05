@@ -77,12 +77,15 @@ extension ScanView {
             yieldResult = result
             resultPersistenceState = .saved
             withAnimation(.easeInOut(duration: 0.3)) { showResult = true }
-        case .failed(_, let failure):
+        case .failed(let scanIdentity, let failure):
             switch failure {
             case .lifecycleRejected:
                 showTemporaryNotice(L10n.Scan.interruptionTitle)
             case .pointCloudExport:
                 showTemporaryNotice(L10n.Scan.exportFailed)
+            case .pointCloudCaptureInvalid:
+                guard let scanIdentity else { return }
+                _ = coordinator.handleInvalidPointCloudCapture(scanIdentity: scanIdentity)
             case .yieldEstimation:
                 showTemporaryNotice(L10n.Scan.estimateFailed)
             case .resultPersistence:

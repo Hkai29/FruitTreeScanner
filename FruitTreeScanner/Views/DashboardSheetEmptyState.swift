@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// 空状态版式：常规字号横排，辅助字号竖排。
 enum DashboardSheetEmptyStateLayout: Equatable {
     case horizontal
     case stacked
@@ -11,13 +12,17 @@ enum DashboardSheetEmptyStateLayout: Equatable {
     }
 }
 
+/// 统一的空状态。
+///
+/// 只说三件事：现在没有什么、为什么、下一步做什么。
+/// 不画不存在的图表，不用插图磁贴。
 struct DashboardSheetEmptyState: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let icon: String
     var imageName: String? = nil
     let title: String
     let message: String
-    var accent: Color = Design.Colors.harvest
+    var accent: Color = Design.Colors.Workspace.accent
     var primaryAction: DashboardSheetAction? = nil
     var secondaryAction: DashboardSheetAction? = nil
     var outerPadding: Bool = true
@@ -31,69 +36,42 @@ struct DashboardSheetEmptyState: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             contentLayout
 
             if primaryAction != nil || secondaryAction != nil {
                 actionLayout
-                .padding(.top, 14)
+                    .padding(.top, 14)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+        .frame(maxWidth: 760, alignment: .leading)
         .padding(outerPadding ? Design.Space.lg : 0)
-        .frame(maxWidth: .infinity, maxHeight: outerPadding ? .infinity : nil, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
-    @ViewBuilder
     private var contentLayout: some View {
-        if layout == .stacked {
-            VStack(alignment: .leading, spacing: 12) {
-                featureImage(width: nil, height: 112)
-                textContent
-            }
-        } else {
-            HStack(alignment: .top, spacing: 12) {
-                featureImage(width: 96, height: 76)
-                textContent
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func featureImage(width: CGFloat?, height: CGFloat) -> some View {
-        if let imageName {
-            DashboardFeatureImage(name: imageName, accent: accent)
-                .frame(maxWidth: width == nil ? .infinity : nil)
-                .frame(width: width, height: height)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 9))
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .regular))
+                .foregroundColor(accent)
+                .frame(width: 40, height: 40)
+                .background(
+                    accent.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                )
                 .accessibilityHidden(true)
-        }
-    }
 
-    private var textContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(accent)
-                    .frame(width: 26, height: 26)
-                    .background(accent.opacity(0.14))
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                    .accessibilityHidden(true)
-
+            VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.system(.title3, design: .default).weight(.semibold))
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            Text(message)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(title))
@@ -135,25 +113,18 @@ struct DashboardSheetEmptyState: View {
         }
     }
 
+    @ViewBuilder
     private func actionButton(_ action: DashboardSheetAction, isPrimary: Bool) -> some View {
-        Button(action: action.action) {
+        let button = Button(action: action.action) {
             Label(action.title, systemImage: action.icon)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(isPrimary ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textPrimary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .background(isPrimary ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9)
-                        .stroke(isPrimary ? Color.clear : Design.Colors.Dark.glassBorder, lineWidth: 1)
-                )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(action.title))
+
+        if isPrimary {
+            button.buttonStyle(WorkspacePrimaryButtonStyle())
+        } else {
+            button.buttonStyle(WorkspaceSecondaryButtonStyle())
+        }
     }
 }

@@ -7,7 +7,7 @@ struct FruitVolumeResultSection: View {
         ResultSectionCard(
             title: L10n.Result.fruitVolumeMethod,
             icon: "circle.grid.3x3",
-            color: Design.Colors.forest
+            color: Design.Colors.Workspace.accent
         ) {
             ResultInfoRow(label: L10n.Result.correctedFruitCount, value: "\(result.nLidar) \(L10n.Result.unit)")
             if let nV = result.nVisual {

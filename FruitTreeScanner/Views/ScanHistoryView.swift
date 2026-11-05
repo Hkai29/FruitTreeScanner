@@ -1,7 +1,22 @@
 // ScanHistoryView.swift
-// 扫描历史列表 - 自然有机风格
+// 扫描历史列表：档案行的完整性与恢复入口必须可见
 
 import SwiftUI
+
+/// 返回档案列表时要放回哪一条。
+///
+/// 焦点与滚动锚点用**同一份**决定：要么是刚才打开的那一条，要么什么都不放回。
+/// 绝不悄悄换成另一条 —— 尤其是同一棵树的另一份存档。
+enum ScanHistoryRestoreTarget: Equatable {
+    case restore(String)
+    case none
+
+    /// 决定：刚打开的那一条还在，就放回那一条；不在了，就什么都不放回。
+    static func resolve(openedRecordID: String?, availableRecordIDs: [String]) -> ScanHistoryRestoreTarget {
+        guard let openedRecordID, availableRecordIDs.contains(openedRecordID) else { return .none }
+        return .restore(openedRecordID)
+    }
+}
 
 struct ScanHistoryView: View {
     var customTitle: String = L10n.History.navigationTitle
@@ -13,10 +28,28 @@ struct ScanHistoryView: View {
     @StateObject private var deletionController: ScanHistoryDeletionController
     @State private var selectedPlotId: UUID?
     @State private var selectedStatus: ScanStatus?
+    /// 当前搜索词（树号或存档编号）。
+    ///
+    /// 它是这一页的**状态**：进详情再返回，搜索词还在（与地块/状态筛选同一性质）。
+    @State private var searchQuery: String = ""
     @State private var presentedSheet: ScanHistorySheet?
+    /// 正在查看的归档（按存档身份定位，不是树号）。
+    @State private var openedRecord: ScanFileRecord?
+    /// 详情是否处于展示中。与 payload 分开：弹出动画期间 payload 不能被清空，
+    /// 否则详情会在退场动画里变成空视图。
+    @State private var isDetailPresented = false
+    /// 上一次查看过的存档身份：返回后仍知道是哪一条，刷新后若它消失了就清掉，
+    /// 绝不悄悄换成另一条。
+    @State private var lastOpenedRecordID: String?
+    /// 返回档案列表后要把无障碍焦点放回哪一行。
+    @AccessibilityFocusState private var focusedRecordID: String?
+    /// 返回档案列表后要把滚动位置放回哪一行。
+    @State private var pendingScrollRecordID: String?
     @State private var recordPendingDeletion: ScanFileRecord?
     @State private var showClearAllConfirmation = false
     @State private var deletionTask: Task<Void, Never>?
+    /// 分享点云失败时要告诉用户：面板一关就什么也没发生，用户会以为已经分享成功。
+    @State private var showShareError = false
 
     @MainActor
     init(
@@ -41,7 +74,7 @@ struct ScanHistoryView: View {
 
     var body: some View {
         ZStack {
-            Design.Colors.Dark.bgDeep
+            Design.Colors.Workspace.background
                 .ignoresSafeArea()
 
             switch loadPresentation.primaryContent {
@@ -53,12 +86,16 @@ struct ScanHistoryView: View {
                     onRetry: retryLoadingHistory
                 )
             case .empty:
-                ScanHistoryEmptyState(
-                    title: L10n.History.emptyTitle,
-                    message: L10n.History.emptyMessage,
-                    onStartScan: onStartScan,
-                    onImportFile: onImportFile
-                )
+                ScrollView {
+                    ScanHistoryEmptyState(
+                        title: L10n.History.emptyTitle,
+                        message: L10n.History.emptyMessage,
+                        onStartScan: onStartScan,
+                        onImportFile: onImportFile
+                    )
+                    .frame(maxWidth: 1080, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             case .records:
                 loadedHistoryContent
             }
@@ -82,7 +119,7 @@ struct ScanHistoryView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
-                            .foregroundColor(Design.Colors.forest)
+                            .foregroundColor(Design.Colors.Workspace.accent)
                     }
                     .disabled(deletionController.isDeleting)
                     .accessibilityLabel(ScanHistoryText.moreHistoryActions)
@@ -90,14 +127,25 @@ struct ScanHistoryView: View {
             }
         }
         .onAppear { historyStore.loadRecords() }
+        .onChange(of: historyStore.scanFiles.count) { _ in dropSelectionIfRecordDisappeared() }
         .onDisappear(perform: cancelDeletionPresentation)
-        .refreshable { await historyStore.reloadRecords() }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .share(let url):
-                ShareSheet(items: [url])
+                // 分享点云必须接上完成回调：失败要说出来，不能让用户以为已经分享成功。
+                ShareSheet(items: [url]) { result in handleShareCompletion(result) }
             case .pointCloud(let url):
                 PointCloudSheet(initialFileURL: url, historyStore: historyStore)
+            }
+        }
+        .navigationDestination(isPresented: openedRecordBinding) {
+            if let record = openedRecord {
+                ScanArchiveDetailView(
+                    recordID: record.id,
+                    historyStore: historyStore,
+                    onRescan: onRescanTree
+                )
+                .onDisappear { openedRecord = nil }
             }
         }
         .alert(ScanHistoryDeletionCopy.recordConfirmationTitle, isPresented: deleteRecordAlertBinding) {
@@ -128,6 +176,11 @@ struct ScanHistoryView: View {
         } message: {
             Text(deletionFailureMessage)
         }
+        .alert(L10n.History.shareFailureTitle, isPresented: $showShareError) {
+            Button(L10n.Common.done, role: .cancel) {}
+        } message: {
+            Text(L10n.History.shareFailureMessage)
+        }
     }
 
     // MARK: - Filtered Scans
@@ -141,7 +194,29 @@ struct ScanHistoryView: View {
     }
 
     private var loadedHistoryContent: some View {
-        VStack(spacing: 0) {
+        ScanHistoryContentView(
+            filteredScans: filteredScans,
+            emptyReason: emptyReason,
+            searchQuery: $searchQuery,
+            selectedPlotId: $selectedPlotId,
+            selectedStatus: $selectedStatus,
+            tagStore: tagStore,
+            onOpen: openDetail,
+            focusedRecordID: $focusedRecordID,
+            pendingScrollRecordID: $pendingScrollRecordID,
+            onPreview: preview,
+            onShare: share,
+            onRescan: rescan,
+            onMarkReview: markReview,
+            onDelete: confirmDelete,
+            historyStore: historyStore,
+            loadFeedback: historyLoadFeedback
+        )
+    }
+
+    private var historyLoadFeedback: AnyView? {
+        guard loadPresentation.showsLoadFailureBanner || loadPresentation.showsDamagedRecordsBanner else { return nil }
+        return AnyView(VStack(alignment: .leading, spacing: Design.Space.md) {
             if loadPresentation.showsLoadFailureBanner {
                 ScanHistoryLoadFeedbackCard(
                     icon: "exclamationmark.arrow.triangle.2.circlepath",
@@ -149,12 +224,10 @@ struct ScanHistoryView: View {
                     message: ScanHistoryLoadText.staleRecordsMessage(
                         count: historyStore.scanFiles.count
                     ),
-                    accent: Design.Colors.error,
+                    accent: Design.Colors.Workspace.failure,
                     isRetrying: historyStore.isLoading,
                     onRetry: retryLoadingHistory
                 )
-                .padding(.horizontal, Design.Space.md)
-                .padding(.top, Design.Space.sm)
             }
 
             if loadPresentation.showsDamagedRecordsBanner {
@@ -166,35 +239,46 @@ struct ScanHistoryView: View {
                     message: ScanHistoryLoadText.damagedMessage(
                         recordNames: loadPresentation.damagedRecordNames
                     ),
-                    accent: Design.Colors.warning,
+                    accent: Design.Colors.Workspace.attention,
                     isRetrying: historyStore.isLoading,
                     onRetry: retryLoadingHistory
                 )
-                .padding(.horizontal, Design.Space.md)
-                .padding(.top, Design.Space.sm)
             }
-
-            ScanHistoryContentView(
-                filteredScans: filteredScans,
-                selectedPlotId: $selectedPlotId,
-                selectedStatus: $selectedStatus,
-                tagStore: tagStore,
-                onPreview: preview,
-                onShare: share,
-                onRescan: rescan,
-                onMarkReview: markReview,
-                onDelete: confirmDelete
-            )
-        }
+        })
     }
 
+    /// 当前**可见**的档案：地块/状态筛选 ∩ 搜索。
+    ///
+    /// 三件事分开：
+    /// - 地块与状态按树当前归属筛选（与筛选条同源）；
+    /// - 搜索只匹配内存里已加载的档案元数据（树号 + 存档编号），
+    ///   每敲一个字都不重新解析 PLY，也不另开一条读盘通路；
+    /// - 搜索与筛选是**交集**：两个条件都满足才可见。
     private var filteredScans: [ScanFileRecord] {
-        historyStore.scanFiles.filter { record in
+        let scoped = historyStore.scanFiles.filter { record in
             let assignment = tagStore.getAssignment(treeId: record.treeID)
             if let plotId = selectedPlotId, assignment?.plotId != plotId { return false }
             if let status = selectedStatus, assignment?.status != status { return false }
             return true
         }
+        return ScanHistorySearch.filter(scoped, query: searchQuery)
+    }
+
+    /// 只按查询命中的档案（**不套**地块/状态）。
+    ///
+    /// 它只用来判断空结果的**原因**：查询命中了几条却一条都没显示，
+    /// 说明是筛选把它们排掉的，不是「没有这样的树号或记录号」。
+    private var searchMatchedScans: [ScanFileRecord] {
+        ScanHistorySearch.filter(historyStore.scanFiles, query: searchQuery)
+    }
+
+    /// 当前该说哪一种空结果（可见记录不为空时没有空结果）。
+    private var emptyReason: ScanHistoryEmptyReason? {
+        ScanHistoryEmptyReason.resolve(
+            archiveCount: historyStore.scanFiles.count,
+            searchMatchCount: searchMatchedScans.count,
+            visibleCount: filteredScans.count,
+            hasSearchQuery: !ScanHistorySearch.normalized(searchQuery).isEmpty)
     }
 
     private var deleteRecordAlertBinding: Binding<Bool> {
@@ -253,12 +337,71 @@ struct ScanHistoryView: View {
         deletionTask = nil
     }
 
+    /// 打开归档详情：定位用存档身份（record.id），同树的多次扫描不会串。
+    private func openDetail(_ record: ScanFileRecord) {
+        openedRecord = record
+        lastOpenedRecordID = record.id
+        isDetailPresented = true
+    }
+
+    /// 详情是否展示。退场时**不**清 payload —— 由详情页的 `onDisappear` 收尾，
+    /// 这样退场动画期间详情仍然是原来那一条，不是空视图。
+    private var openedRecordBinding: Binding<Bool> {
+        Binding(
+            get: { isDetailPresented },
+            set: { isPresented in
+                isDetailPresented = isPresented
+                if !isPresented {
+                    prepareRestoreAfterDetail()
+                }
+            }
+        )
+    }
+
+    /// 从详情返回：把焦点与滚动位置放回刚才看的那一条。
+    ///
+    /// 筛选、搜索词与选中本来就是这一页的状态（没有被详情改写），所以返回后它们自然还在；
+    /// 焦点与滚动位置是**新**的状态，必须显式放回去。
+    ///
+    /// 放回哪一条由 `ScanHistoryRestoreTarget` 决定，可用的候选是**当前可见**的那些：
+    /// 那条存档要是已经不在了，或者被搜索/筛选挡住了，就什么都不放回 ——
+    /// 绝不悄悄换成另一条（同树的另一份存档也不行，更不能落到看不见的行上）。
+    private func prepareRestoreAfterDetail() {
+        let target = ScanHistoryRestoreTarget.resolve(
+            openedRecordID: lastOpenedRecordID,
+            availableRecordIDs: filteredScans.map(\.id)
+        )
+        guard case .restore(let recordID) = target else { return }
+        pendingScrollRecordID = recordID
+        focusedRecordID = recordID
+    }
+
+    /// 刷新后如果刚看过的那条已经不在档案里，就清掉这份选择 ——
+    /// 不能悄悄换成同树的另一条记录。
+    private func dropSelectionIfRecordDisappeared() {
+        guard let id = lastOpenedRecordID else { return }
+        if !historyStore.scanFiles.contains(where: { $0.id == id }) {
+            lastOpenedRecordID = nil
+        }
+    }
+
     private func preview(_ record: ScanFileRecord) {
         presentedSheet = .pointCloud(record.fileURL)
     }
 
     private func share(_ record: ScanFileRecord) {
         presentedSheet = .share(record.fileURL)
+    }
+
+    /// 分享点云失败要说出来。
+    ///
+    /// 之前这里用 `ShareSheet(items:)` 不带完成回调，UIKit 报的失败被直接丢掉：
+    /// 分享面板关掉后什么也没发生，用户以为点云已经分享/保存成功。
+    /// 用户自己取消不算失败，不打扰。
+    private func handleShareCompletion(_ result: ShareActivityResult) {
+        guard ScanShareFailurePolicy.isFailure(result) else { return }
+        Log.export.error("Archive point cloud sharing failed: \(result.errorDescription ?? "Unknown activity error")")
+        showShareError = true
     }
 
     private func confirmDelete(_ record: ScanFileRecord) {
@@ -444,11 +587,13 @@ private struct ScanHistoryLoadingView: View {
     var body: some View {
         VStack(spacing: Design.Space.sm) {
             ProgressView()
-                .tint(Design.Colors.harvest)
+                .tint(Design.Colors.Workspace.accent)
             Text(ScanHistoryLoadText.loading)
                 .font(.subheadline.weight(.medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(ScanHistoryLoadText.loading)
     }
@@ -459,22 +604,25 @@ private struct ScanHistoryLoadFailureStateView: View {
     let onRetry: () -> Void
 
     var body: some View {
-        VStack {
+        ScrollView {
             ScanHistoryLoadFeedbackCard(
                 icon: "folder.badge.questionmark",
                 title: ScanHistoryLoadText.failureTitle,
                 message: ScanHistoryLoadText.failureEmptyMessage,
-                accent: Design.Colors.error,
+                accent: Design.Colors.Workspace.failure,
                 isRetrying: isRetrying,
                 onRetry: onRetry
             )
-            .padding(Design.Space.md)
-
-            Spacer()
+            .frame(maxWidth: 760, alignment: .leading)
+            .padding(Design.Space.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
 
+/// 读取反馈：归档目录没读成功，或部分记录的结果文件损坏。
+///
+/// 反馈必须是"看得懂的解释 + 下一步"，因此保留标题、说明与重试动作。
 private struct ScanHistoryLoadFeedbackCard: View {
     let icon: String
     let title: String
@@ -483,49 +631,51 @@ private struct ScanHistoryLoadFeedbackCard: View {
     let isRetrying: Bool
     let onRetry: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
-            HStack(alignment: .top, spacing: Design.Space.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(accent)
-                    .frame(width: 24)
+    private var isFailure: Bool {
+        accent == Design.Colors.Workspace.failure
+    }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(Design.Colors.Dark.textPrimary)
-                    Text(message)
-                        .font(.caption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+    var body: some View {
+        if isFailure {
+            InstrumentPanel(label: title, systemImage: icon, tone: .failure) {
+                content
             }
+        } else {
+            InstrumentPanel(label: title, systemImage: icon, tone: .attention) {
+                content
+            }
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(message)
+                .font(.footnote)
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Button(action: onRetry) {
                 HStack(spacing: 6) {
                     if isRetrying {
                         ProgressView()
                             .controlSize(.small)
+                            .tint(accent)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
-                    Text(
-                        isRetrying
-                            ? ScanHistoryLoadText.retrying
-                            : ScanHistoryLoadText.retry
-                    )
+                    Text(isRetrying ? ScanHistoryLoadText.retrying : ScanHistoryLoadText.retry)
                 }
                 .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundColor(accent)
+                .padding(.horizontal, 10)
+                .frame(minHeight: Design.Touch.minimumHeight)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.bordered)
-            .tint(accent)
+            .buttonStyle(.plain)
             .disabled(isRetrying)
+            .accessibilityLabel(isRetrying ? ScanHistoryLoadText.retrying : ScanHistoryLoadText.retry)
             .accessibilityHint(ScanHistoryLoadText.retryHint)
         }
-        .padding(Design.Space.sm)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 }
 
@@ -747,21 +897,21 @@ private struct ScanHistoryDeletionProgressOverlay: View {
 
             VStack(spacing: 12) {
                 ProgressView()
-                    .tint(Design.Colors.harvest)
+                    .tint(Design.Colors.Workspace.accent)
 
                 Text(ScanHistoryDeletionCopy.progress)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(Design.Colors.Workspace.ink)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 20)
             .background(
-                RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .fill(Design.Colors.Dark.hudBackground)
+                RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
+                    .fill(Design.Colors.Workspace.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                    .stroke(Design.Colors.Dark.hudBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
+                    .stroke(Design.Colors.Workspace.line, lineWidth: 1)
             )
         }
         .accessibilityElement(children: .combine)
@@ -779,7 +929,7 @@ private enum ScanHistoryDeletionCopy {
     )
     static let recordConfirmationMessage = localized(
         "history.delete.record.message",
-        value: "将删除这条记录关联的 PLY 点云、CSV、结果 JSON 和完成清单。"
+        value: "将永久删除这条扫描记录及全部关联文件，包括点云、结果和已有的观测回放数据。此操作无法撤销。"
     )
     static let clearConfirmationTitle = localized(
         "history.delete.all.title",
@@ -787,7 +937,7 @@ private enum ScanHistoryDeletionCopy {
     )
     static let clearConfirmationMessage = localized(
         "history.delete.all.message",
-        value: "将删除当前所有扫描记录及其关联文件，此操作无法撤销。"
+        value: "将永久删除全部扫描记录及所有关联文件，包括点云、结果和已有的观测回放数据。此操作无法撤销。"
     )
     static let cancel = localized("common.cancel", value: "取消")
     static let delete = localized("common.delete", value: "删除")
@@ -826,6 +976,10 @@ private enum ScanHistoryDeletionCopy {
             return localized("history.delete.artifact.result_json", value: "结果 JSON")
         case .completionManifest:
             return localized("history.delete.artifact.completion_manifest", value: "完成清单")
+        case .replayInput, .replayPoints, .replayPreparation:
+            return localized("history.delete.artifact.replay_data", value: "回放数据")
+        case .archiveRecovery:
+            return localized("history.delete.artifact.archive_recovery", value: "存档恢复数据")
         }
     }
 

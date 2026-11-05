@@ -15,10 +15,14 @@ struct HistoricalComparePresentation: Equatable {
     let pickerTitle: String
     let cancel: String
     let yieldChange: String
-    let lidarDetections: String
+    let archivedFruitCount: String
     let averageDiameter: String
     let confidence: String
     let scanDate: String
+    /// 两条对比记录各自的证据行标题。
+    let evidenceRowsTitle: String
+    /// 证据等级标题。
+    let evidenceTierTitle: String
 
     private let emptyMessageOne: String
     private let emptyMessageOtherFormat: String
@@ -89,10 +93,12 @@ struct HistoricalComparePresentation: Equatable {
         )
         pickerValueFormat = localized("historical_compare.picker.value_format", fallback: "%@；%@")
         yieldChange = localized("historical_compare.yield_change", fallback: "产量变化")
-        lidarDetections = localized("historical_compare.lidar_detections", fallback: "LiDAR 检测")
+        archivedFruitCount = localized("historical_compare.archived_fruit_count", fallback: "果实数量")
         averageDiameter = localized("historical_compare.average_diameter", fallback: "平均直径")
         confidence = localized("historical_compare.confidence", fallback: "置信度")
         scanDate = localized("historical_compare.scan_date", fallback: "扫描日期")
+        evidenceRowsTitle = localized("historical_compare.evidence_rows", fallback: "扫描证据")
+        evidenceTierTitle = localized("historical_compare.evidence_tier", fallback: "证据等级")
         treeTitleFormat = localized("historical_compare.tree_title_format", fallback: "树 %@")
         scanSummaryFormat = localized("historical_compare.scan_summary_format", fallback: "%@，%@，%@")
         comparisonValuesFormat = localized(
@@ -177,6 +183,20 @@ struct HistoricalComparePresentation: Equatable {
                 .precision(.fractionLength(1))
                 .sign(strategy: .always(includingZero: true))
         )
+    }
+
+    /// 绝对差值。基线为 0 时百分比不可用，但两个真实读数之间的差值仍然是真值，
+    /// 因此差异用真实数字表达，而不是只给一个方向箭头。
+    func yieldDeltaText(from baseline: Double, to comparison: Double, locale: Locale) -> String {
+        let delta = comparison - baseline
+        let magnitude = abs(delta).formatted(
+            .number
+                .locale(locale)
+                .grouping(.automatic)
+                .precision(.fractionLength(1))
+        )
+        let sign = delta > 0 ? "+" : (delta < 0 ? "-" : "")
+        return "\(sign)\(magnitude) \(kilogramsUnit)"
     }
 
     func trendText(_ trend: TrendDirection) -> String {
@@ -290,9 +310,45 @@ struct ScanItem: Identifiable, Equatable {
     let treeID: String
     let scanDate: Date
     let yieldKg: Double
-    let nLidar: Int
+    /// 档案里保存的是**果实数量**，不是原始 LiDAR 候选数。
+    /// 展示层因此只说"果实数量"，不改数据来源，也不改任何算法。
+    let archivedFruitCount: Int
     let meanDiameterCm: Double?
     let confidence: String
+    /// 原始档案记录。对比行要与档案行长得一模一样，
+    /// 因此这里保留来源记录，而不是重新拼一份读数。
+    let record: ScanFileRecord
+
+    init(
+        id: String,
+        treeID: String,
+        scanDate: Date,
+        yieldKg: Double,
+        archivedFruitCount: Int,
+        meanDiameterCm: Double?,
+        confidence: String,
+        record: ScanFileRecord
+    ) {
+        self.id = id
+        self.treeID = treeID
+        self.scanDate = scanDate
+        self.yieldKg = yieldKg
+        self.archivedFruitCount = archivedFruitCount
+        self.meanDiameterCm = meanDiameterCm
+        self.confidence = confidence
+        self.record = record
+    }
+
+    /// 记录等级。判定完全复用 `InstrumentRecord.tier(for:)`，
+    /// 对比页因此与档案页说同一种话（完整 / 待复核 / 需恢复）。
+    var evidenceTier: InstrumentRecordTier {
+        InstrumentRecord.tier(for: record)
+    }
+
+    /// 差异是否可以直接使用：两条记录都无需复核时才算。
+    var supportsDirectComparison: Bool {
+        evidenceTier == .complete
+    }
 
     var dateFormatted: String {
         HistoricalComparePresentation().dateText(scanDate, locale: .current)
@@ -312,10 +368,10 @@ struct ScanItem: Identifiable, Equatable {
 
     var confidenceColor: Color {
         switch confidence.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "high": return Design.Colors.Dark.success
-        case "medium": return Design.Colors.Dark.warning
-        case "low": return Design.Colors.Dark.error
-        default: return Design.Colors.Dark.textSecondary
+        case "high": return Design.Colors.Workspace.accent
+        case "medium": return Design.Colors.Workspace.attention
+        case "low": return Design.Colors.Workspace.failure
+        default: return Design.Colors.Workspace.secondary
         }
     }
 }
@@ -329,9 +385,10 @@ enum HistoricalCompareDataSource {
                 treeID: record.treeID,
                 scanDate: record.scanDate,
                 yieldKg: Double(record.yieldKg),
-                nLidar: record.fruitCount,
+                archivedFruitCount: record.fruitCount,
                 meanDiameterCm: nil,
-                confidence: record.confidence
+                confidence: record.confidence,
+                record: record
             )
         }
     }
@@ -416,9 +473,9 @@ enum TrendDirection {
 
     var color: Color {
         switch self {
-        case .up: return Design.Colors.Dark.success
-        case .down: return Design.Colors.Dark.error
-        case .neutral, .unavailable: return Design.Colors.Dark.textSecondary
+        case .up: return Design.Colors.Workspace.accent
+        case .down: return Design.Colors.Workspace.failure
+        case .neutral, .unavailable: return Design.Colors.Workspace.secondary
         }
     }
 }

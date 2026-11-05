@@ -231,6 +231,156 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         ImageDetectionDiagnostics()
     }
 
+    /// Admit evidence through the real fusion boundary, then deliberately omit
+    /// candidate geometry from composition to exercise the average-mass fallback.
+    private func composeFallbackFixture(
+        detectionConfidence: Float = 0.95,
+        sphericity: Float = 0.85,
+        minimumConfidence: Float = 0.3
+    ) throws -> (YieldResult, FruitCountResult) {
+        let depth = try XCTUnwrap(makeDepthMap(width: 90, height: 90, fillValue: 2))
+        let detection = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: detectionConfidence,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 1000, fy: 1000, cx: 450, cy: 450),
+            imageSize: CGSize(width: 900, height: 900),
+            depthMap: depth
+        )
+        let candidate = FruitCandidate(
+            position: SIMD3<Float>(0, 0, -2), diameter: 0.08,
+            sphericity: sphericity, pointCount: 20,
+            averageColor: SIMD3<Float>(0.6, 0.25, 0.18), sourceCategory: .apple
+        )
+        let config = FruitScanConfig(
+            imageDetectionInterval: 1, minConfidence: minimumConfidence, sizeTolerance: 0.35,
+            minimumStableDetectionsForYield: 1
+        )
+        let fusion = FusionEvidencePipeline(fusionConfig: config).run(
+            detections: [detection], candidates: [candidate]
+        )
+        XCTAssertEqual(fusion.reliableEvidence.count, 1)
+        if detectionConfidence == 0 {
+            XCTAssertEqual(FruitCounter().weightedTotal(fusion.reliableEvidence), 0)
+        }
+        var params = appleParams()
+        params.averageWeightG = 200
+        let input = ScanFusionYieldBuilder.Input(
+            points: [], savedDetections: [detection], imageDiagnostics: emptyImageDiagnostics(),
+            fruitType: "苹果", fruitCategory: .apple,
+            paramsSnapshot: [FruitCategory.apple.rawValue: params], defaultParams: params,
+            clusterConfig: .default, fusionConfig: config, colorFilter: nil,
+            calibrationCorrection: YieldCalibrationCorrection(
+                countFactor: 0.7, yieldFactor: 0.8, countSampleCount: 3, yieldSampleCount: 2
+            ),
+            calibrationIdentity: ScanCalibrationIdentity(algorithmRevision: "captured-test", context: nil)
+        )
+        let cloud = PointCloudCandidatePipelineOutput(
+            colorFilteredPoints: [], clusteringPoints: [],
+            denoising: PointCloudDenoiser.unchangedResult(samples: [] as [ColoredPoint]), candidates: []
+        )
+        var diagnostics = ScanYieldDiagnostics()
+        diagnostics.validationSourceReliability = fusion.validatedFruits[0].confidence
+        return YieldResultComposer().compose(
+            input: input, candidates: [], pointCloudOutput: cloud, fusionOutput: fusion,
+            canopyGeometry: nil, diagnostics: &diagnostics
+        )
+    }
+
+    func testComposerPreservesTwoCountRoundingStagesAndFallbackMass() throws {
+        let (yield, count) = try composeFallbackFixture()
+
+        // Weighted count .8075 * k2.9995 rounds to 2, then 2 * .7 rounds
+        // to 1. Combining both rounds would incorrectly produce 2.
+        XCTAssertEqual(count.totalCount, 1)
+        XCTAssertEqual(yield.calibrationBaseCount, 2)
+        XCTAssertEqual(yield.nLidar, 1)
+        XCTAssertEqual(yield.occlusionK, 2.9995, accuracy: 0.00001)
+        XCTAssertEqual(yield.yieldBVisibleKg, 0.1615, accuracy: 0.000001)
+        XCTAssertEqual(try XCTUnwrap(yield.calibrationBaseYieldKg), 0.48441926, accuracy: 0.000001)
+        XCTAssertEqual(yield.yieldFinalKg, 0.38753542, accuracy: 0.000001)
+        XCTAssertEqual(yield.confidence, "manual_review")
+        XCTAssertEqual(yield.methodUsed, "fusion_mass_fallback_coverage_review")
+        XCTAssertEqual(yield.algorithmRevision, "captured-test")
+        XCTAssertNil(yield.calibrationContext)
+        XCTAssertEqual(yield.diagnostics.scanAngleCoverage, 0.25, accuracy: 0.000001)
+        XCTAssertTrue(yield.fruitMassEstimates.isEmpty)
+        XCTAssertEqual(yield.validatedFruits.count, 1)
+        XCTAssertEqual(yield.note, "融合计数，部分重量使用品类均值；扫描角度覆盖约90°，遮挡校正较强，建议补扫另一侧后复核；1 个果实缺少关联几何，重量使用品类均值，需复核；本地校准 count×0.70(3) yield×0.80(2)")
+    }
+
+    func testComposerUsesPositiveWeightEvenWhenRawCategoryCountRoundsToZero() throws {
+        let (yield, count) = try composeFallbackFixture(detectionConfidence: 0.5, sphericity: 0.8)
+
+        XCTAssertEqual(count.totalCount, 0)
+        XCTAssertEqual(yield.calibrationBaseCount, 1)
+        XCTAssertEqual(yield.nLidar, 1)
+        XCTAssertEqual(yield.yieldBVisibleKg, 0.08, accuracy: 0.000001)
+        XCTAssertEqual(yield.yieldFinalKg, 0.191968, accuracy: 0.000001)
+        XCTAssertEqual(yield.methodUsed, "fusion_mass_fallback_coverage_review")
+        XCTAssertEqual(yield.algorithmRevision, "captured-test")
+        XCTAssertTrue(yield.diagnostics.zeroYieldReasons.isEmpty)
+    }
+
+    func testComposerUsesZeroBranchForNonemptyZeroWeightReliableEvidence() throws {
+        let (yield, count) = try composeFallbackFixture(detectionConfidence: 0, minimumConfidence: 0)
+
+        XCTAssertEqual(count.totalCount, 0)
+        XCTAssertEqual(count.validatedFruits.count, 1)
+        XCTAssertEqual(count.validatedFruits.first?.source, "fused")
+        XCTAssertEqual(count.validatedFruits.first?.confidence, 0)
+        XCTAssertEqual(yield.nLidar, 0)
+        XCTAssertEqual(yield.yieldBVisibleKg, 0)
+        XCTAssertEqual(yield.yieldFinalKg, 0)
+        XCTAssertEqual(yield.occlusionK, 1)
+        XCTAssertEqual(yield.correctionK, 1)
+        XCTAssertEqual(yield.confidence, "low")
+        XCTAssertEqual(yield.methodUsed, "fusion_only")
+        XCTAssertNil(yield.algorithmRevision)
+        XCTAssertNil(yield.calibrationContext)
+        XCTAssertNil(yield.calibrationBaseCount)
+        XCTAssertNil(yield.calibrationBaseYieldKg)
+        XCTAssertTrue(yield.fruitMassEstimates.isEmpty)
+        XCTAssertTrue(yield.validatedFruits.isEmpty)
+        XCTAssertFalse(yield.diagnostics.zeroYieldReasons.isEmpty)
+    }
+
+    func testMatureZeroYieldDoesNotPopulatePositiveCalibrationFields() async {
+        let input = ScanFusionYieldBuilder.Input(
+            points: [], savedDetections: [], imageDiagnostics: emptyImageDiagnostics(),
+            fruitType: "苹果", fruitCategory: .apple,
+            paramsSnapshot: [FruitCategory.apple.rawValue: appleParams()], defaultParams: appleParams(),
+            clusterConfig: .default, fusionConfig: .default, colorFilter: nil,
+            calibrationCorrection: YieldCalibrationCorrection(
+                countFactor: 2, yieldFactor: 3, countSampleCount: 4, yieldSampleCount: 5
+            ),
+            calibrationIdentity: ScanCalibrationIdentity(algorithmRevision: "unused-test", context: "unused")
+        )
+        let (yield, count) = await ScanFusionYieldBuilder.build(from: input)
+
+        XCTAssertEqual(count.totalCount, 0)
+        XCTAssertEqual(yield.methodUsed, "fusion_only")
+        XCTAssertEqual(yield.confidence, "low")
+        XCTAssertEqual(yield.nLidar, 0)
+        XCTAssertEqual(yield.yieldFinalKg, 0)
+        XCTAssertNil(yield.algorithmRevision)
+        XCTAssertNil(yield.calibrationContext)
+        XCTAssertNil(yield.calibrationBaseCount)
+        XCTAssertNil(yield.calibrationBaseYieldKg)
+        XCTAssertNil(yield.nVisual)
+        XCTAssertNil(yield.yieldAKg)
+        XCTAssertEqual(yield.correctionK, 1)
+        XCTAssertEqual(yield.occlusionK, 1)
+        XCTAssertEqual(yield.clusterEps, input.clusterConfig.baseEps)
+        XCTAssertEqual(yield.clusterMinPoints, input.clusterConfig.minPoints)
+        XCTAssertTrue(yield.fruitMassEstimates.isEmpty)
+        XCTAssertTrue(yield.validatedFruits.isEmpty)
+        XCTAssertEqual(yield.diagnostics.localCalibrationYieldSampleCount, 5)
+        XCTAssertFalse(yield.diagnostics.zeroYieldReasons.isEmpty)
+        XCTAssertEqual(yield.note, ScanDiagnosticsBuilder.zeroYieldNote(reasons: yield.diagnostics.zeroYieldReasons))
+    }
+
     // MARK: - A.1 Empty point cloud → 0kg, zeroYieldReasons
 
     func testBuildEmptyInputReturnsZeroKgWithReasons() async {
@@ -1793,6 +1943,127 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         )
     }
 
+    func testReliableYieldReportsMissingAlignedDepthAtDiagnosticsBoundary() {
+        let detections = (0..<2).map { _ in
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+                confidence: 0.95
+            )
+        }
+        let pipeline = FusionEvidencePipeline(fusionConfig: .default)
+        let output = pipeline.run(observations: detections.map { $0.resolvedObservation() }, candidates: [])
+        let legacyOutput = pipeline.run(detections: detections, candidates: [])
+
+        XCTAssertEqual(output.diagnostic, .missingAlignedDepthContext(observationCount: 2))
+        XCTAssertEqual(legacyOutput.diagnostic, output.diagnostic)
+        XCTAssertEqual(
+            ScanFusionDiagnosticsUpdater.warningMessage(for: output),
+            "Skipping 2 image detections because none carried aligned depth context"
+        )
+        XCTAssertTrue(output.reliableEvidence.isEmpty)
+        XCTAssertTrue(output.validatedFruits.isEmpty)
+        XCTAssertTrue(output.evidenceDetections.isEmpty)
+        XCTAssertEqual(output.deduplicatedDetectionCount, 0)
+        XCTAssertTrue(output.cloudOnlyConservativeMode)
+
+        var diagnostics = ScanYieldDiagnostics()
+        diagnostics.zeroYieldReasons = ["existing reason"]
+        ScanFusionDiagnosticsUpdater.applyFusionOutput(output, to: &diagnostics)
+        XCTAssertTrue(diagnostics.cloudOnlyConservativeMode)
+        XCTAssertEqual(diagnostics.fusedFruitCount, 0)
+        XCTAssertEqual(diagnostics.deduplicatedImageDetectionCount, 0)
+        XCTAssertEqual(diagnostics.zeroYieldReasons, ["existing reason"])
+    }
+
+    func testReliableYieldDoesNotMisreportOtherConservativeResultsAsMissingDepth() throws {
+        let depthMap = try XCTUnwrap(makeDepthMap(width: 90, height: 90, fillValue: 2.0))
+        let aligned = DetectedFruit(
+            category: .apple,
+            boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+            confidence: 0.95,
+            cameraTransform: identityTransform,
+            cameraIntrinsics: pinholeIntrinsics(fx: 1000, fy: 1000, cx: 450, cy: 450),
+            imageSize: CGSize(width: 900, height: 900),
+            depthMap: depthMap
+        ).resolvedObservation()
+        XCTAssertTrue(aligned.hasAlignedDepthContext)
+        let stablePipeline = FusionEvidencePipeline(fusionConfig: FruitScanConfig(
+            imageDetectionInterval: 1, minConfidence: 0.5, sizeTolerance: 0.35,
+            minimumStableDetectionsForYield: 1
+        ))
+        let unstablePipeline = FusionEvidencePipeline(fusionConfig: FruitScanConfig(
+            imageDetectionInterval: 1, minConfidence: 0.5, sizeTolerance: 0.35,
+            minimumStableDetectionsForYield: 2
+        ))
+        let empty = stablePipeline.run(observations: [], candidates: [])
+        let unstable = unstablePipeline.run(observations: [aligned], candidates: [])
+        let unmatched = stablePipeline.run(observations: [aligned], candidates: [])
+        for output in [empty, unstable, unmatched] {
+            XCTAssertNil(output.diagnostic)
+            XCTAssertNil(ScanFusionDiagnosticsUpdater.warningMessage(for: output))
+            XCTAssertTrue(output.reliableEvidence.isEmpty)
+            XCTAssertTrue(output.cloudOnlyConservativeMode)
+        }
+        XCTAssertEqual(empty.deduplicatedDetectionCount, 0)
+        XCTAssertTrue(empty.evidenceDetections.isEmpty)
+        XCTAssertEqual(unstable.deduplicatedDetectionCount, 0)
+        XCTAssertTrue(unstable.evidenceDetections.isEmpty)
+        XCTAssertEqual(unmatched.deduplicatedDetectionCount, 1)
+        XCTAssertEqual(unmatched.evidenceDetections.map(\.id), [aligned.id])
+    }
+
+    func testReliableYieldLegacyAdapterPreservesAdmissionWithMixedDepthContext() throws {
+        let depthMap = try XCTUnwrap(makeDepthMap(width: 90, height: 90, fillValue: 2.0))
+        let detections = [
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+                confidence: 0.95
+            ),
+            DetectedFruit(
+                category: .apple,
+                boundingBox: CGRect(x: 0.45, y: 0.45, width: 0.1, height: 0.1),
+                confidence: 0.95,
+                cameraTransform: identityTransform,
+                cameraIntrinsics: pinholeIntrinsics(fx: 1000, fy: 1000, cx: 450, cy: 450),
+                imageSize: CGSize(width: 900, height: 900),
+                depthMap: depthMap
+            )
+        ]
+        let candidate = FruitCandidate(
+            position: SIMD3<Float>(0, 0, -2), diameter: 0.08, sphericity: 0.85,
+            pointCount: 20, averageColor: SIMD3<Float>(0.6, 0.25, 0.18), sourceCategory: .apple
+        )
+        let pipeline = FusionEvidencePipeline(fusionConfig: FruitScanConfig(
+            imageDetectionInterval: 1, minConfidence: 0.5, sizeTolerance: 0.35,
+            minimumStableDetectionsForYield: 1
+        ))
+        let numeric = pipeline.run(observations: detections.map { $0.resolvedObservation() }, candidates: [candidate])
+        let legacy = pipeline.run(detections: detections, candidates: [candidate])
+
+        XCTAssertNil(numeric.diagnostic)
+        XCTAssertNil(legacy.diagnostic)
+        XCTAssertNil(ScanFusionDiagnosticsUpdater.warningMessage(for: numeric))
+        XCTAssertFalse(numeric.cloudOnlyConservativeMode)
+        XCTAssertEqual(legacy.cloudOnlyConservativeMode, numeric.cloudOnlyConservativeMode)
+        XCTAssertEqual(numeric.deduplicatedDetectionCount, 1)
+        XCTAssertEqual(legacy.deduplicatedDetectionCount, numeric.deduplicatedDetectionCount)
+        XCTAssertEqual(numeric.evidenceDetections.map(\.id), [detections[1].id])
+        XCTAssertEqual(legacy.evidenceDetections.map(\.id), numeric.evidenceDetections.map(\.id))
+        XCTAssertEqual(numeric.reliableEvidence.count, 1)
+        XCTAssertEqual(legacy.reliableEvidence.count, numeric.reliableEvidence.count)
+        for (legacyFruit, numericFruit) in zip(legacy.validatedFruits, numeric.validatedFruits) {
+            XCTAssertEqual(numericFruit.source, .fused)
+            XCTAssertEqual(legacyFruit.source, numericFruit.source)
+            XCTAssertEqual(legacyFruit.category, numericFruit.category)
+            XCTAssertEqual(legacyFruit.position, numericFruit.position)
+            XCTAssertEqual(legacyFruit.confidence, numericFruit.confidence)
+            XCTAssertEqual(legacyFruit.measuredDiameter, numericFruit.measuredDiameter)
+            XCTAssertEqual(legacyFruit.sourceCandidateIDs, numericFruit.sourceCandidateIDs)
+        }
+    }
+
     func testTrackedImageEvidenceDoesNotExpandCameraAngleCoverageForOcclusion() async {
         let depthMap = makeDepthMap(width: 90, height: 90, fillValue: 3.0)
         XCTAssertNotNil(depthMap)
@@ -2095,5 +2366,20 @@ final class ScanFusionYieldBuilderTests: XCTestCase {
         XCTAssertEqual(yield.diagnostics.pointCloudClusterCandidateCount, 0)
         XCTAssertEqual(yield.diagnostics.detectionDepthCandidateCount, 0)
         XCTAssertTrue(yield.note.contains("尚未标定"))
+        XCTAssertEqual(yield.diagnostics.zeroYieldReasons, ["非成熟期冠层回归模型尚未标定，本次未生成产量估算"])
+        XCTAssertEqual(yield.note, "非成熟期冠层回归模型尚未标定，本次未生成产量估算")
+        XCTAssertEqual(yield.colorFilterDesc, "N/A")
+        XCTAssertEqual(yield.pointCloudSize, points.count)
+        XCTAssertEqual(yield.clusterEps, 0)
+        XCTAssertEqual(yield.clusterMinPoints, 0)
+        XCTAssertNil(yield.algorithmRevision)
+        XCTAssertNil(yield.calibrationContext)
+        XCTAssertNil(yield.calibrationBaseCount)
+        XCTAssertNil(yield.calibrationBaseYieldKg)
+        XCTAssertEqual(yield.diagnostics.localCalibrationCountSampleCount, 0)
+        XCTAssertEqual(yield.correctionK, 1)
+        XCTAssertEqual(yield.occlusionK, 1)
+        XCTAssertTrue(yield.fruitMassEstimates.isEmpty)
+        XCTAssertTrue(yield.validatedFruits.isEmpty)
     }
 }

@@ -1,5 +1,13 @@
+// StartStepChrome.swift
+// 步骤页共用的小组件：标题、说明、空状态、选择行。
+//
+// 这些组件只负责呈现，交互与数据仍由各步骤页负责。
+
 import SwiftUI
 
+// MARK: - 步骤标题
+
+/// 步骤页标题：图标 + 标题 + 说明。页面级标题区。
 struct StartStepHeader: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -7,148 +15,168 @@ struct StartStepHeader: View {
     let totalSteps: Int
     let title: String
     let subtitle: String
+    var systemImage: String? = nil
 
     private var layoutPolicy: StartFlowChromeLayoutPolicy {
         StartFlowChromeLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
-            if layoutPolicy.stacksVertically {
-                VStack(alignment: .leading, spacing: Design.Space.xs) {
-                    stepLabel
-                    titleLabel
+        Group {
+            if layoutPolicy.stacksVertically, let systemImage {
+                VStack(alignment: .leading, spacing: 10) {
+                    icon(systemImage)
+                    copy
                 }
             } else {
-                HStack(spacing: Design.Space.xs) {
-                    stepLabel
-
-                    Capsule()
-                        .fill(Design.Colors.Dark.glassBorder)
-                        .frame(width: 4, height: 4)
-
-                    titleLabel
+                HStack(alignment: .top, spacing: 12) {
+                    if let systemImage {
+                        icon(systemImage)
+                    }
+                    copy
                 }
             }
-
-            Text(subtitle)
-                .font(.footnote)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var stepLabel: some View {
-        Text(L10n.StartFlow.stepHeader(step: step, totalSteps: totalSteps))
-            .font(.caption.weight(.semibold).monospaced())
-            .foregroundColor(Design.Colors.harvest)
+    private var copy: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(.title3, design: .default).weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
-    private var titleLabel: some View {
-        Text(title)
-            .font(.title3.weight(.semibold))
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .lineLimit(layoutPolicy.stacksVertically ? nil : 1)
-            .accessibilityAddTraits(.isHeader)
+    private func icon(_ systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(Design.Colors.Workspace.accent)
+            .frame(width: 30, height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .fill(Design.Colors.Workspace.accentSoft)
+            )
+            .accessibilityHidden(true)
     }
 }
 
+// MARK: - 说明
+
+/// 说明条的语气。
+enum StartNoteTone {
+    case neutral
+    case accent
+    case attention
+    case failure
+    case reliable
+}
+
+/// 说明条：一条提示 + 图标。
 struct StartNoteRow: View {
     let icon: String
     let text: String
-    var tint: Color = Design.Colors.Dark.info
+    var tone: StartNoteTone = .neutral
 
     var body: some View {
-        HStack(alignment: .top, spacing: Design.Space.xs) {
-            Image(systemName: icon)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(tint)
-                .frame(width: 16, height: 16)
-                .accessibilityHidden(true)
-
-            Text(text)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+        switch tone {
+        case .neutral:
+            InstrumentNotice(message: text, tone: .neutral, systemImage: icon)
+        case .accent:
+            InstrumentNotice(message: text, tone: .accent, systemImage: icon)
+        case .attention:
+            InstrumentNotice(message: text, tone: .attention, systemImage: icon)
+        case .failure:
+            InstrumentNotice(message: text, tone: .failure, systemImage: icon)
+        case .reliable:
+            InstrumentNotice(message: text, tone: .reliable, systemImage: icon)
         }
     }
 }
 
+// MARK: - 空状态
+
+/// 空状态 + 一个明确的创建动作。
 struct StartEmptyAction: View {
     let icon: String
     let title: String
     let message: String
     let buttonTitle: String
+    /// 地块空状态用测区空板（测绘网格），其余用通用空状态。
+    var usesSurveyPlate: Bool = false
     let action: () -> Void
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            emptyStateDescription
-
-            Button(action: action) {
-                HStack(spacing: Design.Space.xs) {
-                    Image(systemName: "plus")
-                    Text(buttonTitle)
+        if usesSurveyPlate {
+            InstrumentSurveyPlate {
+                VStack(alignment: .leading, spacing: 12) {
+                    copy
+                    StartCreateButton(title: buttonTitle, action: action)
                 }
-                .font(.body.weight(.semibold))
-                .foregroundColor(Design.Colors.harvest)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .frame(minHeight: layoutPolicy.minimumControlHeight)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
-                )
+                .padding(16)
             }
-        }
-        .padding(Design.Space.md)
-        .startSurface(cornerRadius: 10)
-    }
-
-    @ViewBuilder
-    private var emptyStateDescription: some View {
-        switch layoutPolicy.arrangement {
-        case .horizontal:
-            HStack(alignment: .top, spacing: Design.Space.sm) {
-                descriptionIcon
-                descriptionCopy
-            }
-        case .vertical:
-            VStack(alignment: .leading, spacing: Design.Space.xs) {
-                descriptionIcon
-                descriptionCopy
+        } else {
+            InstrumentEmptyState(systemImage: icon, title: title, message: message) {
+                StartCreateButton(title: buttonTitle, action: action)
             }
         }
     }
 
-    private var descriptionIcon: some View {
-        Image(systemName: icon)
-            .font(.body.weight(.semibold))
-            .foregroundColor(Design.Colors.harvest)
-            .frame(width: 28, height: 28)
-            .accessibilityHidden(true)
-    }
-
-    private var descriptionCopy: some View {
-        VStack(alignment: .leading, spacing: 3) {
+    private var copy: some View {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title)
-                .font(.body.weight(.semibold))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.system(.headline, design: .default).weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Text(message)
                 .font(.subheadline)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .foregroundColor(Design.Colors.Workspace.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
+}
 
-    private var layoutPolicy: StartStepContentLayoutPolicy {
-        StartStepContentLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
+/// 空状态里的创建动作：描边按钮，与工作台的次操作一致。
+struct StartCreateButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(Design.Colors.Workspace.accent)
+            .frame(maxWidth: .infinity, minHeight: Design.Touch.minimumHeight)
+            .background(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .fill(Design.Colors.Workspace.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .stroke(Design.Colors.Workspace.line, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 
+// MARK: - 布局策略
+
+/// 步骤内容在辅助功能字号下改为竖排，避免挤压。
 struct StartStepContentLayoutPolicy: Equatable, Sendable {
     enum Arrangement: Equatable, Sendable {
         case horizontal
@@ -164,11 +192,16 @@ struct StartStepContentLayoutPolicy: Equatable, Sendable {
     }
 }
 
+// MARK: - 选择行
+
+/// 可选择的行：标题 + 说明 + 尾部状态。
 struct StartSelectionRow<Accessory: View>: View {
     let title: String
-    let subtitle: String
-    let icon: String
-    let tint: Color
+    var subtitle: String? = nil
+    var systemImage: String? = nil
+    var iconTint: Color = Design.Colors.Workspace.secondary
+    /// 标识符（树号、地块名）使用等宽字形。
+    var isMonospacedTitle: Bool = false
     let isSelected: Bool
     let action: () -> Void
     @ViewBuilder let accessory: () -> Accessory
@@ -179,60 +212,67 @@ struct StartSelectionRow<Accessory: View>: View {
             Group {
                 switch layoutPolicy.arrangement {
                 case .horizontal:
-                    HStack(spacing: Design.Space.sm) {
-                        selectionDescription
-                        Spacer(minLength: Design.Space.sm)
-                        selectionStatus
+                    HStack(alignment: .center, spacing: 12) {
+                        description
+                        Spacer(minLength: 8)
+                        trailing
                     }
                 case .vertical:
-                    VStack(alignment: .leading, spacing: Design.Space.sm) {
-                        selectionDescription
-                        HStack(spacing: Design.Space.sm) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        description
+                        HStack(spacing: 8) {
                             Spacer(minLength: 0)
-                            selectionStatus
+                            trailing
                         }
                     }
                 }
             }
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, 13)
+            .padding(.vertical, 12)
             .frame(minHeight: layoutPolicy.minimumControlHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel("\(title), \(subtitle)")
+        .buttonStyle(.plain)
+        .accessibilityLabel(subtitle.map { "\(title), \($0)" } ?? title)
         .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: isSelected))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var selectionDescription: some View {
-        HStack(alignment: .top, spacing: Design.Space.sm) {
-            Image(systemName: icon)
-                .font(.body.weight(.semibold))
-                .foregroundColor(tint)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
-
+    private var description: some View {
+        HStack(alignment: .top, spacing: 10) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(iconTint)
+                    .frame(width: 20)
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(isMonospacedTitle
+                          ? .system(.subheadline, design: .monospaced).weight(.semibold)
+                          : .system(.subheadline, design: .default).weight(.semibold))
+                    .foregroundColor(Design.Colors.Workspace.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(Design.Colors.Workspace.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
 
-    private var selectionStatus: some View {
-        HStack(spacing: Design.Space.sm) {
+    @ViewBuilder
+    private var trailing: some View {
+        HStack(spacing: 10) {
             accessory()
 
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.title3.weight(.semibold))
-                .foregroundColor(isSelected ? Design.Colors.harvest : Design.Colors.Dark.textMuted)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(isSelected
+                                 ? Design.Colors.Workspace.accent
+                                 : Design.Colors.Workspace.faint)
                 .accessibilityHidden(true)
         }
     }
@@ -244,14 +284,6 @@ struct StartSelectionRow<Accessory: View>: View {
 
 extension View {
     func startSurface(cornerRadius: CGFloat) -> some View {
-        self
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Design.Colors.Dark.glassFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
-            )
+        workspaceSurface(cornerRadius: cornerRadius)
     }
 }

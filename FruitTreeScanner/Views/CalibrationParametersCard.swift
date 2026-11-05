@@ -1,3 +1,9 @@
+// CalibrationParametersCard.swift
+// 校准参数面板：滑杆改的是本地草稿，结束编辑时由上层提交。
+//
+// 名称与读数由滑杆自身承载，旁边的文字对无障碍隐藏，
+// 这样读屏只会念一次标题，数值走 accessibilityValue。
+
 import SwiftUI
 
 struct CalibrationParametersCard: View {
@@ -11,68 +17,51 @@ struct CalibrationParametersCard: View {
     @ObservedObject var settings: SettingsStore = .shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            header
+        InstrumentPanel(
+            label: L10n.Calibration.parametersTitle,
+            systemImage: "slider.horizontal.3"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                CalibrationSliderRow(
+                    title: L10n.Calibration.minimumClusterPoints,
+                    valueText: "\(Int(minClusterPoints))",
+                    value: $minClusterPoints,
+                    range: 3...150,
+                    step: 1,
+                    onCommit: onCommitMinClusterPoints
+                )
 
-            Divider().background(Design.Colors.Dark.glassBorder)
+                DividerLine()
 
-            CalibrationSliderRow(
-                title: L10n.Calibration.minimumClusterPoints,
-                valueText: "\(Int(minClusterPoints))",
-                value: $minClusterPoints,
-                range: 3...150,
-                step: 1,
-                onCommit: onCommitMinClusterPoints
-            )
+                CalibrationSliderRow(
+                    title: L10n.Calibration.maximumClusterDiameter,
+                    valueText: String(format: "%.3f m", maxDiameter),
+                    value: $maxDiameter,
+                    range: 0.04...0.20,
+                    step: 0.005,
+                    onCommit: onCommitMaxDiameter
+                )
 
-            CalibrationSliderRow(
-                title: L10n.Calibration.maximumClusterDiameter,
-                valueText: String(format: "%.3f m", maxDiameter),
-                value: $maxDiameter,
-                range: 0.04...0.20,
-                step: 0.005,
-                onCommit: onCommitMaxDiameter
-            )
+                DividerLine()
 
-            CalibrationSliderRow(
-                title: L10n.Calibration.minimumSphericity,
-                valueText: String(format: "%.2f", sphericity),
-                value: $sphericity,
-                range: 0.2...0.8,
-                step: 0.02,
-                onCommit: onCommitSphericity
-            )
+                CalibrationSliderRow(
+                    title: L10n.Calibration.minimumSphericity,
+                    valueText: String(format: "%.2f", sphericity),
+                    value: $sphericity,
+                    range: 0.2...0.8,
+                    step: 0.02,
+                    onCommit: onCommitSphericity
+                )
 
-            CalibrationHSVSummary(settings: settings)
-        }
-        .padding(Design.Space.md)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.Dark.bgSurface)
-                .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
-        )
-    }
+                DividerLine()
 
-    private var header: some View {
-        HStack {
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.glow)
-                .accessibilityHidden(true)
-
-            Text(L10n.Calibration.parametersTitle)
-                .font(Design.Typography.headline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-
-            Spacer()
+                CalibrationHSVSummary(settings: settings)
+            }
         }
     }
 }
 
 private struct CalibrationSliderRow: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let title: String
     let valueText: String
     @Binding var value: Double
@@ -81,15 +70,23 @@ private struct CalibrationSliderRow: View {
     let onCommit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Design.Space.xs) {
-                    valueLabels
-                }
-            } else {
-                HStack {
-                    valueLabels
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(true)
+
+                Spacer(minLength: 8)
+
+                Text(valueText)
+                    .font(.subheadline.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundColor(Design.Colors.Workspace.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityHidden(true)
             }
 
             Slider(
@@ -98,36 +95,9 @@ private struct CalibrationSliderRow: View {
                 step: step,
                 onEditingChanged: commitWhenEditingEnds
             )
-            .tint(Design.Colors.Dark.glow)
+            .tint(Design.Colors.Workspace.accent)
             .accessibilityLabel(title)
             .accessibilityValue(valueText)
-        }
-    }
-
-    @ViewBuilder
-    private var valueLabels: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            Text(title)
-                .font(Design.Typography.subheadline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .accessibilityHidden(true)
-
-            Text(valueText)
-                .font(Design.Typography.mono)
-                .foregroundColor(Design.Colors.Dark.glow)
-                .accessibilityHidden(true)
-        } else {
-            Text(title)
-                .font(Design.Typography.subheadline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .accessibilityHidden(true)
-
-            Spacer()
-
-            Text(valueText)
-                .font(Design.Typography.mono)
-                .foregroundColor(Design.Colors.Dark.glow)
-                .accessibilityHidden(true)
         }
     }
 
@@ -138,27 +108,40 @@ private struct CalibrationSliderRow: View {
     }
 }
 
+/// 颜色过滤范围：直接显示 SettingsStore 里的真实 HSV 阈值。
 private struct CalibrationHSVSummary: View {
     @ObservedObject var settings: SettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(L10n.Calibration.hsvRange)
-                .font(Design.Typography.subheadline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .instrumentLabel()
 
-            HStack {
-                Text("H: \(Int(settings.hsvHMin))° - \(Int(settings.hsvHMax))°")
-                    .font(Design.Typography.monoSmall)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                Spacer()
-
-                Text("S≥\(String(format: "%.0f%%", settings.hsvSMin * 100)) V≥\(String(format: "%.0f%%", settings.hsvVMin * 100))")
-                    .font(Design.Typography.monoSmall)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    hueText
+                    Spacer(minLength: 8)
+                    saturationText
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    hueText
+                    saturationText
+                }
             }
         }
+        .padding(.top, 2)
         .accessibilityElement(children: .combine)
+    }
+
+    private var hueText: some View {
+        Text("H: \(Int(settings.hsvHMin))° - \(Int(settings.hsvHMax))°")
+            .font(.system(.footnote, design: .monospaced).weight(.medium))
+            .foregroundColor(Design.Colors.Workspace.secondary)
+    }
+
+    private var saturationText: some View {
+        Text("S≥\(String(format: "%.0f%%", settings.hsvSMin * 100)) V≥\(String(format: "%.0f%%", settings.hsvVMin * 100))")
+            .font(.system(.footnote, design: .monospaced).weight(.medium))
+            .foregroundColor(Design.Colors.Workspace.secondary)
     }
 }

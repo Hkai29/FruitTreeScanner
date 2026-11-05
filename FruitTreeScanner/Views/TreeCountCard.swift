@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - 读数文案
+
 struct OrchardYieldLevelCountPresentation: Equatable {
     let label: String
     let countText: String
@@ -48,6 +50,11 @@ enum OrchardTreeCountLayout: Equatable {
     }
 }
 
+// MARK: - 读数面板
+
+/// 果园读数面板：当前范围内的果树总数，以及按产量等级分组的数量。
+///
+/// 读数用仪器式面板 + 读数条承载，不再用带投影的浮起卡片。
 struct TreeCountCard: View {
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -65,43 +72,69 @@ struct TreeCountCard: View {
             locale: locale
         )
 
-        Group {
-            if OrchardTreeCountLayout(dynamicTypeSize: dynamicTypeSize) == .stacked {
-                VStack(alignment: .leading, spacing: Design.Space.md) {
-                    identity(countPresentation)
-                    summaryStats(countPresentation)
+        VStack(spacing: Design.Space.sm) {
+            InstrumentPanel(
+                label: countPresentation.title,
+                systemImage: "leaf",
+                fill: Design.Colors.Workspace.surfaceQuiet
+            ) {
+                Text(countPresentation.totalCountText)
+                    .font(.system(.title3, design: .default).weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            levelStrip(countPresentation)
+        }
+    }
+
+    @ViewBuilder
+    private func levelStrip(_ countPresentation: OrchardTreeCountPresentation) -> some View {
+        switch OrchardTreeCountLayout(dynamicTypeSize: dynamicTypeSize) {
+        case .horizontal:
+            InstrumentStatStrip {
+                HStack(spacing: 0) {
+                    ForEach(YieldLevel.allCases, id: \.self) { level in
+                        levelDatum(level, countPresentation)
+                    }
                 }
-            } else {
-                HStack(spacing: Design.Space.md) {
-                    identity(countPresentation)
-                    Spacer()
-                    HStack(spacing: Design.Space.lg) {
-                        summaryStats(countPresentation)
+            }
+        case .stacked:
+            InstrumentStatStrip {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(YieldLevel.allCases, id: \.self) { level in
+                        levelDatum(level, countPresentation)
                     }
                 }
             }
         }
-        .padding(Design.Space.md)
-        .background(orchardFloatingSurface)
     }
 
-    private func identity(_ countPresentation: OrchardTreeCountPresentation) -> some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
-            Text(countPresentation.title)
-                .font(.subheadline)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
-            Text(countPresentation.totalCountText)
-                .font(.title2.weight(.semibold))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+    private func levelDatum(
+        _ level: YieldLevel,
+        _ countPresentation: OrchardTreeCountPresentation
+    ) -> some View {
+        let item: OrchardYieldLevelCountPresentation
+        switch level {
+        case .high: item = countPresentation.high
+        case .medium: item = countPresentation.medium
+        case .low: item = countPresentation.low
         }
-    }
+        let count = summary.count(for: level)
 
-    private func summaryStats(_ countPresentation: OrchardTreeCountPresentation) -> some View {
-        Group {
-            YieldStatMini(level: .high, presentation: countPresentation.high)
-            YieldStatMini(level: .medium, presentation: countPresentation.medium)
-            YieldStatMini(level: .low, presentation: countPresentation.low)
+        return HStack(spacing: 6) {
+            Image(systemName: level.icon)
+                .font(.caption)
+                .foregroundColor(level.color)
+                .accessibilityHidden(true)
+
+            InstrumentDatum(
+                label: item.label,
+                value: "\(count)",
+                unit: L10n.Dashboard.treeCountUnit(count)
+            )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

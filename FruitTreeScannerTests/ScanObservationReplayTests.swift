@@ -10,6 +10,613 @@ final class ScanObservationReplayTests: XCTestCase {
         case reliable, mixedCloud, lowConfidence, confidenceCopyFailed, imageOnly, cloudOnly
     }
 
+    func testArchivedReplayRejectsOverflowingClusterConfiguration() async throws {
+        var cluster = ClusterConfig.default
+        cluster.minPoints = .max
+        let record = try archivedReplay(cluster: cluster)
+        XCTAssertEqual(record.input.clusterConfig.minPoints, .max, "Archiving must not repair the original input")
+        do {
+            _ = try await ScanObservationReplay.run(record)
+            XCTFail("Unsafe decoded configuration must be rejected before algorithm execution")
+        } catch ScanReplayError.invalidArchive { }
+    }
+
+    func testArchivedReplayRejectsOverflowingNeighborConfiguration() async throws {
+        var experiment = FruitScanExperimentConfig.default
+        experiment.pointCloud.denoisingNeighborCount = .max
+        let record = try archivedReplay(experiment: experiment)
+        XCTAssertEqual(record.input.experimentConfiguration.pointCloud.denoisingNeighborCount, .max)
+        try await assertReplayRejected(record)
+    }
+
+    func testArchivedReplayRejectsExtremeFinitePoints() async throws {
+        let large = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
+        let points = (0..<50).flatMap { _ in
+            [ColoredPoint(pos: large, r: 0.7, g: 0.2, b: 0.1), ColoredPoint(pos: -large, r: 0.7, g: 0.2, b: 0.1)]
+        } + [ColoredPoint(pos: .zero, r: 0.7, g: 0.2, b: 0.1)]
+        let record = try archivedReplay(points: points, observations: [])
+        XCTAssertEqual(record.input.points.first?.pos.x.bitPattern, Float.greatestFiniteMagnitude.bitPattern)
+        try await assertReplayRejected(record)
+    }
+
+    func testArchivedReplayRejectsUnsafeCalibrationFactors() async throws {
+        for factor in [Float.nan, .infinity, .greatestFiniteMagnitude] {
+            let correction = YieldCalibrationCorrection(countFactor: factor, yieldFactor: 1,
+                                                        countSampleCount: 1, yieldSampleCount: 0)
+            let record = try archivedReplay(calibration: correction)
+            if factor.isNaN { XCTAssertTrue(record.input.calibrationCorrection.countFactor.isNaN) }
+            else { XCTAssertEqual(record.input.calibrationCorrection.countFactor.bitPattern, factor.bitPattern) }
+            try await assertReplayRejected(record)
+        }
+    }
+
+    func testArchivedReplayRejectsExtremeROIGridIndices() async throws {
+        let original = try XCTUnwrap(makeObservations(.reliable).first)
+        let samples = original.roiDepthSamples.enumerated().map { index, sample in
+            ObservationDepthSample(normalizedImageX: sample.normalizedImageX, normalizedImageY: sample.normalizedImageY,
+                depthMeters: sample.depthMeters, row: index == 0 ? Int.min : Int.max, column: sample.column)
+        }
+        let observation = Observation(id: original.id, frameID: original.frameID, category: original.category,
+            boundingBox: original.boundingBox, confidence: original.confidence, timestamp: original.timestamp,
+            cameraTransform: original.cameraTransform, cameraIntrinsics: original.cameraIntrinsics, imageSize: original.imageSize,
+            coordinateConvention: original.coordinateConvention, depthConfidenceProvenance: original.depthConfidenceProvenance,
+            hasDepthMap: original.hasDepthMap, roiDepthSamples: samples,
+            projectionDepthSamples: original.projectionDepthSamples, rejectionReasons: original.rejectionReasons)
+        let record = try archivedReplay(observations: [observation])
+        XCTAssertEqual(record.input.observations.first?.roiDepthSamples.first?.row, Int.min)
+        try await assertReplayRejected(record)
+    }
+
+    func testArchivedReplayPreservesExactPointBits() throws {
+        let points = [ColoredPoint(pos: .init(1.1234567, -0.0000123, -2.7654321), r: -0.0, g: 0.7654321, b: 0.5),
+                      ColoredPoint(pos: .init(-0.0, 0.0, -2), r: 0.1234567, g: 0.2, b: 1)]
+        let record = try archivedReplay(points: points, observations: [])
+        XCTAssertEqual(record.input.points.count, points.count)
+        for (original, restored) in zip(points, record.input.points) {
+            XCTAssertEqual([original.pos.x, original.pos.y, original.pos.z, original.r, original.g, original.b].map(\.bitPattern),
+                           [restored.pos.x, restored.pos.y, restored.pos.z, restored.r, restored.g, restored.b].map(\.bitPattern))
+        }
+    }
+
+    func testArchivedReplayKeepsHealthyAndRejectedDepthSemantics() async throws {
+        let healthy = try archivedReplay()
+        let healthyReport = try await ScanObservationReplay.run(healthy)
+        XCTAssertGreaterThan(healthyReport.result.nLidar, 0)
+        XCTAssertFalse(healthyReport.result.validatedFruits.isEmpty)
+        XCTAssertTrue(healthyReport.result.validatedFruits.allSatisfy { $0.source == "fused" })
+        let rejectedObservations = try makeObservations(.confidenceCopyFailed)
+        let rejected = try archivedReplay(observations: rejectedObservations)
+        XCTAssertEqual(rejected.input.observations.map(\.rejectionReasons), rejectedObservations.map(\.rejectionReasons))
+        XCTAssertTrue(rejected.input.observations.allSatisfy { $0.depthConfidenceProvenance == .copyFailed })
+        let rejectedReport = try await ScanObservationReplay.run(rejected)
+        XCTAssertEqual(rejectedReport.result.nLidar, 0)
+        XCTAssertEqual(rejectedReport.result.yieldFinalKg, 0)
+        XCTAssertTrue(rejectedReport.result.diagnostics.zeroYieldReasons.contains(DepthConfidenceProvenance.copyFailureReason))
+    }
+
+    private func assertReplayRejected(_ record: ScanObservationReplayRecord, file: StaticString = #filePath, line: UInt = #line) async throws {
+        do {
+            _ = try await ScanObservationReplay.run(record)
+            XCTFail("Unsafe restored input must be rejected before execution", file: file, line: line)
+        } catch ScanReplayError.invalidArchive { }
+    }
+
+    /// Exercises the real bounded files and reader before executing the input.
+    private func archivedReplay(
+        cluster: ClusterConfig = .default,
+        experiment: FruitScanExperimentConfig = .default,
+        calibration: YieldCalibrationCorrection = .neutral,
+        points suppliedPoints: [ColoredPoint]? = nil,
+        observations suppliedObservations: [Observation]? = nil
+    ) throws -> ScanObservationReplayRecord {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory, cluster: cluster, experiment: experiment,
+            calibration: calibration, points: suppliedPoints, observations: suppliedObservations)
+        let prepared = try ScanReplayArchive.prepare(input: fixture.input, identity: fixture.identity,
+                                                     plan: fixture.plan, draft: fixture.draft)
+        let pending = try XCTUnwrap(prepared.directory)
+        let (dto, restored) = try ScanReplayArchive.read(inputURL: pending.appendingPathComponent("input.json"),
+            pointsURL: pending.appendingPathComponent("points.f32"), descriptor: prepared.descriptor)
+        return ScanObservationReplayRecord(identity: dto.identity, producer: dto.producer, input: restored,
+            goldenData: Data("{}".utf8), exportRevision: "synthetic-not-a-committed-record")
+    }
+
+    private struct ReplayFixture {
+        let repository: ScanRepository
+        let draft: DraftScan
+        let plan: ScanPlan
+        let input: ScanFusionYieldBuilder.Input
+        let identity: ScanEvidenceIdentity
+    }
+
+    private func replayFixture(at directory: URL, cluster: ClusterConfig = .default,
+        experiment: FruitScanExperimentConfig = .default, calibration: YieldCalibrationCorrection = .neutral,
+        points suppliedPoints: [ColoredPoint]? = nil, observations suppliedObservations: [Observation]? = nil) throws -> ReplayFixture {
+        let repository = ScanRepository(scansDirectory: directory)
+        let source = try repository.pointCloudDestination(filename: "PRIVATE_FILENAME-\(UUID()).ply")
+        let points = suppliedPoints ?? makePoints(fruitColored: true)
+        let observations = try suppliedObservations ?? makeObservations(.reliable)
+        let context = ScanContext(scanID: fixedID(1), planID: fixedID(2))
+        let signature = RendererSnapshotSignature(pointCount: points.count, pointIndex: points.count,
+                                                  voxelSize: 0.005, confidenceThreshold: 1, pointBufferRevision: 1)
+        let draft = try repository.stagePointCloud(to: source, captureIdentity: .init(context: context, pointCloud: signature)) {
+            try PLYPointCloudWriter.write(points: points, treeID: "PRIVATE_TREE_SENTINEL",
+                                          scanDate: "2023-11-14 22:13:20", gpsLat: 12.345678, gpsLon: 67.891234, to: source)
+        }
+        var params = FruitVarietyParams(category: .apple)
+        params.density = 0.85
+        let input = ScanFusionYieldBuilder.Input(points: points, observations: observations,
+            imageDiagnostics: .init(), fruitType: "apple", fruitCategory: .apple,
+            paramsSnapshot: ["apple": params], defaultParams: params, clusterConfig: cluster,
+            fusionConfig: .default, colorFilter: nil, calibrationCorrection: calibration,
+            finalPointCloudIdentity: signature, experimentConfiguration: experiment)
+        let fruit = ScanFruitConfiguration(selectedCategory: .apple, parametersSnapshot: input.paramsSnapshot,
+            defaultParams: params, clusterConfig: cluster, fusionConfig: .default, colorFilter: FruitCategory.apple.colorFilter,
+            calibrationCorrection: calibration, calibrationWarning: nil, calibrationContext: nil, modelIdentity: .modelMissing)
+        let renderer = RendererScanSettings(maxPoints: 120_000, rgbRadius: 1.5, minDepth: 0.1, maxDepth: 10,
+            confidenceThreshold: 1, depthEdgeThreshold: 0.1, minimumStableDepthNeighborCount: 1,
+            snapshotVoxelSize: 0.005, depthConfiguration: experiment.depth)
+        let plan = ScanPlan(id: context.planID, treeID: "synthetic-tree", season: .mature, fruitConfiguration: fruit,
+            rendererSettings: renderer, resourceBudget: .default, requestedCameraResolution: "1080p",
+            requestedCameraFrameRate: "60fps", autoExportCSV: true, modelIdentity: .modelMissing,
+            experimentConfiguration: experiment,
+            classification: .init(plot: .init(id: fixedID(40), name: "PRIVATE_PLOT_SENTINEL"),
+                                  tags: [.init(id: fixedID(41), name: "PRIVATE_TAG_SENTINEL")]))
+        let identity = ScanEvidenceIdentity(capture: try XCTUnwrap(draft.captureIdentity), snapshotID: fixedID(3),
+            sourceOwnershipID: draft.ownershipID, sourceSHA256: draft.sourceSHA256)
+        return ReplayFixture(repository: repository, draft: draft, plan: plan, input: input, identity: identity)
+    }
+
+    private func assessment(_ fixture: ReplayFixture) async throws -> ScanAssessment {
+        let snapshot = ScanYieldEstimationController.Snapshot(context: fixture.identity.capture.context, input: fixture.input)
+        let frozen = try await ScanEvidenceSnapshot.freeze(snapshot: snapshot, draft: fixture.draft,
+            repository: fixture.repository, plan: fixture.plan)
+        let estimate = try await ScanYieldEstimationController.estimate(frozen)
+        return ScanAssessment(receipt: frozen.receipt, estimate: estimate, treeID: "PRIVATE_TREE_SENTINEL",
+            fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1_700_000_000),
+            gpsLat: 12.345678, gpsLon: 67.891234, includeCSV: true, classification: fixture.plan.classification)
+    }
+
+    func testReplayBundleReaderRemainsFailedAfterTrailingDataError() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        _ = try fixture.repository.commit(await assessment(fixture))
+        let record = try XCTUnwrap(fixture.repository.summary(at: fixture.draft.sourceURL))
+        let destination = directory.appendingPathComponent("replay.ftsreplay")
+        try ScanReplayBundle.write(records: [record], repository: fixture.repository, to: destination)
+        let handle = try FileHandle(forWritingTo: destination)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data([0]))
+        try handle.close()
+        let reader = try ScanReplayBundle.Reader(at: destination)
+        XCTAssertThrowsError(try reader.next())
+        XCTAssertThrowsError(try reader.next(), "A failed reader must not subsequently report normal completion")
+    }
+
+    private final class ReplayRestoreFailureFileManager: FileManager {
+        override func copyItem(at source: URL, to destination: URL) throws {
+            if source.lastPathComponent.hasPrefix("backup-"), source.pathExtension == "f32" {
+                throw NSError(domain: "ReplayRestoreFailure", code: 1)
+            }
+            try super.copyItem(at: source, to: destination)
+        }
+    }
+
+    func testReplayRollbackFailureKeepsBackupAndSourceAnchor() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        let original = try await assessment(fixture)
+        _ = try fixture.repository.commit(original)
+        let selected = try XCTUnwrap(fixture.repository.summary(at: fixture.draft.sourceURL))
+        let replayURLs = ScanReplayArchive.artifactURLs(for: fixture.draft.sourceURL)
+        let originalPointDigest = try ScanCompanionIntegrity.digestFile(at: replayURLs.points)
+        var changed = original.exportRequest.result
+        changed.yieldFinalKg += 1
+        let request = ScanResultExportService.ExportRequest(treeID: original.exportRequest.treeID,
+            fruitType: "apple", scanDate: original.exportRequest.scanDate, gpsLat: 12.345678, gpsLon: 67.891234,
+            sourceFilename: fixture.draft.sourceFilename, result: changed)
+        let manager = ReplayRestoreFailureFileManager()
+        let service = ScanResultExportService(fileManager: manager, scansDirectory: directory, publishFile: { from, to in
+            if to.lastPathComponent.hasSuffix("_complete.json") { throw NSError(domain: "ReplayPublishFailure", code: 1) }
+            if manager.fileExists(atPath: to.path) { try manager.removeItem(at: to) }
+            try manager.moveItem(at: from, to: to)
+        })
+        XCTAssertThrowsError(try service.exportIfNeeded(request)) {
+            XCTAssertTrue($0 is ScanResultExportService.RecoveryRequiredError)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.draft.sourceURL.path))
+        let residues = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        let recovery = try XCTUnwrap(residues.first { $0.lastPathComponent.hasSuffix(".staging") },
+            "A failed rollback must retain recovery material")
+        let backup = recovery.appendingPathComponent("backup-\(fixture.draft.sourceURL.deletingPathExtension().lastPathComponent)_replay.f32")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backup.path))
+        XCTAssertEqual(try ScanCompanionIntegrity.digestFile(at: backup), originalPointDigest)
+        XCTAssertThrowsError(try ScanResultExportService(scansDirectory: directory).exportIfNeeded(request))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backup.path), "Retry must not erase unresolved backups")
+        let failedDeletion = fixture.repository.delete(selected, removeItem: { url in
+            if url == recovery { throw CocoaError(.fileWriteNoPermission) }
+            try FileManager.default.removeItem(at: url)
+        })
+        XCTAssertFalse(failedDeletion.isComplete, "Permanent deletion must include recovery material")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.draft.sourceURL.path), "Keep the history anchor after incomplete deletion")
+        let deletion = fixture.repository.delete(selected)
+        XCTAssertTrue(deletion.isComplete)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: recovery.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.draft.sourceURL.path))
+    }
+
+    func testLocalReplayBundlePreservesSixEvidenceCasesAndGoldenResults() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cases: [Evidence] = [.reliable, .mixedCloud, .lowConfidence, .confidenceCopyFailed, .imageOnly, .cloudOnly]
+        var records: [ScanFileRecord] = []
+        var expected: [ScanObservationReplayRecord] = []
+        var originalHashes: [URL: String] = [:]
+        for evidence in cases {
+            let fixture = try replayFixture(at: directory, points: makePoints(fruitColored: evidence != .reliable),
+                                            observations: makeObservations(evidence))
+            let committed = try fixture.repository.commit(await assessment(fixture))
+            let record = try XCTUnwrap(fixture.repository.summary(at: fixture.draft.sourceURL))
+            let replay = try fixture.repository.observationReplay(for: record)
+            // Compare every encoded input field, including observations, pose,
+            // configurations and producer settings, independently of the builder.
+            let originalDTO = try ScanReplayInputDTO(input: fixture.input, identity: replay.identity, plan: fixture.plan)
+            let restoredDTO = try ScanReplayInputDTO(input: replay.input, identity: replay.identity, plan: fixture.plan)
+            XCTAssertEqual(try ScanReplayArchive.encoder().encode(originalDTO), try ScanReplayArchive.encoder().encode(restoredDTO))
+            XCTAssertEqual(replay.producer.rendererSettings, fixture.plan.rendererSettings)
+            let report = try await ScanObservationReplay.run(replay)
+            XCTAssertTrue(report.matchesGolden, "\(evidence): \(report.differences)")
+            XCTAssertEqual(report.result.nLidar, evidence == .mixedCloud ? 3 : (evidence == .reliable ? 2 : 0))
+            XCTAssertEqual(report.result.yieldFinalKg,
+                evidence == .mixedCloud ? 0.131231352 : (evidence == .reliable ? 0.48540313 : 0), accuracy: 0.00001)
+            XCTAssertTrue(report.result.validatedFruits.allSatisfy { $0.source == "fused" })
+            if evidence != .reliable && evidence != .mixedCloud { XCTAssertFalse(report.result.diagnostics.zeroYieldReasons.isEmpty) }
+            records.append(record)
+            expected.append(replay)
+            let artifacts = ScanReplayArchive.artifactURLs(for: fixture.draft.sourceURL)
+            for url in [fixture.draft.sourceURL, committed.metadataURL, committed.manifestURL, artifacts.input, artifacts.points,
+                        fixture.draft.sourceURL.deletingPathExtension().appendingPathExtension("csv")] {
+                originalHashes[url] = try ScanCompanionIntegrity.digestFile(at: url)
+            }
+            if evidence == .reliable, let token = try nativeReplayToken66("FRUIT_REPLAY_UI_CAPTURE_TOKEN") {
+                let urls = [fixture.draft.sourceURL, committed.metadataURL, committed.manifestURL,
+                            artifacts.input, artifacts.points,
+                            fixture.draft.sourceURL.deletingPathExtension().appendingPathExtension("csv")]
+                var manifest: [[String: Any]] = []
+                for (index, url) in urls.enumerated() {
+                    let bytes = try Data(contentsOf: url)
+                    let name = "ReplayUI-\(token)-file-\(index)"
+                    let attachment = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.data")
+                    attachment.name = name
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                    manifest.append(["name": url.lastPathComponent, "attachment": name,
+                                     "sha256": try ScanCompanionIntegrity.digestFile(at: url), "bytes": bytes.count])
+                }
+                let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: manifest),
+                                               uniformTypeIdentifier: "public.json")
+                attachment.name = "ReplayUI-\(token)-manifest"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+        let exported = try await BatchExportService.shared.export(records: records, format: .replay, options: .init())
+        defer { BatchExportService.removeTemporaryExport(at: exported.url) }
+        let bytes = try Data(contentsOf: exported.url)
+        for privateValue in ["PRIVATE_FILENAME", "PRIVATE_TREE_SENTINEL", "PRIVATE_PLOT_SENTINEL", "PRIVATE_TAG_SENTINEL",
+                             "2023-11-14", "12.345678", "67.891234", "gpsLat", "gpsLon", "scanClassification"] {
+            XCTAssertNil(bytes.range(of: Data(privateValue.utf8)), privateValue)
+        }
+        let reader = try ScanReplayBundle.Reader(at: exported.url)
+        XCTAssertEqual(reader.remainingRecords, cases.count)
+        // Batch export preserves its frozen record order.
+        for original in expected {
+            let restored = try XCTUnwrap(reader.next())
+            XCTAssertEqual(restored.identity, original.identity)
+            XCTAssertEqual(restored.goldenData, original.goldenData)
+            XCTAssertEqual(restored.exportRevision, original.exportRevision)
+            XCTAssertEqual(restored.input.observations.map(\.rejectionReasons), original.input.observations.map(\.rejectionReasons))
+            let report = try await ScanObservationReplay.run(restored)
+            XCTAssertTrue(report.matchesGolden, "\(report.differences)")
+        }
+        XCTAssertNil(try reader.next())
+        XCTAssertNil(try reader.next())
+        for (url, digest) in originalHashes { XCTAssertEqual(try ScanCompanionIntegrity.digestFile(at: url), digest) }
+        if let token = try nativeReplayToken66("FRUIT_REPLAY_UI_VERIFY_TOKEN") {
+            let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("ReplayUIVerification/\(token)", isDirectory: true)
+            let sources = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+                .filter { $0.pathExtension == "ply" }
+            XCTAssertEqual(sources.count, 1)
+            let repository = ScanRepository(scansDirectory: directory)
+            let summary = try XCTUnwrap(repository.summary(at: XCTUnwrap(sources.first)))
+            let original = try repository.observationReplay(for: summary)
+            let reader = try ScanReplayBundle.Reader(at: directory.appendingPathComponent("export.ftsreplay"))
+            XCTAssertEqual(reader.remainingRecords, 1)
+            let restored = try XCTUnwrap(reader.next())
+            XCTAssertEqual(restored.identity, original.identity)
+            XCTAssertEqual(restored.goldenData, original.goldenData)
+            XCTAssertEqual(restored.exportRevision, original.exportRevision)
+            let report = try await ScanObservationReplay.run(restored)
+            XCTAssertTrue(report.matchesGolden, "Native export: \(report.differences)")
+            XCTAssertEqual(report.result.nLidar, 2)
+            XCTAssertEqual(report.result.diagnostics.fusedFruitCount, 1)
+            XCTAssertEqual(report.result.validatedFruits.count, 1)
+            XCTAssertEqual(report.result.yieldFinalKg, 0.48540313, accuracy: 0.00001)
+            XCTAssertTrue(report.result.validatedFruits.allSatisfy { $0.source == "fused" })
+            XCTAssertNil(try reader.next())
+            let attachment = XCTAttachment(string: "Native export matches original identity/revision/golden; correctedCount=2; fusedEvidence=1; 0.48540313 kg")
+            attachment.name = "NativeReplay66-GoldenVerified-\(token)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
+    private func nativeReplayToken66(_ key: String) throws -> String? {
+        let environment = ProcessInfo.processInfo.environment
+        guard let token = environment[key] else { return nil }
+        guard UUID(uuidString: token) != nil,
+              environment["FRUIT_NATIVE_UI_SIMULATOR_ID"] == environment["SIMULATOR_UDID"],
+              environment["SIMULATOR_DEVICE_NAME"]?.hasPrefix("FruitTreeScanner-NativeUI-") == true else {
+            throw NSError(domain: "NativeReplayFixture66", code: 1)
+        }
+        return token
+    }
+
+    func testReplayBundleCollisionCancellationAndCorruptionPreserveOriginalFiles() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        _ = try fixture.repository.commit(await assessment(fixture))
+        let record = try XCTUnwrap(fixture.repository.summary(at: fixture.draft.sourceURL))
+        let destination = directory.appendingPathComponent("replay.ftsreplay")
+        try ScanReplayBundle.write(records: [record], repository: fixture.repository, to: destination)
+        let original = try Data(contentsOf: destination)
+        XCTAssertThrowsError(try ScanReplayBundle.write(records: [record], repository: fixture.repository, to: destination))
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+        let cancelledDestination = directory.appendingPathComponent("cancelled.ftsreplay")
+        let worker = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try ScanReplayBundle.write(records: [record], repository: fixture.repository, to: cancelledDestination)
+        }
+        do { try await worker.value; XCTFail("Cancelled export must fail") } catch is CancellationError { }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cancelledDestination.path))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: directory.path).contains { $0.hasPrefix(".replay-") })
+        for corrupt in [Data(original.dropLast()), original.prefix(16), Data("INVALID!".utf8) + original.dropFirst(8)] {
+            let url = directory.appendingPathComponent("corrupt.ftsreplay")
+            try corrupt.write(to: url)
+            do {
+                let reader = try ScanReplayBundle.Reader(at: url)
+                XCTAssertThrowsError(try reader.next())
+                XCTAssertThrowsError(try reader.next())
+            } catch { /* Invalid container header is rejected by init. */ }
+        }
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+        XCTAssertNotNil(try fixture.repository.readVerifiedRecord(at: fixture.draft.sourceURL))
+    }
+
+    func testRecoveryDirectoryMatchingDoesNotClaimDottedSiblingSource() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        let original = try await assessment(fixture)
+        _ = try fixture.repository.commit(original)
+        let base = fixture.draft.sourceURL.deletingPathExtension().lastPathComponent
+        let sibling = directory.appendingPathComponent(".\(base).b.v1-\(String(repeating: "a", count: 16)).staging", isDirectory: true)
+        try FileManager.default.createDirectory(at: sibling, withIntermediateDirectories: false)
+        let backup = sibling.appendingPathComponent("backup-sibling")
+        try Data("unrelated recovery".utf8).write(to: backup)
+        var changed = original.exportRequest.result
+        changed.yieldFinalKg += 1
+        let request = ScanResultExportService.ExportRequest(treeID: original.exportRequest.treeID,
+            fruitType: "apple", scanDate: original.exportRequest.scanDate, gpsLat: 12.345678, gpsLon: 67.891234,
+            sourceFilename: fixture.draft.sourceFilename, result: changed)
+        _ = try ScanResultExportService(scansDirectory: directory).exportIfNeeded(request)
+        let selected = try XCTUnwrap(fixture.repository.summary(at: fixture.draft.sourceURL))
+        XCTAssertTrue(fixture.repository.delete(selected).isComplete)
+        XCTAssertEqual(try String(contentsOf: backup, encoding: .utf8), "unrelated recovery")
+    }
+
+    func testReplayArchiveRoundTripsNondefaultAndOptionalInputFields() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var cluster = ClusterConfig.default
+        cluster.minPoints = 7
+        cluster.baseEps = 0.1234567
+        var experiment = FruitScanExperimentConfig.default
+        experiment.fusion.nearestCandidateDistance = 0.17
+        experiment.pointCloud.denoisingNeighborCount = 7
+        experiment.depth.projectionSampleGrid = 7
+        experiment.occlusion.lidarPenetrationMeters = 0.31
+        experiment.candidateMerge.maxPointSamples = 123
+        let correction = YieldCalibrationCorrection(countFactor: 1.2, yieldFactor: 0.9, countSampleCount: 5, yieldSampleCount: 6)
+        let fixture = try replayFixture(at: directory, cluster: cluster, experiment: experiment, calibration: correction)
+        var params = fixture.input.defaultParams
+        params.density = 0.8765432
+        params.isCustomized = true
+        var filter = ColorFilter(rMin: 0.1234567, gMin: 0.2345678, bMax: 0.7654321,
+                                 labFilter: .init(lMin: 12, lMax: 88, aMin: -31, aMax: 72, bMin: -17, bMax: 63))
+        filter.hsvFilter = .init(hMin: 350, hMax: 21, sMin: 0.24, vMin: 0.13)
+        var fusion = FruitScanConfig.default
+        fusion.minConfidence = 0.67
+        fusion.minimumStableDetectionsForYield = 3
+        fusion.stableDetectionTimeWindow = 2.123456789
+        var diagnostics = ImageDetectionDiagnostics()
+        diagnostics.modelStatus = "CoreML"
+        diagnostics.modelName = "synthetic-nondefault-model"
+        diagnostics.processedFrameCount = 7
+        let incomplete = Observation(id: fixedID(50), frameID: .init(rawValue: fixedID(51)), category: .pear,
+            boundingBox: CGRect(x: 0.123456789, y: 0.234567891, width: 0.345678912, height: 0.456789123),
+            confidence: 0.8765432, timestamp: 12.123456789, cameraTransform: nil, cameraIntrinsics: nil, imageSize: nil,
+            coordinateConvention: .visionNormalizedLowerLeft, depthConfidenceProvenance: .unavailable,
+            hasDepthMap: false, roiDepthSamples: [], projectionDepthSamples: [], rejectionReasons: [.missingDepthMap])
+        let verification = FruitCategoryVerificationSummary(selectedCategory: .apple, detectedCategoryCounts: ["pear": 3],
+            nonTargetDetectionCount: 3, dominantNonTargetCategory: .pear, categoryMismatchDetected: true,
+            automaticSuggestion: .init(category: .pear, confidence: 0.87, supportingFrameCount: 3, competingCategory: .apple))
+        let input = ScanFusionYieldBuilder.Input(points: fixture.input.points,
+            observations: fixture.input.observations + [incomplete], imageDiagnostics: diagnostics,
+            fruitType: "apple", fruitCategory: .apple, paramsSnapshot: ["apple": params, "pear": .init(category: .pear)],
+            defaultParams: params, clusterConfig: cluster, fusionConfig: fusion, colorFilter: filter, season: .off,
+            calibrationCorrection: correction, categoryVerification: verification,
+            finalPointCloudIdentity: fixture.input.finalPointCloudIdentity, experimentConfiguration: experiment,
+            calibrationIdentity: .init(algorithmRevision: "fixture-calibration-v3", context: "fixture-context"))
+        let plan = ScanPlan(id: fixture.plan.id, treeID: "PRIVATE_TREE_SENTINEL", season: .off,
+            fruitConfiguration: fixture.plan.fruitConfiguration, rendererSettings: fixture.plan.rendererSettings,
+            resourceBudget: .init(liveSnapshotSampleLimit: 12_345, analysisInputSampleLimit: 12_000, retainedDetectionFrameLimit: 123),
+            requestedCameraResolution: "4K", requestedCameraFrameRate: "30fps", autoExportCSV: false,
+            modelIdentity: .verified(String(repeating: "b", count: 64)), experimentConfiguration: experiment)
+        let original = try ScanReplayInputDTO(input: input, identity: fixture.identity, plan: plan)
+        let prepared = try ScanReplayArchive.prepare(input: input, identity: fixture.identity, plan: plan, draft: fixture.draft)
+        let pending = try XCTUnwrap(prepared.directory)
+        let (decoded, restored) = try ScanReplayArchive.read(inputURL: pending.appendingPathComponent("input.json"),
+            pointsURL: pending.appendingPathComponent("points.f32"), descriptor: prepared.descriptor)
+        XCTAssertEqual(try ScanReplayArchive.encoder().encode(decoded), try ScanReplayArchive.encoder().encode(original))
+        XCTAssertEqual(try ScanReplayArchive.encoder().encode(ScanReplayInputDTO(input: restored, identity: fixture.identity, plan: plan)),
+                       try ScanReplayArchive.encoder().encode(original))
+        XCTAssertEqual(decoded.producer.modelState, "verified")
+        XCTAssertEqual(decoded.producer.modelFingerprint, String(repeating: "b", count: 64))
+        XCTAssertEqual(decoded.producer.analysisInputSampleLimit, 12_000)
+        XCTAssertEqual(restored.categoryVerification, verification)
+        XCTAssertNil(restored.observations.last?.cameraTransform)
+        XCTAssertEqual(restored.observations.last?.timestamp.bitPattern, incomplete.timestamp.bitPattern)
+    }
+
+    func testReplayArchiveRejectsRehashedSchemaIdentityAndBudgetMutations() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        let prepared = try ScanReplayArchive.prepare(input: fixture.input, identity: fixture.identity, plan: fixture.plan, draft: fixture.draft)
+        let pending = try XCTUnwrap(prepared.directory)
+        let inputURL = pending.appendingPathComponent("input.json")
+        let pointsURL = pending.appendingPathComponent("points.f32")
+        let original = try json(at: inputURL)
+        let mutations: [([String: Any]) throws -> [String: Any]] = [
+            { var v = $0; v["schemaVersion"] = 99; return v },
+            { var v = $0; v.removeValue(forKey: "experimentConfiguration"); return v },
+            { var v = $0; v["pointCount"] = 1; return v },
+            { var v = $0; var id = try XCTUnwrap(v["identity"] as? [String: Any]); id["sourceSHA256"] = String(repeating: "0", count: 64); v["identity"] = id; return v },
+            { var v = $0; var p = try XCTUnwrap(v["producer"] as? [String: Any]); p["inputContractRevision"] = "unknown-v99"; v["producer"] = p; return v },
+            { var v = $0; var p = try XCTUnwrap(v["producer"] as? [String: Any]); p["analysisInputSampleLimit"] = 120_001; v["producer"] = p; return v },
+            { var v = $0; var p = try XCTUnwrap(v["producer"] as? [String: Any]); p["modelState"] = "verified"; v["producer"] = p; return v },
+            { var v = $0; var rows = try XCTUnwrap(v["observations"] as? [[String: Any]]); rows[0]["cameraTransform"] = Array(repeating: 0, count: 17); v["observations"] = rows; return v },
+        ]
+        for (index, mutate) in mutations.enumerated() {
+            let bytes = try JSONSerialization.data(withJSONObject: mutate(original), options: [.sortedKeys])
+            try bytes.write(to: inputURL)
+            let descriptor = ScanReplayDescriptor(status: "complete", reason: nil, identity: prepared.descriptor.identity,
+                inputByteCount: bytes.count, inputSHA256: ScanCompanionIntegrity.digest(bytes), pointCount: prepared.descriptor.pointCount,
+                pointsByteCount: prepared.descriptor.pointsByteCount, pointsSHA256: prepared.descriptor.pointsSHA256,
+                observationCount: prepared.descriptor.observationCount)
+            XCTAssertThrowsError(try ScanReplayArchive.read(inputURL: inputURL, pointsURL: pointsURL, descriptor: descriptor), "mutation \(index)")
+        }
+    }
+
+    func testReplayBuildIdentityMismatchRejectsExecution() async throws {
+        let original = try archivedReplay()
+        var producer = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original.producer)) as? [String: Any])
+        producer["sourcesSHA256"] = String(repeating: "0", count: 64)
+        let altered = try JSONDecoder().decode(ReplayProducerDTO.self, from: JSONSerialization.data(withJSONObject: producer))
+        let record = ScanObservationReplayRecord(identity: original.identity, producer: altered, input: original.input,
+            goldenData: original.goldenData, exportRevision: original.exportRevision)
+        do { _ = try await ScanObservationReplay.run(record); XCTFail("Different production sources cannot claim an exact golden replay") }
+        catch ScanReplayError.algorithmMismatch { }
+    }
+
+    func testReplayPreparationFailureAndPublicationRetryKeepTheFrozenInput() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        let pending = ScanReplayArchive.preparedDirectory(for: fixture.draft)
+        try Data("obstacle".utf8).write(to: pending)
+        let snapshot = ScanYieldEstimationController.Snapshot(context: fixture.identity.capture.context, input: fixture.input)
+        do {
+            _ = try await ScanEvidenceSnapshot.freeze(snapshot: snapshot, draft: fixture.draft, repository: fixture.repository, plan: fixture.plan)
+            XCTFail("Preparation IO failure must fail before binding the evidence")
+        } catch ScanReplayError.invalidArchive { }
+        try FileManager.default.removeItem(at: pending)
+        let frozen = try await ScanEvidenceSnapshot.freeze(snapshot: snapshot, draft: fixture.draft,
+                                                          repository: fixture.repository, plan: fixture.plan)
+        XCTAssertEqual(frozen.identity.snapshotID, snapshot.id)
+        let estimate = try await ScanYieldEstimationController.estimate(frozen)
+        let assessment = ScanAssessment(receipt: frozen.receipt, estimate: estimate, treeID: "PRIVATE_TREE_SENTINEL",
+            fruitType: "apple", scanDate: Date(timeIntervalSince1970: 1_700_000_000), gpsLat: 12.345678, gpsLon: 67.891234,
+            includeCSV: true, classification: fixture.plan.classification)
+        let failed = ScanResultExportService(scansDirectory: directory, publishFile: { from, to in
+            if to.lastPathComponent.hasSuffix("_complete.json") { throw CocoaError(.fileWriteUnknown) }
+            try FileManager.default.moveItem(at: from, to: to)
+        })
+        XCTAssertThrowsError(try fixture.repository.commit(assessment, using: failed))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pending.path))
+        XCTAssertEqual(try ScanCompanionIntegrity.digestFile(at: fixture.draft.sourceURL), fixture.draft.sourceSHA256)
+        XCTAssertNotEqual(try fixture.repository.summary(at: fixture.draft.sourceURL)?.persistenceState, .complete)
+        let committed = try fixture.repository.commit(assessment)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: pending.path))
+        let retry = try fixture.repository.commit(assessment)
+        XCTAssertEqual(retry.exportRevision, committed.exportRevision)
+        let selected = try XCTUnwrap(fixture.repository.summary(at: fixture.draft.sourceURL))
+        let report = try await ScanObservationReplay.run(fixture.repository.observationReplay(for: selected))
+        XCTAssertTrue(report.matchesGolden, "\(report.differences)")
+        XCTAssertEqual(fixture.repository.settleCancelledDraft(fixture.draft), .preservedCommitted)
+        let orphan = directory.appendingPathComponent(".\(fixture.draft.sourceURL.deletingPathExtension().lastPathComponent).replay-\(UUID()).pending")
+        try FileManager.default.createDirectory(at: orphan, withIntermediateDirectories: false)
+        try Data("orphan".utf8).write(to: orphan.appendingPathComponent("input.json"))
+        XCTAssertTrue(fixture.repository.delete(selected).isComplete)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+    }
+
+    func testReplayReplacementFailureRestoresEveryOriginalArtifact() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        let assessment = try await assessment(fixture)
+        let committed = try fixture.repository.commit(assessment)
+        let selected = try XCTUnwrap(fixture.repository.summary(at: fixture.draft.sourceURL))
+        let replayURLs = ScanReplayArchive.artifactURLs(for: fixture.draft.sourceURL)
+        var hashes: [URL: String] = [:]
+        for url in [fixture.draft.sourceURL, committed.metadataURL, committed.manifestURL, replayURLs.input, replayURLs.points,
+                    fixture.draft.sourceURL.deletingPathExtension().appendingPathExtension("csv")] {
+            hashes[url] = try ScanCompanionIntegrity.digestFile(at: url)
+        }
+        var changed = assessment.exportRequest.result
+        changed.yieldFinalKg += 1
+        let request = ScanResultExportService.ExportRequest(treeID: assessment.exportRequest.treeID, fruitType: "apple",
+            scanDate: assessment.exportRequest.scanDate, gpsLat: 12.345678, gpsLon: 67.891234,
+            sourceFilename: fixture.draft.sourceFilename, result: changed)
+        let failed = ScanResultExportService(scansDirectory: directory, publishFile: { from, to in
+            if to.lastPathComponent.hasSuffix("_complete.json") { throw CocoaError(.fileWriteUnknown) }
+            if FileManager.default.fileExists(atPath: to.path) { try FileManager.default.removeItem(at: to) }
+            try FileManager.default.moveItem(at: from, to: to)
+        })
+        XCTAssertThrowsError(try failed.exportIfNeeded(request))
+        for (url, digest) in hashes { XCTAssertEqual(try ScanCompanionIntegrity.digestFile(at: url), digest) }
+        XCTAssertTrue(try ScanResultExportService.stagingDirectories(for: fixture.draft.sourceURL).isEmpty)
+        let report = try await ScanObservationReplay.run(fixture.repository.observationReplay(for: selected))
+        XCTAssertTrue(report.matchesGolden, "\(report.differences)")
+    }
+
+    func testReplayCancellationCleansOwnedPreparationAndBudgetDoesNotTruncate() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try replayFixture(at: directory)
+        let snapshot = ScanYieldEstimationController.Snapshot(context: fixture.identity.capture.context, input: fixture.input)
+        _ = try await ScanEvidenceSnapshot.freeze(snapshot: snapshot, draft: fixture.draft, repository: fixture.repository, plan: fixture.plan)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: ScanReplayArchive.preparedDirectory(for: fixture.draft).path))
+        XCTAssertEqual(fixture.repository.settleCancelledDraft(fixture.draft), .discarded)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.draft.sourceURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: ScanReplayArchive.preparedDirectory(for: fixture.draft).path))
+        let observations = Array(repeating: try XCTUnwrap(makeObservations(.imageOnly).first), count: ScanReplayLimits.maximumObservations + 1)
+        let oversized = try replayFixture(at: directory, observations: observations)
+        let prepared = try ScanReplayArchive.prepare(input: oversized.input, identity: oversized.identity, plan: oversized.plan, draft: oversized.draft)
+        XCTAssertEqual(prepared.descriptor.status, "unavailable")
+        XCTAssertEqual(prepared.descriptor.reason, "inputExceedsReplayBudget")
+        XCTAssertNil(prepared.directory)
+        XCTAssertEqual(oversized.input.observations.count, ScanReplayLimits.maximumObservations + 1)
+        XCTAssertEqual(oversized.repository.settleCancelledDraft(oversized.draft), .discarded)
+    }
+
     func testReliableDepthReplayPreservesGeometryYieldAndArchiveAcrossInputOrder() async throws {
         let forward = try await replay(.reliable)
         let reverse = try await replay(.reliable, reverseObservations: true)

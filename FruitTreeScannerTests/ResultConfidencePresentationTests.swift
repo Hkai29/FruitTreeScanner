@@ -320,6 +320,162 @@ final class ResultConfidencePresentationTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testWorkspaceVisualEvidenceAtPhoneTabletLandscapeAndAccessibilitySizes() async throws {
+        // Synthetic presentation inputs only; no camera, depth, inference or archive writes.
+        let completion = ScanCompletion(overall: 0.68, voxelCount: 420, scanDuration: 45, discoveryTrend: .increasing)
+        let hud = ScanHUDState()
+        hud.update(pointCount: 12_345, coveragePercent: 68, scanCompletion: completion,
+                   visionModelStatus: "CoreML", depthRuntimeStatus: "LiDAR",
+                   processedImageFrames: 24, detectedFruitCount: 18, fusionStatus: "扫描中")
+        let quality = ScanQualityMonitor()
+        let measurement = MetalMeasurementController()
+        let actions = ScanScannerInterfaceActions(
+            onCloseGuide: {}, onStartRecording: {}, onToggleGuide: {}, onToggleRecording: {},
+            onToggleMeasurement: {}, onRequestCancelScan: {}, onResumeRecording: {}, onFinishScan: {},
+            onClearMeasurement: {}, onRetryResultPersistence: {}, onDismissResult: {}, onDismissResultToHome: {}
+        )
+        let result = makeReliabilityResult(confidence: "high", yieldKg: 12.4, fusedCount: 62)
+        let zero = makeReliabilityResult(confidence: "low", yieldKg: 0, fusedCount: 0)
+        let review = makeReliabilityResult(confidence: "manual_review", yieldKg: 4.2, fusedCount: 12)
+        var measured = result
+        measured.pointCloudSize = 2_000
+        measured.clusterEps = 0.03
+        measured.fruitCategory = "苹果"
+        measured.methodUsed = "fusion_visual_calibrated"
+        measured.occlusionK = 1.2
+        measured.correctionK = 1.2
+        measured.yieldBVisibleKg = 10.33
+        measured.yieldBCorrectedKg = 12.4
+        measured.meanDiameterCm = 8.2
+        measured.crownVolM3 = 4.6
+        measured.treeHeightM = 3.78
+        let configurations: [(String, CGSize, DynamicTypeSize)] = [
+            ("phone", CGSize(width: 402, height: 874), .large),
+            ("landscape", CGSize(width: 874, height: 402), .large),
+            ("tablet", CGSize(width: 1024, height: 1366), .large),
+            ("accessibility", CGSize(width: 402, height: 874), .accessibility3),
+            ("landscape-accessibility", CGSize(width: 874, height: 402), .accessibility3),
+        ]
+        for (name, size, textSize) in configurations {
+            var surfaces: [(String, AnyView)] = [
+                ("guide", AnyView(ScanFieldGuideOverlay(onClose: {}, onStartScan: {}))),
+                ("paused", AnyView(ZStack {
+                    Design.Colors.Dark.bgDeep
+                    Text("界面样例 · 未连接传感器").font(.caption).foregroundColor(.white)
+                    ScanControlLayer(isRecording: false, isEstimating: false, canExportScan: true,
+                                     shouldShowPostCapturePanel: true, hudState: hud,
+                                     measurementController: measurement, actions: actions,
+                                     treeID: "示例T012", qualityMonitor: quality)
+                })),
+                ("result", AnyView(ResultView(treeID: "示例T012", result: result, persistenceState: .saved,
+                                               onRetryPersistence: {}, onDismiss: {}, onDismissToHome: {}))),
+                ("zero", AnyView(ResultView(treeID: "示例T010", result: zero, persistenceState: .saved,
+                                             onRetryPersistence: {}, onDismiss: {}, onDismissToHome: {}))),
+                ("review", AnyView(ResultView(treeID: "示例T011", result: review, persistenceState: .saved,
+                                               onRetryPersistence: {}, onDismiss: {}, onDismissToHome: {}))),
+                ("save-failed", AnyView(ResultView(treeID: "示例T012", result: result, persistenceState: .failed,
+                                                    onRetryPersistence: {}, onDismiss: {}, onDismissToHome: {}))),
+                ("save-retrying", AnyView(ResultView(treeID: "示例T012", result: result, persistenceState: .retrying,
+                                                      onRetryPersistence: {}, onDismiss: {}, onDismissToHome: {}))),
+                ("measured", AnyView(ResultView(treeID: "示例果园东区-第十二排-第012棵-秋季复测", result: measured, persistenceState: .saved,
+                                                 onRetryPersistence: {}, onDismiss: {}, onDismissToHome: {}))),
+            ]
+            #if DEBUG
+            surfaces.append(("capture", AnyView(VStack {
+                ScanStatusBar(treeID: "示例T012", isRecording: true, hudState: hud, qualityMonitor: quality)
+                Spacer(minLength: 12)
+                Text("界面样例 · 未连接相机或深度输入").font(.caption).foregroundColor(.white)
+                Spacer(minLength: 12)
+                ScanBottomControlBar(isRecording: true, isEstimating: false, canFinish: true,
+                                     hudState: hud, measurementController: measurement,
+                                     onToggleGuide: {}, onToggleRecording: {}, onToggleMeasurement: {},
+                                     onCancel: {}, onFinish: {}, onDebug: {})
+            }.background(Design.Colors.Dark.bgDeep))))
+            #endif
+            for (surface, view) in surfaces {
+                let root = view.dynamicTypeSize(textSize)
+                    .environment(\.horizontalSizeClass, name == "tablet" ? .regular : .compact)
+                    .environment(\.verticalSizeClass, name.hasPrefix("landscape") ? .compact : .regular)
+                let controller = UIHostingController(rootView: root)
+                let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+                let previous = scene?.keyWindow
+                let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow()
+                window.frame = CGRect(origin: .zero, size: size)
+                window.rootViewController = controller
+                window.makeKeyAndVisible()
+                controller.view.frame = window.bounds
+                controller.view.layoutIfNeeded()
+                try await Task.sleep(nanoseconds: 80_000_000)
+                var didDraw = false
+                let rendered = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                    didDraw = controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+                }
+                XCTAssertTrue(didDraw, "Native layout must render \(surface) at \(name)")
+                XCTAssertEqual(rendered.size, size)
+                let attachment = XCTAttachment(image: rendered)
+                attachment.name = "Workspace-\(surface)-\(name)-synthetic"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                if ["result", "zero", "review", "save-failed", "save-retrying", "measured"].contains(surface) {
+                    let scroll = try XCTUnwrap(firstScrollView(in: controller.view),
+                                               "Result details must remain reachable at \(surface)/\(name)")
+                    XCTAssertGreaterThan(scroll.bounds.height, 0)
+                    // safeAreaInset reserves the actions through adjusted content insets.
+                    // On a tablet the content can fit the raw bounds yet still require scrolling.
+                    let bottomOffset = max(
+                        -scroll.adjustedContentInset.top,
+                        scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom
+                    )
+                    scroll.setContentOffset(CGPoint(x: 0, y: bottomOffset), animated: false)
+                    controller.view.layoutIfNeeded()
+                    try await Task.sleep(nanoseconds: 80_000_000)
+                    let scrolled = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                        controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+                    }
+                    let bottom = XCTAttachment(image: scrolled)
+                    bottom.name = "Workspace-\(surface)-scrolled-\(name)-synthetic"
+                    bottom.lifetime = .keepAlways
+                    add(bottom)
+                }
+                if surface == "paused" && (name.contains("landscape") || textSize.isAccessibilitySize) {
+                    let scroll = try XCTUnwrap(verticalScrollView(in: controller.view),
+                                               "Paused diagnostics must have a scrollable viewport at \(name)")
+                    XCTAssertGreaterThan(scroll.bounds.height, 0)
+                    scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height), animated: false)
+                    controller.view.layoutIfNeeded()
+                    try await Task.sleep(nanoseconds: 80_000_000)
+                    let scrolled = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                        controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+                    }
+                    let bottom = XCTAttachment(image: scrolled)
+                    bottom.name = "Workspace-paused-scrolled-\(name)-synthetic"
+                    bottom.lifetime = .keepAlways
+                    add(bottom)
+                }
+                window.isHidden = true
+                window.rootViewController = nil
+                previous?.makeKey()
+            }
+        }
+    }
+
+    @MainActor
+    private func firstScrollView(in view: UIView) -> UIScrollView? {
+        if let scroll = view as? UIScrollView {
+            return scroll
+        }
+        return view.subviews.lazy.compactMap { self.firstScrollView(in: $0) }.first
+    }
+
+    @MainActor
+    private func verticalScrollView(in view: UIView) -> UIScrollView? {
+        if let scroll = view as? UIScrollView, scroll.contentSize.height > scroll.bounds.height + 1 {
+            return scroll
+        }
+        return view.subviews.lazy.compactMap { self.verticalScrollView(in: $0) }.first
+    }
+
     private func makeReliabilityResult(
         confidence: String,
         yieldKg: Float = 3.4,
@@ -364,6 +520,7 @@ final class ScanHUDValueFormatterTests: XCTestCase {
         let expectedCopy: [String: [String: String]] = [
             "en": [
                 "scan.hud.whole_tree": "Whole Tree",
+                "scan.hud.diagnostics_title": "Capture diagnostics",
                 "scan.hud.tree_id_format": "Tree %@",
                 "scan.hud.metric.tree_id": "Tree",
                 "scan.hud.metric.coverage": "Coverage",
@@ -409,6 +566,7 @@ final class ScanHUDValueFormatterTests: XCTestCase {
             ],
             "zh": [
                 "scan.hud.whole_tree": "果树全株",
+                "scan.hud.diagnostics_title": "采集诊断",
                 "scan.hud.tree_id_format": "树号 %@",
                 "scan.hud.metric.tree_id": "树号",
                 "scan.hud.metric.coverage": "覆盖",

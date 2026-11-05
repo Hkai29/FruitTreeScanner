@@ -1,3 +1,9 @@
+// StartIDEntryStep.swift
+// 第 1 步：果树编号。
+//
+// 编号是这次扫描唯一的"人工锚点"，因此输入框用等宽字形，
+// 格式反馈直接来自 TreeIdentifierPolicy，不另立校验规则。
+
 import SwiftUI
 
 struct StartTreeIdentifierDraft {
@@ -27,87 +33,106 @@ struct StartTreeIdentifierDraft {
 
 struct Step1_IDEntry: View {
     @Binding var draft: StartTreeIdentifierDraft
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 果园里已经归档过的编号：点击即可沿用，避免重复录入。
+    var existingTreeIDs: [String] = []
+
+    private static let existingTitle = NSLocalizedString(
+        "start.setup.identifier.existing_title",
+        value: "已有编号",
+        comment: "Section listing tree identifiers already filed in this orchard"
+    )
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            StartStepHeader(
-                step: 1,
-                totalSteps: 5,
-                title: L10n.StartSetup.text(.identifierTitle),
-                subtitle: L10n.StartSetup.text(.identifierSubtitle)
-            )
+        VStack(alignment: .leading, spacing: 16) {
+            inputPanel
 
-            inputCard
+            if !existingTreeIDs.isEmpty {
+                existingSection
+            }
 
             StartNoteRow(
                 icon: "link",
                 text: L10n.StartSetup.text(.identifierNote),
-                tint: Design.Colors.harvest
+                tone: .neutral
             )
         }
     }
 
-    private var inputCard: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
-            inputHeader
+    // MARK: - 输入
 
-            TextField(L10n.StartSetup.text(.identifierPlaceholder), text: $draft.value)
-                .font(.title3.weight(.semibold).monospaced())
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, Design.Space.md)
-                .padding(.vertical, 14)
-                .frame(minHeight: layoutPolicy.minimumControlHeight)
-                .background(Design.Colors.Dark.bgElevated)
-                .cornerRadius(8)
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled(true)
-                .textContentType(.none)
-                .submitLabel(.next)
+    private var inputPanel: some View {
+        InstrumentPanel(
+            label: L10n.StartSetup.text(.identifierFieldLabel),
+            trailing: AnyView(
+                Text(statusText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(statusColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            )
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                InstrumentTextField(
+                    placeholder: L10n.StartSetup.text(.identifierPlaceholder),
+                    text: $draft.value,
+                    keyboard: .asciiCapable,
+                    isMonospaced: true
+                )
+                .accessibilityLabel(L10n.StartSetup.text(.identifierFieldLabel))
 
-            if let error = validationErrorMessage {
-                Text(error)
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(Design.Colors.harvest)
+                if let error = validationErrorMessage {
+                    Text(error)
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(Design.Colors.Workspace.failure)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text(L10n.StartSetup.text(.identifierSubtitle))
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(Design.Space.lg)
-        .startSurface(cornerRadius: 10)
     }
 
-    @ViewBuilder
-    private var inputHeader: some View {
-        switch layoutPolicy.arrangement {
-        case .horizontal:
-            HStack {
-                inputLabel
-                Spacer()
-                inputStatus
-            }
-        case .vertical:
-            VStack(alignment: .leading, spacing: Design.Space.xs) {
-                inputLabel
-                inputStatus
+    // MARK: - 已有编号
+
+    private var existingSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            InstrumentSectionLabel(title: Self.existingTitle)
+
+            FlowLayout(spacing: 8) {
+                ForEach(existingTreeIDs, id: \.self) { treeID in
+                    existingChip(treeID)
+                }
             }
         }
     }
 
-    private var inputLabel: some View {
-        Text(L10n.StartSetup.text(.identifierFieldLabel))
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(Design.Colors.Dark.textSecondary)
+    private func existingChip(_ treeID: String) -> some View {
+        Button {
+            draft.value = treeID
+        } label: {
+            Text(treeID)
+                .font(.system(.footnote, design: .monospaced).weight(.medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .frame(minHeight: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .fill(Design.Colors.Workspace.surface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .stroke(Design.Colors.Workspace.line, lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(treeID)
     }
 
-    private var inputStatus: some View {
-        Text(statusText)
-            .font(.caption.weight(.semibold))
-            .foregroundColor(statusColor)
-    }
-
-    private var layoutPolicy: StartStepContentLayoutPolicy {
-        StartStepContentLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
-    }
+    // MARK: - 状态
 
     private var statusText: String {
         draft.isValid
@@ -120,7 +145,8 @@ struct Step1_IDEntry: View {
     }
 
     private var statusColor: Color {
-        draft.isValid ? Design.Colors.forest : Design.Colors.harvest
+        draft.isValid ? Design.Colors.Workspace.accent :
+            (validationErrorMessage == nil ? Design.Colors.Workspace.secondary : Design.Colors.Workspace.failure)
     }
 
     private var validationErrorMessage: String? {

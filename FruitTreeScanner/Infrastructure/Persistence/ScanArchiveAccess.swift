@@ -51,10 +51,12 @@ enum DraftSettlement: Equatable, Sendable {
 struct ScanEvidenceReceipt: Sendable {
     let draft: DraftScan
     let identity: ScanEvidenceIdentity
+    let replay: PreparedScanReplay?
 
-    fileprivate init(draft: DraftScan, identity: ScanEvidenceIdentity) {
+    fileprivate init(draft: DraftScan, identity: ScanEvidenceIdentity, replay: PreparedScanReplay? = nil) {
         self.draft = draft
         self.identity = identity
+        self.replay = replay
     }
 }
 
@@ -129,7 +131,18 @@ final class ScanArchiveAccess: @unchecked Sendable {
         if draftOwners[key]?.id == draft.ownershipID { draftOwners.removeValue(forKey: key) }
     }
 
-    func bindEvidence(_ identity: ScanEvidenceIdentity, to draft: DraftScan) throws -> ScanEvidenceReceipt {
+    func canBindEvidence(_ identity: ScanEvidenceIdentity, to draft: DraftScan) -> Bool {
+        let key = transactionKey(draft.sourceURL)
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        guard let owner = draftOwners[key] else { return false }
+        return identity.capture == draft.captureIdentity && identity.sourceOwnershipID == draft.ownershipID
+            && identity.sourceSHA256 == draft.sourceSHA256 && owner.id == draft.ownershipID
+            && (owner.evidence == nil || owner.evidence == identity)
+    }
+
+    func bindEvidence(_ identity: ScanEvidenceIdentity, to draft: DraftScan,
+                      replay: PreparedScanReplay? = nil) throws -> ScanEvidenceReceipt {
         let key = transactionKey(draft.sourceURL)
         registryLock.lock()
         defer { registryLock.unlock() }
@@ -137,12 +150,13 @@ final class ScanArchiveAccess: @unchecked Sendable {
               identity.sourceOwnershipID == draft.ownershipID,
               identity.sourceSHA256 == draft.sourceSHA256,
               var owner = draftOwners[key], owner.id == draft.ownershipID,
-              owner.evidence == nil || owner.evidence == identity else {
+              owner.evidence == nil || owner.evidence == identity,
+              replay == nil || replay?.descriptor.identity == identity else {
             throw ScanEvidenceError.mismatchedInput
         }
         owner.evidence = identity
         draftOwners[key] = owner
-        return ScanEvidenceReceipt(draft: draft, identity: identity)
+        return ScanEvidenceReceipt(draft: draft, identity: identity, replay: replay)
     }
 
     private func transactionKey(_ url: URL) -> String {

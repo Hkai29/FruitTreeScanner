@@ -1,3 +1,7 @@
+// ResultDiagnosticsSection.swift
+// 诊断段：完整保留 zeroYieldReasons、关键质量读数与建议。
+// 这些信息不得因为“好看”而删减或弱化。
+
 import SwiftUI
 
 struct ResultDiagnosticsSection: View {
@@ -72,26 +76,28 @@ struct ResultDiagnosticsSection: View {
         ResultSectionCard(
             title: L10n.Result.detail(.diagnosticsTitle),
             icon: "stethoscope",
-            color: Design.Colors.warning
+            color: Design.Colors.Workspace.attention
         ) {
-            if !diagnostics.zeroYieldReasons.isEmpty {
-                ForEach(diagnostics.zeroYieldReasons, id: \.self) { reason in
-                    DiagnosticReasonRow(reason: DiagnosticRecommendation.localizedReason(reason))
+            VStack(alignment: .leading, spacing: 8) {
+                if !diagnostics.zeroYieldReasons.isEmpty {
+                    ForEach(diagnostics.zeroYieldReasons, id: \.self) { reason in
+                        DiagnosticReasonRow(reason: DiagnosticRecommendation.localizedReason(reason))
+                    }
+                } else if !result.note.isEmpty {
+                    DiagnosticReasonRow(reason: DiagnosticRecommendation.localizedReason(result.note))
+                } else {
+                    DiagnosticReasonRow(reason: L10n.Result.detail(.diagnosticsFallbackReason))
                 }
-            } else if !result.note.isEmpty {
-                DiagnosticReasonRow(reason: DiagnosticRecommendation.localizedReason(result.note))
-            } else {
-                DiagnosticReasonRow(reason: L10n.Result.detail(.diagnosticsFallbackReason))
             }
 
             if !recommendations.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Divider().background(Design.Colors.Dark.glassBorder)
+                    DividerLine()
 
                     Text(L10n.Result.detail(.diagnosticsRecommendations))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Design.Colors.harvest)
-                        .padding(.bottom, 4)
+                        .instrumentLabel()
+                        .padding(.top, 4)
+                        .padding(.bottom, 2)
 
                     ForEach(Array(recommendations.prefix(2)), id: \.self) { rec in
                         DiagnosticRecommendationRow(recommendation: rec)
@@ -99,12 +105,12 @@ struct ResultDiagnosticsSection: View {
                 }
             }
 
-            Divider().background(Design.Colors.Dark.glassBorder)
+            DividerLine()
 
             Text(L10n.Result.detail(.diagnosticsKeyQuality))
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Design.Colors.harvest)
-                .padding(.bottom, 4)
+                .instrumentLabel()
+                .padding(.top, 4)
+                .padding(.bottom, 2)
 
             ResultInfoRow(label: L10n.Result.detail(.diagnosticsValidatedFruit), value: "\(diagnostics.validatedFruitCount)", highlight: diagnostics.validatedFruitCount > 0)
             ResultInfoRow(label: L10n.Result.detail(.diagnosticsPointDepth), value: pointDepthText)
@@ -121,12 +127,13 @@ private struct DiagnosticReasonRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Design.Colors.warning)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.attention)
                 .padding(.top, 2)
+                .accessibilityHidden(true)
             Text(reason)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(Design.Colors.Workspace.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }

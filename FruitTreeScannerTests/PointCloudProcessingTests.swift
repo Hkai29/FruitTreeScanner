@@ -2,6 +2,7 @@ import XCTest
 import ARKit
 import CoreVideo
 import Metal
+import MetalKit
 import SceneKit
 import SwiftUI
 import UIKit
@@ -9,6 +10,106 @@ import simd
 @testable import FruitTreeScanner
 
 final class PointCloudProcessingTests: XCTestCase {
+
+    @MainActor
+    func testProductionFileFailureRetryKeepsTheFirstFrozenCloud() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let blockedDestination = directory.appendingPathComponent("scans")
+        try Data("test-owned directory blocker".utf8).write(to: blockedDestination)
+        let repository = ScanRepository(scansDirectory: blockedDestination)
+        let coordinator = ScanCoordinator(calibrationRecordsLoader: { [] })
+        defer { coordinator.teardown() }
+        let plan = ScanPlanFactory(settings: SettingsStore.shared, calibrationRecordsLoader: { [] })
+            .makePlan(treeID: "frozen-retry", season: .mature, selectedCategory: .apple, renderer: nil)
+        coordinator.startRecording(plan: plan)
+        let renderer = try makeGPUDrainRenderer()
+        coordinator.renderer = renderer
+        let original = try XCTUnwrap(renderer.makeFinalPointCloudSnapshot())
+        XCTAssertEqual(original.points.count, 4)
+        let generation = renderer.pointBufferSnapshot().generation
+        let production = ScanFinalizationOperations.production(coordinator: coordinator, repository: repository,
+                                                               refreshHistory: {})
+        let operations = ScanFinalizationOperations(
+            lifecycleSnapshot: production.lifecycleSnapshot,
+            beginFinishing: production.beginFinishing,
+            freezePointCloud: production.freezePointCloud,
+            stagePointCloud: production.stagePointCloud,
+            captureSnapshot: { _, _ in throw PointCloudExportError.emptyPointCloud },
+            bindSnapshot: production.bindSnapshot,
+            estimateYield: production.estimateYield,
+            persistResult: production.persistResult,
+            markCompleted: production.markCompleted,
+            refreshHistory: production.refreshHistory,
+            discardArtifacts: production.discardArtifacts
+        )
+        let workflow = ScanFinalizationWorkflow()
+        let fileFailed = expectation(description: "Production freeze succeeds before directory write failure")
+        let staged = expectation(description: "Retry publishes a cloud before sentinel preparation failure")
+        workflow.onEvent = { event in
+            switch event {
+            case .phaseChanged(.failed(.pointCloudExport)): fileFailed.fulfill()
+            case .phaseChanged(.failed(.yieldEstimation)): staged.fulfill()
+            default: break
+            }
+        }
+        workflow.finish(plan: plan, latitude: 1, longitude: 2, operations: operations)
+        await fulfillment(of: [fileFailed], timeout: 5)
+        XCTAssertEqual(workflow.retryAction, .exportPointCloud)
+        XCTAssertEqual(renderer.fullAnalysisSnapshotSignature, original.identity)
+        XCTAssertNil(workflow.stagedPointCloud)
+
+        // Same capture, different mutable buffer revision: retry must not read it.
+        prepareResetGPUFixture(renderer)
+        XCTAssertEqual(renderer.pointBufferSnapshot().generation, generation)
+        XCTAssertNotEqual(renderer.pointBufferSnapshot().revision, original.identity.pointBufferRevision)
+        try FileManager.default.removeItem(at: blockedDestination)
+        try FileManager.default.createDirectory(at: blockedDestination, withIntermediateDirectories: true)
+        workflow.retry()
+        await fulfillment(of: [staged], timeout: 5)
+        let written = try XCTUnwrap(workflow.stagedPointCloud)
+        XCTAssertEqual(written.pointCloud.identity, original.identity)
+        XCTAssertEqual(written.pointCloud.points.count, original.points.count)
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePointCloudData(at: written.draft.sourceURL))
+        XCTAssertEqual(parsed.pointCount, original.points.count)
+        for point in original.points {
+            XCTAssertTrue(written.pointCloud.points.contains {
+                simd_distance($0.pos, point.pos) < 0.00001 && $0.r == point.r && $0.g == point.g && $0.b == point.b
+            })
+            XCTAssertTrue(parsed.vertices.contains {
+                simd_distance(SIMD3<Float>($0.x, $0.y, $0.z), point.pos) < 0.0001
+            })
+        }
+        XCTAssertTrue(parsed.colors.allSatisfy { $0.r == 1 && $0.g == 0 && $0.b == 0 })
+        XCTAssertEqual(written.draft.sourceSHA256, try ScanCompanionIntegrity.digestFile(at: written.draft.sourceURL))
+        workflow.onEvent = nil
+        workflow.cancel()
+        let deadline = Date().addingTimeInterval(5)
+        while workflow.cancellationSettlement == nil, Date() < deadline { await Task.yield() }
+        XCTAssertEqual(workflow.cancellationSettlement, .discarded)
+    }
+
+    func testPointCloudDisplaySizeLivesOnGeometryElementAndSurvivesColorChanges() throws {
+        let vertices = [SCNVector3(0, 0, 0), SCNVector3(0, 1, 0)]
+        let colors = [PointCloudColor](repeating: PointCloudColor(r: 0.4, g: 0.8, b: 0.3, a: 1), count: 2)
+        let node = try XCTUnwrap(SceneKitPointCloudGeometry.makePointCloudNode(
+            vertices: vertices, colors: colors, pointSize: 3
+        ))
+        let element = try XCTUnwrap(node.geometry?.elements.first)
+        XCTAssertGreaterThan(element.pointSize, 0)
+        XCTAssertEqual(element.minimumPointScreenSpaceRadius, 1.5)
+        XCTAssertEqual(element.maximumPointScreenSpaceRadius, 1.5)
+        for mode in PointCloudColorMode.allCases {
+            XCTAssertTrue(SceneKitPointCloudColorRenderer.apply(
+                colorMode: mode, to: node, sourceVertices: vertices, sourceColors: colors
+            ))
+            let recolored = try XCTUnwrap(node.geometry?.elements.first)
+            XCTAssertEqual(recolored.minimumPointScreenSpaceRadius, 1.5)
+            XCTAssertEqual(recolored.maximumPointScreenSpaceRadius, 1.5)
+            XCTAssertEqual(recolored.primitiveCount, vertices.count)
+        }
+    }
 
     func testPointCloudColorModesAlwaysUseOriginalPLYColors() throws {
         let vertices = [
@@ -3447,6 +3548,581 @@ final class PointCloudProcessingTests: XCTestCase {
         ), name: "truncated_binary.ply")
 
         XCTAssertNil(pointCloud)
+    }
+
+    // MARK: - Renderer GPU completion barrier
+
+    @MainActor
+    func testRendererGPUDrainWithoutPendingCommandsPreservesExactPermitCapacity() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        for _ in 0..<2 {
+            let drained = await Task.detached {
+                self.drainRendererOffMainThread(renderer)
+            }.value
+            XCTAssertTrue(drained.0)
+            XCTAssertFalse(drained.1)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    @MainActor
+    func testRendererGPUDrainTimeoutRestoresPartiallyAcquiredPermits() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        try await withPendingParticleWrite(renderer) { write in
+            let drained = await Task.detached {
+                self.drainRendererOffMainThread(renderer)
+            }.value
+            XCTAssertFalse(drained.0)
+            XCTAssertFalse(drained.1)
+            await assertAvailableRendererPermits(renderer, expected: 2)
+            await finishParticleWrite(write)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+            let retried = await Task.detached {
+                renderer.waitForPointCloudWritesToComplete(timeout: 0)
+            }.value
+            XCTAssertTrue(retried)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    @MainActor
+    func testRendererStageWaitsForMetalWriteBeforeFreezingAndPublishing() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        try await withPendingParticleWrite(renderer) { write in
+            var stageReturned = false
+            let stage = Task {
+                defer { stageReturned = true }
+                return try await renderer.stagePointCloud(
+                    treeID: "GPU-completion", gpsLat: 0, gpsLon: 0, repository: repository
+                )
+            }
+            await waitForStageToAcquireRemainingPermits(renderer)
+            XCTAssertFalse(stageReturned)
+            XCTAssertNotEqual(write.command.status, .completed)
+            assertNoGPUExport(renderer, directory: directory)
+
+            await finishParticleWrite(write)
+            let staged = try await stage.value
+            defer { XCTAssertEqual(repository.settleCancelledDraft(staged.draft), .discarded) }
+            try assertGPUWrittenCloud(staged)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    @MainActor
+    func testRendererStageTimeoutWhileMetalCompletionOwnsPermitPublishesNothingAndCanRetry() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        try await withPendingParticleWrite(renderer, holdCompletionPermit: true) { write in
+            // A real GPU write completes, while its completion callback retains
+            // the permit. This exercises the five-second stage deadline without
+            // deliberately holding a GPU command beyond its own timeout.
+            write.event.signaledValue = 1
+            await fulfillment(of: [write.gpuCompleted], timeout: 2)
+            write.gpuCompletionWaited = true
+            do {
+                let unexpected = try await renderer.stagePointCloud(
+                    treeID: "GPU-timeout", gpsLat: 0, gpsLon: 0, repository: repository
+                )
+                XCTAssertEqual(repository.settleCancelledDraft(unexpected.draft), .discarded)
+                XCTFail("Stage published while the completion callback still owned its permit")
+            } catch PointCloudExportError.gpuDrainTimedOut {
+                // Exercise the actual production five-second drain deadline.
+            }
+            XCTAssertEqual(write.command.status, .completed)
+            assertNoGPUExport(renderer, directory: directory)
+            await assertAvailableRendererPermits(renderer, expected: 2)
+            await finishParticleWrite(write)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+
+            let staged = try await renderer.stagePointCloud(
+                treeID: "GPU-retry", gpsLat: 0, gpsLon: 0, repository: repository
+            )
+            defer { XCTAssertEqual(repository.settleCancelledDraft(staged.draft), .discarded) }
+            try assertGPUWrittenCloud(staged)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    @MainActor
+    func testRendererStageCancellationDuringGPUDrainDoesNotPublish() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        try await withPendingParticleWrite(renderer) { write in
+            let stage = Task {
+                try await renderer.stagePointCloud(
+                    treeID: "GPU-cancel", gpsLat: 0, gpsLon: 0, repository: repository
+                )
+            }
+            await waitForStageToAcquireRemainingPermits(renderer)
+            stage.cancel()
+            await finishParticleWrite(write)
+            do {
+                let unexpected = try await stage.value
+                XCTAssertEqual(repository.settleCancelledDraft(unexpected.draft), .discarded)
+                XCTFail("Cancelled stage must return CancellationError before publication")
+            } catch is CancellationError {
+                // The worker checks cancellation after the in-flight write drains.
+            }
+            assertNoGPUExport(renderer, directory: directory)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+            let retried = await Task.detached {
+                renderer.waitForPointCloudWritesToComplete(timeout: 0)
+            }.value
+            XCTAssertTrue(retried)
+        }
+    }
+
+    @MainActor
+    func testRendererFailedGPUCompletionCannotFreezeOrPublishPointCloud() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        try acquireRendererPermit(renderer)
+        // Explicit terminal-outcome fault: exercise the production completion
+        // entry point without claiming a physical ARKit command failed.
+        renderer.completePointCloudCommand(status: .error, captureGeneration: renderer.pointBufferSnapshot().generation, wrotePoints: true)
+        await assertAvailableRendererPermits(renderer, expected: 3)
+        XCTAssertNil(renderer.makeFinalPointCloudSnapshot())
+        await assertFailedGPUStage(renderer, repository: repository)
+        assertNoGPUExport(renderer, directory: directory)
+    }
+
+    @MainActor
+    func testRendererLaterSuccessfulWriteCannotRepairFailedCapture() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        try acquireRendererPermit(renderer)
+        renderer.completePointCloudCommand(status: .error, captureGeneration: renderer.pointBufferSnapshot().generation, wrotePoints: true)
+        try await withPendingParticleWrite(renderer) { write in
+            advanceGPUFixtureRevision(renderer)
+            await finishParticleWrite(write)
+            XCTAssertNil(renderer.makeFinalPointCloudSnapshot())
+            await assertFailedGPUStage(renderer, repository: repository)
+            assertNoGPUExport(renderer, directory: directory)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    @MainActor
+    func testRendererFailedGPUCompletionInvalidatesPreviouslyCachedCloud() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        XCTAssertNotNil(renderer.makeFinalPointCloudSnapshot())
+        let directory = try makeGPUExportDirectory()
+        try acquireRendererPermit(renderer)
+        renderer.completePointCloudCommand(status: .error, captureGeneration: renderer.pointBufferSnapshot().generation, wrotePoints: true)
+        XCTAssertNil(renderer.makeFinalPointCloudSnapshot())
+        await assertFailedGPUStage(renderer, repository: ScanRepository(scansDirectory: directory))
+        assertNoGPUExport(renderer, directory: directory)
+        await assertAvailableRendererPermits(renderer, expected: 3)
+    }
+
+    @MainActor
+    func testRendererOlderFailedWriteInvalidatesLatestRevisionOfSameCapture() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let generation = renderer.pointBufferSnapshot().generation
+        let directory = try makeGPUExportDirectory()
+        try acquireRendererPermit(renderer) // Earlier write still owns its permit.
+        try await withPendingParticleWrite(renderer) { write in
+            advanceGPUFixtureRevision(renderer)
+            await finishParticleWrite(write)
+            await assertAvailableRendererPermits(renderer, expected: 2)
+            renderer.completePointCloudCommand(status: .error, captureGeneration: generation, wrotePoints: true)
+            XCTAssertTrue(renderer.pointBufferSnapshot().writeFailed)
+            XCTAssertEqual(renderer.pointBufferSnapshot().revision, 51)
+            XCTAssertNil(renderer.makeFinalPointCloudSnapshot())
+            await assertFailedGPUStage(renderer, repository: ScanRepository(scansDirectory: directory))
+            assertNoGPUExport(renderer, directory: directory)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    @MainActor
+    func testRendererResetIgnoresLateOldFailureAndSuccessWithoutChangingNewCache() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let oldGeneration = renderer.pointBufferSnapshot().generation
+        XCTAssertNotNil(renderer.makeFinalPointCloudSnapshot())
+        try acquireRendererPermit(renderer)
+        try acquireRendererPermit(renderer)
+        renderer.isRecording = true // Actual start resets capture generation and cache.
+        XCTAssertTrue(renderer.getSnapshotPoints().isEmpty)
+        prepareResetGPUFixture(renderer)
+        let newCapture = renderer.pointBufferSnapshot()
+        let cloud = try XCTUnwrap(renderer.makeFinalPointCloudSnapshot())
+        let snapshotTime = renderer.lastSnapshotUpdateTime
+        for status: MTLCommandBufferStatus in [.error, .completed] {
+            renderer.completePointCloudCommand(status: status, captureGeneration: oldGeneration, wrotePoints: true)
+            XCTAssertEqual(renderer.pointBufferSnapshot(), newCapture)
+            XCTAssertEqual(renderer.lastSnapshotUpdateTime, snapshotTime)
+            XCTAssertEqual(renderer.fullAnalysisSnapshotSignature, cloud.identity)
+        }
+        renderer.isRecording = false
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        let staged = try await renderer.stagePointCloud(treeID: "GPU-new-capture", gpsLat: 0, gpsLon: 0, repository: repository)
+        defer { XCTAssertEqual(repository.settleCancelledDraft(staged.draft), .discarded) }
+        try assertGPUWrittenCloud(staged, revision: newCapture.revision)
+        await assertAvailableRendererPermits(renderer, expected: 3)
+    }
+
+    @MainActor
+    func testRendererResetAfterFailureAllowsNewMetalWriteAndPublication() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let oldGeneration = renderer.pointBufferSnapshot().generation
+        setGPUSnapshotUpdateTime(renderer, time: Date())
+        try acquireRendererPermit(renderer)
+        renderer.completePointCloudCommand(status: .error, captureGeneration: oldGeneration, wrotePoints: true)
+        renderer.isRecording = true
+        XCTAssertNotEqual(renderer.pointBufferSnapshot().generation, oldGeneration)
+        XCTAssertFalse(renderer.pointBufferSnapshot().writeFailed)
+        prepareResetGPUFixture(renderer)
+        // Distinguish old bytes from the real new Metal write below.
+        renderer.particlesBuffer.assign(with: gpuParticles(origin: SIMD3(9, 8, 7), color: SIMD3(1, 0, 0)))
+        let revision = renderer.pointBufferSnapshot().revision
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        try await withPendingParticleWrite(renderer) { write in
+            await finishParticleWrite(write)
+            // The production completion entry point drives the first live
+            // update immediately, despite the previous capture's recent update.
+            let preview = renderer.getSnapshotPoints()
+            XCTAssertEqual(preview.count, 4)
+            XCTAssertTrue(preview.allSatisfy { $0.r == 0 && $0.g == 1 && $0.b == 0 })
+            XCTAssertNotEqual(renderer.lastSnapshotUpdateTime, .distantPast)
+            XCTAssertNil(renderer.fullAnalysisSnapshotSignature)
+            renderer.isRecording = false
+            let staged = try await renderer.stagePointCloud(treeID: "GPU-reset", gpsLat: 0, gpsLon: 0, repository: repository)
+            defer { XCTAssertEqual(repository.settleCancelledDraft(staged.draft), .discarded) }
+            try assertGPUWrittenCloud(staged, revision: revision)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    @MainActor
+    func testRendererDisplayOnlyFailurePreservesHealthyCaptureAndPublication() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let capture = renderer.pointBufferSnapshot()
+        let cloud = try XCTUnwrap(renderer.makeFinalPointCloudSnapshot())
+        try acquireRendererPermit(renderer)
+        renderer.completePointCloudCommand(status: .error, captureGeneration: capture.generation, wrotePoints: false)
+        XCTAssertEqual(renderer.pointBufferSnapshot(), capture)
+        XCTAssertEqual(renderer.fullAnalysisSnapshotSignature, cloud.identity)
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        let staged = try await renderer.stagePointCloud(treeID: "GPU-display", gpsLat: 0, gpsLon: 0, repository: repository)
+        defer { XCTAssertEqual(repository.settleCancelledDraft(staged.draft), .discarded) }
+        XCTAssertEqual(staged.pointCloud.identity, cloud.identity)
+        XCTAssertEqual(staged.pointCloud.points.count, 4)
+        await assertAvailableRendererPermits(renderer, expected: 3)
+    }
+
+    @MainActor
+    func testRendererCompletionErrorInvalidatesWriteEvenWithCompletedStatus() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        try acquireRendererPermit(renderer)
+        renderer.completePointCloudCommand(
+            status: .completed, error: NSError(domain: "GPU-terminal-outcome-fixture", code: 1),
+            captureGeneration: renderer.pointBufferSnapshot().generation, wrotePoints: true
+        )
+        let directory = try makeGPUExportDirectory()
+        XCTAssertNil(renderer.makeFinalPointCloudSnapshot())
+        await assertFailedGPUStage(renderer, repository: ScanRepository(scansDirectory: directory))
+        assertNoGPUExport(renderer, directory: directory)
+        await assertAvailableRendererPermits(renderer, expected: 3)
+    }
+
+    @MainActor
+    func testRendererStagePinnedBeforeDrainCannotPublishResetCapture() async throws {
+        let renderer = try makeGPUDrainRenderer()
+        let directory = try makeGPUExportDirectory()
+        let repository = ScanRepository(scansDirectory: directory)
+        try await withPendingParticleWrite(renderer, holdCompletionPermit: true) { write in
+            write.event.signaledValue = 1
+            await fulfillment(of: [write.gpuCompleted], timeout: 2)
+            write.gpuCompletionWaited = true
+            let stage = Task {
+                try await renderer.stagePointCloud(treeID: "GPU-old-stage", gpsLat: 0, gpsLon: 0, repository: repository)
+            }
+            await waitForStageToAcquireRemainingPermits(renderer)
+            renderer.resetPointCloudCapture()
+            // The old GPU write is already terminal. Populate a distinct valid
+            // new capture while its CPU callback still owns the old permit.
+            prepareResetGPUFixture(renderer)
+            await finishParticleWrite(write)
+            do {
+                let unexpected = try await stage.value
+                XCTAssertEqual(repository.settleCancelledDraft(unexpected.draft), .discarded)
+                XCTFail("The old stage must not export the reset capture")
+            } catch PointCloudExportError.captureChanged {
+                // The stage pins its generation before waiting for GPU completion.
+            }
+            assertNoGPUExport(renderer, directory: directory)
+            XCTAssertFalse(renderer.pointBufferSnapshot().writeFailed)
+            await assertAvailableRendererPermits(renderer, expected: 3)
+        }
+    }
+
+    private func advanceGPUFixtureRevision(_ renderer: Renderer) {
+        renderer.pointBufferLock.lock()
+        renderer.pointBufferRevision &+= 1
+        renderer.pointBufferLock.unlock()
+    }
+
+    private func setGPUSnapshotUpdateTime(_ renderer: Renderer, time: Date) {
+        renderer.snapshotLock.lock()
+        renderer.lastSnapshotUpdateTime = time
+        renderer.snapshotLock.unlock()
+    }
+
+    private func prepareResetGPUFixture(_ renderer: Renderer) {
+        renderer.particlesBuffer.assign(with: gpuParticles(origin: SIMD3(1, 2, 3), color: SIMD3(0, 1, 0)))
+        renderer.pointBufferLock.lock()
+        renderer.currentPointCount = 4
+        renderer.currentPointIndex = 0
+        renderer.pointBufferRevision &+= 1
+        renderer.pointBufferLock.unlock()
+    }
+
+    @MainActor
+    private func assertFailedGPUStage(_ renderer: Renderer, repository: ScanRepository) async {
+        do {
+            let unexpected = try await renderer.stagePointCloud(
+                treeID: "GPU-failed", gpsLat: 0, gpsLon: 0, repository: repository
+            )
+            XCTAssertEqual(repository.settleCancelledDraft(unexpected.draft), .discarded)
+            XCTFail("A failed GPU capture must not publish an owned PLY receipt")
+        } catch PointCloudExportError.gpuWriteFailed {
+            // Failure is classified before the repository publishes a file.
+        } catch {
+            XCTFail("Unexpected GPU failure classification: \(error)")
+        }
+    }
+
+    @MainActor
+    private final class PendingParticleWrite {
+        let renderer: Renderer
+        let source: MTLBuffer
+        let event: MTLSharedEvent
+        let command: MTLCommandBuffer
+        let permitReturnGate: DispatchSemaphore
+        let scheduled: XCTestExpectation
+        let gpuCompleted: XCTestExpectation
+        let completed: XCTestExpectation
+        var finished = false
+        var gpuCompletionWaited = false
+
+        init(renderer: Renderer, source: MTLBuffer, event: MTLSharedEvent,
+             command: MTLCommandBuffer, permitReturnGate: DispatchSemaphore,
+             scheduled: XCTestExpectation, gpuCompleted: XCTestExpectation,
+             completed: XCTestExpectation) {
+            self.renderer = renderer
+            self.source = source
+            self.event = event
+            self.command = command
+            self.permitReturnGate = permitReturnGate
+            self.scheduled = scheduled
+            self.gpuCompleted = gpuCompleted
+            self.completed = completed
+        }
+    }
+
+    @MainActor
+    private func makeGPUDrainRenderer() throws -> Renderer {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice(), "Metal is required for this regression")
+        let settings = RendererScanSettings(
+            maxPoints: 4, rgbRadius: 0.02, minDepth: 0.1, maxDepth: 20,
+            confidenceThreshold: 2, depthEdgeThreshold: 0.05,
+            minimumStableDepthNeighborCount: 3, snapshotVoxelSize: 0.005,
+            depthConfiguration: FruitScanExperimentConfig.default.depth
+        )
+        let renderer = Renderer(
+            session: ARSession(), metalDevice: device,
+            renderDestination: MTKView(frame: .zero, device: device), initialSettings: settings,
+            resourceBudget: ScanResourceBudget(liveSnapshotSampleLimit: 4, analysisInputSampleLimit: 4)
+        )
+        // Old data is valid: an early freeze would produce a stale, nonempty PLY.
+        renderer.particlesBuffer.assign(with: gpuParticles(origin: SIMD3(9, 8, 7), color: SIMD3(1, 0, 0)))
+        renderer.pointBufferLock.lock()
+        renderer.currentPointCount = 4
+        renderer.currentPointIndex = 0
+        renderer.pointBufferRevision = 50
+        renderer.pointBufferLock.unlock()
+        return renderer
+    }
+
+    private func gpuParticles(origin: SIMD3<Float>, color: SIMD3<Float>) -> [ParticleUniforms] {
+        [SIMD3<Float>(0, 0, 0), SIMD3(0.02, 0, 0), SIMD3(0.02, 0.02, 0), SIMD3(0, 0.02, 0)]
+            .map { ParticleUniforms(position: origin + $0, color: color, confidence: 2) }
+    }
+
+    @MainActor
+    private func withPendingParticleWrite(
+        _ renderer: Renderer,
+        holdCompletionPermit: Bool = false,
+        body: (PendingParticleWrite) async throws -> Void
+    ) async throws {
+        let event = try XCTUnwrap(renderer.device.makeSharedEvent())
+        let command = try XCTUnwrap(renderer.commandQueue.makeCommandBuffer())
+        let target = try XCTUnwrap(renderer.particlesBuffer.metalBuffer)
+        let particles = MetalBuffer(
+            device: renderer.device,
+            array: gpuParticles(origin: SIMD3(1, 2, 3), color: SIMD3(0, 1, 0)), index: 0,
+            options: .storageModeShared
+        )
+        let source = try XCTUnwrap(particles.metalBuffer)
+        command.encodeWaitForEvent(event, value: 1)
+        let blit = try XCTUnwrap(command.makeBlitCommandEncoder())
+        blit.copy(from: source, sourceOffset: 0, to: target, destinationOffset: 0, size: target.length)
+        blit.endEncoding()
+        let scheduled = expectation(description: "Actual Metal command scheduled behind shared event")
+        let gpuCompleted = expectation(description: "Actual GPU write completed before permit return")
+        let completed = expectation(description: "Actual Metal completion returns the renderer permit")
+        scheduled.assertForOverFulfill = true
+        gpuCompleted.assertForOverFulfill = true
+        completed.assertForOverFulfill = true
+        let permitReturnGate = DispatchSemaphore(value: 0)
+        let write = PendingParticleWrite(
+            renderer: renderer, source: source, event: event, command: command,
+            permitReturnGate: permitReturnGate, scheduled: scheduled,
+            gpuCompleted: gpuCompleted, completed: completed
+        )
+        try acquireRendererPermit(renderer)
+        let captureGeneration = renderer.pointBufferSnapshot().generation
+        let productionCompletion = renderer.pointCloudCommandCompletionHandler(
+            captureGeneration: captureGeneration, wrotePoints: true
+        )
+        command.addScheduledHandler { _ in scheduled.fulfill() }
+        command.addCompletedHandler { completedCommand in
+            gpuCompleted.fulfill()
+            if holdCompletionPermit {
+                XCTAssertEqual(permitReturnGate.wait(timeout: .now() + 15), .success)
+            }
+            productionCompletion(completedCommand)
+            completed.fulfill()
+        }
+        command.commit()
+        // Even a thrown assertion helper must release the event and finish GPU work.
+        defer {
+            event.signaledValue = 1
+            permitReturnGate.signal()
+        }
+        do {
+            try await body(write)
+            await finishParticleWrite(write)
+        } catch {
+            await finishParticleWrite(write)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func finishParticleWrite(_ write: PendingParticleWrite) async {
+        guard !write.finished else { return }
+        write.event.signaledValue = 1
+        write.permitReturnGate.signal()
+        let remaining = write.gpuCompletionWaited
+            ? [write.scheduled, write.completed]
+            : [write.scheduled, write.gpuCompleted, write.completed]
+        await fulfillment(of: remaining, timeout: 5)
+        write.finished = true
+        XCTAssertEqual(write.command.status, .completed)
+        XCTAssertNil(write.command.error)
+        withExtendedLifetime(write.source) {}
+        withExtendedLifetime(write.renderer) {}
+    }
+
+    private func waitForStageToAcquireRemainingPermits(_ renderer: Renderer) async {
+        let deadline = DispatchTime.now().uptimeNanoseconds + 2_000_000_000
+        for _ in 0..<100_000 {
+            if rendererHasNoAvailablePermit(renderer) { return }
+            if DispatchTime.now().uptimeNanoseconds >= deadline { break }
+            await Task.yield()
+        }
+        XCTFail("Stage did not acquire the two remaining permits before its GPU wait")
+    }
+
+    private func drainRendererOffMainThread(_ renderer: Renderer) -> (Bool, Bool) {
+        (renderer.waitForPointCloudWritesToComplete(timeout: 0), Thread.isMainThread)
+    }
+
+    private func acquireRendererPermit(_ renderer: Renderer) throws {
+        guard renderer.inFlightSemaphore.wait(timeout: .now()) == .success else {
+            throw NSError(domain: "GPU-regression-permit", code: 1)
+        }
+    }
+
+    private func rendererHasNoAvailablePermit(_ renderer: Renderer) -> Bool {
+        guard renderer.inFlightSemaphore.wait(timeout: .now()) == .success else { return true }
+        renderer.inFlightSemaphore.signal()
+        return false
+    }
+
+    private func assertAvailableRendererPermits(_ renderer: Renderer, expected: Int) async {
+        let observation = await Task.detached(priority: .utility) {
+            self.availableRendererPermits(renderer)
+        }.value
+        XCTAssertFalse(observation.1, "Permit probes must also stay off the main thread")
+        XCTAssertEqual(observation.0, expected, "No permit may leak or be returned twice")
+    }
+
+    private func availableRendererPermits(_ renderer: Renderer) -> (Int, Bool) {
+        var acquired = 0
+        while acquired < 4, renderer.inFlightSemaphore.wait(timeout: .now()) == .success {
+            acquired += 1
+        }
+        defer { for _ in 0..<acquired { renderer.inFlightSemaphore.signal() } }
+        return (acquired, Thread.isMainThread)
+    }
+
+    private func makeGPUExportDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GPU-regression-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        return directory
+    }
+
+    private func assertNoGPUExport(_ renderer: Renderer, directory: URL) {
+        renderer.snapshotLock.lock()
+        let signature = renderer.fullAnalysisSnapshotSignature
+        let points = renderer.snapshotPoints
+        renderer.snapshotLock.unlock()
+        XCTAssertNil(signature, "No final snapshot may freeze after a failed or invalid capture")
+        XCTAssertTrue(points.isEmpty)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), [])
+    }
+
+    private func assertGPUWrittenCloud(_ staged: StagedPointCloud, revision: UInt64 = 50) throws {
+        let expected = gpuParticles(origin: SIMD3(1, 2, 3), color: SIMD3(0, 1, 0))
+        XCTAssertEqual(staged.pointCloud.points.count, 4)
+        XCTAssertEqual(staged.pointCloud.identity.pointBufferRevision, revision)
+        for particle in expected {
+            XCTAssertTrue(staged.pointCloud.points.contains { simd_distance($0.pos, particle.position) < 0.00001 })
+        }
+        for point in staged.pointCloud.points {
+            XCTAssertEqual(point.r, 0)
+            XCTAssertEqual(point.g, 1)
+            XCTAssertEqual(point.b, 0)
+        }
+        let parsed = try XCTUnwrap(PLYParserHelper.parsePointCloudData(at: staged.draft.sourceURL))
+        XCTAssertEqual(parsed.pointCount, 4)
+        for particle in expected {
+            XCTAssertTrue(parsed.vertices.contains {
+                simd_distance(SIMD3<Float>($0.x, $0.y, $0.z), particle.position) < 0.00001
+            })
+        }
+        for color in parsed.colors {
+            XCTAssertEqual(color.r, 0)
+            XCTAssertEqual(color.g, 1)
+            XCTAssertEqual(color.b, 0)
+        }
+        XCTAssertEqual(staged.draft.sourceSHA256, try ScanCompanionIntegrity.digestFile(at: staged.draft.sourceURL))
+        XCTAssertEqual(staged.draft.fileIdentity, try ScanSourceFileIdentity.read(at: staged.draft.sourceURL))
     }
 
     // MARK: - PLY test helpers

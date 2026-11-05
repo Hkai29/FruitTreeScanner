@@ -1,5 +1,5 @@
 // HUDPill.swift
-// HUD 数据胶囊组件 - 专业扫描软件风格
+// 采集 HUD 数据胶囊。深色画布上的读数，标签小字、数值等宽。
 
 import SwiftUI
 
@@ -7,14 +7,15 @@ import SwiftUI
 struct HUDPill: View {
     let label: String
     let value: String
-    var accentColor: Color = Design.Colors.harvest
+    var accentColor: Color = Design.Colors.Dark.glow
     var labelSize: CGFloat = 10
     var valueSize: CGFloat = 14
 
     var body: some View {
         HStack(spacing: 6) {
             Text(label)
-                .font(.system(size: labelSize, weight: .medium, design: .monospaced))
+                .font(.system(size: labelSize, weight: .semibold, design: .monospaced))
+                .tracking(0.4)
                 .foregroundColor(Design.Colors.Dark.textMuted)
 
             Text(value)
@@ -24,11 +25,11 @@ struct HUDPill: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
                 .fill(Design.Colors.Dark.hudBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
                 .stroke(Design.Colors.Dark.hudBorder, lineWidth: 0.5)
         )
     }
@@ -46,10 +47,10 @@ struct StatusIndicator: View {
 
     private var color: Color {
         switch status {
-        case .ready: return Design.Colors.forest
-        case .recording: return Design.Colors.apple
-        case .processing: return Design.Colors.harvest
-        case .error: return Design.Colors.error
+        case .ready: return Design.Colors.Dark.success
+        case .recording: return Design.Colors.Dark.error
+        case .processing: return Design.Colors.Dark.glow
+        case .error: return Design.Colors.Dark.error
         }
     }
 
@@ -76,6 +77,7 @@ struct StatusIndicator: View {
             Image(systemName: icon)
                 .font(.system(size: iconSize))
                 .foregroundColor(color)
+                .accessibilityHidden(true)
 
             Text(label)
                 .font(.system(size: labelSize, weight: .regular))
@@ -86,11 +88,11 @@ struct StatusIndicator: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
                 .fill(Design.Colors.Dark.hudBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
                 .stroke(Design.Colors.Dark.hudBorder, lineWidth: 0.5)
         )
     }

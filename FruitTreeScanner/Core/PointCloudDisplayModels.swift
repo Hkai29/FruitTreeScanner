@@ -1,6 +1,5 @@
 import Foundation
 import SceneKit
-import simd
 
 // MARK: - Point Cloud Color Mode
 enum PointCloudColorMode: String, CaseIterable {
@@ -21,8 +20,8 @@ enum PointCloudColorMode: String, CaseIterable {
     var icon: String {
         switch self {
         case .height: return "arrow.up.arrow.down"
-        case .density: return "circle.grid.3x3"
-        case .fruit: return "leaf.fill"
+        case .density: return "sun.max"
+        case .fruit: return "circle.lefthalf.filled"
         case .uniform: return "paintpalette"
         }
     }
@@ -148,11 +147,4 @@ struct PointCloudData: @unchecked Sendable {
         self.colors = colors
         self.bounds = PointCloudBounds(vertices: vertices)
     }
-}
-
-struct ColoredPoint: Sendable {
-    let pos: SIMD3<Float>
-    let r: Float
-    let g: Float
-    let b: Float
 }

@@ -88,7 +88,7 @@ struct ImportStatusView: View {
                     icon: "checkmark.circle.fill",
                     title: L10n.Import.successTitle,
                     message: L10n.Import.successMessage(fileName: filename),
-                    tint: Design.Colors.forest
+                    tint: Design.Colors.Workspace.accent
                 )
 
             case .error(let message):

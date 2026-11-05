@@ -1,7 +1,9 @@
 import SwiftUI
 
+/// 工具区。两列发丝网格，不使用带插图的磁贴。
 struct QuickActionsGrid: View {
     var compactLandscape: Bool = false
+    var mode: AppMode? = nil
     var onAction: ((QuickAction) -> Void)? = nil
 
     var body: some View {
@@ -26,21 +28,19 @@ struct QuickActionsGrid: View {
                 }
                 .padding(14)
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
-                .dashboardSurface(cornerRadius: 12)
+                .dashboardSurface(cornerRadius: Design.Radius.medium)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            VStack(alignment: .leading, spacing: 12) {
-                DashboardSectionHeader(title: L10n.Dashboard.tools)
-                VStack(spacing: 10) {
-                    ForEach(AppMode.allCases, id: \.self) { mode in
-                        DashboardToolGroup(
-                            title: mode.title,
-                            icon: mode.icon,
-                            actions: quickActions(for: mode),
-                            onAction: onAction
-                        )
-                    }
+            VStack(spacing: 10) {
+                ForEach(mode.map { [$0] } ?? AppMode.allCases, id: \.self) { mode in
+                    DashboardToolGroup(
+                        title: mode.title,
+                        icon: mode.icon,
+                        actions: quickActions(for: mode),
+                        showsHeader: self.mode == nil,
+                        onAction: onAction
+                    )
                 }
             }
         }
@@ -68,22 +68,22 @@ struct QuickActionsGrid: View {
         switch mode {
         case .scan:
             return [
-                QuickAction(kind: .calibration, title: L10n.Dashboard.calibrationTitle, icon: "slider.horizontal.3", color: Design.Colors.Dark.info, description: L10n.Dashboard.calibrationDescription),
-                QuickAction(kind: .importFile, title: L10n.Dashboard.importFileTitle, icon: "square.and.arrow.down", color: Design.Colors.Dark.info, description: L10n.Dashboard.importFileDescription)
+                QuickAction(kind: .calibration, title: L10n.Dashboard.calibrationTitle, icon: "slider.horizontal.3", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.calibrationDescription),
+                QuickAction(kind: .importFile, title: L10n.Dashboard.importFileTitle, icon: "square.and.arrow.down", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.importFileDescription)
             ]
         case .history:
             return [
-                QuickAction(kind: .scanHistory, title: L10n.Dashboard.scanHistoryTitle, icon: "folder", color: Design.Colors.harvest, description: L10n.Dashboard.scanHistoryDescription),
-                QuickAction(kind: .pointCloud, title: L10n.Dashboard.pointCloudTitle, icon: "cube", color: Design.Colors.Dark.info, description: L10n.Dashboard.pointCloudDescription),
-                QuickAction(kind: .tagManagement, title: L10n.Dashboard.tagManagementTitle, icon: "tag", color: Design.Colors.harvest, description: L10n.Dashboard.tagManagementDescription),
-                QuickAction(kind: .batchExport, title: L10n.Dashboard.batchExportTitle, icon: "doc.richtext", color: Design.Colors.harvest, description: L10n.Dashboard.batchExportDescription)
+                QuickAction(kind: .scanHistory, title: L10n.Dashboard.scanHistoryTitle, icon: "folder", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.scanHistoryDescription),
+                QuickAction(kind: .pointCloud, title: L10n.Dashboard.pointCloudTitle, icon: "cube", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.pointCloudDescription),
+                QuickAction(kind: .tagManagement, title: L10n.Dashboard.tagManagementTitle, icon: "tag", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.tagManagementDescription),
+                QuickAction(kind: .batchExport, title: L10n.Dashboard.batchExportTitle, icon: "doc.richtext", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.batchExportDescription)
             ]
         case .analytics:
             return [
-                QuickAction(kind: .yieldReport, title: L10n.Dashboard.yieldReportTitle, icon: "chart.pie", color: Design.Colors.harvest, description: L10n.Dashboard.yieldReportDescription),
-                QuickAction(kind: .compare, title: L10n.Dashboard.compareTitle, icon: "arrow.left.arrow.right", color: Design.Colors.harvest, description: L10n.Dashboard.compareDescription),
-                QuickAction(kind: .trends, title: L10n.Dashboard.trendsTitle, icon: "chart.xyaxis.line", color: Design.Colors.Dark.info, description: L10n.Dashboard.trendsDescription),
-                QuickAction(kind: .map, title: L10n.Dashboard.mapTitle, icon: "map", color: Design.Colors.Dark.info, description: L10n.Dashboard.mapDescription)
+                QuickAction(kind: .yieldReport, title: L10n.Dashboard.yieldReportTitle, icon: "chart.pie", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.yieldReportDescription),
+                QuickAction(kind: .compare, title: L10n.Dashboard.compareTitle, icon: "arrow.left.arrow.right", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.compareDescription),
+                QuickAction(kind: .trends, title: L10n.Dashboard.trendsTitle, icon: "chart.xyaxis.line", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.trendsDescription),
+                QuickAction(kind: .map, title: L10n.Dashboard.mapTitle, icon: "map", color: Design.Colors.Workspace.accent, description: L10n.Dashboard.mapDescription)
             ]
         }
     }

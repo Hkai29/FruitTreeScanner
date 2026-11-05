@@ -128,12 +128,14 @@ final class BatchExportService {
         case csv = "CSV"
         case excel = "Excel (XML)"
         case json = "Research JSON"
+        case replay = "Observation Replay"
         
         var fileExtension: String {
             switch self {
             case .csv: return "csv"
             case .excel: return "xls"
             case .json: return "json"
+            case .replay: return "ftsreplay"
             }
         }
         
@@ -142,6 +144,7 @@ final class BatchExportService {
             case .csv: return "tablecells"
             case .excel: return "tablecells.fill"
             case .json: return "doc.text.magnifyingglass"
+            case .replay: return "doc.badge.clock"
             }
         }
         
@@ -150,6 +153,7 @@ final class BatchExportService {
             case .csv: return "通用数据格式，兼容所有表格软件"
             case .excel: return "Microsoft Excel 兼容格式"
             case .json: return "研究分析用结构化 JSON"
+            case .replay: return NSLocalizedString("export.replay.description", comment: "")
             }
         }
     }
@@ -226,6 +230,8 @@ final class BatchExportService {
                     options: options,
                     to: tempURL
                 )
+            case .replay:
+                try ScanReplayBundle.write(records: completeRecords, to: tempURL)
             }
 
             try Task.checkCancellation()

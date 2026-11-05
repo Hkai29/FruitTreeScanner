@@ -1,3 +1,7 @@
+// ScanStatusBarContent.swift
+// 采集读数面板：把覆盖度、检测数、质量与深度状态做成仪器读数。
+// 覆盖度是本次采集最关键的进度，因此用分段电平表表达，而不是只给一个数字。
+
 import SwiftUI
 
 struct ScanStatusBarLayout {
@@ -18,102 +22,16 @@ struct ScanRecordingStatusContent: View {
     let layout: ScanStatusBarLayout
 
     var body: some View {
-        VStack(spacing: layout.isPad ? 10 : 8) {
-            if layout.isPad {
-                HStack(spacing: 8) {
-                    wholeTreeBadge
-                    treeIdentifierLabel
-                    Spacer(minLength: 8)
-                    recordingIndicator
-                }
-            } else {
-                VStack(spacing: 6) {
-                    HStack(spacing: 8) {
-                        wholeTreeBadge
-                        Spacer(minLength: 8)
-                        recordingIndicator
-                    }
-                    treeIdentifierLabel
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            HStack(spacing: layout.isPad ? 10 : 8) {
-                ScanPrimaryStatusMetric(
-                    label: L10n.ScanHUD.coverage,
-                    value: "\(hudState.coveragePercent)%",
-                    accentColor: presentation.coverageColor,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-                ScanPrimaryStatusMetric(
-                    label: L10n.ScanHUD.fruitCount,
-                    value: "\(hudState.detectedFruitCount)",
-                    accentColor: hudState.detectedFruitCount > 0 ? Design.Colors.harvest : Design.Colors.warning,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-                ScanPrimaryStatusMetric(
-                    label: L10n.ScanHUD.quality,
-                    value: qualityMonitor.getQualityStatus(),
-                    accentColor: presentation.qualityColor,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-                ScanPrimaryStatusMetric(
-                    label: L10n.ScanHUD.depth,
-                    value: presentation.depthStatusText,
-                    accentColor: presentation.depthStatusColor,
-                    valueFontSize: layout.metricFontSize,
-                    labelFontSize: layout.metricLabelSize
-                )
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Design.Colors.harvest)
-                Text(presentation.recordingRouteHint)
-                    .font(.system(size: layout.isPad ? 12 : 10, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Design.Colors.Dark.bgElevated.opacity(0.64))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+        VStack(alignment: .leading, spacing: 14) {
+            ScanStatusIdentity(treeID: treeID, isRecording: true,
+                               duration: hudState.scanCompletion.formattedDuration)
+            ScanStatusReadings(hudState: hudState, qualityMonitor: qualityMonitor,
+                               presentation: presentation)
+            Label(presentation.recordingRouteHint, systemImage: "arrow.triangle.2.circlepath")
+                .font(.footnote)
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private var wholeTreeBadge: some View {
-        Label(L10n.ScanHUD.wholeTree, systemImage: "viewfinder")
-            .font(.system(size: layout.isPad ? 14 : 12, weight: .semibold))
-            .foregroundColor(Design.Colors.harvest)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Design.Colors.harvest.opacity(0.14))
-            .clipShape(Capsule())
-    }
-
-    private var treeIdentifierLabel: some View {
-        Text(L10n.ScanHUD.treeIdentifier(treeID))
-            .font(.system(size: layout.isPad ? 13 : 11, weight: .semibold, design: .monospaced))
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-    }
-
-    private var recordingIndicator: some View {
-        StatusIndicator(
-            status: .recording,
-            iconSize: layout.statusIconSize,
-            labelSize: layout.statusLabelSize
-        )
-        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -124,120 +42,188 @@ struct ScanDetailedStatusContent: View {
     @ObservedObject var qualityMonitor: ScanQualityMonitor
     let presentation: ScanStatusBarPresentation
     let layout: ScanStatusBarLayout
+    @State private var showsDiagnostics = false
 
     var body: some View {
-        VStack(spacing: layout.isPad ? 10 : 8) {
-            if layout.isPad {
-                HStack(spacing: 10) {
-                    treeMetric
-                    coverageMetric
-                    fruitMetric
-                    qualityMetric
-                    statusIndicator
+        VStack(alignment: .leading, spacing: 14) {
+            ScanStatusIdentity(treeID: treeID, isRecording: isRecording,
+                               duration: hudState.scanCompletion.formattedDuration)
+            ScanStatusReadings(hudState: hudState, qualityMonitor: qualityMonitor,
+                               presentation: presentation)
+            DisclosureGroup(isExpanded: $showsDiagnostics) {
+                VStack(spacing: 0) {
+                    diagnostic(L10n.ScanHUD.points, ScanHUDValueFormatter.pointCount(hudState.pointCount))
+                    diagnostic(L10n.ScanHUD.vision, presentation.visionStatusText)
+                    diagnostic(L10n.ScanHUD.model, presentation.visionDetailText)
+                    diagnostic(L10n.ScanHUD.depth, presentation.depthStatusText)
+                    diagnostic(L10n.ScanHUD.pointCloud, presentation.pointCloudStatusText)
+                    diagnostic(L10n.ScanHUD.frames, presentation.processedFrameText)
+                    diagnostic(L10n.ScanHUD.fusion, presentation.fusionStatusText)
+                    diagnostic(L10n.ScanHUD.density, ScanHUDValueFormatter.pointDensity(qualityMonitor.pointDensity))
+                    diagnostic(L10n.ScanHUD.lighting, qualityMonitor.lightLevel.description)
                 }
-            } else {
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        treeMetric
-                        statusIndicator.fixedSize(horizontal: true, vertical: false)
-                    }
-                    HStack(spacing: 8) {
-                        coverageMetric
-                        fruitMetric
-                        qualityMetric
-                    }
+                .padding(.top, 6)
+            } label: {
+                Text(L10n.ScanHUD.diagnosticsTitle)
+                    .font(.system(.caption2, design: .default).weight(.semibold))
+                    .tracking(0.6)
+                    .textCase(.uppercase)
+                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .tint(Design.Colors.Dark.textSecondary)
+            .accessibilityIdentifier("scan.diagnostics")
+        }
+    }
+
+    private func diagnostic(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(label)
+                .font(.system(.caption, design: .default))
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundColor(Design.Colors.Dark.textPrimary)
+        }
+        .padding(.vertical, 5)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Design.Colors.Dark.glassBorder).frame(height: 0.5)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+    }
+}
+
+private struct ScanStatusIdentity: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let treeID: String
+    let isRecording: Bool
+    let duration: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(treeID)
+                    .font(.system(.headline, design: .monospaced).weight(.semibold))
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .truncationMode(.middle)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(L10n.ScanHUD.treeIdentifier(treeID))
+                Text(L10n.ScanHUD.wholeTree)
+                    .font(.system(.caption2, design: .default).weight(.semibold))
+                    .tracking(0.6)
+                    .textCase(.uppercase)
+                    .foregroundColor(Design.Colors.Dark.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 6) {
+                    Circle().fill(isRecording ? Design.Colors.Dark.error : Design.Colors.Dark.glow)
+                        .frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                    Text(isRecording ? L10n.ScanHUD.recording : L10n.ScanHUD.ready)
+                        .font(.system(.caption, design: .default).weight(.medium))
+                }
+                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                if isRecording {
+                    Text(duration)
+                        .font(.system(.caption, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundColor(Design.Colors.Dark.textPrimary)
                 }
             }
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Design.Colors.Dark.glassBorder).frame(height: 0.5)
+        }
+        .padding(.bottom, 10)
+    }
+}
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: layout.isPad ? 10 : 8) {
-                    HUDPill(label: L10n.ScanHUD.points, value: ScanHUDValueFormatter.pointCount(hudState.pointCount), accentColor: Design.Colors.harvest, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.vision, value: presentation.visionStatusText, accentColor: presentation.visionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.model, value: presentation.visionDetailText, accentColor: presentation.visionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.depth, value: presentation.depthStatusText, accentColor: presentation.depthStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.pointCloud, value: presentation.pointCloudStatusText, accentColor: presentation.pointCloudStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.frames, value: presentation.processedFrameText, accentColor: presentation.processedFrameColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.fusion, value: presentation.fusionStatusText, accentColor: presentation.fusionStatusColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.density, value: ScanHUDValueFormatter.pointDensity(qualityMonitor.pointDensity), accentColor: presentation.pointDensityColor, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
-                    HUDPill(label: L10n.ScanHUD.lighting, value: qualityMonitor.lightLevel.description, accentColor: qualityMonitor.lightLevel.color, labelSize: layout.pillLabelSize, valueSize: layout.pillValueSize)
+private struct ScanStatusReadings: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ObservedObject var hudState: ScanHUDState
+    @ObservedObject var qualityMonitor: ScanQualityMonitor
+    let presentation: ScanStatusBarPresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if dynamicTypeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading),
+                                    GridItem(.flexible(), alignment: .leading)],
+                          alignment: .leading, spacing: 12) {
+                    metrics
                 }
+            } else {
+                HStack(alignment: .top, spacing: 0) { metrics }
             }
         }
     }
 
-    private var treeMetric: some View {
-        ScanPrimaryStatusMetric(
-            label: L10n.ScanHUD.treeID,
-            value: treeID,
-            accentColor: Design.Colors.harvest,
-            valueFontSize: layout.metricFontSize,
-            labelFontSize: layout.metricLabelSize
-        )
-    }
-
-    private var coverageMetric: some View {
+    @ViewBuilder
+    private var metrics: some View {
         ScanPrimaryStatusMetric(
             label: L10n.ScanHUD.coverage,
             value: "\(hudState.coveragePercent)%",
-            accentColor: presentation.coverageColor,
-            valueFontSize: layout.metricFontSize,
-            labelFontSize: layout.metricLabelSize
+            meter: Double(hudState.coveragePercent) / 100.0,
+            meterTint: presentation.coverageColor
         )
-    }
-
-    private var fruitMetric: some View {
-        ScanPrimaryStatusMetric(
-            label: L10n.ScanHUD.fruitCount,
-            value: "\(hudState.detectedFruitCount)",
-            accentColor: hudState.detectedFruitCount > 0 ? Design.Colors.harvest : Design.Colors.warning,
-            valueFontSize: layout.metricFontSize,
-            labelFontSize: layout.metricLabelSize
-        )
-    }
-
-    private var qualityMetric: some View {
-        ScanPrimaryStatusMetric(
-            label: L10n.ScanHUD.quality,
-            value: qualityMonitor.getQualityStatus(),
-            accentColor: presentation.qualityColor,
-            valueFontSize: layout.metricFontSize,
-            labelFontSize: layout.metricLabelSize
-        )
-    }
-
-    private var statusIndicator: some View {
-        StatusIndicator(
-            status: isRecording ? .recording : .ready,
-            iconSize: layout.statusIconSize,
-            labelSize: layout.statusLabelSize
-        )
+        ScanPrimaryStatusMetric(label: L10n.ScanHUD.fruitCount, value: "\(hudState.detectedFruitCount)")
+        ScanPrimaryStatusMetric(label: L10n.ScanHUD.quality, value: qualityMonitor.getQualityStatus(),
+                                signal: presentation.qualityColor)
+        ScanPrimaryStatusMetric(label: L10n.ScanHUD.depth, value: presentation.depthStatusText,
+                                signal: presentation.depthStatusColor)
     }
 }
 
 private struct ScanPrimaryStatusMetric: View {
     let label: String
     let value: String
-    let accentColor: Color
-    var valueFontSize: CGFloat = 12
-    var labelFontSize: CGFloat = 9
+    var signal: Color? = nil
+    var meter: Double? = nil
+    var meterTint: Color = Design.Colors.Dark.glow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: labelFontSize, weight: .semibold))
+                .font(.system(.caption2, design: .default).weight(.semibold))
+                .tracking(0.6)
+                .textCase(.uppercase)
                 .foregroundColor(Design.Colors.Dark.textMuted)
-                .lineLimit(1)
-
-            Text(value)
-                .font(.system(size: valueFontSize, weight: .semibold, design: .monospaced))
-                .foregroundColor(accentColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 5) {
+                if let signal {
+                    Circle().fill(signal).frame(width: 5, height: 5).accessibilityHidden(true)
+                }
+                Text(value)
+                    .font(.system(.title3, design: .default).weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let meter {
+                // 覆盖度电平表：与读数同列，宽度即该列宽度。
+                InstrumentMeter(
+                    value: meter,
+                    segments: 10,
+                    tint: meterTint,
+                    trackColor: Design.Colors.Dark.glassBorder,
+                    height: 4,
+                    cornerRadius: 1
+                )
+                .padding(.top, 3)
+                .padding(.trailing, 4)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
-        .background(Design.Colors.Dark.bgElevated.opacity(0.82))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
     }
 }

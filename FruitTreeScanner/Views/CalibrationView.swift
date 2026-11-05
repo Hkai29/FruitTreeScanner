@@ -6,6 +6,9 @@
 // 2. 人工计数（手工数出可见果实数量）
 // 3. 采摘后录入实际重量
 // 4. 系统计算误差，帮用户判断算法是否需要调整
+//
+// 参数采用“草稿—提交”模型：滑杆拖动只改草稿，结束编辑或离开页面才写入
+// SettingsStore / FruitParametersStore；每个字段只跟自己的上一次接受值比较。
 
 import SwiftUI
 import UIKit
@@ -43,32 +46,24 @@ struct CalibrationView: View {
         let params = resolvedStore.param(for: category)
         _maxDiameter = State(initialValue: CalibrationParameterDraft(
             settingsValue: settings.clusterMaxDiameter, parameterValue: Double(params.diamMax),
+            parameterID: params.id,
             settingsMinimum: settings.clusterMinDiameter, parameterMinimum: params.diamMin))
         _minClusterPoints = State(initialValue: CalibrationParameterDraft(settingsValue: Double(settings.clusterMinPoints)))
         _sphericity = State(initialValue: CalibrationParameterDraft(
-            settingsValue: settings.sphericityThreshold, parameterValue: Double(params.sphericityThreshold)))
+            settingsValue: settings.sphericityThreshold, parameterValue: Double(params.sphericityThreshold),
+            parameterID: params.id))
         _activeFruitCategory = State(initialValue: category)
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep
+                Design.Colors.Workspace.background
                     .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: Design.Space.lg) {
-                        DashboardToolHeader(
-                            imageName: "FeatureCalibration",
-                            title: L10n.Calibration.headerTitle,
-                            subtitle: L10n.Calibration.headerSubtitle,
-                            icon: "slider.horizontal.3",
-                            accent: Design.Colors.Dark.info
-                        )
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(L10n.Calibration.headerTitle)
-                        .accessibilityValue(L10n.Calibration.headerSubtitle)
-                        .accessibilityAddTraits(.isHeader)
+                    VStack(alignment: .leading, spacing: 22) {
+                        leadNote
 
                         CalibrationParametersCard(
                             maxDiameter: $maxDiameter.value,
@@ -81,27 +76,31 @@ struct CalibrationView: View {
                         )
 
                         if showsParameterConflict {
-                            Text(L10n.Calibration.parameterConflict)
-                                .font(Design.Typography.subheadline)
-                                .foregroundColor(Design.Colors.Dark.textSecondary)
+                            conflictNotice
                         }
 
-                        if recordsController.state.showsDerivedStatistics {
-                            statisticsCard
-                        }
+                        // 误差统计始终可见：没有足够记录时，区块内部给出诚实的说明，
+                        // 而不是整段消失（用户会以为功能不存在）。
+                        statisticsCard
 
                         // 校准记录列表
                         recordsSection
+
+                        calibrationGuide
                     }
-                    .padding(Design.Space.lg)
+                    .frame(maxWidth: 1080, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .padding(.bottom, 28)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(.light)
             .navigationTitle(L10n.Calibration.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Calibration.close) {
@@ -116,7 +115,7 @@ struct CalibrationView: View {
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 22))
-                            .foregroundColor(Design.Colors.Dark.glow)
+                            .foregroundColor(Design.Colors.Workspace.accent)
                     }
                     .disabled(!recordsController.state.canModify)
                     .accessibilityLabel(L10n.Calibration.addRecordAccessibility)
@@ -143,10 +142,11 @@ struct CalibrationView: View {
             recordsController.load()
             let params = parametersStore.param(for: activeFruitCategory)
             maxDiameter.rebase(settingsValue: settings.clusterMaxDiameter, parameterValue: Double(params.diamMax),
+                               parameterID: params.id,
                                settingsMinimum: settings.clusterMinDiameter, parameterMinimum: params.diamMin)
             minClusterPoints.rebase(settingsValue: Double(settings.clusterMinPoints))
             sphericity.rebase(settingsValue: settings.sphericityThreshold,
-                             parameterValue: Double(params.sphericityThreshold))
+                             parameterValue: Double(params.sphericityThreshold), parameterID: params.id)
             showsParameterConflict = false
         }
         .onDisappear {
@@ -157,6 +157,54 @@ struct CalibrationView: View {
             guard let announcement = state.accessibilityAnnouncement else { return }
             UIAccessibility.post(notification: .announcement, argument: announcement)
         }
+    }
+
+    // MARK: - 页首
+
+    /// 页尾指引：说明校准数据从哪来、用来做什么。
+    /// 它是页面的必要说明，不是填充。
+    private var calibrationGuide: some View {
+        Text(NSLocalizedString(
+            "calibration.guide.footer",
+            value: "校准数据来自实测：扫描后录入实际果实数量，采摘后称重录入实际产量，系统据此估算误差并帮助调整参数。",
+            comment: "Calibration page footer guide"
+        ))
+        .font(.footnote)
+        .foregroundColor(Design.Colors.Workspace.muted)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 2)
+    }
+
+    private var leadNote: some View {
+        Text(L10n.Calibration.headerSubtitle)
+            .font(.subheadline)
+            .foregroundColor(Design.Colors.Workspace.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L10n.Calibration.headerTitle)
+            .accessibilityValue(L10n.Calibration.headerSubtitle)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    // MARK: - 冲突提示
+
+    private var conflictNotice: some View {
+        Text(L10n.Calibration.parameterConflict)
+            .font(.footnote)
+            .foregroundColor(Design.Colors.Workspace.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(
+                Design.Colors.Workspace.attentionSoft,
+                in: RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .stroke(Design.Colors.Workspace.attention.opacity(0.3), lineWidth: 1)
+            )
     }
 
     // MARK: - 误差统计卡片
@@ -207,6 +255,7 @@ struct CalibrationView: View {
         let current = parametersStore.param(for: category)
         switch maxDiameter.decision(settingsValue: settings.clusterMaxDiameter,
                                     parameterValue: Double(current.diamMax),
+                                    parameterID: current.id,
                                     settingsMinimum: settings.clusterMinDiameter,
                                     parameterMinimum: current.diamMin, step: 0.005) {
         case .unchanged:
@@ -226,17 +275,19 @@ struct CalibrationView: View {
                 settings.clusterMaxDiameter = rounded
             }
         }
+        let latest = parametersStore.param(for: category)
         maxDiameter.rebase(settingsValue: settings.clusterMaxDiameter,
-                           parameterValue: Double(parametersStore.param(for: category).diamMax),
+                           parameterValue: Double(latest.diamMax), parameterID: latest.id,
                            settingsMinimum: settings.clusterMinDiameter,
-                           parameterMinimum: parametersStore.param(for: category).diamMin)
+                           parameterMinimum: latest.diamMin)
     }
 
     private func commitSphericityDraft() {
         let category = activeFruitCategory
         let current = parametersStore.param(for: category)
         switch sphericity.decision(settingsValue: settings.sphericityThreshold,
-                                  parameterValue: Double(current.sphericityThreshold), step: 0.02) {
+                                  parameterValue: Double(current.sphericityThreshold), parameterID: current.id,
+                                  step: 0.02) {
         case .unchanged:
             break
         case .conflict:
@@ -251,8 +302,9 @@ struct CalibrationView: View {
                 settings.sphericityThreshold = rounded
             }
         }
+        let latest = parametersStore.param(for: category)
         sphericity.rebase(settingsValue: settings.sphericityThreshold,
-                          parameterValue: Double(parametersStore.param(for: category).sphericityThreshold))
+                          parameterValue: Double(latest.sphericityThreshold), parameterID: latest.id)
     }
 
     private var deleteAlertBinding: Binding<Bool> {
@@ -285,23 +337,27 @@ private struct CalibrationParameterDraft {
     private let baselineValue: Double
     private let settingsBaseline: Double
     private let parameterBaseline: Double?
+    private let parameterIDBaseline: UUID?
     private let settingsMinimumBaseline: Double?
     private let parameterMinimumBaseline: Float?
 
-    init(settingsValue: Double, parameterValue: Double? = nil,
+    init(settingsValue: Double, parameterValue: Double? = nil, parameterID: UUID? = nil,
          settingsMinimum: Double? = nil, parameterMinimum: Float? = nil) {
         value = parameterValue ?? settingsValue
         baselineValue = value
         settingsBaseline = settingsValue
         parameterBaseline = parameterValue
+        parameterIDBaseline = parameterID
         settingsMinimumBaseline = settingsMinimum
         parameterMinimumBaseline = parameterMinimum
     }
 
-    func decision(settingsValue: Double, parameterValue: Double? = nil,
+    func decision(settingsValue: Double, parameterValue: Double? = nil, parameterID: UUID? = nil,
                   settingsMinimum: Double? = nil, parameterMinimum: Float? = nil, step: Double) -> Decision {
         guard abs(value - baselineValue) > 0.000_1 else { return .unchanged }
-        guard settingsValue == settingsBaseline, parameterValue == parameterBaseline else { return .conflict }
+        // A same-value reset replaces the source; each pending field must reject its own old identity.
+        guard settingsValue == settingsBaseline, parameterValue == parameterBaseline,
+              parameterID == parameterIDBaseline else { return .conflict }
         let rounded = (value / step).rounded() * step
         // Maximum diameter also changes the effective minima through the existing clamp policy.
         if let minimum = settingsMinimum, minimum != settingsMinimumBaseline, rounded < minimum {
@@ -313,9 +369,9 @@ private struct CalibrationParameterDraft {
         return .commit(rounded)
     }
 
-    mutating func rebase(settingsValue: Double, parameterValue: Double? = nil,
+    mutating func rebase(settingsValue: Double, parameterValue: Double? = nil, parameterID: UUID? = nil,
                          settingsMinimum: Double? = nil, parameterMinimum: Float? = nil) {
-        self = Self(settingsValue: settingsValue, parameterValue: parameterValue,
+        self = Self(settingsValue: settingsValue, parameterValue: parameterValue, parameterID: parameterID,
                     settingsMinimum: settingsMinimum, parameterMinimum: parameterMinimum)
     }
 }

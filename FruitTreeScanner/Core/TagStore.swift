@@ -33,6 +33,10 @@ final class TagStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private var saveGeneration = 0
 
+    /// 最近一次持久化失败的原因；写入成功后清空。
+    /// 界面据此判断能不能说「已保存」—— 写入落盘之前不能说已保存。
+    private(set) var lastPersistError: String?
+
     init(
         defaults: UserDefaults = .standard,
         commitDelayNanoseconds: @escaping @Sendable (Int) -> UInt64 = { _ in 0 }
@@ -135,7 +139,7 @@ final class TagStore: ObservableObject {
                 await self?.finishPersisting(generation: generation)
             } catch {
                 Log.general.error("Failed to save tag store snapshot: \(error.localizedDescription)")
-                await self?.finishPersisting(generation: generation)
+                await self?.finishPersisting(generation: generation, failure: error.localizedDescription)
             }
         }
         notifyUpdate()
@@ -144,12 +148,16 @@ final class TagStore: ObservableObject {
     private func commitSnapshot(_ encoded: Data, generation: Int) {
         guard saveGeneration == generation else { return }
         defaults.set(encoded, forKey: StorageKeys.snapshot)
+        lastPersistError = nil
         saveTask = nil
     }
 
-    private func finishPersisting(generation: Int) {
+    private func finishPersisting(generation: Int, failure: String? = nil) {
         if saveGeneration == generation {
             saveTask = nil
+            if let failure {
+                lastPersistError = failure
+            }
         }
     }
 
@@ -232,9 +240,12 @@ final class TagStore: ObservableObject {
         return assignments.first { $0.treeId == normalizedTreeID }
     }
 
-    func createOrUpdateAssignment(treeId: String, plotId: UUID?, tagIds: [UUID], status: ScanStatus) {
+    /// 写入一条树位标记。
+    /// 返回 false 表示这次根本没有被接受（树号非法）—— 调用方不能把它当成「已保存」。
+    @discardableResult
+    func createOrUpdateAssignment(treeId: String, plotId: UUID?, tagIds: [UUID], status: ScanStatus) -> Bool {
         let normalizedTreeID = TreeIdentifierPolicy.normalized(treeId)
-        guard !normalizedTreeID.isEmpty else { return }
+        guard !normalizedTreeID.isEmpty else { return false }
         let validPlotIDs = Set(plots.map(\.id))
         let validTagIDs = Set(tags.map(\.id))
         let sanitizedPlotID = plotId.flatMap { validPlotIDs.contains($0) ? $0 : nil }
@@ -254,6 +265,7 @@ final class TagStore: ObservableObject {
             assignments.append(assignment)
         }
         persistChanges()
+        return true
     }
 
     func updateAssignmentStatus(treeId: String, status: ScanStatus) {

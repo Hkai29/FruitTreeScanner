@@ -32,10 +32,13 @@ struct MetalView: UIViewRepresentable {
         mtkView.preferredFramesPerSecond = 60
 
         let arSession = ARSession()
+        let plan = coordinator.activeScanPlan
         let renderer = Renderer(
             session: arSession,
             metalDevice: device,
-            renderDestination: mtkView
+            renderDestination: mtkView,
+            initialSettings: plan?.rendererSettings ?? coordinator.settings.rendererScanSettings(),
+            resourceBudget: plan?.resourceBudget ?? .default
         )
 
         let viewSize = mtkView.drawableSize

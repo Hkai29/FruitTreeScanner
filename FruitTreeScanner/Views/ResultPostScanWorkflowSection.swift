@@ -11,7 +11,7 @@ struct ResultPostScanWorkflowSection: View {
         ResultSectionCard(
             title: L10n.Result.detail(.workflowTitle),
             icon: "checklist",
-            color: Design.Colors.harvest
+            color: Design.Colors.Workspace.accent
         ) {
             ResultInfoRow(label: L10n.Result.detail(.workflowConfidenceLabel), value: advice.confidenceText, highlight: result.confidence == "high")
             ResultInfoRow(label: L10n.Result.detail(.workflowNextStepLabel), value: advice.nextStepText)
@@ -29,17 +29,20 @@ private struct ResultWorkflowAdviceRow: View {
     let icon: String
     let text: String
 
+    @ScaledMetric(relativeTo: .caption) private var iconFontSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .subheadline) private var textFontSize: CGFloat = 13
+
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Design.Colors.harvest)
-                .frame(width: 18)
+                .font(.system(size: iconFontSize, weight: .semibold))
+                .foregroundColor(Design.Colors.Workspace.accent)
+                .frame(minWidth: 18)
                 .padding(.top, 2)
 
             Text(text)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.system(size: textFontSize))
+                .foregroundColor(Design.Colors.Workspace.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)

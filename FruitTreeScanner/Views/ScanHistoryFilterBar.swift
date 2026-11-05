@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// 扫描档案筛选条：地块 + 状态。
+///
+/// 筛选语义不变（仍是"全部 + 具体值"两个维度），
+/// 只是外观换成仪器式筛选片，触控目标不小于 44pt。
 struct ScanHistoryFilterLayoutPolicy: Equatable, Sendable {
     enum Arrangement: Equatable, Sendable {
         case horizontal
@@ -29,6 +33,7 @@ struct ScanHistoryFilterBar: View {
                 HStack(spacing: Design.Space.sm) {
                     filters
                 }
+                .padding(.vertical, 2)
             }
         case .vertical:
             VStack(alignment: .leading, spacing: Design.Space.sm) {

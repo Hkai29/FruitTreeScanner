@@ -164,6 +164,122 @@ final class ScanDiagnosticsBuilderTests: XCTestCase {
         XCTAssertTrue(reasons.contains("融合验证失败"))
     }
 
+    func testZeroYieldReasonsPreservesCombinedFailureOrder() {
+        let reasons = ScanDiagnosticsBuilder.zeroYieldReasons(
+            diagnostics: combinedFailureDiagnostics(), pointCloudMinimum: 30
+        )
+        XCTAssertEqual(reasons, [
+            "模型未加载", "深度不可用", "深度证据未通过", "点云数量不足",
+            "未处理图像检测帧", "候选被置信度过滤", "模型标签未映射到水果类别",
+            "融合验证失败", "cloudOnly 保守模式未接受候选"
+        ])
+    }
+
+    func testCloudOnlySuppressionUsesWholeReasonEquality() {
+        let cases: [(String, [String])] = [
+            ("图像检测无结果", ["图像检测无结果"]),
+            ("前缀图像检测无结果后缀", ["前缀图像检测无结果后缀", "cloudOnly 保守模式未接受候选"]),
+            ("图像检测无结果 ", ["图像检测无结果 ", "cloudOnly 保守模式未接受候选"])
+        ]
+        for (dynamicReason, expected) in cases {
+            var diagnostics = baselineDiagnostics()
+            diagnostics.imageDetectionCount = 0
+            diagnostics.cloudOnlyConservativeMode = true
+            diagnostics.depthConfidenceFailureReason = dynamicReason
+            XCTAssertEqual(ScanDiagnosticsBuilder.zeroYieldReasons(
+                diagnostics: diagnostics, pointCloudMinimum: 30
+            ), expected)
+        }
+    }
+
+    func testZeroYieldReasonsKeepsRepeatedDynamicAndFormalNoDetections() {
+        var diagnostics = baselineDiagnostics()
+        diagnostics.imageDetectionCount = 0
+        diagnostics.imageObservationCount = 0
+        diagnostics.cloudOnlyConservativeMode = true
+        diagnostics.depthConfidenceFailureReason = "图像检测无结果"
+        let reasons = ScanDiagnosticsBuilder.zeroYieldReasons(diagnostics: diagnostics, pointCloudMinimum: 30)
+
+        XCTAssertEqual(reasons, ["图像检测无结果", "图像检测无结果"])
+        XCTAssertEqual(ScanDiagnosticsBuilder.zeroYieldNote(reasons: reasons), "⚠️ 图像检测无结果；图像检测无结果")
+    }
+
+    func testZeroYieldPointMinimumIsStrict() {
+        for (pointCount, expected) in [(29, ["点云数量不足"]), (30, []), (31, [])] {
+            var diagnostics = baselineDiagnostics()
+            diagnostics.fusedFruitCount = 1
+            diagnostics.pointCloudPointCount = pointCount
+            XCTAssertEqual(ScanDiagnosticsBuilder.zeroYieldReasons(
+                diagnostics: diagnostics, pointCloudMinimum: 30
+            ), expected)
+        }
+    }
+
+    func testHealthyDiagnosticsKeepsEmptyReasonsAndDefaultNoteFallback() {
+        var diagnostics = baselineDiagnostics()
+        diagnostics.fusedFruitCount = 1
+        let reasons = ScanDiagnosticsBuilder.zeroYieldReasons(diagnostics: diagnostics, pointCloudMinimum: 30)
+        XCTAssertEqual(reasons, [])
+        XCTAssertEqual(ScanDiagnosticsBuilder.zeroYieldNote(reasons: reasons), "⚠️ RGB+LiDAR 未检测到果实（图像检测未确认）")
+    }
+
+    func testDynamicDepthReasonPreservesWhitespaceAndEmptyDistinction() {
+        for dynamicReason in ["  自定义深度错误  \n", "   ", ""] {
+            var diagnostics = baselineDiagnostics()
+            diagnostics.fusedFruitCount = 1
+            diagnostics.depthConfidenceFailureReason = dynamicReason
+            let reasons = ScanDiagnosticsBuilder.zeroYieldReasons(diagnostics: diagnostics, pointCloudMinimum: 30)
+            XCTAssertEqual(reasons, dynamicReason.isEmpty ? [] : [dynamicReason])
+        }
+    }
+
+    // Typed Domain contracts: keep string-output golden assertions independent.
+    func testDomainZeroYieldReasonsCarryOrderedFacts() {
+        XCTAssertEqual(ZeroYieldReasonPolicy.reasons(
+            diagnostics: combinedFailureDiagnostics(), pointCloudMinimum: 30
+        ), [
+            .modelNotLoaded, .depthUnavailable, .depthConfidenceFailure("深度证据未通过"),
+            .insufficientPoints, .noImageFrames, .confidenceFiltered, .unmappedLabels,
+            .fusionFailed, .cloudOnlyRejected
+        ])
+    }
+
+    func testDomainCloudOnlyCandidateDoesNotInterpretDynamicText() {
+        var diagnostics = baselineDiagnostics()
+        diagnostics.imageDetectionCount = 0
+        diagnostics.imageObservationCount = 0
+        diagnostics.cloudOnlyConservativeMode = true
+        diagnostics.depthConfidenceFailureReason = "图像检测无结果"
+
+        XCTAssertEqual(ZeroYieldReasonPolicy.reasons(diagnostics: diagnostics, pointCloudMinimum: 30), [
+            .depthConfidenceFailure("图像检测无结果"), .noDetections, .cloudOnlyRejected
+        ])
+    }
+
+    func testUncalibratedSeasonAssessmentCarriesStructuredReason() {
+        let assessment = YieldAssessmentEvaluator.assessUncalibratedSeason(points: [], defaultCategory: .apple)
+        XCTAssertEqual(assessment.reason, .uncalibratedSeason)
+        XCTAssertEqual(assessment.countResult.totalCount, 0)
+        XCTAssertEqual(assessment.finalYieldKg, 0)
+        XCTAssertEqual(ScanDiagnosticsBuilder.zeroYieldReasonDescriptions([assessment.reason]), [
+            "非成熟期冠层回归模型尚未标定，本次未生成产量估算"
+        ])
+    }
+
+    private func combinedFailureDiagnostics() -> ScanYieldDiagnostics {
+        var diagnostics = baselineDiagnostics()
+        diagnostics.imageModelStatus = "Fallback"
+        diagnostics.depthAvailable = false
+        diagnostics.depthConfidenceFailureReason = "深度证据未通过"
+        diagnostics.pointCloudPointCount = 5
+        diagnostics.imageFramesProcessed = 0
+        diagnostics.imageObservationCount = 4
+        diagnostics.imageMappedFruitCount = 0
+        diagnostics.imageConfidenceFilteredCount = 1
+        diagnostics.cloudOnlyConservativeMode = true
+        return diagnostics
+    }
+
     private func baselineDiagnostics() -> ScanYieldDiagnostics {
         var diagnostics = ScanYieldDiagnostics()
         diagnostics.pointCloudPointCount = 120

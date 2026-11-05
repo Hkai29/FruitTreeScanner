@@ -1,3 +1,6 @@
+// BatchExportEmptyState.swift
+// 没有可导出记录时的空状态：说明原因并给出真实入口。
+
 import SwiftUI
 
 struct BatchExportEmptyState: View {
@@ -8,58 +11,20 @@ struct BatchExportEmptyState: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Design.Space.md) {
-                header
+            InstrumentEmptyState(
+                systemImage: "tray",
+                title: L10n.Export.emptyTitle,
+                message: emptyMessageText
+            ) {
                 actions
             }
-            .padding(Design.Space.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-            .padding(Design.Space.lg)
+            .frame(maxWidth: 1080, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
+            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    @ViewBuilder
-    private var header: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            headerText
-        } else {
-            HStack(alignment: .top, spacing: Design.Space.sm) {
-                DashboardFeatureImage(name: "FeatureBatchExport", accent: Design.Colors.harvest)
-                    .frame(width: 96, height: 76)
-                    .accessibilityHidden(true)
-
-                headerText
-            }
-        }
-    }
-
-    private var headerText: some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
-            if dynamicTypeSize.isAccessibilitySize {
-                Text(L10n.Export.emptyTitle)
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-            } else {
-                Label {
-                    Text(L10n.Export.emptyTitle)
-                        .font(.headline)
-                } icon: {
-                    Image(systemName: "tray")
-                        .foregroundColor(Design.Colors.harvest)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(L10n.Export.emptyTitle)
-                .accessibilityAddTraits(.isHeader)
-            }
-
-            Text(emptyMessageText)
-                .font(.body)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(L10n.Export.emptyMessage)
-        }
     }
 
     private var emptyMessageText: String {
@@ -72,13 +37,15 @@ struct BatchExportEmptyState: View {
     private var actions: some View {
         if onStartScan != nil || onImportFile != nil {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: Design.Space.sm) {
+                VStack(spacing: 10) {
                     actionButtons
                 }
+                .padding(.top, 4)
             } else {
-                HStack(spacing: Design.Space.sm) {
+                HStack(spacing: 10) {
                     actionButtons
                 }
+                .padding(.top, 4)
             }
         }
     }
@@ -108,6 +75,7 @@ struct BatchExportEmptyState: View {
         }
     }
 
+    @ViewBuilder
     private func actionButton(
         title: String,
         hint: String,
@@ -116,22 +84,52 @@ struct BatchExportEmptyState: View {
         isPrimary: Bool,
         action: @escaping () -> Void
     ) -> some View {
+        if isPrimary {
+            primaryActionButton(
+                title: title,
+                hint: hint,
+                icon: icon,
+                accessibilityIdentifier: accessibilityIdentifier,
+                action: action
+            )
+        } else {
+            secondaryActionButton(
+                title: title,
+                hint: hint,
+                icon: icon,
+                accessibilityIdentifier: accessibilityIdentifier,
+                action: action
+            )
+        }
+    }
+
+    private func primaryActionButton(
+        title: String,
+        hint: String,
+        icon: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
-                .font(.headline)
-                .foregroundColor(isPrimary ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, Design.Space.sm)
-                .padding(.vertical, Design.Space.xs)
-                .frame(maxWidth: .infinity, minHeight: Design.Touch.minimumHeight)
-                .background(isPrimary ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9)
-                        .stroke(isPrimary ? Color.clear : Design.Colors.Dark.glassBorder, lineWidth: 1)
-                )
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(WorkspacePrimaryButtonStyle())
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func secondaryActionButton(
+        title: String,
+        hint: String,
+        icon: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+        }
+        .buttonStyle(WorkspaceSecondaryButtonStyle())
         .accessibilityLabel(title)
         .accessibilityHint(hint)
         .accessibilityIdentifier(accessibilityIdentifier)

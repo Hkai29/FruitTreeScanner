@@ -18,6 +18,7 @@ struct PLYParserResult: Sendable {
     let confidence: String
     let persistenceState: ScanPersistenceState
     let persistenceFailureReason: String?
+    let classification: ScanClassificationSnapshot?
 }
 
 // MARK: - Shared PLY filename + result parsing
@@ -45,7 +46,8 @@ enum PLYParserHelper {
             fruitType: companion.result?.fruitType ?? "",
             confidence: companion.result?.confidence ?? "",
             persistenceState: companion.state,
-            persistenceFailureReason: companion.failureReason
+            persistenceFailureReason: companion.failureReason,
+            classification: companion.result?.classification
         )
     }
 

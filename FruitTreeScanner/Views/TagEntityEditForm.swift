@@ -1,3 +1,9 @@
+// TagEntityEditForm.swift
+// 地块 / 标签共用的编辑表单：名称 + 颜色。
+//
+// 名称用仪器表单行与输入框；颜色为固定调色板。表单只改草稿，
+// 是否提交由外层决定（取消即丢弃草稿）。
+
 import SwiftUI
 
 struct TagEntityEditForm: View {
@@ -6,67 +12,75 @@ struct TagEntityEditForm: View {
 
     let namePlaceholder: String
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private let colorOptions = [
         "#6F8F63", "#B8843A", "#4D7588", "#B8564B",
         "#8A7657", "#6C7B58", "#7E8580", "#34362F"
     ]
 
+    private let contentWidth: CGFloat = 1080
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 14) {
-                nameSection
-                colorSection
+            VStack(alignment: .leading, spacing: 18) {
+                namePanel
+                colorPanel
             }
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, Design.Space.lg)
+            .frame(maxWidth: contentWidth, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 24)
+            .frame(maxWidth: .infinity)
         }
     }
 
-    private var nameSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.TagManagement.nameLabel)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+    // MARK: - 名称
 
-            TextField(namePlaceholder, text: $name)
-                .font(.body.weight(.medium))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .frame(minHeight: 48)
-                .background(Design.Colors.Dark.bgElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(nameBorderColor, lineWidth: 1)
-                )
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled(true)
+    private var namePanel: some View {
+        InstrumentPanel {
+            nameControl
         }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 
-    private var colorSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.TagManagement.colorLabel)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+    @ViewBuilder
+    private var nameControl: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.TagManagement.nameLabel)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                InstrumentTextField(placeholder: namePlaceholder, text: $name)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+        } else {
+            InstrumentFormRow(label: L10n.TagManagement.nameLabel) {
+                InstrumentTextField(placeholder: namePlaceholder, text: $name)
+                    .frame(maxWidth: 260)
+            }
+        }
+    }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 54))], spacing: 12) {
-                ForEach(colorOptions, id: \.self) { colorHex in
-                    colorSwatch(colorHex)
+    // MARK: - 颜色
+
+    private var colorPanel: some View {
+        InstrumentPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(L10n.TagManagement.colorLabel)
+                    .instrumentLabel()
+                    .accessibilityAddTraits(.isHeader)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 56), spacing: 12)],
+                    spacing: 12
+                ) {
+                    ForEach(colorOptions, id: \.self) { colorHex in
+                        colorSwatch(colorHex)
+                    }
                 }
             }
         }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-    }
-
-    private var nameBorderColor: Color {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? Design.Colors.Dark.glassBorder
-            : Design.Colors.forest.opacity(0.5)
     }
 
     private func colorSwatch(_ colorHex: String) -> some View {
@@ -74,26 +88,28 @@ struct TagEntityEditForm: View {
             selectedColor = colorHex
         } label: {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
                     .fill(Color(hex: colorHex))
 
                 if selectedColor == colorHex {
                     Image(systemName: "checkmark")
-                        .font(.headline.weight(.bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.45), radius: 1, y: 1)
                         .accessibilityHidden(true)
                 }
             }
-            .frame(minHeight: 44)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: Design.Touch.minimumHeight)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(selectedColor == colorHex ? Color.white : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .stroke(
+                        selectedColor == colorHex
+                            ? Design.Colors.Workspace.ink
+                            : Design.Colors.Workspace.line,
+                        lineWidth: selectedColor == colorHex ? 2 : 1
+                    )
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Design.Colors.Dark.glassBorder.opacity(0.35), lineWidth: 1)
-            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(L10n.TagManagement.colorAccessibilityLabel(for: colorHex))

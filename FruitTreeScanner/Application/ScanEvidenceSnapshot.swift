@@ -13,7 +13,7 @@ struct ScanEvidenceSnapshot: Sendable {
     }
 
     static func freeze(snapshot: ScanYieldEstimationController.Snapshot, draft: DraftScan,
-                       repository: ScanRepository = .shared) async throws -> Self {
+                       repository: ScanRepository = .shared, plan: ScanPlan? = nil) async throws -> Self {
         guard let capture = draft.captureIdentity,
               snapshot.context == capture.context,
               snapshot.input.finalPointCloudIdentity == capture.pointCloud else {
@@ -26,7 +26,7 @@ struct ScanEvidenceSnapshot: Sendable {
             sourceSHA256: draft.sourceSHA256
         )
         let worker = Task.detached(priority: .utility) {
-            try repository.bindEvidence(identity, to: draft)
+            try repository.bindEvidence(identity, to: draft, replayInput: plan == nil ? nil : snapshot.input, plan: plan)
         }
         let receipt = try await withTaskCancellationHandler {
             try await worker.value

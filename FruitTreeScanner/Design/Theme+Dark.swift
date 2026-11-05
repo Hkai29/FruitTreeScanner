@@ -1,57 +1,63 @@
 // Theme+Dark.swift
-// 专业扫描软件暗色主题扩展
+// 采集画布与点云视口：深色仪器显示层。
+// 与日光工作区共享字形、线宽与状态语义，只切换明度底座。
 
 import SwiftUI
 
 // MARK: - Dark Theme Extension
 extension Design.Colors {
-    /// 专业扫描软件暗色主题颜色
+    /// 采集与点云共用的暗色画布。
     struct Dark {
         // 背景层次
-        static let bgDeep = Color(hex: "10130F")           // 主背景
-        static let bgSurface = Color(hex: "191D17")        // 页面表面
-        static let bgElevated = Color(hex: "242A21")       // 控件表面
+        static let bgDeep = Color(hex: "0E1214")        // 采集画布
+        static let bgSurface = Color(hex: "161B1E")     // 面板表面
+        static let bgElevated = Color(hex: "1E2529")    // 控件表面
 
-        // 强调色
-        static let glow = Design.Colors.harvest
+        // 强调色：LiDAR 信号青
+        static let glow = Color(hex: "17B2C4")
+        /// 点云几何着色（仅限深色视口内使用）
+        static let lidar = Color(hex: "17B2C4")
 
         // 文字颜色
-        static let textPrimary = Color.white.opacity(0.95)   // 主要文字 (WCAG AAA)
-        static let textSecondary = Color.white.opacity(0.7) // 次要文字 (WCAG AA 4.5:1+)
-        static let textMuted = Color.white.opacity(0.5)    // 弱化文字 (WCAG AA 3:1+)
+        static let textPrimary = Color(hex: "F0F3F3")    // 主要文字
+        static let textSecondary = Color(hex: "9EA9AC")  // 次要文字
+        static let textMuted = Color(hex: "829095")      // 弱化文字
 
         // 玻璃效果
-        static let glassBorder = Color(hex: "30382D")       // 深色细边框
+        static let glassBorder = Color(hex: "2C3438")
         static let glassHighlight = Color.white.opacity(0.04)
-        static let glassFill = Color(hex: "1C211A")
+        static let glassFill = Color(hex: "161B1E")
 
-        // 状态色
-        static let success = Design.Colors.forest           // 成功/追踪OK
-        static let warning = Design.Colors.harvest          // 警告
-        static let error = Design.Colors.apple              // 错误
-        static let info = Design.Colors.earth               // 信息
+        // 状态色（暗底上提亮，保持同一语义）
+        static let success = Color(hex: "6FC08C")
+        static let warning = Color(hex: "E0A94A")
+        static let error = Color(hex: "E58B7B")
+        static let info = Color(hex: "8FB6CC")
 
         // HUD 专用
-        static let hudBackground = Color(hex: "151912").opacity(0.94)
-        static let hudBorder = Color(hex: "384133")
+        static let hudBackground = Color(hex: "12181B").opacity(0.96)
+        static let hudBorder = Color(hex: "2C3438")
+
+        // 采集与点云浏览共用的中性工具表面。
+        static let controlSurface = Color(hex: "1B2225")
+        static let pointCloudControls = controlSurface
     }
 
-    /// 暗色渐变
+    /// 暗色渐变（仅用于画布纵深，不用于装饰面板）
     static var darkGradient: LinearGradient {
         LinearGradient(
-            colors: [Dark.bgDeep, Color(hex: "171B14")],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            colors: [Dark.bgDeep, Color(hex: "0A0E10")],
+            startPoint: .top,
+            endPoint: .bottom
         )
     }
-
 }
 
 // MARK: - Glass Card Style
 extension Design.Radius {
-    /// 玻璃卡片专用圆角
+    /// 暗色面板圆角
     struct Glass {
-        static let small: CGFloat = 8
+        static let small: CGFloat = 6
         static let medium: CGFloat = 10
         static let large: CGFloat = 12
         static let xl: CGFloat = 14
@@ -60,30 +66,24 @@ extension Design.Radius {
 
 // MARK: - Dark Shadow
 extension Design.Shadow {
-    /// 暗色主题阴影
+    /// 暗色浮起阴影
     static let glassShadow = (
-        color: Color.black.opacity(0.18),
-        radius: CGFloat(10),
-        y: CGFloat(4)
+        color: Color.black.opacity(0.34),
+        radius: CGFloat(14),
+        y: CGFloat(6)
     )
-
 }
 
 // MARK: - View Modifiers for Dark Theme
 extension View {
-    /// 深色表面卡片样式
+    /// 深色表面面板：实底 + 1px 描边，不用大面积玻璃模糊。
     func glassCardStyle(cornerRadius: CGFloat = Design.Radius.Glass.medium) -> some View {
         self
             .background(Design.Colors.Dark.glassFill)
             .cornerRadius(cornerRadius)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
-            )
-            .shadow(
-                color: Design.Shadow.glassShadow.color,
-                radius: Design.Shadow.glassShadow.radius,
-                y: Design.Shadow.glassShadow.y
             )
     }
 }
@@ -92,7 +92,7 @@ extension View {
 struct DarkGlassButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
@@ -100,11 +100,11 @@ struct DarkGlassButtonStyle: ButtonStyle {
 // MARK: - Typography for Dark Theme
 extension Design.Typography {
     /// HUD 等宽字体
-    static let hudLabel = Font.system(size: 10, weight: .medium, design: .monospaced)
-    static let hudValue = Font.system(size: 14, weight: .bold, design: .monospaced)
+    static var hudLabel: Font { .system(size: 10, weight: .medium, design: .monospaced) }
+    static var hudValue: Font { .system(size: 14, weight: .bold, design: .monospaced) }
 
-    /// 深色主题标题
-    static let darkHeadline = Font.system(size: 17, weight: .semibold, design: .default)
-    static let darkSubheadline = Font.system(size: 15, weight: .medium, design: .default)
-    static let darkCaption = Font.system(size: 12, weight: .regular, design: .default)
+    /// 深色面板标题
+    static var darkHeadline: Font { .system(.headline, design: .default).weight(.semibold) }
+    static var darkSubheadline: Font { .system(.subheadline, design: .default).weight(.medium) }
+    static var darkCaption: Font { .system(.caption, design: .default) }
 }

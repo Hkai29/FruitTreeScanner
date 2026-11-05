@@ -277,7 +277,7 @@ extension DashboardView {
                 historyStore: historyStore
             )
         case .tagManagement:
-            TagManagementView(onStartScan: showStartScanAfterDismissingSheet, tagStore: tagStore)
+            TagManagementView(onStartScan: showStartScanAfterDismissingSheet, tagStore: tagStore, onScanTree: launchRescan)
         case .yieldReport:
             YieldReportSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .compare:
@@ -286,7 +286,9 @@ extension DashboardView {
             TrendsSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
         case .map:
             if #available(iOS 17, *) {
-                MapSheet(onStartScan: showStartScanAfterDismissingSheet, historyStore: historyStore)
+                MapSheet(onStartScan: showStartScanAfterDismissingSheet,
+                         onRescanTree: launchRescan,
+                         historyStore: historyStore)
             } else {
                 Text(OrchardMapPresentation().requiresIOS17)
             }
@@ -297,7 +299,8 @@ extension DashboardView {
                 onStartScan: showStartScanAfterDismissingSheet,
                 onImportFile: { self.destination = .importFile },
                 store: historyStore,
-                tagStore: tagStore
+                tagStore: tagStore,
+                operations: batchExportOperations
             )
         case .startScan, .quickScan:
             EmptyView()
@@ -312,14 +315,4 @@ extension DashboardView {
         queueScanAfterSourceDismissal(request)
     }
 
-    private func activateScan(_ request: ScanLaunchRequest) {
-        let existing = tagStore.getAssignment(treeId: request.treeID)
-        tagStore.createOrUpdateAssignment(
-            treeId: request.treeID,
-            plotId: request.plotId,
-            tagIds: request.tagIds,
-            status: existing?.status ?? .notScanned
-        )
-        activeScanRequest = request
-    }
 }

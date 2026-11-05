@@ -1,3 +1,9 @@
+// BatchExportOptionsView.swift
+// 导出选项：格式、包含字段、分组方式。
+//
+// 格式与字段用筛选片，分组用分段控件；无障碍字号下退回菜单，
+// 避免固定宽度被裁切。选项变化会清空已生成的导出文件（由调用方处理）。
+
 import SwiftUI
 
 struct BatchExportOptionsView: View {
@@ -8,56 +14,72 @@ struct BatchExportOptionsView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(spacing: Design.Space.md) {
+        VStack(alignment: .leading, spacing: 16) {
             formatSelector
-            optionsSection
+            if exportFormat == .replay {
+                replayNotice
+            } else {
+                optionsSection
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Design.Space.md)
-        .background(Design.Colors.Dark.bgSurface)
     }
 
+    // MARK: - 格式
+
     private var formatSelector: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(L10n.Export.formatTitle)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .instrumentLabel()
                 .accessibilityAddTraits(.isHeader)
 
             formatControl
+
+            Text(exportFormat.description)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Workspace.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
+    private var replayNotice: some View {
+        InstrumentNotice(
+            message: exportFormat.description,
+            tone: .neutral,
+            systemImage: "doc.badge.clock"
+        )
+        .accessibilityIdentifier("batchExport.replay.description")
+    }
+
+    // MARK: - 字段与分组
+
     private var optionsSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
-            Text(L10n.Export.fieldsTitle)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.Export.fieldsTitle)
+                    .instrumentLabel()
+                    .accessibilityAddTraits(.isHeader)
 
-            fieldsControl
+                fieldsControl
+            }
 
-            Divider()
-                .background(Design.Colors.Dark.glassBorder)
-                .accessibilityHidden(true)
+            DividerLine()
 
             groupSelector
         }
     }
 
     private var groupSelector: some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(L10n.Export.groupingTitle)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .instrumentLabel()
                 .accessibilityAddTraits(.isHeader)
 
             groupPicker
         }
     }
+
+    // MARK: - 控件
 
     @ViewBuilder
     private var formatControl: some View {
@@ -77,7 +99,7 @@ struct BatchExportOptionsView: View {
                 onOptionsChanged()
             }
         } else {
-            FlowLayout(spacing: Design.Space.sm) {
+            FlowLayout(spacing: 8) {
                 ForEach(BatchExportService.ExportFormat.allCases, id: \.self) { format in
                     BatchExportFormatButton(
                         format: format,
@@ -97,6 +119,8 @@ struct BatchExportOptionsView: View {
             accessibilityGroupingPicker
                 .pickerStyle(.menu)
         } else {
+            // 分组方式保留系统分段控件：它是既有的原生控件契约，
+            // 且在日光工作区上使用浅色外观。
             groupingPicker
                 .pickerStyle(.segmented)
         }
@@ -121,7 +145,7 @@ struct BatchExportOptionsView: View {
                 .frame(minHeight: Design.Touch.minimumHeight)
             }
             .buttonStyle(.plain)
-            .foregroundColor(Design.Colors.harvest)
+            .foregroundColor(Design.Colors.Workspace.accent)
             .disabled(isExporting)
             .opacity(isExporting ? 0.65 : 1)
             .accessibilityIdentifier("batchExport.optionMenu")
@@ -131,7 +155,7 @@ struct BatchExportOptionsView: View {
             )
             .accessibilityHint(L10n.Export.fieldsMenuHint)
         } else {
-            FlowLayout(spacing: Design.Space.sm) {
+            FlowLayout(spacing: 8) {
                 BatchExportOptionToggle(
                     label: L10n.Export.treeIDField,
                     accessibilityIdentifier: "treeID",
@@ -162,6 +186,8 @@ struct BatchExportOptionsView: View {
             .opacity(isExporting ? 0.65 : 1)
         }
     }
+
+    // MARK: - 绑定
 
     private var includedFieldCount: Int {
         [
@@ -248,5 +274,4 @@ struct BatchExportOptionsView: View {
         exportOptions[keyPath: keyPath].toggle()
         onOptionsChanged()
     }
-
 }

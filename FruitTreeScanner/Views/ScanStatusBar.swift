@@ -1,3 +1,6 @@
+// ScanStatusBar.swift
+// 采集读数面板：深色仪器面板，浮在相机画面之上。
+
 import SwiftUI
 
 struct ScanStatusBar: View {
@@ -6,16 +9,18 @@ struct ScanStatusBar: View {
     @ObservedObject var hudState: ScanHUDState
     @ObservedObject var qualityMonitor: ScanQualityMonitor
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @ScaledMetric(relativeTo: .body) private var metricFontSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .caption) private var metricLabelSize: CGFloat = 11
 
     private var isPad: Bool { horizontalSizeClass == .regular }
 
     private var layout: ScanStatusBarLayout {
         ScanStatusBarLayout(
             isPad: isPad,
-            metricFontSize: isPad ? 14 : 12,
-            metricLabelSize: isPad ? 11 : 9,
-            pillLabelSize: isPad ? 12 : 10,
-            pillValueSize: isPad ? 16 : 14,
+            metricFontSize: metricFontSize,
+            metricLabelSize: metricLabelSize,
+            pillLabelSize: metricLabelSize,
+            pillValueSize: metricFontSize,
             statusIconSize: isPad ? 12 : 10,
             statusLabelSize: isPad ? 13 : 12
         )
@@ -49,17 +54,18 @@ struct ScanStatusBar: View {
                 )
             }
         }
-        .padding(.horizontal, isPad ? 14 : 10)
-        .padding(.vertical, isPad ? 14 : 10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                .fill(Design.Colors.Dark.hudBackground)
+            RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
+                .fill(Design.Colors.Dark.bgSurface.opacity(0.94))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
+            RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous)
                 .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
         )
-        .padding(.horizontal, Design.Space.md)
-        .padding(.top, Design.Space.md)
+        .frame(maxWidth: 760)
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
     }
 }

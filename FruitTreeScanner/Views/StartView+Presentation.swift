@@ -26,6 +26,22 @@ extension StartView {
         return tagStore.tags.filter { resolvedTagIDs.contains($0.id) }
     }
 
+    /// 果园里已经归档过的编号，供第 1 步直接沿用。
+    var existingTreeIDs: [String] {
+        Array(Set(tagStore.assignments.map(\.treeId)))
+            .filter { !$0.isEmpty }
+            .sorted()
+    }
+
+    /// 每个地块已归档的树木数量。
+    var plotTreeCounts: [UUID: Int] {
+        var counts: [UUID: Int] = [:]
+        for plot in tagStore.plots {
+            counts[plot.id] = tagStore.treeCount(forPlotId: plot.id)
+        }
+        return counts
+    }
+
     var stepHeader: StartFlowToolHeaderContent {
         switch currentStep {
         case 1:
@@ -34,7 +50,7 @@ extension StartView {
                 title: L10n.StartSetup.text(.identifierTitle),
                 subtitle: L10n.StartSetup.text(.identifierToolSubtitle),
                 icon: "number",
-                accent: Design.Colors.harvest
+                accent: Design.Colors.Workspace.accent
             )
         case 2:
             return StartFlowToolHeaderContent(
@@ -42,7 +58,7 @@ extension StartView {
                 title: L10n.StartSetup.text(.plotToolTitle),
                 subtitle: L10n.StartSetup.text(.plotToolSubtitle),
                 icon: "map.fill",
-                accent: Design.Colors.forest
+                accent: Design.Colors.Workspace.accent
             )
         case 3:
             return StartFlowToolHeaderContent(
@@ -50,7 +66,7 @@ extension StartView {
                 title: L10n.StartSetup.text(.seasonTitle),
                 subtitle: L10n.StartSetup.text(.seasonToolSubtitle),
                 icon: "chart.bar.fill",
-                accent: Design.Colors.harvest
+                accent: Design.Colors.Workspace.accent
             )
         case 4:
             return StartFlowToolHeaderContent(
@@ -58,7 +74,7 @@ extension StartView {
                 title: L10n.StartSetup.text(.tagsToolTitle),
                 subtitle: L10n.StartSetup.text(.tagsToolSubtitle),
                 icon: "tag.fill",
-                accent: Design.Colors.forest
+                accent: Design.Colors.Workspace.accent
             )
         default:
             return StartFlowToolHeaderContent(
@@ -66,7 +82,7 @@ extension StartView {
                 title: L10n.StartSetup.text(.confirmationToolTitle),
                 subtitle: L10n.StartSetup.text(.confirmationToolSubtitle),
                 icon: "viewfinder",
-                accent: Design.Colors.harvest
+                accent: Design.Colors.Workspace.accent
             )
         }
     }
