@@ -40,7 +40,14 @@ SIMULATOR_BUILD_MARKER = "tools/ci_simulator_build.sh"
 EVIDENCE_HELPER = "tools/ci_evidence.py"
 RESULT_READER_HELPER = "tools/ci_result_reader.py"
 UI_HOST_SETUP_HELPER = "tools/ci_ui_host_setup.py"
+VERIFICATION_HELPER = "tools/ci_verify_xctest_artifact.py"
 EVIDENCE_DIRECTORY = "${{ runner.temp }}/FruitTreeScanner-ci-evidence"
+VERIFICATION_DIRECTORY = "${{ runner.temp }}/FruitTreeScanner-ci-verification"
+INPUT_DIRECTORY = "${{ runner.temp }}/FruitTreeScanner-ci-input"
+EVIDENCE_NAME = "ios-evidence-${{ github.run_id }}-${{ github.run_attempt }}"
+VERIFICATION_NAME = "ios-verification-${{ github.run_id }}-${{ github.run_attempt }}"
+VERIFICATION_COMMAND = ('python3 ' + VERIFICATION_HELPER + ' --artifact-dir "' + INPUT_DIRECTORY
+                        + '" --output-root "' + VERIFICATION_DIRECTORY + '"')
 EVIDENCE_EXPORT = "printf 'FTS_CI_EVIDENCE_DIR=%s/FruitTreeScanner-ci-evidence\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\""
 REQUIRED_EVENTS = ("push", "pull_request")
 
@@ -51,6 +58,13 @@ class WorkflowShapeError(RuntimeError):
 
 def _indent(line):
     return len(line) - len(line.lstrip(" "))
+
+
+def _scalar(value):
+    value = value.strip()
+    if len(value) >= 2 and value[0] in "'\"" and value[-1] == value[0]:
+        return value[1:-1]
+    return value
 
 
 def _flow_list(value):
@@ -95,6 +109,7 @@ def parse_workflow(text):
     events = {}
     permissions = {}
     steps = []
+    jobs = {}
     job_environment_sources = []
 
     section = None
@@ -104,6 +119,9 @@ def parse_workflow(text):
     current_step = None
     run_block_indent = None
     in_job_environment = False
+    current_job = None
+    job_mapping = None
+    step_mapping = None
 
     for number, line in lines:
         indent = _indent(line)
@@ -153,12 +171,50 @@ def parse_workflow(text):
             continue
 
         if section == "jobs":
+            if indent == 2 and stripped.endswith(":"):
+                job_name = stripped[:-1]
+                if job_name in jobs:
+                    raise WorkflowShapeError("duplicate job: " + job_name)
+                current_job = {"job_id": job_name, "name": "", "steps": [], "needs": [], "env": {}, "permissions": {},
+                               "if": None, "continue-on-error": None, "runs-on": ""}
+                jobs[job_name] = current_job
+                in_steps = False
+                current_step = None
+                in_job_environment = False
+                job_mapping = None
+                continue
+            if current_job is None:
+                raise WorkflowShapeError("job content has no owning job")
             if indent == 4:
                 in_job_environment = stripped.startswith("env:")
                 if in_job_environment:
                     job_environment_sources.append(stripped)
+                key, separator, value = stripped.partition(":")
+                if not separator:
+                    raise WorkflowShapeError("invalid job property at line %s" % number)
+                job_mapping = key if key in ("env", "permissions", "needs") else None
+                value = _scalar(value)
+                if key == "needs":
+                    current_job[key] = _flow_list(value)
+                elif key in ("name", "runs-on", "if", "continue-on-error"):
+                    current_job[key] = value
+                elif key in ("env", "permissions") and value:
+                    if key == "permissions":
+                        raise WorkflowShapeError("job permissions must use a mapping")
             if in_job_environment and indent > 4:
                 job_environment_sources.append(stripped)
+                if indent == 6 and ":" in stripped:
+                    key, value = stripped.split(":", 1)
+                    current_job["env"][key.strip()] = _scalar(value)
+                continue
+            if indent == 6 and job_mapping in ("permissions", "needs") and not in_steps:
+                if job_mapping == "needs" and stripped.startswith("- "):
+                    current_job["needs"].append(stripped[2:].strip().strip("'\""))
+                elif job_mapping == "permissions" and ":" in stripped:
+                    key, value = stripped.split(":", 1)
+                    current_job["permissions"][key.strip()] = _scalar(value)
+                else:
+                    raise WorkflowShapeError("invalid job mapping at line %s" % number)
                 continue
             if indent == 4 and stripped == "steps:":
                 in_steps = True
@@ -166,27 +222,50 @@ def parse_workflow(text):
             if not in_steps:
                 continue
             if indent == 6 and stripped.startswith("- "):
-                current_step = {"line": number, "name": "", "run": [], "uses": "",
-                                "continue-on-error": None, "if": None, "with": {}}
+                current_step = {"line": number, "name": "", "run": [], "uses": "", "shell": "",
+                                "continue-on-error": None, "if": None, "with": {}, "env": {},
+                                "job": current_job["job_id"]}
                 steps.append(current_step)
+                current_job["steps"].append(current_step)
+                step_mapping = None
                 first = stripped[2:].strip()
-                if first.startswith("name:"):
-                    current_step["name"] = first.split(":", 1)[1].strip().strip("'\"")
+                if ":" not in first:
+                    raise WorkflowShapeError("invalid step at line %s" % number)
+                key, value = first.split(":", 1)
+                value = _scalar(value)
+                if key not in current_step or key in ("with", "env", "job", "line"):
+                    raise WorkflowShapeError("unsupported first step property at line %s" % number)
+                if key == "run":
+                    if value in ("|", ">", "|-", ">-"):
+                        run_block_indent = indent
+                    else:
+                        current_step["run"].append(value)
+                else:
+                    current_step[key] = value
                 continue
             if current_step is not None and indent == 10 and ":" in stripped:
+                if step_mapping not in ("with", "env"):
+                    raise WorkflowShapeError("step values must belong to with or env")
                 key, value = stripped.split(":", 1)
-                current_step["with"][key.strip()] = value.strip().strip("'\"")
+                if key.strip() in current_step[step_mapping]:
+                    raise WorkflowShapeError("duplicate step mapping key: " + key.strip())
+                current_step[step_mapping][key.strip()] = _scalar(value)
                 continue
             if current_step is None:
                 continue
             if indent == 8 and ":" in stripped:
                 key, value = stripped.split(":", 1)
                 key = key.strip()
-                value = value.strip().strip("'\"")
+                value = _scalar(value)
+                step_mapping = key if key in ("with", "env") else None
+                if key in ("with", "env") and value:
+                    raise WorkflowShapeError("step with/env must use a mapping")
                 if key == "name":
                     current_step["name"] = value
                 elif key == "uses":
                     current_step["uses"] = value
+                elif key == "shell":
+                    current_step["shell"] = value
                 elif key == "continue-on-error":
                     current_step["continue-on-error"] = value
                 elif key == "if":
@@ -203,7 +282,7 @@ def parse_workflow(text):
     if not steps:
         raise WorkflowShapeError("no steps found in the workflow")
     return {"events": events, "permissions": permissions, "steps": steps,
-            "job_environment_sources": job_environment_sources}
+            "jobs": jobs, "job_environment_sources": job_environment_sources}
 
 
 def references_runner_context(value):
@@ -218,12 +297,89 @@ def references_runner_context(value):
     return False
 
 
+def _require_hard_step(step, findings, label):
+    if step["continue-on-error"] not in (None, "false"):
+        findings.append(label + " must not set continue-on-error")
+    if step["if"] is not None:
+        findings.append(label + " must be unconditional and hard-failing")
+
+
+def _check_verification(workflow, test_steps, findings):
+    jobs = workflow["jobs"]
+    build = jobs.get("build")
+    verify = jobs.get("verify")
+    if not build or not verify:
+        findings.append("the handoff requires a mandatory verification job named verify")
+        return
+    if build["name"] != "Execute compatibility XCTest" or verify["name"] != "build":
+        findings.append("the strict required check named build must belong to verify; the producer must use its distinct display name")
+    for name, job in (("build", build), ("verify", verify)):
+        if job["if"] is not None or job["continue-on-error"] not in (None, "false"):
+            findings.append("the %s job must be unconditional and hard-failing" % name)
+        if any(value not in ("read", "none") for value in job["permissions"].values()):
+            findings.append("the %s job permissions must remain read-only" % name)
+        if job["permissions"] and job["permissions"].get("contents") != "read":
+            findings.append("the %s job permissions require contents: read" % name)
+    if build["runs-on"] != "macos-15":
+        findings.append("the build job must retain its macos-15 compiler runner")
+    if verify["runs-on"] != "xcode-27":
+        findings.append("the verification job must use the standard xcode-27 reader runner")
+    if verify["needs"] != ["build"]:
+        findings.append("the verification job needs the successful build job")
+    if build["needs"]:
+        findings.append("the build job must remain the initial producer")
+    for job in (build, verify):
+        if any(key in job["env"] for key in ("FTS_CI_XCTEST_MODE", "FTS_CI_XCTEST_CONSUMER")):
+            findings.append("XCTest handoff configuration belongs only in the producer step env")
+    for step in test_steps:
+        if step["env"] != {"FTS_CI_XCTEST_MODE": "handoff", "FTS_CI_XCTEST_CONSUMER": "verify"}:
+            findings.append("the producer step env must name handoff mode and its verify consumer")
+        if step["run"] != ["bash " + XCTest_GATE_MARKER] or step["shell"] != "bash":
+            findings.append("the producer must directly run the full XCTest gate")
+    steps = verify["steps"]
+    checkout = [step for step in steps if step["uses"] == "actions/checkout@v4"]
+    downloads = [step for step in steps if step["uses"] == "actions/download-artifact@v8"]
+    consumers = [step for step in steps if any(VERIFICATION_HELPER in line for line in step["run"])]
+    uploads = [step for step in steps if step["uses"] == "actions/upload-artifact@v7"]
+    for selected, label in ((checkout, "checkout"), (downloads, "download"),
+                            (consumers, "strict consumer"), (uploads, "verification upload")):
+        if len(selected) != 1:
+            findings.append("the verification job requires exactly one " + label)
+    for step in checkout + downloads + consumers:
+        _require_hard_step(step, findings, "verification " + step["name"])
+    for step in checkout:
+        if step["with"] != {"ref": "${{ github.sha }}"}:
+            findings.append("verification checkout must use the same github.sha source")
+    expected_download = {"name": EVIDENCE_NAME, "path": INPUT_DIRECTORY + "/", "digest-mismatch": "error"}
+    for step in downloads:
+        if step["with"] != expected_download:
+            findings.append("verification download must use the same run/attempt artifact and digest-mismatch: error")
+    for step in consumers:
+        if step["run"] != [VERIFICATION_COMMAND] or step.get("shell") != "bash":
+            findings.append("verification must directly run the strict consumer on the dedicated input/output directories")
+    if len(checkout) == len(downloads) == len(consumers) == len(uploads) == 1:
+        if not steps.index(checkout[0]) < steps.index(downloads[0]) < steps.index(consumers[0]) < steps.index(uploads[0]):
+            findings.append("verification order must be checkout, download, strict consumer, then upload")
+    for upload in uploads:
+        if upload["continue-on-error"] not in (None, "false"):
+            findings.append("verification upload must not set continue-on-error")
+        if upload["if"] not in ("always()", "${{ always() }}"):
+            findings.append("verification upload requires if: always()")
+        expected = {"name": VERIFICATION_NAME, "path": VERIFICATION_DIRECTORY + "/",
+                    "if-no-files-found": "error", "retention-days": "14",
+                    "overwrite": "false", "include-hidden-files": "true"}
+        if upload["with"] != expected:
+            findings.append("verification upload must retain only complete dedicated verification evidence with run identity")
+
+
 def check(workflow_path):
     """Return (ok, findings)."""
     text = Path(workflow_path).read_text()
     workflow = parse_workflow(text)
     findings = []
-    steps = workflow["steps"]
+    steps = workflow["jobs"].get("build", {}).get("steps", [])
+    if not steps:
+        findings.append("the build job must own the production gates")
 
     # 1. both events must exist and must be triggered by the right paths
     for name in REQUIRED_EVENTS:
@@ -233,7 +389,7 @@ def check(workflow_path):
             continue
         paths = event["paths"]
         for required in (UI_TEST_SOURCES, REGISTRATION_CHECK, WIRING_CHECK, EVIDENCE_HELPER,
-                         RESULT_READER_HELPER, UI_HOST_SETUP_HELPER):
+                         RESULT_READER_HELPER, UI_HOST_SETUP_HELPER, VERIFICATION_HELPER):
             if required not in paths:
                 findings.append("the %r event does not trigger on %r" % (name, required))
 
@@ -251,14 +407,25 @@ def check(workflow_path):
     # one that actually blocks a build.
     if not any(any(WIRING_CHECK in command for command in step["run"]) for step in steps):
         findings.append("no step runs %s (the wiring check must stay in CI)" % WIRING_CHECK)
+    for marker, command in ((REGISTRATION_CHECK, "python3 " + REGISTRATION_CHECK),
+                             (WIRING_CHECK, "python3 " + WIRING_CHECK),
+                             (SIMULATOR_BUILD_MARKER, "bash " + SIMULATOR_BUILD_MARKER),
+                             ("tools/validate_fusion_domain.sh", "bash tools/validate_fusion_domain.sh")):
+        selected = [step for step in steps if any(marker in line for line in step["run"])]
+        if len(selected) != 1:
+            findings.append("the build job requires exactly one gate running " + marker)
+        for step in selected:
+            _require_hard_step(step, findings, "the build gate running " + marker)
+            if step["run"] != [command] or step["shell"] != "bash":
+                findings.append("the build gate must directly execute " + marker)
 
     # 3. the step must not be made non-blocking
     for step in registration_steps:
-        if step["continue-on-error"] in ("true", "True", "yes"):
+        if step["continue-on-error"] not in (None, "false"):
             findings.append("the step running %s sets continue-on-error: %s"
                             % (REGISTRATION_CHECK, step["continue-on-error"]))
         condition = step["if"]
-        if condition and re.search(r"always\(\)|failure\(\)|cancelled\(\)", condition):
+        if condition is not None:
             findings.append("the step running %s is neutralised by if: %s"
                             % (REGISTRATION_CHECK, condition))
 
@@ -281,6 +448,8 @@ def check(workflow_path):
     if workflow["permissions"].get("contents") != "read":
         findings.append("the workflow permissions changed: contents=%s (expected read)"
                         % workflow["permissions"].get("contents"))
+    if any(value not in ("read", "none") for value in workflow["permissions"].values()):
+        findings.append("all workflow permissions must remain read-only")
     for name in REQUIRED_EVENTS:
         event = workflow["events"].get(name)
         if event is not None and event["branches"] != ["main"]:
@@ -289,6 +458,11 @@ def check(workflow_path):
 
     # Diagnostics remain available when compilation, tests or the shared gate fail.
     test_steps = [step for step in steps if any(XCTest_GATE_MARKER in line for line in step["run"])]
+    if len(test_steps) != 1:
+        findings.append("exactly one full XCTest gate producer is required in the build job")
+    for step in test_steps:
+        _require_hard_step(step, findings, "the XCTest gate producer")
+    _check_verification(workflow, test_steps, findings)
     uploads = [step for step in steps if step["uses"] == "actions/upload-artifact@v7"]
     if len(uploads) != 1:
         findings.append("exactly one CI evidence upload is required")

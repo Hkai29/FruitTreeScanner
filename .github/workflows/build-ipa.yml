@@ -15,6 +15,7 @@ on:
       - 'tools/ci_evidence.py'
       - 'tools/ci_result_reader.py'
       - 'tools/ci_ui_host_setup.py'
+      - 'tools/ci_verify_xctest_artifact.py'
       - 'tools/xctest_gate.py'
       - 'tools/check_test_target_registration.py'
       - 'tools/check_ci_test_registration_gate.py'
@@ -34,6 +35,7 @@ on:
       - 'tools/ci_evidence.py'
       - 'tools/ci_result_reader.py'
       - 'tools/ci_ui_host_setup.py'
+      - 'tools/ci_verify_xctest_artifact.py'
       - 'tools/xctest_gate.py'
       - 'tools/check_test_target_registration.py'
       - 'tools/check_ci_test_registration_gate.py'
@@ -46,6 +48,7 @@ permissions:
 
 jobs:
   build:
+    name: Execute compatibility XCTest
     runs-on: macos-15
     timeout-minutes: 60
     steps:
@@ -85,6 +88,9 @@ jobs:
 
       - name: XCTest gate
         shell: bash
+        env:
+          FTS_CI_XCTEST_MODE: handoff
+          FTS_CI_XCTEST_CONSUMER: verify
         run: bash tools/ci_xctest_gate.sh
 
       - name: Retain CI evidence
@@ -93,6 +99,39 @@ jobs:
         with:
           name: ios-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/FruitTreeScanner-ci-evidence/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: false
+          include-hidden-files: true
+
+  verify:
+    name: build
+    needs: build
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - name: Checkout tested source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download XCTest evidence
+        uses: actions/download-artifact@v8
+        with:
+          name: ios-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/FruitTreeScanner-ci-input/
+          digest-mismatch: error
+
+      - name: Verify XCTest evidence
+        shell: bash
+        run: python3 tools/ci_verify_xctest_artifact.py --artifact-dir "${{ runner.temp }}/FruitTreeScanner-ci-input" --output-root "${{ runner.temp }}/FruitTreeScanner-ci-verification"
+
+      - name: Retain XCTest verification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/FruitTreeScanner-ci-verification/
           if-no-files-found: error
           retention-days: 14
           overwrite: false

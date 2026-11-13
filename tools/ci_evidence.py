@@ -66,7 +66,10 @@ def prepare(args):
         "started_at_utc": stamp(), "python": sys.version, "platform": platform.platform(),
         "github_run_id": os.environ.get("GITHUB_RUN_ID"),
         "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
-        "github_sha": os.environ.get("GITHUB_SHA")})
+        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_actions": os.environ.get("GITHUB_ACTIONS") == "true",
+        "xctest_mode": os.environ.get("FTS_CI_XCTEST_MODE", "strict"),
+        "gate_consumer_job": os.environ.get("FTS_CI_XCTEST_CONSUMER")})
     print(run)
     return 0
 
@@ -83,15 +86,28 @@ def toolchain(run):
         results[name] = {"exit_code": command(run, name, argv, name + ".log"), "log": name + ".log"}
     reader = None
     reader_error = None
-    phase = json.loads((run / "run.json").read_text())["phase"]
+    metadata = json.loads((run / "run.json").read_text())
+    phase = metadata["phase"]
+    mode = metadata.get("xctest_mode", "strict")
     compiler = os.environ.get("DEVELOPER_DIR")
     if phase == "tests" and not any(item["exit_code"] for item in results.values()):
-        try:
-            reader = select_reader(run, compiler, os.environ.get("FTS_XCRESULT_DEVELOPER_DIR"),
-                                   "FTS_XCRESULT_DEVELOPER_DIR" in os.environ, command)["developer_dir"]
-        except ValueError as error:
-            reader_error = str(error)
-            print(f"Cannot select XCTest result reader: {error}", file=sys.stderr)
+        if mode == "handoff":
+            if (metadata.get("github_actions") is not True or metadata.get("gate_consumer_job") != "verify"
+                    or any(not isinstance(metadata.get(key), str) or not metadata[key].strip()
+                           for key in ("github_run_id", "github_run_attempt", "github_sha"))):
+                reader_error = "XCTest handoff requires the CI run identity and mandatory verify consumer"
+            elif "FTS_XCRESULT_DEVELOPER_DIR" in os.environ:
+                reader_error = "XCTest handoff must retain the compiling toolchain for original exports"
+        elif mode == "strict":
+            try:
+                reader = select_reader(run, compiler, os.environ.get("FTS_XCRESULT_DEVELOPER_DIR"),
+                                       "FTS_XCRESULT_DEVELOPER_DIR" in os.environ, command)["developer_dir"]
+            except ValueError as error:
+                reader_error = str(error)
+        else:
+            reader_error = "Unknown XCTest validation mode: " + repr(mode)
+        if reader_error:
+            print(f"Cannot select XCTest result reader: {reader_error}", file=sys.stderr)
     if reader:
         for name, argv in (("reader-xcode-version", ["xcodebuild", "-version"]),
                            ("reader-xcresulttool-path", ["xcrun", "--find", "xcresulttool"])):
@@ -213,12 +229,14 @@ def finish(run, primary):
     expected = "xctest" if metadata["phase"] == "tests" else "simulator-build"
     evidence_failed |= not any(item["name"] == expected for item in commands)
     evidence_failed |= any(not (run / item["log"]).is_file() for item in commands)
-    if metadata["phase"] == "tests" and primary == 0:
+    handoff = metadata.get("xctest_mode", "strict") == "handoff"
+    if metadata["phase"] == "tests" and primary == 0 and not handoff:
         evidence_failed |= not any(item["name"] == "xctest-gate" and item["exit_code"] == 0 for item in commands)
     final = primary if primary else (2 if evidence_failed else 0)
     write_json(run / "report.json", dict(metadata, finished_at_utc=stamp(), primary_exit=primary,
         final_exit=final, result_bundle_present=bundle.is_dir(), exports=exports,
-        commands=commands, evidence_complete=not evidence_failed))
+        commands=commands, evidence_complete=not evidence_failed,
+        strict_gate_pending=metadata["phase"] == "tests" and handoff))
     print(f"CI evidence: {run} (primary exit {primary}, final exit {final})")
     return final
 

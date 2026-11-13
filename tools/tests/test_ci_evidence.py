@@ -120,6 +120,8 @@ else: raise SystemExit(9)
         environment.pop("FTS_CI_HOST_APP_PATH", None)
         environment.pop("FTS_CI_OWNED_SIMULATOR_ID", None)
         environment.pop("FTS_XCRESULT_DEVELOPER_DIR", None)
+        environment.pop("FTS_CI_XCTEST_MODE", None)
+        environment.pop("FTS_CI_XCTEST_CONSUMER", None)
         environment.update(overrides)
         return subprocess.run(["bash", str(self.repo / "tools" / script)], cwd=self.repo,
                               env=environment, capture_output=True, text=True)

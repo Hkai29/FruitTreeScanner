@@ -33,8 +33,8 @@ Test the runner's failure handling without Xcode:
 
 `tools/xctest_gate.py` is the single place that decides whether an XCTest
 result bundle may pass. `tools/code_improvement_workflow.py` (local profiles)
-and `tools/ci_xctest_gate.sh` (CI) both call it, so there is no second,
-looser standard.
+and CI's final verification both call it, so there is no second, looser
+standard. Standalone `tools/ci_xctest_gate.sh` runs it directly by default.
 
 A bundle passes only when all of the following hold:
 
@@ -122,6 +122,26 @@ probes installed Xcode candidates using the official summary schema and keeps
 the probe output and reason in `reader-selection.json` and `reader-probes/`.
 The compiling `DEVELOPER_DIR` and SDK stay unchanged. Missing warning fields
 fail the shared gate; an explicitly configured unsupported reader is rejected.
+
+CI separates execution from strict verification when the compatibility runner
+has no reader exposing the required warning schema. The `build` job executes
+the complete tests on `macos-15`, retains the original bundle and exports, and
+marks `strict_gate_pending: true`. Its explicit handoff mode requires GitHub
+run/attempt/SHA identities and the mandatory `verify` consumer. It does not
+claim strict acceptance. The dependent `verify` job runs on the standard
+`xcode-27` runner and displays the required check name `build`; the producer
+displays `Execute compatibility XCTest`.
+
+`ci_verify_xctest_artifact.py` downloads no external data itself. It checks the
+same attempt's digest-verified artifact against the checkout SHA, rejects
+missing or filtered execution evidence, compares original and fresh counters,
+then calls the unchanged shared gate with a schema-capable reader. Both jobs
+must pass. The original artifact is hashed before and after reading; separate
+verification logs are always uploaded. Missing warnings, failed tests, skipped
+tests, missing classes or unreadable evidence remain hard failures. Runner
+availability alone is not proof of reader capability. The workflow wiring
+regressions enforce this dependency and bind the old required check name to
+strict verification.
 
 The CI build records and hands off the actual unsigned simulator App. Before
 the test host first launches, CI installs that App on the selected simulator,

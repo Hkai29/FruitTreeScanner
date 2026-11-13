@@ -36,8 +36,10 @@ if [[ -z "${DEVELOPER_DIR:-}" ]]; then
 fi
 export DEVELOPER_DIR
 python3 "$task_evidence_tool" toolchain "$task_run_root"
-task_reader_directory="$(python3 "$task_evidence_tool" reader-directory "$task_run_root")"
-export FTS_XCRESULT_DEVELOPER_DIR="$task_reader_directory"
+if [[ "${FTS_CI_XCTEST_MODE:-strict}" == "strict" ]]; then
+  task_reader_directory="$(python3 "$task_evidence_tool" reader-directory "$task_run_root")"
+  export FTS_XCRESULT_DEVELOPER_DIR="$task_reader_directory"
+fi
 task_work_root="$(mktemp -d "$task_build_root/work.XXXXXX")"
 
 # Preserve an explicit caller destination. The default must use a runtime no
@@ -125,6 +127,11 @@ fi
 if [[ ! -d "$task_result_bundle" ]]; then
   printf 'xcodebuild reported success but produced no result bundle: %s\n' "$task_result_bundle" >&2
   exit 2
+fi
+
+if [[ "${FTS_CI_XCTEST_MODE:-strict}" == "handoff" ]]; then
+  printf 'XCTest executed; strict validation is pending in the mandatory verify job.\n'
+  exit 0
 fi
 
 # 判定只有这一份：摘要计数、零跳过、阻塞警告、声明类是否真的跑过。

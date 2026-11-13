@@ -137,7 +137,8 @@ else:
                    STUB_TRACE=str(self.trace), STUB_STATE=str(self.state), STUB_DEVICES=str(self.devices),
                    STUB_BUILD_PRODUCT=str(self.app))
         for name in ("GITHUB_ENV", "GITHUB_ACTIONS", "GITHUB_STEP_SUMMARY", "FTS_CI_HOST_APP_PATH",
-                     "FTS_CI_OWNED_SIMULATOR_ID", "FTS_XCRESULT_DEVELOPER_DIR"):
+                     "FTS_CI_OWNED_SIMULATOR_ID", "FTS_XCRESULT_DEVELOPER_DIR", "FTS_CI_XCTEST_MODE",
+                     "FTS_CI_XCTEST_CONSUMER"):
             env.pop(name, None)
         env.update(overrides)
         return subprocess.run(argv, cwd=self.repo, env=env, capture_output=True, text=True)
