@@ -50,11 +50,6 @@ enum SceneKitPointCloudColorRenderer {
         material.isDoubleSided = true
         newGeometry.materials = [material]
 
-        if let pointSize = geometry.value(forKey: "pointSize") as? CGFloat {
-            newGeometry.setValue(pointSize, forKey: "pointSize")
-            newGeometry.setValue(1, forKey: "pointSizeMode")
-        }
-
         pointCloudNode.geometry = newGeometry
         return true
     }

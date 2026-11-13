@@ -1,3 +1,9 @@
+// ResultSummaryComponents.swift
+// 结果页头部：证据等级 + 估产读数 + 关键计数。
+//
+// 可靠性等级来自 ResultReliabilityPresentation（真实 .fused 诊断），
+// 以竖栏的线型（实线/虚线/点线/空心）结构化表达，颜色只作强化。
+
 import SwiftUI
 
 struct ResultSummaryLayoutPolicy: Equatable, Sendable {
@@ -24,16 +30,11 @@ struct ResultSummaryHeader: View {
     let result: YieldResult
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .headline) private var titleFontSize: CGFloat = 15
-    @ScaledMetric(relativeTo: .title2) private var treeIDFontSize: CGFloat = 22
-    @ScaledMetric(relativeTo: .caption) private var noteFontSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .largeTitle) private var treeIDFontSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .largeTitle) private var valueFontSize: CGFloat = 52
 
     private var confidencePresentation: ResultConfidencePresentation {
         ResultConfidencePresentation(result.confidence)
-    }
-
-    private var algorithmPresentation: ResultAlgorithmParametersPresentation {
-        ResultAlgorithmParametersPresentation(result: result)
     }
 
     private var reliabilityPresentation: ResultReliabilityPresentation {
@@ -44,54 +45,62 @@ struct ResultSummaryHeader: View {
         ResultSummaryLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 
+    private var fusedEvidenceCount: Int {
+        max(
+            result.diagnostics.fusedValidationCount,
+            result.validatedFruits.filter { $0.source == ValidationSource.fused.rawValue }.count
+        )
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
             headerContent
+
+            // 可靠性先于产量：先回答"这条结论能不能用"，再回答"是多少"。
+            ResultReliabilityPanel(presentation: reliabilityPresentation)
 
             ResultPrimaryMetric(
                 title: L10n.Result.yieldTitle,
                 value: ResultValueFormatter.finalYieldKg(result.yieldFinalKg),
                 unit: "kg",
-                color: confidencePresentation.color,
-                arrangement: layoutPolicy.primaryMetricArrangement
+                color: Design.Colors.Workspace.ink,
+                arrangement: layoutPolicy.primaryMetricArrangement,
+                valueFontSize: valueFontSize
             )
 
-            ResultReliabilitySummaryCard(presentation: reliabilityPresentation)
-
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.flexible(), spacing: 8),
-                    count: layoutPolicy.summaryColumnCount
-                ),
-                spacing: 8
-            ) {
-                ResultSummaryPill(
-                    label: L10n.Result.fruit,
-                    value: "\(result.nLidar)",
-                    allowsValueWrapping: layoutPolicy.allowsPillValueWrapping
-                )
-                ResultSummaryPill(
-                    label: L10n.Result.pointCloud,
-                    value: result.pointCloudSize > 0 ? "\(result.pointCloudSize)" : "--",
-                    allowsValueWrapping: layoutPolicy.allowsPillValueWrapping
-                )
-                ResultSummaryPill(
-                    label: L10n.Result.methodLabel,
-                    value: algorithmPresentation.methodDisplayName,
-                    allowsValueWrapping: layoutPolicy.allowsPillValueWrapping
-                )
+            InstrumentStatStrip {
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: 14),
+                        count: layoutPolicy.summaryColumnCount
+                    ),
+                    spacing: 14
+                ) {
+                    ResultSummaryPill(
+                        label: NSLocalizedString("workspace.corrected_count", value: "校正果数", comment: ""),
+                        value: "\(result.nLidar)",
+                        allowsValueWrapping: layoutPolicy.allowsPillValueWrapping
+                    )
+                    ResultSummaryPill(
+                        label: L10n.Result.pointCloud,
+                        value: result.pointCloudSize > 0 ? result.pointCloudSize.formatted() : "--",
+                        allowsValueWrapping: layoutPolicy.allowsPillValueWrapping
+                    )
+                    ResultSummaryPill(
+                        label: NSLocalizedString("workspace.fused_evidence", value: "融合证据", comment: ""),
+                        value: "\(fusedEvidenceCount)",
+                        allowsValueWrapping: layoutPolicy.allowsPillValueWrapping
+                    )
+                }
             }
 
             if !result.note.isEmpty {
                 Text(result.note)
-                    .font(.system(size: noteFontSize))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .font(.footnote)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(16)
-        .resultSurface(cornerRadius: 10)
-        .padding(.horizontal, 18)
     }
 
     @ViewBuilder
@@ -113,13 +122,12 @@ struct ResultSummaryHeader: View {
     }
 
     private var titleContent: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(L10n.Result.scanResult)
-                .font(.system(size: titleFontSize, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .instrumentLabel()
             Text(treeID)
                 .font(.system(size: treeIDFontSize, weight: .semibold, design: .monospaced))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .foregroundColor(Design.Colors.Workspace.ink)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -132,76 +140,71 @@ struct ResultSummaryHeader: View {
     }
 }
 
-private struct ResultReliabilitySummaryCard: View {
+// MARK: - 可靠性面板
+
+/// 可靠性面板：以竖栏线型表达证据等级，附建议动作与诊断提示。
+struct ResultReliabilityPanel: View {
     let presentation: ResultReliabilityPresentation
 
-    @ScaledMetric(relativeTo: .subheadline) private var titleFontSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .caption) private var actionFontSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .caption) private var summaryFontSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .caption2) private var hintFontSize: CGFloat = 11
+    private var tier: InstrumentEvidenceTier { presentation.tier }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: presentation.iconName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(presentation.tint)
-                .frame(width: 22, height: 22)
+        HStack(alignment: .top, spacing: 12) {
+            InstrumentTierRail(style: tier.markStyle, tint: tier.tint)
+                .frame(maxHeight: .infinity)
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(presentation.title)
-                    .font(.system(size: titleFontSize, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.headline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(presentation.recommendedAction)
-                    .font(.system(size: actionFontSize, weight: .medium))
-                    .foregroundColor(presentation.tint)
+                Label(presentation.recommendedAction, systemImage: "arrow.turn.down.right")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(tier.tint)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(presentation.summary)
-                    .font(.system(size: summaryFontSize))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .font(.footnote)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let diagnosticHint = presentation.diagnosticHint {
                     Text(diagnosticHint)
-                        .font(.system(size: hintFontSize))
-                        .foregroundColor(Design.Colors.Dark.textMuted)
+                        .font(.caption)
+                        .foregroundColor(Design.Colors.Workspace.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
-        .background(presentation.tint.opacity(0.10))
-        .cornerRadius(8)
+        .padding(14)
+        .background(tier.softTint, in: RoundedRectangle(cornerRadius: Design.Radius.medium, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct ResultPrimaryMetric: View {
+// MARK: - 主读数
+
+struct ResultPrimaryMetric: View {
     let title: String
     let value: String
     let unit: String
     let color: Color
-
     let arrangement: ResultSummaryLayoutPolicy.Arrangement
-
-    @ScaledMetric(relativeTo: .subheadline) private var titleFontSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .largeTitle) private var valueFontSize: CGFloat = 36
-    @ScaledMetric(relativeTo: .subheadline) private var unitFontSize: CGFloat = 14
+    var valueFontSize: CGFloat = 52
 
     @ViewBuilder
     var body: some View {
         switch arrangement {
         case .horizontal:
-            HStack(alignment: .lastTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 titleText
-                Spacer()
                 valueContent
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .vertical:
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 titleText
                 verticalValueContent
             }
@@ -211,12 +214,11 @@ private struct ResultPrimaryMetric: View {
 
     private var titleText: some View {
         Text(title)
-            .font(.system(size: titleFontSize, weight: .medium))
-            .foregroundColor(Design.Colors.Dark.textSecondary)
+            .instrumentLabel()
     }
 
     private var valueContent: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 8) {
+        HStack(alignment: .lastTextBaseline, spacing: 6) {
             valueText
             unitText
         }
@@ -233,14 +235,15 @@ private struct ResultPrimaryMetric: View {
 
     private var valueText: some View {
         Text(value)
-            .font(.system(size: valueFontSize, weight: .semibold, design: .monospaced))
+            .font(.system(size: valueFontSize, weight: .semibold))
+            .monospacedDigit()
             .foregroundColor(color)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var unitText: some View {
         Text(unit)
-            .font(.system(size: unitFontSize, weight: .semibold))
-            .foregroundColor(Design.Colors.Dark.textSecondary)
+            .font(.title3.weight(.medium))
+            .foregroundColor(Design.Colors.Workspace.secondary)
     }
 }

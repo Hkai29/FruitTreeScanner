@@ -80,12 +80,13 @@ extension Renderer {
 
     /// Builds or reuses the bounded final cloud shared by PLY export and yield
     /// estimation. A revision check rejects snapshots raced by new GPU writes.
-    func makeFinalPointCloudSnapshot() -> FinalPointCloud? {
+    func makeFinalPointCloudSnapshot(expectedCaptureGeneration: UInt64? = nil) -> FinalPointCloud? {
         let buildStart = DispatchTime.now().uptimeNanoseconds
         let voxelSize = Renderer.finalPointCloudVoxelSizeMeters
         let sampleLimit = analysisInputSampleLimit
         let buffer = pointBufferSnapshot()
-        guard buffer.count > 0 else { return nil }
+        guard buffer.count > 0, !buffer.writeFailed,
+              expectedCaptureGeneration == nil || expectedCaptureGeneration == buffer.generation else { return nil }
         let signature = RendererPointCloudSnapshot.makeSignature(
             pointCount: buffer.count,
             pointIndex: buffer.index,
@@ -94,7 +95,7 @@ extension Renderer {
             pointBufferRevision: buffer.revision,
             analysisInputSampleLimit: sampleLimit
         )
-        if let cachedPoints = cachedAnalysisPoints(for: signature) {
+        if let cachedPoints = cachedAnalysisPoints(for: signature, capture: buffer) {
             return FinalPointCloud(
                 identity: signature,
                 points: cachedPoints,
@@ -113,15 +114,11 @@ extension Renderer {
         let retainedSamples = PointCloudDenoiser.statisticalOutlierRemoval(samples: rawSamples)
         guard !retainedSamples.isEmpty else { return nil }
         let points = RendererPointCloudSnapshot.makeColoredPoints(from: retainedSamples)
-        let afterBuild = pointBufferSnapshot()
-        guard afterBuild.count == buffer.count,
-              afterBuild.index == buffer.index,
-              afterBuild.revision == buffer.revision else {
+        guard storeCaptureSnapshot(points: points, fullSignature: signature, capture: buffer) else {
             Log.pointCloud.warning("Discarding final point cloud snapshot because the capture buffer changed during sampling")
             return nil
         }
 
-        storeSnapshot(points: points, fullSignature: signature)
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - buildStart) / 1_000_000_000
         let estimatedPeakPayloadBytes = rawSamples.count * MemoryLayout<RendererPointSample>.stride
             + retainedSamples.count * MemoryLayout<RendererPointSample>.stride
@@ -146,10 +143,26 @@ extension Renderer {
         return snapshotPoints.count
     }
 
-    func updateSnapshot() {
+    func updateSnapshot(expectedCaptureGeneration: UInt64? = nil) {
+        let capture = pointBufferSnapshot()
+        guard !capture.writeFailed,
+              expectedCaptureGeneration == nil || expectedCaptureGeneration == capture.generation else { return }
         let now = Date()
-        guard now.timeIntervalSince(lastSnapshotUpdateTime) >= currentSnapshotUpdateInterval else { return }
+        let interval = currentSnapshotUpdateInterval(pointCount: capture.count)
+        pointBufferLock.lock()
+        guard pointBufferSnapshotLocked() == capture, !pointCaptureWriteFailed else {
+            pointBufferLock.unlock()
+            return
+        }
+        snapshotLock.lock()
+        guard now.timeIntervalSince(lastSnapshotUpdateTime) >= interval else {
+            snapshotLock.unlock()
+            pointBufferLock.unlock()
+            return
+        }
         lastSnapshotUpdateTime = now
+        snapshotLock.unlock()
+        pointBufferLock.unlock()
 
         let samples = makeFilteredPointSamples(
             voxelSize: snapshotVoxelSize,
@@ -158,14 +171,25 @@ extension Renderer {
         guard !samples.isEmpty else { return }
 
         let pts = RendererPointCloudSnapshot.makeColoredPoints(from: samples)
-        storeSnapshot(points: pts, fullSignature: nil)
+        _ = storeCaptureSnapshot(points: pts, fullSignature: nil, capture: capture)
     }
 
-    private func cachedAnalysisPoints(for signature: RendererSnapshotSignature) -> [ColoredPoint]? {
+    private func cachedAnalysisPoints(for signature: RendererSnapshotSignature, capture: PointCloudCaptureState) -> [ColoredPoint]? {
+        pointBufferLock.lock()
+        defer { pointBufferLock.unlock() }
+        guard !pointCaptureWriteFailed, pointBufferSnapshotLocked() == capture else { return nil }
         snapshotLock.lock()
         defer { snapshotLock.unlock() }
         guard fullAnalysisSnapshotSignature == signature else { return nil }
         return snapshotPoints
+    }
+
+    private func storeCaptureSnapshot(points: [ColoredPoint], fullSignature: RendererSnapshotSignature?, capture: PointCloudCaptureState) -> Bool {
+        pointBufferLock.lock()
+        defer { pointBufferLock.unlock() }
+        guard !pointCaptureWriteFailed, pointBufferSnapshotLocked() == capture else { return false }
+        storeSnapshot(points: points, fullSignature: fullSignature)
+        return true
     }
 
     func currentSnapshotSignature(voxelSize: Float? = nil) -> RendererSnapshotSignature {
@@ -186,11 +210,8 @@ extension Renderer {
         snapshotLock.unlock()
     }
 
-    private var currentSnapshotUpdateInterval: TimeInterval {
-        pointBufferLock.lock()
-        let count = currentPointCount
-        pointBufferLock.unlock()
-        switch count {
+    private func currentSnapshotUpdateInterval(pointCount: Int) -> TimeInterval {
+        switch pointCount {
         case 0..<150_000:
             return baseSnapshotUpdateInterval
         case 150_000..<500_000:

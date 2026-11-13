@@ -3,7 +3,7 @@
 
 import Foundation
 
-struct FruitScanExperimentConfig: Equatable, Sendable, Encodable {
+struct FruitScanExperimentConfig: Equatable, Sendable, Codable {
     var fusion: FusionExperimentConfig = .default
     var pointCloud: PointCloudExperimentConfig = .default
     var depth: DepthExperimentConfig = .default
@@ -13,7 +13,7 @@ struct FruitScanExperimentConfig: Equatable, Sendable, Encodable {
     static let `default` = FruitScanExperimentConfig()
 }
 
-struct FusionExperimentConfig: Equatable, Sendable, Encodable {
+struct FusionExperimentConfig: Equatable, Sendable, Codable {
     var nearestCandidateDistance: Float = 0.15
     var frustumSupportRatio: Float = 0.25
     var projectedBoxExpansionFraction: Float = 0.12
@@ -25,7 +25,7 @@ struct FusionExperimentConfig: Equatable, Sendable, Encodable {
     static let `default` = FusionExperimentConfig()
 }
 
-struct PointCloudExperimentConfig: Equatable, Sendable, Encodable {
+struct PointCloudExperimentConfig: Equatable, Sendable, Codable {
     var denoisingMinPointMultiplier: Int = 12
     var denoisingMinPointFloor: Int = 50
     var denoisingNeighborCount: Int = 12
@@ -34,7 +34,7 @@ struct PointCloudExperimentConfig: Equatable, Sendable, Encodable {
     static let `default` = PointCloudExperimentConfig()
 }
 
-struct DepthExperimentConfig: Equatable, Sendable, Encodable {
+struct DepthExperimentConfig: Equatable, Sendable, Codable {
     var projectionSampleGrid: Int = 9
     var minimumReliableConfidence: UInt8 = 1
     /// Sparse outdoor canopies rarely fill a large fraction of the LiDAR map.
@@ -57,13 +57,13 @@ struct DepthExperimentConfig: Equatable, Sendable, Encodable {
     var boundedCaptureGrid: Int { min(max(captureQualitySampleGrid, 2), 9) }
 }
 
-struct OcclusionExperimentConfig: Equatable, Sendable, Encodable {
+struct OcclusionExperimentConfig: Equatable, Sendable, Codable {
     var lidarPenetrationMeters: Float = 0.4
 
     static let `default` = OcclusionExperimentConfig()
 }
 
-struct CandidateMergeExperimentConfig: Equatable, Sendable, Encodable {
+struct CandidateMergeExperimentConfig: Equatable, Sendable, Codable {
     var diameterSimilarityThreshold: Float = 0.55
     var minMergeDistance: Float = 0.035
     var diameterMergeDistanceMultiplier: Float = 0.75

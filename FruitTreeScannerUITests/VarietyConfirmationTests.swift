@@ -27,7 +27,7 @@ final class VarietyConfirmationTests: XCTestCase {
     }
 
     private func openDatabase() {
-        let settings = app.buttons["gearshape.fill"]
+        let settings = app.buttons["dashboard.action.settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 10))
         // The dashboard supplies a 44 pt control. Wait for its final layout and
         // actual hit testing before deriving a touch from the accessibility frame.

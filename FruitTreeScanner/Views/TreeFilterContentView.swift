@@ -1,5 +1,7 @@
 // TreeFilterContentView.swift
-// Coordinates tree filtering controls and filtered results.
+// 果树档案浏览：筛选条 + 筛选结果。
+//
+// 筛选规则完全交给 `TagStore.filteredAssignments`，这里只负责呈现。
 
 import SwiftUI
 
@@ -20,20 +22,26 @@ struct TreeFilterContentView: View {
     }
 
     var body: some View {
-        TreeFilterBar(
-            tagStore: tagStore,
-            selectedPlotId: $selectedPlotId,
-            selectedTagIds: $selectedTagIds,
-            selectedStatus: $selectedStatus
-        )
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm)
+        VStack(spacing: 0) {
+            TreeFilterBar(
+                tagStore: tagStore,
+                selectedPlotId: $selectedPlotId,
+                selectedTagIds: $selectedTagIds,
+                selectedStatus: $selectedStatus
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
+            .frame(maxWidth: 1080)
 
-        TreeFilterListView(
-            assignments: filteredAssignments,
-            tagStore: tagStore,
-            latestScan: latestScan(for:)
-        )
+            DividerLine()
+
+            TreeFilterListView(
+                assignments: filteredAssignments,
+                tagStore: tagStore,
+                latestScan: latestScan(for:)
+            )
+        }
     }
 
     private func latestScan(for treeId: String) -> ScanFileRecord? {

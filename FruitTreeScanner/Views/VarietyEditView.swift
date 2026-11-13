@@ -1,3 +1,13 @@
+// VarietyEditView.swift
+// 品种参数编辑页。
+//
+// 编辑采用“草稿—提交”模型：
+//   1. 打开时把当前参数复制为基线（baseline）。
+//   2. 滑杆只改本地草稿，不写存储。
+//   3. 保存时把（基线, 草稿）一起交给 FruitParametersStore 合并；
+//      如果基线已被别处改动，提交被拒绝并回退到最新值，本地草稿随之重置。
+//   4. 取消只丢弃草稿，不产生任何写入。
+
 import SwiftUI
 
 struct VarietyEditView: View {
@@ -55,31 +65,49 @@ struct VarietyEditView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
+                Design.Colors.Workspace.background
+                    .ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     if showsParameterConflict {
                         Text(L10n.VarietyDatabase.parameterConflict)
-                            .font(Design.Typography.subheadline)
-                            .foregroundColor(Design.Colors.Dark.textSecondary)
-                            .padding(Design.Space.md)
+                            .font(.footnote)
+                            .foregroundColor(Design.Colors.Workspace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(
+                                Design.Colors.Workspace.attentionSoft,
+                                in: RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                            )
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
                     }
+
+                    impactNote
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 2)
+
                     ScrollView {
-                        VStack(spacing: Design.Space.lg) {
-                            headerSection
+                        VStack(alignment: .leading, spacing: 26) {
                             diameterSection
                             weightSection
                             qualitySection
                             algorithmSection
                         }
-                        .padding(Design.Space.md)
+                        .frame(maxWidth: 720, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        .padding(.bottom, 40)
+                        .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
             }
             .navigationTitle(L10n.VarietyDatabase.editTitle(fruitName))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel, action: dismiss.callAsFunction)
@@ -109,119 +137,104 @@ struct VarietyEditView: View {
         .onChange(of: diamMax, perform: clampMinDiameter)
     }
 
-    private var headerSection: some View {
-        VStack(spacing: Design.Space.sm) {
-            ZStack {
-                Circle()
-                    .fill(Design.Colors.harvest.opacity(0.2))
-                    .frame(width: 64, height: 64)
+    // MARK: - 分组
 
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(Design.Colors.harvest)
-                    .accessibilityHidden(true)
-            }
-
-            Text(L10n.VarietyDatabase.editImpact(fruitName))
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.vertical, Design.Space.md)
+    private var impactNote: some View {
+        Text(L10n.VarietyDatabase.editImpact(fruitName))
+            .font(.subheadline)
+            .foregroundColor(Design.Colors.Workspace.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 10)
     }
 
     private var diameterSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: L10n.VarietyDatabase.sizeSection, icon: "ruler")
+        parameterGroup(title: L10n.VarietyDatabase.sizeSection, icon: "ruler") {
+            VarietySliderRow(
+                title: L10n.VarietyDatabase.minimumDiameter,
+                value: $diamMin,
+                range: 0.005...0.05,
+                step: 0.001,
+                displayValue: VarietyParameterFormatter.millimeters(diamMin)
+            )
 
-            VStack(spacing: Design.Space.md) {
-                VarietySliderRow(
-                    title: L10n.VarietyDatabase.minimumDiameter,
-                    value: $diamMin,
-                    range: 0.005...0.05,
-                    step: 0.001,
-                    displayValue: VarietyParameterFormatter.millimeters(diamMin)
-                )
+            DividerLine()
 
-                VarietySliderRow(
-                    title: L10n.VarietyDatabase.maximumDiameter,
-                    value: $diamMax,
-                    range: 0.05...0.30,
-                    step: 0.005,
-                    displayValue: VarietyParameterFormatter.millimeters(diamMax)
-                )
-            }
-            .padding(Design.Space.md)
-            .background(sectionBackground)
+            VarietySliderRow(
+                title: L10n.VarietyDatabase.maximumDiameter,
+                value: $diamMax,
+                range: 0.05...0.30,
+                step: 0.005,
+                displayValue: VarietyParameterFormatter.millimeters(diamMax)
+            )
         }
     }
 
     private var weightSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: L10n.VarietyDatabase.weightDensitySection, icon: "scalemass")
+        parameterGroup(title: L10n.VarietyDatabase.weightDensitySection, icon: "scalemass") {
+            VarietySliderRow(
+                title: L10n.VarietyDatabase.averageWeight,
+                value: $averageWeightG,
+                range: 1...2000,
+                step: 1,
+                displayValue: VarietyParameterFormatter.grams(averageWeightG)
+            )
 
-            VStack(spacing: Design.Space.md) {
-                VarietySliderRow(
-                    title: L10n.VarietyDatabase.averageWeight,
-                    value: $averageWeightG,
-                    range: 1...2000,
-                    step: 1,
-                    displayValue: VarietyParameterFormatter.grams(averageWeightG)
-                )
+            DividerLine()
 
-                VarietySliderRow(
-                    title: L10n.VarietyDatabase.density,
-                    value: $density,
-                    range: 0.5...1.0,
-                    step: 0.01,
-                    displayValue: VarietyParameterFormatter.decimal(density, fractionDigits: 2)
-                )
-            }
-            .padding(Design.Space.md)
-            .background(sectionBackground)
+            VarietySliderRow(
+                title: L10n.VarietyDatabase.density,
+                value: $density,
+                range: 0.5...1.0,
+                step: 0.01,
+                displayValue: VarietyParameterFormatter.decimal(density, fractionDigits: 2)
+            )
         }
     }
 
     private var qualitySection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: L10n.VarietyDatabase.thresholdsSection, icon: "circle.hexagongrid")
-
-            VStack(spacing: Design.Space.md) {
-                VarietySliderRow(
-                    title: L10n.VarietyDatabase.sphericityThreshold,
-                    value: $sphericityThreshold,
-                    range: 0.2...0.8,
-                    step: 0.01,
-                    displayValue: VarietyParameterFormatter.decimal(sphericityThreshold, fractionDigits: 2)
-                )
-            }
-            .padding(Design.Space.md)
-            .background(sectionBackground)
+        parameterGroup(title: L10n.VarietyDatabase.thresholdsSection, icon: "circle.hexagongrid") {
+            VarietySliderRow(
+                title: L10n.VarietyDatabase.sphericityThreshold,
+                value: $sphericityThreshold,
+                range: 0.2...0.8,
+                step: 0.01,
+                displayValue: VarietyParameterFormatter.decimal(sphericityThreshold, fractionDigits: 2)
+            )
         }
     }
 
     private var algorithmSection: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            VarietySectionHeader(title: L10n.VarietyDatabase.clusteringSection, icon: "circle.grid.3x3")
-
-            VStack(spacing: Design.Space.md) {
-                VarietySliderRow(
-                    title: L10n.VarietyDatabase.clusterRadius,
-                    value: $clusterEps,
-                    range: 0.02...0.15,
-                    step: 0.005,
-                    displayValue: VarietyParameterFormatter.meters(clusterEps)
-                )
-            }
-            .padding(Design.Space.md)
-            .background(sectionBackground)
+        parameterGroup(title: L10n.VarietyDatabase.clusteringSection, icon: "circle.grid.3x3") {
+            VarietySliderRow(
+                title: L10n.VarietyDatabase.clusterRadius,
+                value: $clusterEps,
+                range: 0.02...0.15,
+                step: 0.005,
+                displayValue: VarietyParameterFormatter.meters(clusterEps)
+            )
         }
     }
 
-    private var sectionBackground: some View {
-        RoundedRectangle(cornerRadius: Design.Radius.medium)
-            .fill(Design.Colors.Dark.bgSurface)
+    /// 一组参数：小标签 + 列表组，组内以发丝线分隔。
+    private func parameterGroup<Content: View>(
+        title: String,
+        icon: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VarietySectionHeader(title: title, icon: icon)
+
+            InstrumentRowGroup {
+                VStack(spacing: 0) {
+                    content()
+                }
+                .padding(.vertical, 10)
+            }
+        }
     }
+
+    // MARK: - 提交
 
     private var fruitName: String {
         L10n.Fruit.name(for: category)

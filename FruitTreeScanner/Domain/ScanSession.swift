@@ -7,6 +7,7 @@ enum ScanInterruptionReason: String, Equatable, Sendable {
 enum ScanFailureReason: Equatable, Sendable {
     case cameraUnavailable(String)
     case sessionFailed(String)
+    case invalidPointCloudCapture
 
     var requiresCameraReadinessRecovery: Bool {
         if case .cameraUnavailable = self { return true }

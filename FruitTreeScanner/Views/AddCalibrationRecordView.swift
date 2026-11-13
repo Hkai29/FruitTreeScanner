@@ -1,3 +1,8 @@
+// AddCalibrationRecordView.swift
+// 新增校准记录：可从最近一次完整扫描带入估算值，也可手工填写。
+//
+// 导入只接受落盘完整的扫描记录；带入后仍可在表单里改。
+
 import SwiftUI
 
 enum CalibrationScanRecordImportPolicy {
@@ -45,7 +50,7 @@ struct AddCalibrationRecordView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep
+                Design.Colors.Workspace.background
                     .ignoresSafeArea()
 
                 AddCalibrationRecordForm(
@@ -63,6 +68,8 @@ struct AddCalibrationRecordView: View {
             }
             .navigationTitle(L10n.Calibration.addNavigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel) {
@@ -78,7 +85,7 @@ struct AddCalibrationRecordView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .onAppear {
             historyStore.loadRecords()
         }

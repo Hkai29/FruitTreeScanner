@@ -12,6 +12,7 @@ protocol ScanSettingsProviding: AnyObject {
     var cameraFrameRate: String { get }
     var hsvFilter: HSVFilter { get }
     var currentCameraResolutionDisplay: String { get set }
+    @MainActor func rendererScanSettings() -> RendererScanSettings
     func clusterConfig(for params: FruitVarietyParams) -> ClusterConfig
     func colorFilter(for category: FruitCategory) -> ColorFilter
 }

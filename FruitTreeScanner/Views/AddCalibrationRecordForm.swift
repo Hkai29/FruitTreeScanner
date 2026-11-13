@@ -1,3 +1,9 @@
+// AddCalibrationRecordForm.swift
+// 新增校准记录表单。
+//
+// 四组字段各自独立：扫描记录带入、基本信息、算法估算、实际数据。
+// 标识符左对齐，数值右对齐，单位固定在左侧。
+
 import SwiftUI
 
 struct AddCalibrationRecordForm: View {
@@ -12,7 +18,7 @@ struct AddCalibrationRecordForm: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: Design.Space.lg) {
+            VStack(alignment: .leading, spacing: 20) {
                 if !recentRecords.isEmpty {
                     AddCalibrationRecentScanImportSection(
                         records: recentRecords,
@@ -33,7 +39,11 @@ struct AddCalibrationRecordForm: View {
                     actualYieldKg: $actualYieldKg
                 )
             }
-            .padding(Design.Space.lg)
+            .frame(maxWidth: 720, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 28)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 }
@@ -43,52 +53,59 @@ struct AddCalibrationRecentScanImportSection: View {
     let onSelect: (ScanFileRecord) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text(L10n.Calibration.recentScanSection)
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .accessibilityAddTraits(.isHeader)
-
-            Menu {
-                ForEach(records.prefix(12)) { record in
-                    Button {
-                        onSelect(record)
-                    } label: {
-                        Text(
-                            L10n.Calibration.recentScanSummary(
-                                treeID: record.treeID,
-                                count: record.fruitCount,
-                                yieldKg: record.yieldKg
+        InstrumentPanel(
+            label: L10n.Calibration.recentScanSection,
+            systemImage: "clock.arrow.circlepath"
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                Menu {
+                    ForEach(records.prefix(12)) { record in
+                        Button {
+                            onSelect(record)
+                        } label: {
+                            Text(
+                                L10n.Calibration.recentScanSummary(
+                                    treeID: record.treeID,
+                                    count: record.fruitCount,
+                                    yieldKg: record.yieldKg
+                                )
                             )
-                        )
+                        }
                     }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .accessibilityHidden(true)
+                        Text(L10n.Calibration.recentScanPicker)
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .accessibilityHidden(true)
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: Design.Touch.minimumHeight)
+                    .background(
+                        Design.Colors.Workspace.inset,
+                        in: RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                            .stroke(Design.Colors.Workspace.line, lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
                 }
-            } label: {
-                HStack {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .accessibilityHidden(true)
-                    Text(L10n.Calibration.recentScanPicker)
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .accessibilityHidden(true)
-                }
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, Design.Space.md)
-                .padding(.vertical, Design.Space.sm)
-                .frame(minHeight: 46)
-                .background(Design.Colors.Dark.bgElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .accessibilityLabel(L10n.Calibration.recentScanPicker)
-            .accessibilityHint(L10n.Calibration.recentScanHint)
+                .accessibilityLabel(L10n.Calibration.recentScanPicker)
+                .accessibilityHint(L10n.Calibration.recentScanHint)
 
-            Text(L10n.Calibration.recentScanHint)
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                Text(L10n.Calibration.recentScanHint)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 }
 
@@ -97,27 +114,30 @@ struct AddCalibrationBasicInfoSection: View {
     @Binding var selectedFruitCategory: FruitCategory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text(L10n.Calibration.basicInformation)
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .accessibilityAddTraits(.isHeader)
+        InstrumentPanel(
+            label: L10n.Calibration.basicInformation,
+            systemImage: "tree"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                TextField(L10n.Calibration.treeIDPlaceholder, text: $treeID)
+                    .calibrationIdentifierField()
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled(true)
 
-            TextField(L10n.Calibration.treeIDPlaceholder, text: $treeID)
-                .calibrationTextField()
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled(true)
-
-            Picker(L10n.Calibration.fruitType, selection: $selectedFruitCategory) {
-                ForEach(FruitCategory.allCases, id: \.self) { category in
-                    Text(L10n.Fruit.name(for: category)).tag(category)
+                InstrumentFormRow(label: L10n.Calibration.fruitType) {
+                    Picker(L10n.Calibration.fruitType, selection: $selectedFruitCategory) {
+                        ForEach(FruitCategory.allCases, id: \.self) { category in
+                            Text(L10n.Fruit.name(for: category)).tag(category)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(Design.Colors.Workspace.accent)
+                    .accessibilityLabel(L10n.Calibration.fruitType)
+                    .accessibilityValue(L10n.Fruit.name(for: selectedFruitCategory))
                 }
             }
-            .pickerStyle(.menu)
-            .tint(Design.Colors.harvest)
         }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 }
 
@@ -126,32 +146,38 @@ struct AddCalibrationEstimateSection: View {
     @Binding var estimatedYieldKg: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text(L10n.Calibration.estimateSection)
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .accessibilityAddTraits(.isHeader)
+        InstrumentPanel(
+            label: L10n.Calibration.estimateSection,
+            systemImage: "chart.bar"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Text(L10n.Calibration.fruitUnit)
+                        .font(.subheadline)
+                        .foregroundColor(Design.Colors.Workspace.secondary)
+                        .frame(minWidth: 24, alignment: .leading)
 
-            HStack {
-                TextField(L10n.Calibration.estimatedFruitCountPlaceholder, text: $estimatedFruitCount)
-                    .calibrationTextField()
-                    .keyboardType(.numberPad)
+                    InstrumentTextField(
+                        placeholder: L10n.Calibration.estimatedFruitCountPlaceholder,
+                        text: $estimatedFruitCount,
+                        keyboard: .numberPad
+                    )
+                }
 
-                Text(L10n.Calibration.fruitUnit)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
+                HStack(spacing: 10) {
+                    Text(L10n.Calibration.kilogramUnit)
+                        .font(.subheadline)
+                        .foregroundColor(Design.Colors.Workspace.secondary)
+                        .frame(minWidth: 24, alignment: .leading)
 
-            HStack {
-                TextField(L10n.Calibration.estimatedYieldPlaceholder, text: $estimatedYieldKg)
-                    .calibrationTextField()
-                    .keyboardType(.decimalPad)
-
-                Text(L10n.Calibration.kilogramUnit)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    InstrumentTextField(
+                        placeholder: L10n.Calibration.estimatedYieldPlaceholder,
+                        text: $estimatedYieldKg,
+                        keyboard: .decimalPad
+                    )
+                }
             }
         }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 }
 
@@ -160,57 +186,68 @@ struct AddCalibrationActualDataSection: View {
     @Binding var actualYieldKg: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            Text(L10n.Calibration.actualSection)
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .accessibilityAddTraits(.isHeader)
+        InstrumentPanel(
+            label: L10n.Calibration.actualSection,
+            systemImage: "target"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(L10n.Calibration.actualDataHint)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Text(L10n.Calibration.actualDataHint)
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                HStack(spacing: 10) {
+                    Text(L10n.Calibration.fruitUnit)
+                        .font(.subheadline)
+                        .foregroundColor(Design.Colors.Workspace.secondary)
+                        .frame(minWidth: 24, alignment: .leading)
 
-            HStack {
-                TextField(L10n.Calibration.manualFruitCountPlaceholder, text: $manualFruitCount)
-                    .calibrationTextField()
-                    .keyboardType(.numberPad)
+                    InstrumentTextField(
+                        placeholder: L10n.Calibration.manualFruitCountPlaceholder,
+                        text: $manualFruitCount,
+                        keyboard: .numberPad
+                    )
+                }
 
-                Text(L10n.Calibration.fruitUnit)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                HStack(spacing: 10) {
+                    Text(L10n.Calibration.kilogramUnit)
+                        .font(.subheadline)
+                        .foregroundColor(Design.Colors.Workspace.secondary)
+                        .frame(minWidth: 24, alignment: .leading)
+
+                    InstrumentTextField(
+                        placeholder: L10n.Calibration.actualYieldPlaceholder,
+                        text: $actualYieldKg,
+                        keyboard: .decimalPad
+                    )
+                }
+
+                Text(L10n.Calibration.inputHint)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            HStack {
-                TextField(L10n.Calibration.actualYieldPlaceholder, text: $actualYieldKg)
-                    .calibrationTextField()
-                    .keyboardType(.decimalPad)
-
-                Text(L10n.Calibration.kilogramUnit)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-            }
-
-            Text(L10n.Calibration.inputHint)
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 }
 
 private extension View {
-    func calibrationTextField() -> some View {
+    /// 标识符输入框：左对齐、等宽字形，样式与仪器输入框一致。
+    func calibrationIdentifierField() -> some View {
         self
-            .font(.system(size: 15, weight: .medium))
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, Design.Space.sm)
-            .frame(minHeight: 46)
-            .background(Design.Colors.Dark.bgElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .font(.system(.subheadline, design: .monospaced))
+            .foregroundColor(Design.Colors.Workspace.ink)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(minHeight: 38)
+            .background(
+                Design.Colors.Workspace.inset,
+                in: RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .stroke(Design.Colors.Workspace.line, lineWidth: 1)
             )
     }
 }

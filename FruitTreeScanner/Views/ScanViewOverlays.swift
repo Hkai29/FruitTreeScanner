@@ -67,6 +67,7 @@ struct ScanScannerInterfaceLayer: View {
 
     let actions: ScanScannerInterfaceActions
     @ObservedObject var tagStore = TagStore.shared
+    var notice: String? = nil
 
     var body: some View {
         if !scanReadiness.blocksScanning {
@@ -77,15 +78,6 @@ struct ScanScannerInterfaceLayer: View {
                     .allowsHitTesting(false)
             }
             #endif
-
-            ScanStatusLayer(
-                treeID: treeID,
-                isRecording: isRecording,
-                hudState: hudState,
-                qualityMonitor: qualityMonitor
-            )
-
-            ScanGuidanceOverlay(hudState: hudState, isRecording: isRecording)
 
             ScanMeasurementLayer(
                 measurementController: measurementController,
@@ -100,8 +92,14 @@ struct ScanScannerInterfaceLayer: View {
                 shouldShowPostCapturePanel: shouldShowPostCapturePanel,
                 hudState: hudState,
                 measurementController: measurementController,
-                actions: actions
+                actions: actions,
+                treeID: treeID,
+                qualityMonitor: qualityMonitor,
+                showCoverageComplete: showCoverageComplete,
+                notice: notice
             )
+            .allowsHitTesting(!showGuide && !showResult && !isEstimating)
+            .accessibilityHidden(showGuide || showResult || isEstimating)
 
             if showGuide {
                 ScanFieldGuideOverlay(
@@ -125,10 +123,6 @@ struct ScanScannerInterfaceLayer: View {
                 ScanEstimatingOverlay()
             }
 
-            if showCoverageComplete {
-                ScanCoverageCompleteToast()
-                    .animation(.easeInOut(duration: 0.3), value: showCoverageComplete)
-            }
         }
     }
 }

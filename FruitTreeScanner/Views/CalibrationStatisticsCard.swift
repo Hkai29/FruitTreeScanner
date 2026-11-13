@@ -1,3 +1,7 @@
+// CalibrationStatisticsCard.swift
+// 误差统计：数值全部由 CalibrationValidationMetrics 从真实记录算出，
+// 这里只负责呈现，不做任何再计算或硬编码。
+
 import SwiftUI
 
 struct CalibrationStatisticsCard: View {
@@ -10,63 +14,46 @@ struct CalibrationStatisticsCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            HStack {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.glow)
-                    .accessibilityHidden(true)
-
-                Text(L10n.Calibration.statisticsTitle)
-                    .font(Design.Typography.headline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .accessibilityAddTraits(.isHeader)
-
-                Spacer()
-            }
-
-            Divider()
-
+        InstrumentPanel(
+            label: L10n.Calibration.statisticsTitle,
+            systemImage: "chart.xyaxis.line"
+        ) {
             if !metrics.hasEvidence {
                 Text(L10n.Calibration.noStatistics)
-                    .font(Design.Typography.subheadline)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, Design.Space.md)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 6)
             } else {
                 statisticsRow
             }
         }
-        .padding(Design.Space.md)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.large)
-                .fill(Design.Colors.Dark.bgSurface)
-                .shadow(color: Design.Shadow.subtle.color, radius: 4, y: 2)
-        )
     }
 
     private var statisticsRow: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: Design.Space.md))
-            : AnyLayout(HStackLayout(spacing: Design.Space.xl))
+            ? AnyLayout(VStackLayout(spacing: 14))
+            : AnyLayout(HStackLayout(spacing: 16))
 
         return layout {
-            CalibrationStatBox(
-                title: L10n.Calibration.countMAPE,
+            InstrumentDatum(
+                label: L10n.Calibration.countMAPE,
                 value: percentageValue(metrics.countMAPE),
-                color: metricColor(metrics.countMAPE)
+                tint: metricColor(metrics.countMAPE)
             )
 
-            CalibrationStatBox(
-                title: L10n.Calibration.yieldMAPE,
+            InstrumentDatum(
+                label: L10n.Calibration.yieldMAPE,
                 value: percentageValue(metrics.yieldMAPE),
-                color: metricColor(metrics.yieldMAPE)
+                tint: metricColor(metrics.yieldMAPE)
             )
 
-            CalibrationStatBox(
-                title: L10n.Calibration.calibrationCount,
+            InstrumentDatum(
+                label: L10n.Calibration.calibrationCount,
                 value: "\(metrics.recordCount)",
-                color: Design.Colors.Dark.glow
+                unit: "次",
+                tint: Design.Colors.Workspace.ink
             )
         }
         .frame(maxWidth: .infinity)
@@ -78,7 +65,7 @@ struct CalibrationStatisticsCard: View {
     }
 
     private func metricColor(_ value: Double?) -> Color {
-        guard let value else { return Design.Colors.Dark.textSecondary }
+        guard let value else { return Design.Colors.Workspace.secondary }
         return CalibrationErrorPalette.color(for: value)
     }
 }
@@ -86,30 +73,8 @@ struct CalibrationStatisticsCard: View {
 enum CalibrationErrorPalette {
     static func color(for error: Double) -> Color {
         let absError = abs(error)
-        if absError <= 10 { return Design.Colors.Dark.success }
-        if absError <= 20 { return Design.Colors.Dark.warning }
-        return Design.Colors.Dark.error
-    }
-}
-
-private struct CalibrationStatBox: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: Design.Space.xs) {
-            Text(value)
-                .font(Design.Typography.title2)
-                .foregroundColor(color)
-
-            Text(title)
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(value)
+        if absError <= 10 { return Design.Colors.Workspace.accent }
+        if absError <= 20 { return Design.Colors.Workspace.attention }
+        return Design.Colors.Workspace.failure
     }
 }

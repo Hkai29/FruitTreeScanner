@@ -1,5 +1,8 @@
 // TagManagementView.swift
-// 标签管理主页 - 地块、标签、状态三个标签页
+// 标签管理主页 - 地块、标签、状态三个视图。
+//
+// 三页都读同一份 TagStore：地块与标签显示真实树数，状态页显示真实状态分布。
+// 新建、编辑、取消、删除的门禁与确认流程保持不变。
 
 import SwiftUI
 
@@ -67,81 +70,51 @@ struct TagManagementView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var tagStore: TagStore
     var onStartScan: (() -> Void)? = nil
+    var onScanTree: ((String) -> Void)? = nil
     @State private var selectedTab: Int = 0
     @State private var presentedSheet: TagManagementSheet?
     @State private var pendingDeletion: TagManagementDeletionRequest?
 
     @MainActor
-    init(onStartScan: (() -> Void)? = nil, tagStore: TagStore = .shared) {
+    init(onStartScan: (() -> Void)? = nil, tagStore: TagStore = .shared, onScanTree: ((String) -> Void)? = nil) {
         self.onStartScan = onStartScan
         self.tagStore = tagStore
+        self.onScanTree = onScanTree
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
-
                 VStack(spacing: 12) {
-                    DashboardToolHeader(
-                        imageName: "FeatureTagManagement",
-                        title: L10n.TagManagement.headerTitle,
-                        subtitle: L10n.TagManagement.headerSubtitle,
-                        icon: "tag",
-                        accent: Design.Colors.harvest
-                    )
-                    .padding(.horizontal, Design.Space.md)
-                    .padding(.top, Design.Space.md)
-
-                    // Tab Picker
+                    NavigationLink {
+                        TreeSurveyCatalogView(catalog: .shared, onScanTree: onScanTree)
+                    } label: {
+                        HStack {
+                            Image(systemName: "scope")
+                            Text("单树定位")
+                            Spacer()
+                            Text("测量点与精度").font(.subheadline)
+                            Image(systemName: "chevron.right").font(.caption)
+                        }.frame(minHeight: 44).contentShape(Rectangle())
+                    }
+                    .padding(.horizontal, 20)
+                    .foregroundColor(Design.Colors.Workspace.accent)
+                    .accessibilityIdentifier("orchard.treeSurvey")
+                    // 视图切换保留系统分段控件：它既是既有原生控件契约，
+                    // 也在日光工作区上使用浅色外观。
                     Picker(L10n.TagManagement.tabPickerLabel, selection: $selectedTab) {
                         Text(L10n.TagManagement.plotsTab).tag(0)
                         Text(L10n.TagManagement.tagsTab).tag(1)
                         Text(L10n.TagManagement.statusTab).tag(2)
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal, Design.Space.md)
-                    .padding(.vertical, Design.Space.sm)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
 
-                    // Tab Content
-                    TabView(selection: $selectedTab) {
-                        PlotListView(
-                            plots: tagStore.plots,
-                            treeCount: { tagStore.treeCount(forPlotId: $0) },
-                            onEdit: { presentedSheet = .editPlot($0) },
-                            onDelete: { plot in
-                                pendingDeletion = .plot(
-                                    plot,
-                                    affectedTreeCount: tagStore.treeCount(forPlotId: plot.id)
-                                )
-                            },
-                            onAdd: { presentedSheet = .addPlot }
-                        )
-                        .tag(0)
-
-                        TagListView(
-                            tags: tagStore.tags,
-                            treeCount: { tagStore.treeCount(forTagId: $0) },
-                            onEdit: { presentedSheet = .editTag($0) },
-                            onDelete: { tag in
-                                pendingDeletion = .tag(
-                                    tag,
-                                    affectedTreeCount: tagStore.treeCount(forTagId: tag.id)
-                                )
-                            },
-                            onAdd: { presentedSheet = .addTag }
-                        )
-                        .tag(1)
-
-                        StatusOverviewView(
-                            assignments: tagStore.assignments,
-                            onStartScan: onStartScan
-                        )
-                        .tag(2)
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    content
                 }
             }
+            .workspacePage()
             .confirmationDialog(
                 Text(pendingDeletion?.title ?? L10n.TagManagement.confirmDelete),
                 isPresented: isDeletionDialogPresented,
@@ -158,21 +131,21 @@ struct TagManagementView: View {
             .navigationTitle(L10n.TagManagement.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(L10n.TagManagement.done) {
                         dismiss()
                     }
-                    .foregroundColor(Design.Colors.harvest)
+                    .foregroundColor(Design.Colors.Workspace.accent)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if selectedTab != 2 {
                         Button(action: showAddSheet) {
                             Image(systemName: "plus")
-                                .foregroundColor(Design.Colors.harvest)
+                                .foregroundColor(Design.Colors.Workspace.accent)
                         }
                         .accessibilityLabel(
                             selectedTab == 0 ? L10n.TagManagement.addPlot : L10n.TagManagement.addTag
@@ -201,7 +174,44 @@ struct TagManagementView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch selectedTab {
+        case 0:
+            PlotListView(
+                plots: tagStore.plots,
+                treeCount: { tagStore.treeCount(forPlotId: $0) },
+                onEdit: { presentedSheet = .editPlot($0) },
+                onDelete: { plot in
+                    pendingDeletion = .plot(
+                        plot,
+                        affectedTreeCount: tagStore.treeCount(forPlotId: plot.id)
+                    )
+                },
+                onAdd: { presentedSheet = .addPlot }
+            )
+        case 1:
+            TagListView(
+                tags: tagStore.tags,
+                treeCount: { tagStore.treeCount(forTagId: $0) },
+                onEdit: { presentedSheet = .editTag($0) },
+                onDelete: { tag in
+                    pendingDeletion = .tag(
+                        tag,
+                        affectedTreeCount: tagStore.treeCount(forTagId: tag.id)
+                    )
+                },
+                onAdd: { presentedSheet = .addTag }
+            )
+        default:
+            StatusOverviewView(
+                assignments: tagStore.assignments,
+                onStartScan: onStartScan
+            )
+        }
     }
 
     private var isDeletionDialogPresented: Binding<Bool> {

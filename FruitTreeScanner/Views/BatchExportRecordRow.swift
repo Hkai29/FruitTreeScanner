@@ -1,3 +1,8 @@
+// BatchExportRecordRow.swift
+// 可导出记录行：选择状态 + 树号 + 真实读数 + 不可用原因。
+//
+// 只有落盘状态为 .complete 的记录可以导出；其余记录在行内给出真实原因。
+
 import SwiftUI
 
 struct BatchExportRecordRow: View {
@@ -16,15 +21,14 @@ struct BatchExportRecordRow: View {
                     compactLayout
                 }
             }
-            .padding(Design.Space.md)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: Design.Touch.minimumHeight, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: Design.Radius.medium)
-                    .fill(Design.Colors.Dark.bgDeep)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Design.Radius.medium)
-                            .stroke(isSelected ? Design.Colors.harvest : Color.clear, lineWidth: 2)
-                    )
+                isSelected
+                    ? Design.Colors.Workspace.accentSoft.opacity(0.45)
+                    : Color.clear
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -41,72 +45,92 @@ struct BatchExportRecordRow: View {
         .accessibilityIdentifier("batchExport.record.\(record.id)")
     }
 
+    // MARK: - 布局
+
     private var compactLayout: some View {
-        HStack(alignment: .top, spacing: Design.Space.md) {
+        HStack(alignment: .top, spacing: 12) {
             selectionIndicator
-            recordSummary
-            Spacer(minLength: Design.Space.sm)
-            scanMetadata
+            VStack(alignment: .leading, spacing: 6) {
+                titleRow
+                measurementDetails
+                if !isExportable { unavailableNotice }
+            }
         }
     }
 
     private var accessibilityLayout: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
-            HStack(alignment: .top, spacing: Design.Space.md) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
                 selectionIndicator
                 recordTitle
             }
-
             measurementDetails
-
-            if !isExportable {
-                unavailableNotice
-            }
-
+            if !isExportable { unavailableNotice }
             scanMetadata
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - 内容
+
     private var selectionIndicator: some View {
         Image(systemName: selectionIcon)
-            .font(.title2)
+            .font(.system(size: 16, weight: .medium))
             .foregroundColor(selectionColor)
+            .frame(width: 24, height: 24)
             .accessibilityHidden(true)
     }
 
-    private var recordSummary: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var titleRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             recordTitle
-
-            measurementDetails
-
-            if !isExportable {
-                unavailableNotice
+            if !record.fruitType.isEmpty {
+                Text(L10n.BatchExport.fruitTypeLabel(record.fruitType))
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .lineLimit(1)
             }
+            Spacer(minLength: 4)
+            scanMetadata
         }
     }
 
     private var recordTitle: some View {
         Text(record.treeID)
-            .font(dynamicTypeSize.isAccessibilitySize ? .headline : .subheadline)
-            .foregroundColor(Design.Colors.Dark.textPrimary)
+            .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+            .foregroundColor(Design.Colors.Workspace.ink)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+            .truncationMode(.middle)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var unavailableNotice: some View {
-        Label(unavailableMessage, systemImage: "exclamationmark.triangle.fill")
-            .font(.caption)
-            .foregroundColor(Design.Colors.warning)
-            .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundColor(unavailableTint)
+                .accessibilityHidden(true)
+            Text(unavailableMessage)
+                .font(.caption)
+                .foregroundColor(unavailableTint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var measurementDetails: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-            : AnyLayout(HStackLayout(spacing: Design.Space.sm))
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                measurements.fixedSize(horizontal: true, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 4) { measurements }
+        }
+        .font(.footnote)
+        .foregroundColor(Design.Colors.Workspace.secondary)
+    }
 
-        return layout {
+    private var measurements: some View {
+        Group {
             Label(
                 L10n.BatchExport.fruitCountLabel(record.fruitCount),
                 systemImage: "leaf.fill"
@@ -117,37 +141,38 @@ struct BatchExportRecordRow: View {
                 systemImage: "scalemass"
             )
             .fixedSize(horizontal: false, vertical: true)
-            if !record.fruitType.isEmpty {
-                Text(L10n.BatchExport.fruitTypeLabel(record.fruitType))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        .font(.footnote)
-        .foregroundColor(Design.Colors.Dark.textSecondary)
     }
 
     private var scanMetadata: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(HStackLayout(spacing: Design.Space.xs))
-            : AnyLayout(VStackLayout(alignment: .trailing, spacing: 4))
-
-        return layout {
-            Text(formatDate(record.scanDate))
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(record.scanDate, format: .dateTime.month(.abbreviated).day().hour().minute())
                 .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
+                .monospacedDigit()
+                .foregroundColor(Design.Colors.Workspace.muted)
+                .lineLimit(1)
             if record.gpsLat != 0 {
                 Image(systemName: "location.fill")
                     .font(.caption)
-                    .foregroundColor(Design.Colors.forest)
+                    .foregroundColor(Design.Colors.Workspace.accent)
                     .accessibilityHidden(true)
             }
         }
     }
 
+    // MARK: - 状态
+
     private var unavailableMessage: String {
         L10n.BatchExport.unavailableMessage(for: record.persistenceState)
+    }
+
+    /// 不可用记录按既有约定着色：未完整保存用琥珀，数据无效用锈红。
+    private var unavailableTint: Color {
+        switch record.persistenceState {
+        case .complete: return Design.Colors.Workspace.secondary
+        case .incomplete: return Design.Colors.Workspace.attention
+        case .invalid: return Design.Colors.Workspace.failure
+        }
     }
 
     private var accessibilityState: String {
@@ -164,13 +189,7 @@ struct BatchExportRecordRow: View {
     }
 
     private var selectionColor: Color {
-        if !isExportable { return Design.Colors.warning }
-        return isSelected ? Design.Colors.harvest : Design.Colors.Dark.textSecondary
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd HH:mm"
-        return formatter.string(from: date)
+        if !isExportable { return unavailableTint }
+        return isSelected ? Design.Colors.Workspace.accent : Design.Colors.Workspace.faint
     }
 }

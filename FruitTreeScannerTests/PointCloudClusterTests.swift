@@ -169,6 +169,179 @@ final class PointCloudClusterTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    // MARK: - Point-cloud candidate contracts (original implementation baseline)
+
+    func testPointCloudPipelineExplicitFilterOverridesCategoryAndKeepsPointOrder() async {
+        let points = filterContractPoints()
+        let result = await PointCloudCandidatePipeline().run(pipelineInput(
+            points: points, category: .blueberry, filter: ColorFilter(rMin: 0.6)
+        ))
+
+        XCTAssertEqual(result.colorFilteredPoints.map(\.pos), [points[0].pos, points[2].pos])
+        XCTAssertEqual(result.clusteringPoints.map(\.pos), [points[0].pos, points[2].pos])
+        XCTAssertEqual(result.denoising.samples.map(\.r), [points[0].r, points[2].r])
+        XCTAssertEqual(result.denoising.stats.originalCount, 2)
+        XCTAssertEqual(result.denoising.stats.retainedCount, 2)
+        XCTAssertEqual(result.denoising.stats.threshold, 0)
+        XCTAssertTrue(result.candidates.isEmpty)
+    }
+
+    func testPointCloudPipelineCategoryFallbackAndNilFilterRetainEstablishedPoints() async {
+        let points = filterContractPoints()
+        let category = await PointCloudCandidatePipeline().run(pipelineInput(points: points, category: .blueberry))
+        XCTAssertEqual(category.colorFilteredPoints.map(\.pos), [points[1].pos])
+        XCTAssertEqual(category.clusteringPoints.map(\.pos), [points[1].pos])
+
+        let unfiltered = await PointCloudCandidatePipeline().run(pipelineInput(points: points))
+        XCTAssertEqual(unfiltered.colorFilteredPoints.map(\.pos), points.map(\.pos))
+        XCTAssertEqual(unfiltered.clusteringPoints.map(\.r), points.map(\.r))
+        XCTAssertEqual(unfiltered.denoising.stats.originalCount, 3)
+        XCTAssertEqual(unfiltered.denoising.stats.removedCount, 0)
+    }
+
+    func testPointCloudPipelineDenoisingStartsAtMaxConfiguredMinimum() async {
+        let config = ClusterConfig(minPoints: 1, minDiameter: 0.01, maxDiameter: 0.30, baseEps: 0.10)
+        for (multiplier, floor) in [(5, 3), (3, 5)] {
+            var experiment = PointCloudExperimentConfig()
+            experiment.denoisingMinPointMultiplier = multiplier
+            experiment.denoisingMinPointFloor = floor
+            experiment.denoisingNeighborCount = 1
+            experiment.denoisingStdMultiplier = 1
+
+            let belowPoints = denoisingBoundaryPoints(inlierCount: 3)
+            let below = await PointCloudCandidatePipeline().run(pipelineInput(
+                points: belowPoints, config: config, experiment: experiment
+            ))
+            XCTAssertEqual(below.clusteringPoints.map(\.pos), belowPoints.map(\.pos))
+            XCTAssertEqual(below.denoising.stats.originalCount, 4)
+            XCTAssertEqual(below.denoising.stats.retainedCount, 4)
+            XCTAssertEqual(below.denoising.stats.meanNeighborDistance, 0)
+            XCTAssertEqual(below.denoising.stats.neighborDistanceStd, 0)
+            XCTAssertEqual(below.denoising.stats.threshold, 0)
+
+            let atPoints = denoisingBoundaryPoints(inlierCount: 4)
+            let at = await PointCloudCandidatePipeline().run(pipelineInput(
+                points: atPoints, config: config, experiment: experiment
+            ))
+            XCTAssertEqual(at.colorFilteredPoints.map(\.pos), atPoints.map(\.pos))
+            XCTAssertEqual(at.clusteringPoints.map(\.r), atPoints.prefix(4).map(\.r))
+            XCTAssertEqual(at.denoising.stats.originalCount, 5)
+            XCTAssertEqual(at.denoising.stats.retainedCount, 4)
+            XCTAssertEqual(at.denoising.stats.meanNeighborDistance, 2, accuracy: 0.00001)
+            XCTAssertEqual(at.denoising.stats.neighborDistanceStd, 4, accuracy: 0.00001)
+            XCTAssertEqual(at.denoising.stats.threshold, 6, accuracy: 0.00001)
+            XCTAssertEqual(at.denoising.stats.removalRatio, 0.2, accuracy: 0.00001)
+        }
+    }
+
+    func testGenericDenoisingKPlusOneGuardAndOrderedNumericStatistics() {
+        let positions = [SIMD3<Float>(0, 0, 0), SIMD3<Float>(10, 0, 0), SIMD3<Float>(0, 0, 0)]
+        let small = PointCloudDenoiser.statisticalOutlierRemovalDetailed(
+            samples: [0, 1], k: 1, stdMultiplier: 1, position: { positions[$0] }
+        )
+        XCTAssertEqual(small.samples, [0, 1])
+        XCTAssertEqual(small.stats.originalCount, 2)
+        XCTAssertEqual(small.stats.retainedCount, 2)
+        XCTAssertEqual(small.stats.threshold, 0)
+
+        let denoised = PointCloudDenoiser.statisticalOutlierRemovalDetailed(
+            samples: [0, 1, 2], k: 1, stdMultiplier: 1, position: { positions[$0] }
+        )
+        XCTAssertEqual(denoised.samples, [0, 2])
+        XCTAssertEqual(denoised.stats.originalCount, 3)
+        XCTAssertEqual(denoised.stats.retainedCount, 2)
+        // Neighbor means are [0, 10, 0]; population mean/std are 10/3 and sqrt(200/9).
+        XCTAssertEqual(denoised.stats.meanNeighborDistance, 3.3333333333, accuracy: 0.00001)
+        XCTAssertEqual(denoised.stats.neighborDistanceStd, 4.7140452079, accuracy: 0.00001)
+        XCTAssertEqual(denoised.stats.threshold, 8.0473785412, accuracy: 0.00001)
+    }
+
+    func testPointCloudPipelineAsyncMinimumAndOctahedronGeometry() async throws {
+        let points = octahedronPoints(center: SIMD3<Float>(0, 0, 1), radius: 0.03)
+        let config = ClusterConfig(minPoints: 6, minDiameter: 0.01, maxDiameter: 0.30,
+            baseEps: 0.10, sphericityThreshold: 0.35)
+        for incomplete in [[], Array(points.prefix(5))] {
+            let output = await PointCloudCandidatePipeline().run(pipelineInput(points: incomplete, config: config))
+            XCTAssertEqual(output.clusteringPoints.map(\.pos), incomplete.map(\.pos))
+            XCTAssertEqual(output.denoising.stats.retainedCount, incomplete.count)
+            XCTAssertTrue(output.candidates.isEmpty)
+        }
+
+        let output = await PointCloudCandidatePipeline().run(pipelineInput(points: points, config: config))
+        XCTAssertEqual(output.candidates.count, 1)
+        let candidate = try XCTUnwrap(output.candidates.first)
+        XCTAssertEqual(candidate.pointCount, 6)
+        XCTAssertEqual(candidate.position.x, 0, accuracy: 0.00001)
+        XCTAssertEqual(candidate.position.y, 0, accuracy: 0.00001)
+        XCTAssertEqual(candidate.position.z, 1, accuracy: 0.00001)
+        XCTAssertEqual(candidate.diameter, 0.06, accuracy: 0.00001)
+        XCTAssertEqual(candidate.sphericity, 1, accuracy: 0.00001)
+        XCTAssertEqual(candidate.averageColor.x, 0.8, accuracy: 0.00001)
+        XCTAssertEqual(candidate.averageColor.y, 0.3, accuracy: 0.00001)
+        XCTAssertEqual(candidate.averageColor.z, 0.1, accuracy: 0.00001)
+        XCTAssertEqual(candidate.points, points.map(\.pos))
+    }
+
+    func testKDTreeNearestMembershipAndInclusiveRadiusBoundary() {
+        let tree = KDTree(points: [-2, 0, 1, 3].map { SIMD3<Float>(Float($0), 0, 0) })
+        XCTAssertEqual(Set(tree.kNearest(center: .zero, k: 2)), Set([1, 2]))
+        XCTAssertEqual(tree.rangeQuery(center: .zero, radius: 1).sorted(), [1, 2])
+        XCTAssertEqual(tree.kNearest(center: .zero, k: 0), [])
+        XCTAssertEqual(KDTree(points: []).rangeQuery(center: .zero, radius: 1), [])
+    }
+
+    // Typed Domain contract: no Core builder snapshot is needed for the pure pipeline.
+    func testDomainPointCloudInputRunsCompleteCandidatePipelineWithoutCoreSnapshot() async throws {
+        let points = octahedronPoints(center: SIMD3<Float>(0, 0, 1), radius: 0.03)
+        let output = await PointCloudCandidatePipeline().run(PointCloudCandidateInput(
+            points: points, colorFilter: nil,
+            clusterConfig: ClusterConfig(minPoints: 6, minDiameter: 0.01, maxDiameter: 0.30,
+                baseEps: 0.10, sphericityThreshold: 0.35),
+            experimentConfiguration: PointCloudExperimentConfig()
+        ))
+
+        XCTAssertEqual(output.colorFilteredPoints.map(\.pos), points.map(\.pos))
+        XCTAssertEqual(output.denoising.stats.originalCount, 6)
+        XCTAssertEqual(output.denoising.stats.retainedCount, 6)
+        XCTAssertEqual(output.candidates.count, 1)
+        let candidate = try XCTUnwrap(output.candidates.first)
+        XCTAssertEqual(candidate.pointCount, 6)
+        XCTAssertEqual(candidate.diameter, 0.06, accuracy: 0.00001)
+        XCTAssertEqual(candidate.sphericity, 1, accuracy: 0.00001)
+        XCTAssertEqual(candidate.points, points.map(\.pos))
+    }
+
+    private func pipelineInput(
+        points: [ColoredPoint],
+        category: FruitCategory? = nil,
+        filter: ColorFilter? = nil,
+        config: ClusterConfig = .default,
+        experiment: PointCloudExperimentConfig = .init()
+    ) -> ScanFusionYieldBuilder.Input {
+        var configuration = FruitScanExperimentConfig.default
+        configuration.pointCloud = experiment
+        return ScanFusionYieldBuilder.Input(
+            points: points, savedDetections: [], imageDiagnostics: ImageDetectionDiagnostics(),
+            fruitType: "苹果", fruitCategory: category, paramsSnapshot: [:],
+            defaultParams: FruitVarietyParams(category: .apple), clusterConfig: config,
+            fusionConfig: .default, colorFilter: filter, experimentConfiguration: configuration
+        )
+    }
+
+    private func filterContractPoints() -> [ColoredPoint] {
+        [
+            ColoredPoint(pos: SIMD3<Float>(0, 0, 1), r: 0.8, g: 0.2, b: 0.1),
+            ColoredPoint(pos: SIMD3<Float>(1, 0, 1), r: 0.1, g: 0.1, b: 0.8),
+            ColoredPoint(pos: SIMD3<Float>(2, 0, 1), r: 0.7, g: 0.2, b: 0.1)
+        ]
+    }
+
+    private func denoisingBoundaryPoints(inlierCount: Int) -> [ColoredPoint] {
+        (0..<inlierCount).map { index in
+            ColoredPoint(pos: .zero, r: 0.7 + Float(index) / 100, g: 0.3, b: 0.1)
+        } + [ColoredPoint(pos: SIMD3<Float>(10, 0, 0), r: 0.8, g: 0.3, b: 0.1)]
+    }
+
     private func spherePoints(center: SIMD3<Float>, radius: Float, count: Int) -> [ColoredPoint] {
         spherePoints(center: center, radius: radius, count: count) { _ in
             SIMD3<Float>(0.8, 0.3, 0.1)

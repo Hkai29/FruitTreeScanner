@@ -1,3 +1,8 @@
+// StartViewLayout.swift
+// 新建扫描流程的页面骨架：纸面页 + 顶部导航 + 步骤进度轨 + 底部主操作带。
+//
+// 与工作台首页共用同一套令牌：纸面底、发丝线、信号青、每屏一个主操作。
+
 import SwiftUI
 
 struct StartFlowChromeLayoutPolicy: Equatable, Sendable {
@@ -17,8 +22,6 @@ struct StartFlowToolHeaderContent {
 }
 
 struct StartViewLayout<StepContent: View>: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let currentStep: Int
     let totalSteps: Int
     let canGoBack: Bool
@@ -30,146 +33,124 @@ struct StartViewLayout<StepContent: View>: View {
     let onNext: () -> Void
     @ViewBuilder let stepContent: () -> StepContent
 
-    private var layoutPolicy: StartFlowChromeLayoutPolicy {
-        StartFlowChromeLayoutPolicy(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
-    }
+    /// 内容最大宽度：iPad 上居中，窄屏铺满。
+    private let contentWidth: CGFloat = 1080
 
     var body: some View {
-        GeometryReader { proxy in
-            let isLandscape = proxy.size.width > proxy.size.height && proxy.size.width >= 760
-
-            ZStack {
-                Design.Colors.Dark.bgDeep
-                    .ignoresSafeArea()
-
-                if isLandscape {
-                    landscapeContent(width: proxy.size.width)
-                } else {
-                    portraitContent
-                }
-            }
-        }
-    }
-
-    private var portraitContent: some View {
-        VStack(spacing: 0) {
-            topNavigation
-
-            StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
-                .padding(.top, Design.Space.xs)
-
+        NavigationStack {
             ScrollView {
-                VStack(spacing: Design.Space.lg) {
-                    stepToolHeader
+                VStack(alignment: .leading, spacing: 22) {
+                    StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
+
+                    StartStepHeader(
+                        step: currentStep,
+                        totalSteps: totalSteps,
+                        title: header.title,
+                        subtitle: header.subtitle,
+                        systemImage: header.icon
+                    )
 
                     stepContent()
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, Design.Space.lg)
-                .padding(.top, Design.Space.lg)
-                .padding(.bottom, Design.Space.xl)
+                .frame(maxWidth: contentWidth, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 28)
+                .frame(maxWidth: .infinity)
             }
             .id(currentStep)
             .scrollDismissesKeyboard(.interactively)
-
-            bottomNavigation
-        }
-    }
-
-    private func landscapeContent(width: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            topNavigation
-
-            HStack(alignment: .top, spacing: Design.Space.lg) {
-                VStack(alignment: .leading, spacing: Design.Space.lg) {
-                    stepToolHeader
-
-                    StepProgressView(currentStep: currentStep, totalSteps: totalSteps)
-                        .padding(.horizontal, -Design.Space.lg)
-
-                    Spacer(minLength: Design.Space.sm)
-                }
-                .frame(width: min(330, width * 0.34), alignment: .topLeading)
-
-                ScrollView {
-                    stepContent()
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(.bottom, Design.Space.xl)
-                }
-                .id(currentStep)
-                .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StartFlowNavigationHeader(
+                    title: L10n.StartFlow.navigationTitle,
+                    cancelTitle: L10n.StartFlow.cancel,
+                    cancelIdentifier: "start.cancel",
+                    onCancel: onCancel,
+                    backTitle: canGoBack ? L10n.StartFlow.previous : nil,
+                    onBack: canGoBack ? onBack : nil
+                )
             }
-            .padding(.horizontal, Design.Space.lg)
-            .padding(.top, Design.Space.md)
-
-            bottomNavigation
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                bottomActionBand
+            }
+            .toolbar(.hidden, for: .navigationBar)
         }
+        .workspacePage()
     }
 
-    private var stepToolHeader: some View {
-        DashboardToolHeader(
-            imageName: header.imageName,
-            title: header.title,
-            subtitle: header.subtitle,
-            icon: header.icon,
-            accent: header.accent
-        )
-    }
-
-    private var bottomNavigation: some View {
+    /// 底部动作带：每屏唯一的主操作。
+    private var bottomActionBand: some View {
         StepNavigationBar(
             currentStep: currentStep,
             totalSteps: totalSteps,
-            canGoBack: canGoBack,
             canGoNext: canGoNext,
             isLaunching: isLaunchingScan,
-            onBack: onBack,
             onNext: onNext
         )
-        .padding(.horizontal, Design.Space.lg)
-        .padding(.bottom, Design.Space.lg)
-    }
-
-    private var topNavigation: some View {
-        Group {
-            if layoutPolicy.stacksVertically {
-                VStack(alignment: .leading, spacing: Design.Space.sm) {
-                    cancelButton
-                    navigationTitle
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                HStack {
-                    cancelButton
-
-                    Spacer()
-
-                    navigationTitle
-
-                    Spacer()
-
-                    Text(L10n.StartFlow.cancel)
-                        .font(.body.weight(.medium))
-                        .hidden()
-                        .accessibilityHidden(true)
-                }
-            }
+        .frame(maxWidth: contentWidth)
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .background(Design.Colors.Workspace.surface)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Design.Colors.Workspace.line).frame(height: 0.5)
         }
-        .padding(.horizontal, Design.Space.lg)
-        .padding(.vertical, Design.Space.md)
     }
+}
 
-    private var cancelButton: some View {
-        Button(L10n.StartFlow.cancel, action: onCancel)
-            .font(.body.weight(.medium))
-            .foregroundColor(Design.Colors.harvest)
-            .accessibilityIdentifier("start.cancel")
-    }
+/// 顶部导航：返回 + 流程名 + 取消。
+///
+/// 系统导航栏会把文字按钮压到 36pt 高，这里保持 44pt 的完整触控目标。
+struct StartFlowNavigationHeader: View {
+    let title: String
+    var cancelTitle: String
+    var cancelIdentifier: String
+    var onCancel: () -> Void
+    /// 非空时显示返回箭头（步骤 > 1）。
+    var backTitle: String? = nil
+    var onBack: (() -> Void)? = nil
 
-    private var navigationTitle: some View {
-        Text(L10n.StartFlow.navigationTitle)
-            .font(.headline)
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .accessibilityAddTraits(.isHeader)
+    var body: some View {
+        HStack(spacing: 10) {
+            if let backTitle, let onBack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Design.Colors.Workspace.ink)
+                        .frame(width: Design.Touch.minimumWidth, height: Design.Touch.minimumHeight)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(backTitle)
+                .accessibilityIdentifier("start.back")
+            }
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer(minLength: 8)
+
+            Button(action: onCancel) {
+                Text(cancelTitle)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(Design.Colors.Workspace.accent)
+                    .frame(minWidth: Design.Touch.minimumWidth, minHeight: Design.Touch.minimumHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(cancelIdentifier)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 4)
+        .background(Design.Colors.Workspace.background)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Design.Colors.Workspace.line).frame(height: 0.5)
+        }
     }
 }

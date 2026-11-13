@@ -1,5 +1,7 @@
 // QuickScanView.swift
-// 首页快速扫描入口
+// 快速扫描入口：不归档地块与标签，只确认现场状态后直接进入采集。
+//
+// 与新建扫描流程共用同一套令牌与组件，只保留单屏所需的最少信息。
 
 import SwiftUI
 import UIKit
@@ -42,6 +44,15 @@ struct QuickScanView: View {
     )
     @State private var selectedFruitCategory: FruitCategory
 
+    private let contentWidth: CGFloat = 1080
+
+    /// 快速采集"不做什么"的说明：不预分配地块与标签，但扫描本身照常保存。
+    private static let scopeNote = NSLocalizedString(
+        "quick_scan.scope_note",
+        value: "不预分配地块与标签：这次扫描仍会照常保存为一条扫描记录，地块与标签可以稍后补上。",
+        comment: "Quick scan explains what is not pre-assigned"
+    )
+
     @MainActor
     init(settings: SettingsStore = .shared, onLaunchScan: @escaping (ScanLaunchRequest) -> Void) {
         self.settings = settings
@@ -55,111 +66,193 @@ struct QuickScanView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    StartStepHeader(
+                        step: 1,
+                        totalSteps: 1,
+                        title: L10n.QuickScan.headerTitle,
+                        subtitle: L10n.QuickScan.headerSubtitle,
+                        systemImage: "bolt.fill"
+                    )
 
-                VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(spacing: 14) {
-                            DashboardToolHeader(
-                                imageName: "FeatureQuickScan",
-                                title: L10n.QuickScan.headerTitle,
-                                subtitle: L10n.QuickScan.headerSubtitle,
-                                icon: "bolt.fill",
-                                accent: Design.Colors.harvest
-                            )
-                            QuickScanTreeIDInput(draft: treeIdentifierDraft)
-                            fruitCategoryPicker
-                            gpsStatusRow
-                        }
-                        .padding(.horizontal, Design.Space.md)
-                        .padding(.top, Design.Space.md)
-                    }
+                    treeIDSection
 
-                    launchButton
+                    fruitCategorySection
+
+                    scopeNotice
+
+                    gpsStatusRow
                 }
+                .frame(maxWidth: contentWidth, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 28)
+                .frame(maxWidth: .infinity)
             }
-            .navigationTitle(L10n.QuickScan.navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.QuickScan.close) {
-                        dismiss()
-                    }
-                    .foregroundColor(Design.Colors.harvest)
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StartFlowNavigationHeader(title: L10n.QuickScan.navigationTitle, cancelTitle: L10n.QuickScan.close,
+                                          cancelIdentifier: "quick.close", onCancel: dismiss.callAsFunction)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                launchBand
+            }
+            .toolbar(.hidden, for: .navigationBar)
+        }
+        .workspacePage()
+    }
+
+    // MARK: - 编号
+
+    private var treeIDSection: some View {
+        InstrumentPanel(
+            label: L10n.QuickScan.treeID,
+            trailing: AnyView(
+                Text(identifierStatusText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(identifierStatusColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            )
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                InstrumentTextField(
+                    placeholder: L10n.QuickScan.treeIDPlaceholder,
+                    text: $treeIdentifierDraft.value,
+                    keyboard: .asciiCapable,
+                    isMonospaced: true
+                )
+                .accessibilityLabel(L10n.QuickScan.treeID)
+
+                if let error = validationErrorMessage {
+                    Text(error)
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(Design.Colors.Workspace.failure)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
     }
 
-    private var fruitCategoryPicker: some View {
-        HStack {
-            Image(systemName: "leaf.fill")
-                .foregroundColor(Design.Colors.harvest)
-            Text(L10n.FruitCategoryVerification.selectionTitle)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-            Spacer()
-            Picker(L10n.FruitCategoryVerification.selectionTitle, selection: $selectedFruitCategory) {
-                ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
-                    Text(L10n.Fruit.name(for: category)).tag(category)
-                }
+    // MARK: - 水果类别
+
+    private var fruitCategorySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            InstrumentSectionLabel(title: L10n.FruitCategoryVerification.selectionTitle)
+
+            HStack(spacing: 10) {
+                Text(L10n.FruitCategoryVerification.fixedForScan)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                fruitCategoryMenu
             }
-            .pickerStyle(.menu)
-            .tint(Design.Colors.harvest)
-            .accessibilityLabel(L10n.FruitCategoryVerification.selectedAccessibilityLabel)
-            .accessibilityValue(L10n.FruitCategoryVerification.selectionAccessibilityValue(selectedFruitCategory))
-            .accessibilityHint(L10n.FruitCategoryVerification.selectedAccessibilityHint)
         }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 48)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+    }
+
+    private var fruitCategoryMenu: some View {
+        Picker(L10n.FruitCategoryVerification.selectionTitle, selection: $selectedFruitCategory) {
+            ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
+                Text(L10n.Fruit.name(for: category)).tag(category)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(Design.Colors.Workspace.accent)
+        .frame(minWidth: Design.Touch.minimumWidth, minHeight: Design.Touch.minimumHeight)
+        .accessibilityLabel(L10n.FruitCategoryVerification.selectedAccessibilityLabel)
+        .accessibilityValue(L10n.FruitCategoryVerification.selectionAccessibilityValue(selectedFruitCategory))
+        .accessibilityHint(L10n.FruitCategoryVerification.selectedAccessibilityHint)
+    }
+
+    // MARK: - 说明与定位
+
+    private var scopeNotice: some View {
+        InstrumentNotice(message: Self.scopeNote, tone: .neutral, systemImage: "info.circle")
     }
 
     private var gpsStatusRow: some View {
-        HStack(spacing: Design.Space.sm) {
+        HStack(alignment: .top, spacing: 8) {
             Image(systemName: gps.isAvailable ? "location.fill" : "location.slash")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(gps.isAvailable ? Design.Colors.forest : Design.Colors.Dark.textSecondary)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(gps.isAvailable
+                                 ? Design.Colors.Workspace.accent
+                                 : Design.Colors.Workspace.secondary)
+                .frame(width: 20)
+                .accessibilityHidden(true)
 
             Text(gps.isAvailable ? L10n.QuickScan.gpsAvailable : L10n.QuickScan.gpsUnavailable)
-                .font(.system(size: 13))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 44)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var launchButton: some View {
+    // MARK: - 启动
+
+    private var launchBand: some View {
         Button(action: launchQuickScan) {
-            HStack(spacing: 12) {
+            HStack(spacing: 6) {
                 if launchGate.isSubmitting {
                     ProgressView()
-                        .tint(Design.Colors.Dark.textPrimary)
-                        .scaleEffect(0.8)
+                        .tint(.white)
+                        .scaleEffect(0.75)
+                        .accessibilityHidden(true)
                 } else {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 15, weight: .semibold))
                 }
                 Text(launchGate.isSubmitting ? L10n.QuickScan.launching : L10n.QuickScan.launch)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
             }
-            .foregroundColor(canLaunch ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textSecondary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .background(canLaunch ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .foregroundColor(canLaunch ? .white : Design.Colors.Workspace.secondary)
+            .frame(maxWidth: .infinity, minHeight: 54)
+            .background(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .fill(canLaunch ? Design.Colors.Workspace.accent : Design.Colors.Workspace.inset)
+            )
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.bottom, Design.Space.lg)
+        .buttonStyle(.plain)
+        .frame(maxWidth: contentWidth)
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .background(Design.Colors.Workspace.surface)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Design.Colors.Workspace.line).frame(height: 0.5)
+        }
         .disabled(!canLaunch)
+        .accessibilityLabel(launchGate.isSubmitting ? L10n.QuickScan.launching : L10n.QuickScan.launch)
     }
+
+    // MARK: - 状态
+
+    private var identifierStatusText: String {
+        treeIdentifierDraft.isValid
+            ? L10n.QuickScan.treeIDValid
+            : (validationErrorMessage != nil ? L10n.QuickScan.treeIDInvalid : L10n.QuickScan.treeIDRequired)
+    }
+
+    private var identifierStatusColor: Color {
+        treeIdentifierDraft.isValid
+            ? Design.Colors.Workspace.accent
+            : (validationErrorMessage == nil ? Design.Colors.Workspace.secondary : Design.Colors.Workspace.failure)
+    }
+
+    private var validationErrorMessage: String? {
+        guard !treeIdentifierDraft.normalizedValue.isEmpty,
+              let issue = treeIdentifierDraft.validationIssue else {
+            return nil
+        }
+        return L10n.QuickScan.validationError(for: issue)
+    }
+
+    // MARK: - 提交
 
     private func launchQuickScan() {
         guard canLaunch else { return }
@@ -186,59 +279,5 @@ struct QuickScanView: View {
 
     private static func makeDefaultTreeID() -> String {
         "Q\(Int.random(in: 1000...9999))"
-    }
-}
-
-private struct QuickScanTreeIDInput: View {
-    @ObservedObject var draft: QuickScanTreeIdentifierDraft
-
-    private var isValid: Bool {
-        draft.isValid
-    }
-
-    private var validationErrorMessage: String? {
-        guard !draft.normalizedValue.isEmpty,
-              let issue = draft.validationIssue else {
-            return nil
-        }
-        return L10n.QuickScan.validationError(for: issue)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(L10n.QuickScan.treeID)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                Spacer()
-                Text(
-                    isValid
-                        ? L10n.QuickScan.treeIDValid
-                        : (validationErrorMessage != nil ? L10n.QuickScan.treeIDInvalid : L10n.QuickScan.treeIDRequired)
-                )
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(isValid ? Design.Colors.forest : Design.Colors.harvest)
-            }
-
-            TextField(L10n.QuickScan.treeIDPlaceholder, text: $draft.value)
-                .font(.system(size: 16, weight: .medium, design: .monospaced))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .padding(.horizontal, 14)
-                .frame(height: 48)
-                .background(Design.Colors.Dark.bgElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled(true)
-                .textContentType(.none)
-                .submitLabel(.done)
-
-            if let error = validationErrorMessage {
-                Text(error)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Design.Colors.harvest)
-            }
-        }
-        .padding(16)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 }

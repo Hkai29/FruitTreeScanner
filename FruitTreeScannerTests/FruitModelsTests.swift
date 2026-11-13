@@ -1449,6 +1449,33 @@ final class FruitModelsTests: XCTestCase {
         }
     }
 
+    /// 回归：导入在视图关闭之后才完成时，文件已经落地，历史也必须刷新。
+    /// 之前这条路径直接 return：档案列表留在旧数据上，
+    /// 用户以为没导入成功，回头再导一次就多出一条重复记录。
+    @MainActor
+    func testImportThatLandsAfterDismissalStillRefreshesHistory() {
+        final class Counter: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = 0
+            func increment() { lock.lock(); value += 1; lock.unlock() }
+            var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+        }
+        let counter = Counter()
+        let operations = ScanImportOperations(
+            importPointCloud: { _ in "imported.ply" },
+            refreshHistory: { counter.increment() }
+        )
+        let view = ImportFileView(operations: operations)
+
+        // 视图已经关掉、任务刚被取消 —— 但文件确实已经落到磁盘上了
+        view.finishSuccessfulImport(importedName: "imported.ply", wasCancelled: true)
+        XCTAssertEqual(counter.count, 1, "文件已经落地，历史必须刷新")
+
+        // 视图还在、任务没被取消：同样要刷新
+        view.finishSuccessfulImport(importedName: "imported.ply", wasCancelled: false)
+        XCTAssertEqual(counter.count, 2)
+    }
+
     func testImportStatusResetsOnlySelectingStateAfterImporterDismissal() {
         XCTAssertEqual(ImportStatus.selecting.afterImporterDismissal, .idle)
         XCTAssertEqual(ImportStatus.idle.afterImporterDismissal, .idle)
@@ -1536,25 +1563,26 @@ final class FruitModelsTests: XCTestCase {
                 "point_cloud.selector.no_results": "No records found for tree ID “%@”",
                 "point_cloud.accessibility.clear_search": "Clear search",
                 "point_cloud.viewer.title": "Point Cloud",
+                "point_cloud.tools.title": "Point-cloud tools",
                 "point_cloud.accessibility.share": "Share point cloud",
                 "point_cloud.metric.points": "Pts",
                 "point_cloud.metric.height": "H",
-                "point_cloud.metric.footprint": "Crown",
+                "point_cloud.metric.footprint": "Extent",
                 "point_cloud.accessibility.point_count": "Point count: %@",
                 "point_cloud.accessibility.height": "Height: %@",
-                "point_cloud.accessibility.footprint": "Crown footprint: %@",
+                "point_cloud.accessibility.footprint": "Planar extent: %@",
                 "point_cloud.tool.reset": "Reset",
                 "point_cloud.tool.color": "Colors",
                 "point_cloud.tool.zoom_in": "Zoom In",
                 "point_cloud.tool.zoom_out": "Zoom Out",
                 "point_cloud.tool.measure": "Measure",
                 "point_cloud.legend.color_format": "Color: %@",
-                "point_cloud.legend.actual_height_format": "Actual height %@",
+                "point_cloud.legend.actual_height_format": "Vertical extent %@",
                 "point_cloud.legend.low": "Low",
                 "point_cloud.legend.high": "High",
-                "point_cloud.legend.sparse": "Sparse",
-                "point_cloud.legend.dense": "Dense",
-                "point_cloud.legend.fruit_candidates": "Fruit candidates",
+                "point_cloud.legend.sparse": "Dark",
+                "point_cloud.legend.dense": "Bright",
+                "point_cloud.legend.fruit_candidates": "Color emphasis",
                 "point_cloud.legend.uniform_bright": "Uniform bright",
                 "point_cloud.view.orbit": "Orbit",
                 "point_cloud.view.front": "Front",
@@ -1565,8 +1593,8 @@ final class FruitModelsTests: XCTestCase {
                 "point_cloud.view_detail.top": "Canopy projection",
                 "point_cloud.view_detail.side": "Side profile",
                 "point_cloud.color.height": "Height",
-                "point_cloud.color.density": "Density",
-                "point_cloud.color.fruit": "Fruit",
+                "point_cloud.color.density": "Brightness",
+                "point_cloud.color.fruit": "Red emphasis",
                 "point_cloud.color.uniform": "Uniform",
                 "point_cloud.measurement.start": "Start",
                 "point_cloud.measurement.end": "End",
@@ -1600,25 +1628,26 @@ final class FruitModelsTests: XCTestCase {
                 "point_cloud.selector.no_results": "未找到编号“%@”的记录",
                 "point_cloud.accessibility.clear_search": "清除搜索",
                 "point_cloud.viewer.title": "点云查看",
+                "point_cloud.tools.title": "点云工具",
                 "point_cloud.accessibility.share": "分享点云",
                 "point_cloud.metric.points": "点",
                 "point_cloud.metric.height": "高",
-                "point_cloud.metric.footprint": "冠幅",
+                "point_cloud.metric.footprint": "范围",
                 "point_cloud.accessibility.point_count": "点数：%@",
                 "point_cloud.accessibility.height": "高度：%@",
-                "point_cloud.accessibility.footprint": "冠幅：%@",
+                "point_cloud.accessibility.footprint": "平面范围：%@",
                 "point_cloud.tool.reset": "重置",
                 "point_cloud.tool.color": "色彩",
                 "point_cloud.tool.zoom_in": "放大",
                 "point_cloud.tool.zoom_out": "缩小",
                 "point_cloud.tool.measure": "测量",
                 "point_cloud.legend.color_format": "色彩：%@",
-                "point_cloud.legend.actual_height_format": "真实高度 %@",
+                "point_cloud.legend.actual_height_format": "高度范围 %@",
                 "point_cloud.legend.low": "低",
                 "point_cloud.legend.high": "高",
-                "point_cloud.legend.sparse": "稀",
-                "point_cloud.legend.dense": "密",
-                "point_cloud.legend.fruit_candidates": "果实候选",
+                "point_cloud.legend.sparse": "暗",
+                "point_cloud.legend.dense": "亮",
+                "point_cloud.legend.fruit_candidates": "按颜色强调",
                 "point_cloud.legend.uniform_bright": "统一亮色",
                 "point_cloud.view.orbit": "自由",
                 "point_cloud.view.front": "正面",
@@ -1629,8 +1658,8 @@ final class FruitModelsTests: XCTestCase {
                 "point_cloud.view_detail.top": "冠层投影",
                 "point_cloud.view_detail.side": "侧向轮廓",
                 "point_cloud.color.height": "高度",
-                "point_cloud.color.density": "密度",
-                "point_cloud.color.fruit": "果实",
+                "point_cloud.color.density": "亮度",
+                "point_cloud.color.fruit": "偏红强调",
                 "point_cloud.color.uniform": "统一",
                 "point_cloud.measurement.start": "起点",
                 "point_cloud.measurement.end": "终点",
@@ -2474,6 +2503,8 @@ final class FruitModelsTests: XCTestCase {
             .appendingPathComponent("\(baseName)_result.json")
         let manifestURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_complete.json")
+        let replayInputURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.json")
+        let replayPointsURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.f32")
         let record = ScanFileRecord(
             id: "test_record.ply",
             treeID: "test",
@@ -2499,7 +2530,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result, "Should return false when primary PLY removal throws")
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL, fileURL],
+            [csvURL, jsonURL, replayInputURL, replayPointsURL, manifestURL, fileURL],
             "The PLY anchor must be attempted only after companion cleanup succeeds"
         )
     }
@@ -2595,6 +2626,8 @@ final class FruitModelsTests: XCTestCase {
             .appendingPathComponent("\(baseName)_result.json")
         let manifestURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_complete.json")
+        let replayInputURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.json")
+        let replayPointsURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.f32")
 
         let record = ScanFileRecord(
             id: "test_record.ply",
@@ -2621,7 +2654,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result, "Should return false when any companion removal throws")
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL],
+            [csvURL, jsonURL, replayInputURL, replayPointsURL, manifestURL],
             "Companion cleanup should continue, but the PLY anchor must remain after any failure"
         )
     }
@@ -2634,6 +2667,8 @@ final class FruitModelsTests: XCTestCase {
             .appendingPathComponent("\(baseName)_result.json")
         let manifestURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_complete.json")
+        let replayInputURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.json")
+        let replayPointsURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.f32")
 
         let record = ScanFileRecord(
             id: "test_record.ply",
@@ -2655,7 +2690,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertTrue(result, "Should return true when all files exist and removal succeeds")
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL, fileURL],
+            [csvURL, jsonURL, replayInputURL, replayPointsURL, manifestURL, fileURL],
             "Primary PLY should be removed only after every companion artifact"
         )
     }
@@ -2668,6 +2703,8 @@ final class FruitModelsTests: XCTestCase {
             .appendingPathComponent("\(baseName)_result.json")
         let manifestURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_complete.json")
+        let replayInputURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.json")
+        let replayPointsURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.f32")
         let record = ScanFileRecord(
             id: "test_record.ply",
             treeID: "test",
@@ -2688,16 +2725,16 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result.isComplete)
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL],
+            [csvURL, jsonURL, replayInputURL, replayPointsURL, manifestURL],
             "Each companion should be attempted while the PLY remains untouched"
         )
         XCTAssertEqual(
             result.residualArtifacts.map(\.kind),
-            [.csv, .resultJSON, .completionManifest, .pointCloud]
+            [.csv, .resultJSON, .replayInput, .replayPoints, .completionManifest, .pointCloud]
         )
         XCTAssertEqual(
             result.residualArtifacts.map(\.url),
-            [csvURL, jsonURL, manifestURL, fileURL]
+            [csvURL, jsonURL, replayInputURL, replayPointsURL, manifestURL, fileURL]
         )
         for artifact in result.residualArtifacts.dropLast() {
             guard case .removalFailed(let message) = artifact.reason else {
@@ -2719,6 +2756,8 @@ final class FruitModelsTests: XCTestCase {
             .appendingPathComponent("\(baseName)_result.json")
         let manifestURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(baseName)_complete.json")
+        let replayInputURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.json")
+        let replayPointsURL = fileURL.deletingLastPathComponent().appendingPathComponent("test_record_replay.f32")
         let record = ScanFileRecord(
             id: "test_record.ply",
             treeID: "test",
@@ -2741,7 +2780,7 @@ final class FruitModelsTests: XCTestCase {
         XCTAssertFalse(result.isComplete)
         XCTAssertEqual(
             removed,
-            [csvURL, jsonURL, manifestURL],
+            [csvURL, jsonURL, replayInputURL, replayPointsURL, manifestURL],
             "Companion failures must not prevent later companion attempts or delete the PLY"
         )
         XCTAssertEqual(
@@ -3320,7 +3359,7 @@ final class FruitModelsTests: XCTestCase {
         let item = try XCTUnwrap(items.first)
 
         XCTAssertEqual(items.map(\.id), ["complete.ply"])
-        XCTAssertEqual(item.nLidar, 24)
+        XCTAssertEqual(item.archivedFruitCount, 24)
         XCTAssertEqual(item.yieldKg, 8.6, accuracy: 0.001)
         XCTAssertEqual(item.confidence, "high")
         XCTAssertNil(item.meanDiameterCm)
@@ -3421,7 +3460,7 @@ final class FruitModelsTests: XCTestCase {
         )
 
         XCTAssertEqual(selection.first, refreshedFirst)
-        XCTAssertEqual(selection.first?.nLidar, 15)
+        XCTAssertEqual(selection.first?.archivedFruitCount, 15)
         XCTAssertNil(selection.second)
     }
 

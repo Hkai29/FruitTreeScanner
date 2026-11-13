@@ -1,3 +1,6 @@
+// PointCloudControlPrimitives.swift
+// 点云视口的基础控件。深色画布上的文字层级与浅色页一致，只是换了明度。
+
 import SwiftUI
 
 struct PointCloudMetricText: View {
@@ -5,13 +8,16 @@ struct PointCloudMetricText: View {
     let value: String
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 5) {
             Text(label)
-                .foregroundColor(.white.opacity(0.52))
+                .font(.system(.caption2, design: .default).weight(.semibold))
+                .tracking(0.5)
+                .foregroundColor(Design.Colors.Dark.textMuted)
             Text(value)
-                .foregroundColor(.white.opacity(0.86))
+                .font(.system(.caption, design: .monospaced).weight(.medium))
+                .monospacedDigit()
+                .foregroundColor(Design.Colors.Dark.textPrimary)
         }
-        .font(.system(.caption2, design: .monospaced, weight: .medium))
         .fixedSize(horizontal: true, vertical: true)
     }
 }
@@ -47,19 +53,25 @@ struct PointCloudViewModePicker: View {
                 viewMode = mode
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: mode.icon)
-                        .font(.caption.weight(.semibold))
-                        .accessibilityHidden(true)
                     Text(mode.displayName)
                         .font(.caption.weight(.semibold))
                         .fixedSize(horizontal: !expandsToFill, vertical: true)
                 }
-                .foregroundColor(viewMode == mode ? Color.black.opacity(0.82) : .white.opacity(0.82))
-                .padding(.horizontal, expandsToFill ? 4 : 10)
-                .frame(maxWidth: expandsToFill ? .infinity : nil, minHeight: 44)
+                .foregroundColor(viewMode == mode ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textSecondary)
+                .padding(.horizontal, expandsToFill ? 4 : 12)
+                .frame(maxWidth: expandsToFill ? .infinity : nil, minHeight: 40)
                 .fixedSize(horizontal: !expandsToFill, vertical: false)
-                .background(viewMode == mode ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
-                .cornerRadius(8)
+                .background(
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .fill(viewMode == mode ? Design.Colors.Dark.glow : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .stroke(
+                            viewMode == mode ? Color.clear : Design.Colors.Dark.glassBorder,
+                            lineWidth: 1
+                        )
+                )
             }
             .disabled(!isEnabled)
             .accessibilityLabel(mode.displayName)
@@ -78,11 +90,10 @@ struct PointCloudCircleButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.white)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(Design.Colors.Dark.textPrimary)
                 .frame(width: 44, height: 44)
-                .background(Design.Colors.Dark.bgElevated)
-                .clipShape(Circle())
+                .contentShape(Rectangle())
         }
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.45)
@@ -113,33 +124,33 @@ struct PointCloudToolLabel: View {
     let label: String
     var isActive = false
 
+    private var usesExpandedLayout: Bool { dynamicTypeSize >= .xxxLarge }
+
     var body: some View {
-        controlLayout {
+        HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.body.weight(.semibold))
+                .font(.system(size: 15, weight: .medium))
                 .accessibilityHidden(true)
 
             Text(label)
-                .font(.caption2.weight(.medium))
-                .fixedSize(horizontal: dynamicTypeSize.isAccessibilitySize, vertical: true)
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .foregroundColor(isActive ? Design.Colors.harvest : .white.opacity(0.86))
-        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 12 : 4)
-        .padding(.vertical, 7)
-        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? nil : .infinity, minHeight: 46)
-        .fixedSize(horizontal: dynamicTypeSize.isAccessibilitySize, vertical: false)
-        .background(isActive ? Design.Colors.harvest.opacity(0.18) : Design.Colors.Dark.bgElevated)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isActive ? Design.Colors.harvest : Color.clear, lineWidth: 1)
+        .foregroundColor(isActive ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textPrimary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                .fill(isActive ? Design.Colors.Dark.glow : Color.clear)
         )
-        .cornerRadius(8)
-    }
-
-    private var controlLayout: AnyLayout {
-        if dynamicTypeSize.isAccessibilitySize {
-            return AnyLayout(HStackLayout(spacing: 8))
-        }
-        return AnyLayout(VStackLayout(spacing: 4))
+        .overlay(
+            RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                .stroke(
+                    isActive ? Color.clear : Design.Colors.Dark.glassBorder,
+                    lineWidth: 1
+                )
+        )
     }
 }

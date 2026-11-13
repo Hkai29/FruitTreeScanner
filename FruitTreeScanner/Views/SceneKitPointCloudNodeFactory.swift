@@ -32,14 +32,18 @@ enum SceneKitPointCloudNodeFactory {
             positionCount: positions.count
         )
         let element = SceneKitPointCloudGeometrySources.pointElement(positionCount: positions.count)
+        // SceneKit renders point size from the element, not geometry KVC.
+        // Keep a bounded screen radius so sparse scans remain inspectable.
+        let diameter = pointSize.isFinite ? min(6, max(1, pointSize)) : 1
+        element.pointSize = diameter
+        element.minimumPointScreenSpaceRadius = diameter / 2
+        element.maximumPointScreenSpaceRadius = diameter / 2
         let geometry = SCNGeometry(sources: [source, colorSource], elements: [element])
 
         let material = SCNMaterial()
         material.lightingModel = .constant
         material.isDoubleSided = true
         geometry.materials = [material]
-        geometry.setValue(pointSize, forKey: "pointSize")
-        geometry.setValue(1, forKey: "pointSizeMode")
 
         let node = SCNNode(geometry: geometry)
         node.name = "pointCloud"

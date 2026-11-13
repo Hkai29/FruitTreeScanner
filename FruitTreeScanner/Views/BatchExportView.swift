@@ -1,23 +1,59 @@
 import SwiftUI
 
+@MainActor
 struct BatchExportView: View {
     @Environment(\.dismiss) private var dismiss
 
     var onStartScan: (() -> Void)? = nil
     var onImportFile: (() -> Void)? = nil
 
-    @ObservedObject var store = ScanHistoryStore.shared
-    @ObservedObject var tagStore = TagStore.shared
+    @ObservedObject var store: ScanHistoryStore
+    @ObservedObject var tagStore: TagStore
     @State var selectedRecords: Set<String> = []
     @State var exportFormat: BatchExportService.ExportFormat = .csv
     @State var exportOptions = BatchExportService.ExportOptions()
-    @State var exportedURL: URL?
-    @State var isExporting = false
-    @State var exportFailure: BatchExportFailurePresentation?
+    @StateObject var workflow: BatchExportWorkflow
     @State var showShareError = false
     @State var presentedSheet: BatchExportSheet?
-    @State var exportTask: Task<Void, Never>?
-    @State var exportGeneration = 0
+
+    init(
+        onStartScan: (() -> Void)? = nil,
+        onImportFile: (() -> Void)? = nil,
+        store: ScanHistoryStore? = nil,
+        tagStore: TagStore? = nil,
+        exportedURL: URL? = nil,
+        operations: BatchExportOperations = .production
+    ) {
+        self.init(
+            onStartScan: onStartScan, onImportFile: onImportFile,
+            store: store, tagStore: tagStore,
+            workflow: BatchExportWorkflow(operations: operations, exportedURL: exportedURL)
+        )
+    }
+
+    init(
+        onStartScan: (() -> Void)? = nil,
+        onImportFile: (() -> Void)? = nil,
+        store: ScanHistoryStore? = nil,
+        tagStore: TagStore? = nil,
+        workflow: @autoclosure @escaping () -> BatchExportWorkflow
+    ) {
+        self.onStartScan = onStartScan
+        self.onImportFile = onImportFile
+        self.store = store ?? .shared
+        self.tagStore = tagStore ?? .shared
+        _workflow = StateObject(wrappedValue: workflow())
+    }
+
+    var exportedURL: URL? { workflow.exportedURL }
+    var isExporting: Bool { workflow.isExporting }
+
+    private var exportFailure: Binding<BatchExportFailurePresentation?> {
+        Binding(
+            get: { workflow.failure.map { BatchExportFailurePresentation(error: $0) } },
+            set: { _ in workflow.dismissFailure() }
+        )
+    }
 
     var exportableRecordIDs: Set<String> {
         BatchExportSelectionPolicy.exportableRecordIDs(from: store.scanFiles)
@@ -26,8 +62,6 @@ struct BatchExportView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
-
                 BatchExportContentView(
                     records: store.scanFiles,
                     selectedRecords: selectedRecords,
@@ -44,11 +78,12 @@ struct BatchExportView: View {
                     onPrimaryAction: handlePrimaryExportAction
                 )
             }
+            .workspacePage()
             .navigationTitle(L10n.Export.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Export.close, action: close)
@@ -68,7 +103,7 @@ struct BatchExportView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .share(let url):
@@ -77,11 +112,14 @@ struct BatchExportView: View {
                 }
             }
         }
-        .batchExportFailureAlert(failure: $exportFailure, onRetry: performExport)
+        .batchExportFailureAlert(failure: exportFailure, onRetry: performExport)
         .alert(L10n.Export.shareFailureTitle, isPresented: $showShareError) {
             Button(L10n.Common.done, role: .cancel) {}
         } message: {
             Text(L10n.Export.shareFailureMessage)
+        }
+        .onChange(of: workflow.exportedURL) { url in
+            presentedSheet = url.map(BatchExportSheet.share)
         }
         .onAppear(perform: handleAppear)
         .onChange(of: store.scanFiles, perform: handleRecordsChanged)
@@ -92,6 +130,20 @@ struct BatchExportView: View {
             handleExportSourceChanged()
         }
         .onDisappear(perform: handleDisappear)
+    }
+
+    func exportRequestReader() -> @MainActor () -> BatchExportRequestSnapshot {
+        // Capture only the request's stores and State locations. Capturing this
+        // View would retain its StateObject owner through the pending task.
+        { [store, tagStore, selection = _selectedRecords, format = _exportFormat, options = _exportOptions] in
+            Self.makeExportRequestSnapshot(
+                records: store.scanFiles,
+                selectedRecordIDs: selection.wrappedValue,
+                format: format.wrappedValue,
+                options: options.wrappedValue,
+                plotNames: Self.plotNameByTreeID(tagStore: tagStore)
+            )
+        }
     }
 
     private func close() {
@@ -135,6 +187,10 @@ struct BatchExportFailurePresentation {
         case inconsistentRecord
         case outOfSpace
         case fileWrite
+        case replayUnavailable
+        case replayInvalidArchive
+        case replayBudgetExceeded
+        case replayAlgorithmMismatch
         case generic
     }
 
@@ -156,6 +212,14 @@ struct BatchExportFailurePresentation {
             return L10n.Export.outOfSpaceRecovery
         case .fileWrite:
             return L10n.Export.fileWriteRecovery
+        case .replayUnavailable:
+            return ScanReplayError.unavailable.localizedDescription
+        case .replayInvalidArchive:
+            return ScanReplayError.invalidArchive.localizedDescription
+        case .replayBudgetExceeded:
+            return ScanReplayError.budgetExceeded.localizedDescription
+        case .replayAlgorithmMismatch:
+            return ScanReplayError.algorithmMismatch.localizedDescription
         case .generic:
             return L10n.Export.genericFailureRecovery
         }
@@ -172,6 +236,14 @@ struct BatchExportFailurePresentation {
     ]
 
     private static func kind(for error: Error) -> Kind {
+        if let replayError = error as? ScanReplayError {
+            switch replayError {
+            case .unavailable: return .replayUnavailable
+            case .invalidArchive: return .replayInvalidArchive
+            case .budgetExceeded: return .replayBudgetExceeded
+            case .algorithmMismatch: return .replayAlgorithmMismatch
+            }
+        }
         if let batchExportError = error as? BatchExportError {
             switch batchExportError {
             case .noRecords: return .noRecords

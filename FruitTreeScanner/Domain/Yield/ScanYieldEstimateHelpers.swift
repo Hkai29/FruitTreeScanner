@@ -2,12 +2,6 @@ import Foundation
 import simd
 
 enum ScanYieldEstimateHelpers {
-    struct VisibleEstimateCorrection {
-        let visibleCount: Float
-        let visibleYieldKg: Float
-        let note: String
-    }
-
     struct VisibleYieldEstimate {
         let yieldKg: Float
         let meanDiameterCm: Float

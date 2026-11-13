@@ -1,4 +1,33 @@
+// SettingsComponents.swift
+// 设置页与相机设置页的行组件。
+//
+// 约定：
+//   1. 控件直接读写 SettingsStore，页面不持有参数副本。
+//   2. 行内的说明文字从无障碍树中隐藏，名称与读数由 Picker / Slider / Toggle 自身承载，
+//      这样读屏只会念一次标题，数值由控件的 accessibilityValue 播报。
+//   3. 图标是装饰，一律 accessibilityHidden。
+
 import SwiftUI
+
+// MARK: - 分组
+
+/// 设置页的一个分区：小标签 + 白色列表组，组内以发丝线分隔。
+struct SettingsGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            InstrumentSectionLabel(title: title)
+
+            InstrumentRowGroup {
+                content()
+            }
+        }
+    }
+}
+
+// MARK: - 相机设置
 
 struct CameraSettingsView: View {
     @ObservedObject private var settings: SettingsStore
@@ -8,19 +37,20 @@ struct CameraSettingsView: View {
     }
 
     var body: some View {
-        ZStack {
-            Design.Colors.Dark.bgDeep.ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 16) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                InstrumentPanel(
+                    label: L10n.Settings.cameraSettings,
+                    systemImage: "camera.metering.center.weighted"
+                ) {
                     VStack(spacing: 0) {
-                        GlassReadonlyRow(
-                            icon: "rectangle.on.rectangle",
+                        SettingsValueRow(
+                            systemImage: "rectangle.on.rectangle",
                             title: L10n.Settings.actualResolution,
                             value: settings.currentCameraResolutionDisplay
                         )
 
-                        GlassDivider()
+                        DividerLine()
 
                         SettingsMenuRow(
                             icon: "rectangle.on.rectangle",
@@ -29,7 +59,7 @@ struct CameraSettingsView: View {
                             options: SettingsStore.cameraResolutionOptions
                         )
 
-                        GlassDivider()
+                        DividerLine()
 
                         SettingsMenuRow(
                             icon: "speedometer",
@@ -38,49 +68,54 @@ struct CameraSettingsView: View {
                             options: SettingsStore.cameraFrameRateOptions
                         )
                     }
-                    .padding(Design.Space.sm)
-                    .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-
-                    Text(L10n.Settings.cameraFormatHint)
-                        .font(Design.Typography.darkCaption)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                        .multilineTextAlignment(.center)
-
-                    Spacer()
                 }
-                .padding(Design.Space.lg)
+
+                Text(L10n.Settings.cameraFormatHint)
+                    .font(.footnote)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: 720, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 28)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
+        .workspacePage()
         .navigationTitle(L10n.Settings.cameraSettings)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
+        .toolbarBackground(Design.Colors.Workspace.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
     }
 }
+
+// MARK: - 水果类型
 
 struct FruitCategorySettingsRow: View {
     @Binding var selection: FruitCategory
 
     var body: some View {
-        HStack(spacing: Design.Space.md) {
+        HStack(spacing: 12) {
             Image(systemName: "leaf.fill")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 22)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.Settings.currentFruitType)
-                    .font(Design.Typography.darkSubheadline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
                 Text(L10n.Settings.fruitTypeHint)
-                    .font(Design.Typography.darkCaption)
-                    .foregroundColor(Design.Colors.Dark.textMuted)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityHidden(true)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Picker(L10n.Settings.currentFruitType, selection: $selection) {
                 ForEach(FruitCategory.scanSupportedCategories, id: \.self) { category in
@@ -89,58 +124,119 @@ struct FruitCategorySettingsRow: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .tint(Design.Colors.harvest)
+            .tint(Design.Colors.Workspace.accent)
             .accessibilityLabel(L10n.Settings.currentFruitType)
             .accessibilityValue(L10n.Fruit.name(for: selection))
             .accessibilityHint(L10n.Settings.fruitTypeHint)
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.xs)
-        .frame(minHeight: 54)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
-        )
+        .padding(.vertical, 8)
+        .frame(minHeight: Design.Touch.minimumHeight)
     }
 }
 
+// MARK: - 跳转行
+
+/// 设置列表里的跳转行。名称由外层 NavigationLink 统一播报。
 struct SettingsNavigationRow: View {
     let icon: String
     let title: String
     let subtitle: String
 
     var body: some View {
-        HStack(spacing: Design.Space.md) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 22)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(Design.Typography.darkSubheadline)
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
-                    .font(Design.Typography.darkCaption)
-                    .foregroundColor(Design.Colors.Dark.textMuted)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .accessibilityHidden(true)
+            InstrumentChevron()
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.sm + 2)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
-        )
+        .padding(.vertical, 8)
+        .frame(minHeight: Design.Touch.minimumHeight)
     }
 }
+
+// MARK: - 读数行
+
+/// 只读读数行：标题 + 当前值（等宽数字）。
+struct SettingsValueRow: View {
+    let systemImage: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Workspace.ink)
+
+            Spacer(minLength: 8)
+
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .monospacedDigit()
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(.vertical, 8)
+        .frame(minHeight: Design.Touch.minimumHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+    }
+}
+
+// MARK: - 开关行
+
+struct SettingsToggleRow: View {
+    let systemImage: String
+    let title: String
+    @Binding var isOn: Bool
+    var accessibilityHint: String = ""
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+
+            Toggle(isOn: $isOn) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+            }
+            .tint(Design.Colors.Workspace.accent)
+            .accessibilityHint(accessibilityHint)
+        }
+        .padding(.vertical, 8)
+        .frame(minHeight: Design.Touch.minimumHeight)
+    }
+}
+
+// MARK: - 枚举行
 
 struct SettingsMenuRow: View {
     let icon: String
@@ -167,19 +263,19 @@ struct SettingsMenuRow: View {
     }
 
     var body: some View {
-        HStack(spacing: Design.Space.md) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(width: 22)
                 .accessibilityHidden(true)
 
             Text(title)
-                .font(Design.Typography.darkSubheadline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.subheadline)
+                .foregroundColor(Design.Colors.Workspace.ink)
                 .accessibilityHidden(true)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Picker(title, selection: $value) {
                 ForEach(options, id: \.self) { option in
@@ -188,32 +284,83 @@ struct SettingsMenuRow: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .tint(Design.Colors.harvest)
+            .tint(Design.Colors.Workspace.accent)
             .accessibilityLabel(title)
             .accessibilityValue(optionLabel(value))
             .accessibilityHint(accessibilityHint)
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.xs)
-        .frame(minHeight: 48)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.small)
-                .fill(Design.Colors.Dark.bgElevated.opacity(0.55))
-        )
+        .padding(.vertical, 8)
+        .frame(minHeight: Design.Touch.minimumHeight)
     }
 }
 
+// MARK: - 滑杆行
+
+/// 数值滑杆行。拖动期间只改草稿，编辑结束由外部回调提交。
+struct SettingsSliderRow: View {
+    let systemImage: String
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    var displayValue: String
+    var onEditingChanged: (Bool) -> Void = { _ in }
+    var accessibilityHint: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .frame(width: 22)
+                    .accessibilityHidden(true)
+
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .accessibilityHidden(true)
+
+                Spacer(minLength: 8)
+
+                Text(displayValue)
+                    .font(.subheadline.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundColor(Design.Colors.Workspace.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityHidden(true)
+            }
+
+            Slider(
+                value: $value,
+                in: range,
+                step: step,
+                onEditingChanged: onEditingChanged
+            )
+            .tint(Design.Colors.Workspace.accent)
+            .accessibilityLabel(title)
+            .accessibilityValue(displayValue)
+            .accessibilityHint(accessibilityHint)
+        }
+        .padding(.vertical, 8)
+        .frame(minHeight: Design.Touch.minimumHeight)
+    }
+}
+
+// MARK: - 说明文字
+
 struct SettingsInlineHint: View {
     let text: String
+    var inset: CGFloat = 0
 
     var body: some View {
         Text(text)
-            .font(Design.Typography.darkCaption)
-            .foregroundColor(Design.Colors.Dark.textMuted)
+            .font(.footnote)
+            .foregroundColor(Design.Colors.Workspace.muted)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Design.Space.md)
-            .padding(.top, Design.Space.xs)
-            .padding(.bottom, Design.Space.sm)
+            .padding(.horizontal, inset)
+            .padding(.vertical, 6)
     }
 }

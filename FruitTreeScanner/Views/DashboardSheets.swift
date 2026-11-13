@@ -12,9 +12,9 @@ struct HistorySheetView: View {
     @ObservedObject var tagStore = TagStore.shared
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
+                Design.Colors.Workspace.surface.ignoresSafeArea()
                 ScanHistoryView(
                     customTitle: L10n.History.navigationTitle,
                     onStartScan: onStartScan,
@@ -24,17 +24,18 @@ struct HistorySheetView: View {
                     tagStore: tagStore
                 )
             }
-            .navigationTitle("")
+            .navigationTitle(L10n.History.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(L10n.Common.done) { dismiss() }
-                        .foregroundColor(Design.Colors.harvest)
+                        .foregroundColor(Design.Colors.Workspace.accent)
                 }
             }
         }
+        .workspacePage(background: Design.Colors.Workspace.background)
     }
 }

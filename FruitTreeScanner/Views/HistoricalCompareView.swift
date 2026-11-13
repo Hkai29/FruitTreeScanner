@@ -1,5 +1,8 @@
 // HistoricalCompareView.swift
-// Historical Yield Comparison — Compare scans side by side
+// 树体对比：两条完整扫描并排比较。
+//
+// 阅读语言与档案页一致：证据行用 `InstrumentScanRow`，
+// 差异用真实数字加证据等级表达，不只靠颜色。
 
 import SwiftUI
 
@@ -34,16 +37,16 @@ struct HistoricalCompareView: View {
                 .navigationTitle(presentation.navigationTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(.visible, for: .navigationBar)
-                .toolbarBackground(Design.Colors.Dark.bgSurface, for: .navigationBar)
-                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+                .toolbarColorScheme(.light, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(doneTitle) { dismiss() }
-                            .foregroundColor(Design.Colors.harvest)
+                            .foregroundColor(Design.Colors.Workspace.accent)
                     }
                 }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .environment(\.historicalComparePresentation, presentation)
         .sheet(item: $activePicker) { picker in
             switch picker {
@@ -77,19 +80,11 @@ struct HistoricalCompareView: View {
 
     private var comparisonContent: some View {
         ZStack {
-            Design.Colors.Dark.bgDeep
+            Design.Colors.Workspace.background
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: Design.Space.md) {
-                    DashboardToolHeader(
-                        imageName: "FeatureCompare",
-                        title: presentation.title,
-                        subtitle: presentation.subtitle,
-                        icon: "arrow.left.arrow.right",
-                        accent: Design.Colors.harvest
-                    )
-
+                VStack(alignment: .leading, spacing: 16) {
                     if availableScans.count < 2 {
                         HistoricalCompareEmptyState(
                             scanCount: availableScans.count,
@@ -97,21 +92,25 @@ struct HistoricalCompareView: View {
                         )
                     } else {
                         scanSelectionSection
+
                         if let selectedScan1, let selectedScan2 {
                             comparisonSection(scan1: selectedScan1, scan2: selectedScan2)
                         } else {
                             HistoricalComparePrompt()
                         }
                     }
-                    Spacer(minLength: Design.Space.xxl)
+                    Spacer(minLength: Design.Space.lg)
                 }
-                .padding(.horizontal, Design.Space.md)
-                .padding(.top, Design.Space.md)
+                .frame(maxWidth: 1080, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
             }
         }
     }
 
-    // MARK: - Scan Selection Section
+    // MARK: - 选择区
+
     @ViewBuilder
     private var scanSelectionSection: some View {
         if dynamicTypeSize.isAccessibilitySize {
@@ -142,14 +141,15 @@ struct HistoricalCompareView: View {
     private var versusLabel: some View {
         Text(presentation.versus)
             .font(.caption.weight(.semibold))
-            .foregroundColor(Design.Colors.Dark.textSecondary)
+            .foregroundColor(Design.Colors.Workspace.secondary)
             .frame(minWidth: 28)
             .accessibilityHidden(true)
     }
 
-    // MARK: - Comparison Section
+    // MARK: - 对比区
+
     private func comparisonSection(scan1: ScanItem, scan2: ScanItem) -> some View {
-        VStack(spacing: Design.Space.lg) {
+        VStack(alignment: .leading, spacing: 16) {
             HistoricalYieldComparisonCard(
                 scan1: scan1,
                 scan2: scan2,
@@ -158,20 +158,52 @@ struct HistoricalCompareView: View {
                     to: scan2.yieldKg
                 )
             )
-            statComparisonGrid(scan1: scan1, scan2: scan2)
+
+            evidenceSection(scan1: scan1, scan2: scan2)
+            metricSection(scan1: scan1, scan2: scan2)
         }
     }
 
-    // MARK: - Stat Comparison Grid
-    private func statComparisonGrid(scan1: ScanItem, scan2: ScanItem) -> some View {
-        LazyVGrid(columns: statColumns, spacing: Design.Space.md) {
+    /// 两条记录按档案行的写法排出来：等级竖线 + 树号 + 时间 + 读数。
+    private func evidenceSection(scan1: ScanItem, scan2: ScanItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(presentation.evidenceRowsTitle)
+                .instrumentLabel()
+                .accessibilityAddTraits(.isHeader)
+
+            InstrumentRowGroup {
+                InstrumentScanRow(
+                    record: scan1.record,
+                    trailingAccessory: AnyView(slotBadge(presentation.scanA))
+                )
+                DividerLine(inset: 0)
+                InstrumentScanRow(
+                    record: scan2.record,
+                    trailingAccessory: AnyView(slotBadge(presentation.scanB))
+                )
+            }
+        }
+    }
+
+    private func slotBadge(_ slot: String) -> some View {
+        Text(slot)
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(Design.Colors.Workspace.secondary)
+            .fixedSize()
+    }
+
+    private func metricSection(scan1: ScanItem, scan2: ScanItem) -> some View {
+        InstrumentRowGroup {
             StatCompareCard(
-                title: presentation.lidarDetections,
-                value1: presentation.fruitCountText(scan1.nLidar, locale: locale),
-                value2: presentation.fruitCountText(scan2.nLidar, locale: locale),
+                title: presentation.archivedFruitCount,
+                value1: presentation.fruitCountText(scan1.archivedFruitCount, locale: locale),
+                value2: presentation.fruitCountText(scan2.archivedFruitCount, locale: locale),
                 icon: "cube.fill",
-                trend: HistoricalCompareMetrics.trend(from: scan1.nLidar, to: scan2.nLidar)
+                trend: HistoricalCompareMetrics.trend(from: scan1.archivedFruitCount, to: scan2.archivedFruitCount)
             )
+            .padding(.vertical, 12)
+
+            DividerLine(inset: 0)
 
             StatCompareCard(
                 title: presentation.averageDiameter,
@@ -180,6 +212,9 @@ struct HistoricalCompareView: View {
                 icon: "circle.dotted",
                 trend: HistoricalCompareMetrics.trend(from: scan1.meanDiameterCm, to: scan2.meanDiameterCm)
             )
+            .padding(.vertical, 12)
+
+            DividerLine(inset: 0)
 
             StatCompareCard(
                 title: presentation.confidence,
@@ -188,6 +223,9 @@ struct HistoricalCompareView: View {
                 icon: "checkmark.seal.fill",
                 trend: nil
             )
+            .padding(.vertical, 12)
+
+            DividerLine(inset: 0)
 
             StatCompareCard(
                 title: presentation.scanDate,
@@ -196,14 +234,8 @@ struct HistoricalCompareView: View {
                 icon: "calendar",
                 trend: nil
             )
+            .padding(.vertical, 12)
         }
-    }
-
-    private var statColumns: [GridItem] {
-        if dynamicTypeSize.isAccessibilitySize {
-            return [GridItem(.flexible())]
-        }
-        return [GridItem(.flexible()), GridItem(.flexible())]
     }
 
     private func reconcileSelections(with scans: [ScanItem]) {

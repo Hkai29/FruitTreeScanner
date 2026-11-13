@@ -1,4 +1,59 @@
 import Foundation
+import CoreFoundation
+
+enum ScanClassificationArchiveError: LocalizedError {
+    case invalidField
+    case conflictingSnapshot
+    case unverifiedArchive
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidField: return "扫描分类信息无效，无法读取或保存。"
+        case .conflictingSnapshot: return "扫描分类与原存档不一致。"
+        case .unverifiedArchive: return "原扫描存档未通过验证，无法保留其分类。"
+        }
+    }
+}
+
+enum ScanClassificationArchiveCodec {
+    static func snapshot(in payload: [String: Any]) throws -> ScanClassificationSnapshot? {
+        guard let raw = payload["scanClassification"] else { return nil }
+        guard let field = raw as? [String: Any],
+              let version = field["version"] as? NSNumber,
+              CFGetTypeID(version) != CFBooleanGetTypeID(), version == 1,
+              let rawPlot = field["plot"], let rawTags = field["tags"] as? [Any] else {
+            throw ScanClassificationArchiveError.invalidField
+        }
+        let plot: ScanClassificationSnapshot.Item?
+        if rawPlot is NSNull { plot = nil }
+        else { plot = try item(rawPlot) }
+        let tags = try rawTags.map(item)
+        guard Set(tags.map(\.id)).count == tags.count else {
+            throw ScanClassificationArchiveError.invalidField
+        }
+        return ScanClassificationSnapshot(plot: plot, tags: tags)
+    }
+
+    static func payload(for snapshot: ScanClassificationSnapshot) throws -> [String: Any] {
+        guard Set(snapshot.tags.map(\.id)).count == snapshot.tags.count else {
+            throw ScanClassificationArchiveError.invalidField
+        }
+        return ["version": 1, "plot": snapshot.plot.map(payload(for:)) as Any? ?? NSNull(),
+                "tags": snapshot.tags.map(payload(for:))]
+    }
+
+    private static func item(_ raw: Any) throws -> ScanClassificationSnapshot.Item {
+        guard let value = raw as? [String: Any], let id = value["id"] as? String,
+              let uuid = UUID(uuidString: id), let name = value["name"] as? String else {
+            throw ScanClassificationArchiveError.invalidField
+        }
+        return .init(id: uuid, name: name)
+    }
+
+    private static func payload(for item: ScanClassificationSnapshot.Item) -> [String: Any] {
+        ["id": item.id.uuidString, "name": item.name]
+    }
+}
 
 /// Typed values consumed outside the legacy JSON codec. Optional envelope
 /// fields keep pre-manifest archives readable without inventing an identity.
@@ -18,6 +73,7 @@ struct ScanMetadataDTO: Sendable {
     let calibrationBaseCount: Int?
     let calibrationBaseYieldKg: Float?
     let diagnostics: DiagnosticsDTO?
+    let classification: ScanClassificationSnapshot?
 }
 
 struct DiagnosticsDTO: Sendable {
@@ -37,6 +93,7 @@ struct CompletionManifestDTO: Sendable {
     let fileSHA256: [String: String]?
     let sourcePLYFilename: String?
     let sourcePLYSHA256: String?
+    var observationReplay: ScanReplayDescriptor? = nil
 }
 
 /// Bridges legacy envelope fields to typed values. The larger research payload
@@ -50,6 +107,12 @@ enum ScanLegacyArchiveCodec {
     static func metadata(from payload: [String: Any]) -> ScanMetadataDTO? {
         guard let count = PLYParserHelper.nonNegativeIntValue(payload["fruitCount"]),
               let yield = PLYParserHelper.nonNegativeFloatValue(payload["yieldKg"]) else {
+            return nil
+        }
+        let classification: ScanClassificationSnapshot?
+        do {
+            classification = try ScanClassificationArchiveCodec.snapshot(in: payload)
+        } catch {
             return nil
         }
         let diagnostics = (payload["diagnostics"] as? [String: Any]).map { values in
@@ -77,7 +140,8 @@ enum ScanLegacyArchiveCodec {
             calibrationContext: payload["calibrationContext"] as? String,
             calibrationBaseCount: PLYParserHelper.nonNegativeIntValue(payload["calibrationBaseCount"]),
             calibrationBaseYieldKg: PLYParserHelper.nonNegativeFloatValue(payload["calibrationBaseYieldKg"]),
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            classification: classification
         )
     }
 
@@ -89,6 +153,9 @@ enum ScanLegacyArchiveCodec {
               let required = payload["requiredFiles"] as? [String] else {
             return nil
         }
+        let replay: ScanReplayDescriptor?
+        do { replay = try ScanReplayDescriptor.decode(payload["observationReplay"]) }
+        catch { return nil }
         return CompletionManifestDTO(
             schemaVersion: version,
             scanID: payload["scanID"] as? String,
@@ -96,7 +163,8 @@ enum ScanLegacyArchiveCodec {
             requiredFiles: required,
             fileSHA256: payload["fileSHA256"] as? [String: String],
             sourcePLYFilename: payload["sourcePLYFilename"] as? String,
-            sourcePLYSHA256: payload["sourcePLYSHA256"] as? String
+            sourcePLYSHA256: payload["sourcePLYSHA256"] as? String,
+            observationReplay: replay
         )
     }
 
@@ -128,6 +196,7 @@ enum ScanLegacyArchiveCodec {
         if let digests = dto.fileSHA256 { payload["fileSHA256"] = digests }
         if let source = dto.sourcePLYFilename { payload["sourcePLYFilename"] = source }
         if let digest = dto.sourcePLYSHA256 { payload["sourcePLYSHA256"] = digest }
+        if let replay = dto.observationReplay { payload["observationReplay"] = try replay.payload() }
         return try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
     }
 }

@@ -16,8 +16,10 @@ struct ScanWorkID: Equatable, Sendable {
 struct ScanFinalizationOperations {
     let lifecycleSnapshot: () -> ScanLifecycleSnapshot
     let beginFinishing: () -> Bool
-    let exportPointCloud: (ScanPlan, Double, Double) async throws -> StagedPointCloud
-    let prepareSnapshot: (Season, StagedPointCloud) async throws -> ScanEvidenceSnapshot
+    let freezePointCloud: (ScanPlan) async throws -> FrozenPointCloudExport
+    let stagePointCloud: (PointCloudStageInput) async throws -> StagedPointCloud
+    let captureSnapshot: (Season, StagedPointCloud) async throws -> ScanYieldEstimationController.Snapshot
+    let bindSnapshot: (ScanYieldEstimationController.Snapshot, StagedPointCloud, ScanPlan) async throws -> ScanEvidenceSnapshot
     let estimateYield: (ScanEvidenceSnapshot) async throws -> ScanEstimate
     let persistResult: (ScanPlan, ScanEvidenceReceipt, ScanEstimate, Double, Double) async throws -> Void
     let markCompleted: () -> Void
@@ -32,17 +34,17 @@ struct ScanFinalizationOperations {
         ScanFinalizationOperations(
             lifecycleSnapshot: { coordinator.lifecycleSnapshot() },
             beginFinishing: { coordinator.beginFinishingScan() },
-            exportPointCloud: { plan, latitude, longitude in
-                try await coordinator.stagePointCloud(
-                    plan: plan,
-                    lat: latitude,
-                    lon: longitude,
-                    repository: repository
-                )
+            freezePointCloud: { plan in
+                try await coordinator.freezePointCloud(plan: plan)
             },
-            prepareSnapshot: { season, staged in
-                let input = try await coordinator.prepareYieldEstimationSnapshot(season: season, finalPointCloud: staged.pointCloud)
-                return try await ScanEvidenceSnapshot.freeze(snapshot: input, draft: staged.draft, repository: repository)
+            stagePointCloud: { input in
+                try await PointCloudStaging.stage(input, repository: repository)
+            },
+            captureSnapshot: { season, staged in
+                try await coordinator.prepareYieldEstimationSnapshot(season: season, finalPointCloud: staged.pointCloud)
+            },
+            bindSnapshot: { input, staged, plan in
+                return try await ScanEvidenceSnapshot.freeze(snapshot: input, draft: staged.draft, repository: repository, plan: plan)
             },
             estimateYield: { snapshot in
                 let identity = coordinator.lifecycleSnapshot().scanIdentity
@@ -83,6 +85,7 @@ final class ScanFinalizationWorkflow: ObservableObject {
     enum Failure: Equatable {
         case lifecycleRejected
         case pointCloudExport
+        case pointCloudCaptureInvalid
         case yieldEstimation(String)
         case resultPersistence(String)
     }
@@ -123,8 +126,12 @@ final class ScanFinalizationWorkflow: ObservableObject {
     private var evidenceReceipt: ScanEvidenceReceipt?
     @Published private(set) var cancellationSettlement: DraftSettlement?
     private var draft: DraftScan?
+    private(set) var frozenPointCloud: FrozenPointCloudExport?
     private(set) var stagedPointCloud: StagedPointCloud?
     private(set) var estimationSnapshot: ScanEvidenceSnapshot?
+    /// Capture consumes coordinator evidence. Keep that exact input before
+    /// fallible archive IO so a retry cannot recapture an empty observation set.
+    private(set) var capturedSnapshot: ScanYieldEstimationController.Snapshot?
     private var exportTask: Task<Void, Never>?
     private var estimationTask: Task<Void, Never>?
 
@@ -141,7 +148,7 @@ final class ScanFinalizationWorkflow: ObservableObject {
         case .failed(.yieldEstimation): return .estimateYield
         case .failed(.resultPersistence): return .persistResult
         case .idle, .exportingPointCloud, .estimating, .persisting, .completed, .cancelled,
-             .failed(.lifecycleRejected): return .unavailable
+             .failed(.lifecycleRejected), .failed(.pointCloudCaptureInvalid): return .unavailable
         }
     }
 
@@ -160,7 +167,7 @@ final class ScanFinalizationWorkflow: ObservableObject {
     ) {
         guard !isWorking else { return }
         switch phase {
-        case .completed, .cancelled:
+        case .completed, .cancelled, .failed(.pointCloudCaptureInvalid):
             return
         case .failed(.pointCloudExport):
             self.operations = operations
@@ -197,8 +204,10 @@ final class ScanFinalizationWorkflow: ObservableObject {
         self.fallbackLatitude = latitude
         self.fallbackLongitude = longitude
         self.stagedPointCloud = nil
+        self.frozenPointCloud = nil
         self.draft = nil
         self.estimationSnapshot = nil
+        self.capturedSnapshot = nil
         self.cancellationSettlement = nil
         self.estimateResult = nil
         self.evidenceReceipt = nil
@@ -225,8 +234,10 @@ final class ScanFinalizationWorkflow: ObservableObject {
         persistenceInFlight = false
         scanIdentity = nil
         stagedPointCloud = nil
+        frozenPointCloud = nil
         draft = nil
         estimationSnapshot = nil
+        capturedSnapshot = nil
         exportTask?.cancel()
         exportTask = nil
         estimationTask?.cancel()
@@ -254,7 +265,9 @@ final class ScanFinalizationWorkflow: ObservableObject {
             settle(draft, scanIdentity: oldScanIdentity, operations: operations)
         }
         stagedPointCloud = nil
+        frozenPointCloud = nil
         estimationSnapshot = nil
+        capturedSnapshot = nil
 
         setPhase(.cancelled)
         onEvent?(.cancelled(scanIdentity: oldScanIdentity))
@@ -272,12 +285,27 @@ final class ScanFinalizationWorkflow: ObservableObject {
 
         let workIdentity = ScanWorkID()
         self.workIdentity = workIdentity
+        let retainedFrozen = frozenPointCloud
         setPhase(.exportingPointCloud)
         let latitude = fallbackLatitude
         let longitude = fallbackLongitude
         exportTask = Task { @MainActor [weak self] in
             do {
-                let staged = try await operations.exportPointCloud(plan, latitude, longitude)
+                guard self?.accepts(workIdentity, scanIdentity: scanIdentity, operations: operations) == true else { return }
+                let frozen: FrozenPointCloudExport
+                if let retainedFrozen {
+                    frozen = retainedFrozen
+                } else {
+                    frozen = try await operations.freezePointCloud(plan)
+                    // Synchronous handoff ends before the stage await. Never
+                    // retain a strong workflow while the writer is suspended.
+                    guard try self?.acceptFrozenPointCloud(frozen, workIdentity: workIdentity,
+                        scanIdentity: scanIdentity, plan: plan, operations: operations) == true else { return }
+                }
+                guard self?.accepts(workIdentity, scanIdentity: scanIdentity, operations: operations) == true else { return }
+                let staged = try await operations.stagePointCloud(PointCloudStageInput(
+                    frozen: frozen, treeID: plan.treeID, latitude: latitude, longitude: longitude
+                ))
                 guard let self,
                       self.accepts(workIdentity, scanIdentity: scanIdentity, operations: operations) else {
                     let settlement = await operations.discardArtifacts(staged.draft)
@@ -286,6 +314,7 @@ final class ScanFinalizationWorkflow: ObservableObject {
                     return
                 }
                 self.exportTask = nil
+                self.frozenPointCloud = nil
                 self.stagedPointCloud = staged
                 self.draft = staged.draft
                 self.onEvent?(.pointCloudExported(scanIdentity: scanIdentity, filename: staged.draft.sourceFilename))
@@ -295,9 +324,34 @@ final class ScanFinalizationWorkflow: ObservableObject {
                 guard let self, self.accepts(workIdentity, scanIdentity: scanIdentity, operations: operations) else { return }
                 self.exportTask = nil
                 Log.export.error("PLY export failed: \(error.localizedDescription)")
-                self.fail(.pointCloudExport, scanIdentity: scanIdentity)
+                let failure: Failure
+                switch error {
+                case PointCloudExportError.gpuWriteFailed, PointCloudExportError.captureChanged:
+                    self.frozenPointCloud = nil
+                    failure = .pointCloudCaptureInvalid
+                default:
+                    failure = .pointCloudExport
+                }
+                self.fail(failure, scanIdentity: scanIdentity)
             }
         }
+    }
+
+    private func acceptFrozenPointCloud(
+        _ frozen: FrozenPointCloudExport,
+        workIdentity: ScanWorkID,
+        scanIdentity: UUID,
+        plan: ScanPlan,
+        operations: ScanFinalizationOperations
+    ) throws -> Bool {
+        guard accepts(workIdentity, scanIdentity: scanIdentity, operations: operations) else { return false }
+        guard let capture = frozen.captureIdentity,
+              capture.context == ScanContext(scanID: scanIdentity, planID: plan.id),
+              capture.pointCloud == frozen.pointCloud.identity else {
+            throw PointCloudExportError.captureChanged
+        }
+        frozenPointCloud = frozen
+        return true
     }
 
     private func estimate(
@@ -314,7 +368,23 @@ final class ScanFinalizationWorkflow: ObservableObject {
                 if let existing = self?.estimationSnapshot {
                     snapshot = existing
                 } else {
-                    snapshot = try await operations.prepareSnapshot(plan.season, stagedPointCloud)
+                    let input: ScanYieldEstimationController.Snapshot
+                    if let captured = self?.capturedSnapshot {
+                        input = captured
+                    } else {
+                        input = try await operations.captureSnapshot(plan.season, stagedPointCloud)
+                        try Task.checkCancellation()
+                        guard self?.accepts(workIdentity, scanIdentity: scanIdentity, operations: operations) == true else { return }
+                        guard input.context == ScanContext(scanID: scanIdentity, planID: plan.id),
+                              input.input.finalPointCloudIdentity == stagedPointCloud.pointCloud.identity else {
+                            throw ScanEvidenceError.mismatchedInput
+                        }
+                        self?.capturedSnapshot = input
+                    }
+                    snapshot = try await operations.bindSnapshot(input, stagedPointCloud, plan)
+                    guard snapshot.snapshot.id == input.id, snapshot.identity.snapshotID == input.id else {
+                        throw ScanEvidenceError.mismatchedInput
+                    }
                 }
                 try Task.checkCancellation()
                 guard self?.accepts(workIdentity, scanIdentity: scanIdentity, operations: operations) == true else { return }
@@ -324,6 +394,7 @@ final class ScanFinalizationWorkflow: ObservableObject {
                     throw ScanEvidenceError.mismatchedInput
                 }
                 self?.estimationSnapshot = snapshot
+                self?.capturedSnapshot = nil
                 self?.evidenceReceipt = snapshot.receipt
                 let estimate = try await operations.estimateYield(snapshot)
                 try Task.checkCancellation()
@@ -446,7 +517,11 @@ final class ScanFinalizationWorkflow: ObservableObject {
 
     private func fail(_ failure: Failure, scanIdentity: UUID?) {
         workIdentity = nil
+        let owner = self.scanIdentity
         setPhase(.failed(failure))
+        // A phase observer may synchronously cancel/reset and start a new scan.
+        // Keep the pre-initialization lifecycleRejected event, whose owner is nil.
+        guard phase == .failed(failure), self.scanIdentity == owner else { return }
         onEvent?(.failed(scanIdentity: scanIdentity, failure: failure))
     }
 
@@ -479,7 +554,8 @@ private enum ScanFinalizationPersistence {
                 scanDate: metadata?.scanDate ?? Date(),
                 gpsLat: metadata?.gpsLat ?? fallbackLatitude,
                 gpsLon: metadata?.gpsLon ?? fallbackLongitude,
-                includeCSV: plan.autoExportCSV
+                includeCSV: plan.autoExportCSV,
+                classification: plan.classification
             )
             _ = try repository.commit(assessment)
         }.value

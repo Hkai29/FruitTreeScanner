@@ -31,6 +31,21 @@ final class ScanResultExportService: @unchecked Sendable {
         let sourceFilename: String
         let result: YieldResult
         var includeCSV: Bool = true
+        let classification: ScanClassificationSnapshot?
+
+        init(treeID: String, fruitType: String, scanDate: Date, gpsLat: Double, gpsLon: Double,
+             sourceFilename: String, result: YieldResult, includeCSV: Bool = true,
+             classification: ScanClassificationSnapshot? = nil) {
+            self.treeID = treeID
+            self.fruitType = fruitType
+            self.scanDate = scanDate
+            self.gpsLat = gpsLat
+            self.gpsLon = gpsLon
+            self.sourceFilename = sourceFilename
+            self.result = result
+            self.includeCSV = includeCSV
+            self.classification = classification
+        }
     }
 
     struct ExportedFiles: Sendable {
@@ -43,6 +58,29 @@ final class ScanResultExportService: @unchecked Sendable {
     }
 
     typealias SourcePointCloudError = ScanSourceFileError
+
+    struct RecoveryRequiredError: LocalizedError {
+        let stagingDirectory: URL
+        let cause: Error?
+
+        var errorDescription: String? { NSLocalizedString("export.recoveryRequired", comment: "Archive recovery required") }
+    }
+
+    /// Match the complete source basename and the actual transaction revision.
+    /// A prefix alone would also claim recovery files for `scan.other.ply`.
+    static func stagingDirectories(for source: URL, fileManager: FileManager = .default) throws -> [URL] {
+        let parent = source.deletingLastPathComponent()
+        guard fileManager.fileExists(atPath: parent.path) else { return [] }
+        let prefix = ".\(source.deletingPathExtension().lastPathComponent)."
+        let suffix = ".staging"
+        return try fileManager.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil).filter { url in
+            let name = url.lastPathComponent
+            guard name.hasPrefix(prefix), name.hasSuffix(suffix) else { return false }
+            let revision = name.dropFirst(prefix.count).dropLast(suffix.count)
+            return revision.count == 19 && revision.hasPrefix("v1-")
+                && revision.dropFirst(3).utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+        }
+    }
 
     private let fileManager: FileManager
     private let scansDirectoryOverride: URL?
@@ -106,7 +144,12 @@ final class ScanResultExportService: @unchecked Sendable {
                     throw ScanEvidenceError.mismatchedInput
                 }
                 discardedFilenames.insert(sourceFilename)
-                for filename in ["\(baseName)_complete.json", "\(baseName)_result.json", "\(baseName).csv", sourceFilename] {
+                let replayURLs = ScanReplayArchive.artifactURLs(for: sourceURL)
+                for url in try ScanReplayArchive.pendingDirectories(for: sourceURL) {
+                    try fileManager.removeItem(at: url)
+                }
+                for filename in ["\(baseName)_complete.json", "\(baseName)_result.json", "\(baseName).csv",
+                                 replayURLs.input.lastPathComponent, replayURLs.points.lastPathComponent, sourceFilename] {
                     let url = directory.appendingPathComponent(filename)
                     if fileManager.fileExists(atPath: url.path) { try fileManager.removeItem(at: url) }
                 }
@@ -160,7 +203,8 @@ final class ScanResultExportService: @unchecked Sendable {
                 csvURL: csvURL,
                 metadataURL: metadataURL,
                 manifestURL: manifestURL,
-                expectedSource: expectedSource
+                expectedSource: expectedSource,
+                replay: evidenceReceipt?.replay
             )
         }
     }
@@ -172,7 +216,8 @@ final class ScanResultExportService: @unchecked Sendable {
         csvURL: URL,
         metadataURL: URL,
         manifestURL: URL,
-        expectedSource: DraftScan?
+        expectedSource: DraftScan?,
+        replay: PreparedScanReplay?
     ) throws -> ExportedFiles? {
         let sourceURL = scansDirectory.appendingPathComponent(request.sourceFilename)
         guard fileManager.fileExists(atPath: sourceURL.path),
@@ -190,12 +235,28 @@ final class ScanResultExportService: @unchecked Sendable {
         if let expectedSource, sourceDigest != expectedSource.sourceSHA256 {
             throw SourcePointCloudError.invalidOrChanged
         }
+        let previousReplay = ScanLegacyArchiveCodec.readManifest(at: manifestURL)?.observationReplay
+        let replayDescriptor = replay?.descriptor ?? previousReplay.map { _ in
+            ScanReplayDescriptor.unavailable("inputNotCapturedForRevision")
+        }
+        if let replay {
+            try replay.descriptor.validate()
+            guard let expectedSource, replay.descriptor.identity?.sourceSHA256 == sourceDigest,
+                  replay.descriptor.identity?.sourceOwnershipID == expectedSource.ownershipID,
+                  replay.descriptor.identity?.capture == expectedSource.captureIdentity,
+                  replay.directory == nil || replay.directory == ScanReplayArchive.preparedDirectory(for: expectedSource) else {
+                throw ScanEvidenceError.mismatchedInput
+            }
+        }
+        let classificationPayload = try classificationPayload(for: request, sourceURL: sourceURL, metadataURL: metadataURL)
         let revision: String
         do {
             let unsignedMetadata = try makeMetadataData(
                 for: request,
                 baseName: baseName,
-                revision: ""
+                revision: "",
+                classificationPayload: classificationPayload,
+                replayDescriptor: replayDescriptor
             )
             revision = transactionRevision(
                 for: unsignedMetadata,
@@ -206,7 +267,9 @@ final class ScanResultExportService: @unchecked Sendable {
         let metadataData = try makeMetadataData(
             for: request,
             baseName: baseName,
-            revision: revision
+            revision: revision,
+            classificationPayload: classificationPayload,
+            replayDescriptor: replayDescriptor
         )
         let csvData = request.includeCSV
             ? Data(makeCSVContent(for: request, revision: revision).utf8)
@@ -225,7 +288,8 @@ final class ScanResultExportService: @unchecked Sendable {
                 requiredFiles: requiredFiles,
                 fileSHA256: digests,
                 sourcePLYFilename: request.sourceFilename,
-                sourcePLYSHA256: sourceDigest
+                sourcePLYSHA256: sourceDigest,
+                observationReplay: replayDescriptor
             )
         )
         try Task.checkCancellation()
@@ -242,6 +306,7 @@ final class ScanResultExportService: @unchecked Sendable {
             expectedCSV: csvData,
             expectedManifest: manifestData
         ) {
+            if let replayDescriptor { try ScanReplayArchive.verifyArtifacts(source: sourceURL, descriptor: replayDescriptor) }
             // A committed snapshot remains usable even if crash residue cannot be removed.
             if fileManager.fileExists(atPath: stagingDirectory.path) {
                 do {
@@ -269,11 +334,20 @@ final class ScanResultExportService: @unchecked Sendable {
         }
 
         // Process termination can bypass the transaction's deferred cleanup.
+        // Backups from an incomplete rollback are recovery material, including
+        // those owned by a previous revision of this same source.
+        for directory in try Self.stagingDirectories(for: sourceURL, fileManager: fileManager) {
+            let entries = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            if entries.contains(where: { $0.lastPathComponent.hasPrefix("backup-") }) {
+                throw RecoveryRequiredError(stagingDirectory: directory, cause: nil)
+            }
+        }
         if fileManager.fileExists(atPath: stagingDirectory.path) {
             try removeStagingDirectory(stagingDirectory)
         }
         try fileManager.createDirectory(at: stagingDirectory, withIntermediateDirectories: false)
-        defer { try? removeStagingDirectory(stagingDirectory) }
+        var preserveStaging = false
+        defer { if !preserveStaging { try? removeStagingDirectory(stagingDirectory) } }
 
         let stagedMetadata = stagingDirectory.appendingPathComponent(metadataURL.lastPathComponent)
         let stagedCSV = stagingDirectory.appendingPathComponent(csvURL.lastPathComponent)
@@ -284,6 +358,25 @@ final class ScanResultExportService: @unchecked Sendable {
             try writeData(csvData, stagedCSV)
         }
         try writeData(manifestData, stagedManifest)
+        let replayURLs = ScanReplayArchive.artifactURLs(for: sourceURL)
+        let stagedReplay: (input: URL, points: URL)?
+        if let replay, replay.descriptor.status == "complete" {
+            guard let directory = replay.directory,
+                  try directory.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else {
+                throw ScanReplayError.invalidArchive
+            }
+            let inputURL = directory.appendingPathComponent("input.json")
+            let pointsURL = directory.appendingPathComponent("points.f32")
+            try ScanReplayArchive.verifyFile(inputURL, size: replay.descriptor.inputByteCount!, digest: replay.descriptor.inputSHA256!)
+            try ScanReplayArchive.verifyFile(pointsURL, size: replay.descriptor.pointsByteCount!, digest: replay.descriptor.pointsSHA256!)
+            let input = stagingDirectory.appendingPathComponent(replayURLs.input.lastPathComponent)
+            let points = stagingDirectory.appendingPathComponent(replayURLs.points.lastPathComponent)
+            try fileManager.copyItem(at: inputURL, to: input)
+            try fileManager.copyItem(at: pointsURL, to: points)
+            try ScanReplayArchive.verifyFile(input, size: replay.descriptor.inputByteCount!, digest: replay.descriptor.inputSHA256!)
+            try ScanReplayArchive.verifyFile(points, size: replay.descriptor.pointsByteCount!, digest: replay.descriptor.pointsSHA256!)
+            stagedReplay = (input, points)
+        } else { stagedReplay = nil }
         try Task.checkCancellation()
         guard try ScanCompanionIntegrity.digestFile(at: sourceURL) == sourceDigest else {
             throw SourcePointCloudError.invalidOrChanged
@@ -292,15 +385,20 @@ final class ScanResultExportService: @unchecked Sendable {
            try ScanSourceFileIdentity.read(at: sourceURL) != expectedSource.fileIdentity {
             throw SourcePointCloudError.invalidOrChanged
         }
-        try publishTransaction(
+        do { try publishTransaction(
             stagedMetadata: stagedMetadata,
             stagedCSV: request.includeCSV ? stagedCSV : nil,
             stagedManifest: stagedManifest,
             metadataURL: metadataURL,
             csvURL: csvURL,
             manifestURL: manifestURL,
-            stagingDirectory: stagingDirectory
-        )
+            stagingDirectory: stagingDirectory,
+            stagedReplay: stagedReplay,
+            replayURLs: replayURLs
+        ) } catch let recovery as RecoveryRequiredError {
+            preserveStaging = true
+            throw recovery
+        }
 
         Log.export.info("Export complete for \(request.treeID)")
         return ExportedFiles(
@@ -368,10 +466,38 @@ final class ScanResultExportService: @unchecked Sendable {
         return csvLine(header) + csvLine(row)
     }
 
-    private func makeMetadataData(for request: ExportRequest, baseName: String, revision: String) throws -> Data {
+    private func classificationPayload(for request: ExportRequest, sourceURL: URL, metadataURL: URL) throws -> [String: Any]? {
+        let verified = PLYParserHelper.readValidatedCompanionMetadataPayload(for: sourceURL)
+        // Only the failed-validation path needs a second bounded read. A present
+        // classification must not be silently erased while repairing other fields.
+        let existing: [String: Any]?
+        if let verified {
+            existing = verified
+        } else if let data = PLYParserHelper.readBoundedCompanionData(
+            at: metadataURL, maximumByteCount: PLYParserHelper.maximumCompanionMetadataByteCount
+        ) {
+            existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        } else {
+            existing = nil
+        }
+        if let existing, let original = try ScanClassificationArchiveCodec.snapshot(in: existing) {
+            guard let verified, ScanLegacyArchiveCodec.metadata(from: verified) != nil else {
+                throw ScanClassificationArchiveError.unverifiedArchive
+            }
+            if let requested = request.classification, requested != original {
+                throw ScanClassificationArchiveError.conflictingSnapshot
+            }
+            return existing["scanClassification"] as? [String: Any]
+        }
+        return try request.classification.map(ScanClassificationArchiveCodec.payload(for:))
+    }
+
+    private func makeMetadataData(for request: ExportRequest, baseName: String, revision: String,
+                                  classificationPayload: [String: Any]?,
+                                  replayDescriptor: ScanReplayDescriptor? = nil) throws -> Data {
         let result = request.result
         let diagnostics = result.diagnostics
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "schemaVersion": 1,
             "exportRevision": revision,
             "scanID": baseName,
@@ -472,8 +598,19 @@ final class ScanResultExportService: @unchecked Sendable {
             "gpsLon": longitude(request.gpsLon),
             "timestamp": ISO8601DateFormatter().string(from: request.scanDate)
         ]
+        if let classificationPayload { payload["scanClassification"] = classificationPayload }
+        if let replayDescriptor { payload["observationReplay"] = try replayDescriptor.payload() }
 
         return try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    /// Uses the actual persisted-result encoder; only the archive envelope and
+    /// generated output IDs/timestamps are removed by the comparison codec.
+    static func replayGoldenData(for result: YieldResult) throws -> Data {
+        let request = ExportRequest(treeID: "", fruitType: "", scanDate: Date(timeIntervalSince1970: 0),
+                                    gpsLat: 0, gpsLon: 0, sourceFilename: "replay.ply", result: result)
+        let data = try shared.makeMetadataData(for: request, baseName: "replay", revision: "", classificationPayload: nil)
+        return try ScanObservationReplay.goldenData(from: JSONSerialization.jsonObject(with: data) as! [String: Any])
     }
 
     private func transactionRevision(for snapshotData: Data, includeCSV: Bool) -> String {
@@ -557,9 +694,11 @@ final class ScanResultExportService: @unchecked Sendable {
         metadataURL: URL,
         csvURL: URL,
         manifestURL: URL,
-        stagingDirectory: URL
+        stagingDirectory: URL,
+        stagedReplay: (input: URL, points: URL)?,
+        replayURLs: (input: URL, points: URL)
     ) throws {
-        let destinations = [metadataURL, csvURL, manifestURL]
+        let destinations = [metadataURL, csvURL, replayURLs.input, replayURLs.points, manifestURL]
         var backups: [(backup: URL, destination: URL)] = []
         for destination in destinations where fileManager.fileExists(atPath: destination.path) {
             let backup = stagingDirectory.appendingPathComponent("backup-\(destination.lastPathComponent)")
@@ -576,17 +715,37 @@ final class ScanResultExportService: @unchecked Sendable {
             if stagedCSV == nil, fileManager.fileExists(atPath: csvURL.path) {
                 try fileManager.removeItem(at: csvURL)
             }
+            if let stagedReplay {
+                try publishFile(stagedReplay.input, replayURLs.input)
+                try publishFile(stagedReplay.points, replayURLs.points)
+            } else {
+                for url in [replayURLs.input, replayURLs.points] where fileManager.fileExists(atPath: url.path) {
+                    try fileManager.removeItem(at: url)
+                }
+            }
             try publishFile(stagedMetadata, metadataURL)
             if let stagedCSV {
                 try publishFile(stagedCSV, csvURL)
             }
             try publishFile(stagedManifest, manifestURL)
         } catch {
-            for destination in destinations where fileManager.fileExists(atPath: destination.path) {
-                try? fileManager.removeItem(at: destination)
+            var rollbackFailed = false
+            // Keep readers closed until every original artifact is restored.
+            for destination in [manifestURL] + destinations.filter({ $0 != manifestURL })
+                where fileManager.fileExists(atPath: destination.path) {
+                do { try fileManager.removeItem(at: destination) }
+                catch { rollbackFailed = true }
             }
-            for pair in backups {
-                try? fileManager.copyItem(at: pair.backup, to: pair.destination)
+            for pair in backups where pair.destination != manifestURL {
+                do { try fileManager.copyItem(at: pair.backup, to: pair.destination) }
+                catch { rollbackFailed = true }
+            }
+            if !rollbackFailed, let manifest = backups.first(where: { $0.destination == manifestURL }) {
+                do { try fileManager.copyItem(at: manifest.backup, to: manifest.destination) }
+                catch { rollbackFailed = true }
+            }
+            if rollbackFailed {
+                throw RecoveryRequiredError(stagingDirectory: stagingDirectory, cause: error)
             }
             throw error
         }

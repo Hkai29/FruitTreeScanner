@@ -7,12 +7,11 @@ struct ScanGuidanceOverlay: View {
     @StateObject private var presentationController = ScanGuidancePresentationController()
 
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             if isRecording {
                 guidanceBanner
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
-            Spacer()
         }
         .onChange(of: hudState.guidanceHint) { newHint in
             presentationController.update(hint: newHint, isRecording: isRecording)
@@ -38,8 +37,8 @@ struct ScanGuidanceOverlay: View {
     private var guidanceBanner: some View {
         if let visibleHint = presentationController.visibleHint {
             ScanGuidanceBannerCard(hint: visibleHint, speed: hudState.cameraSpeed)
-            .padding(.horizontal, Design.Space.md)
-            .padding(.top, 80)
+            .frame(maxWidth: 760)
+            .padding(.horizontal, 24)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(visibleHint.title)
             .accessibilityValue(visibleHint.subtitle)
@@ -54,45 +53,47 @@ struct ScanGuidanceOverlay: View {
 }
 
 struct ScanGuidanceBannerCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let hint: ScanGuidanceHint
     let speed: Float
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: hint.icon)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.title3.weight(.medium))
                 .foregroundColor(hint.iconColor)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(hint.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(hint.subtitle)
-                    .font(.system(size: 11))
+                    .font(.footnote)
                     .foregroundColor(.white.opacity(0.7))
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if dynamicTypeSize.isAccessibilitySize, hint == .tooFast || hint == .goodPace {
+                    SpeedIndicator(speed: speed)
+                }
             }
             .layoutPriority(1)
 
             Spacer(minLength: 4)
 
-            if hint == .tooFast || hint == .goodPace {
+            if !dynamicTypeSize.isAccessibilitySize, hint == .tooFast || hint == .goodPace {
                 SpeedIndicator(speed: speed)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(16)
         .background(
             RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                .fill(hint.backgroundColor)
+                .fill(Design.Colors.Dark.controlSurface)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: Design.Radius.Glass.medium)
-                .stroke(hint.borderColor, lineWidth: 1)
-        )
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 1).fill(hint.iconColor)
+                .frame(width: 2).padding(.vertical, 16).accessibilityHidden(true)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(hint.title)
         .accessibilityValue(hint.subtitle)
@@ -169,6 +170,7 @@ final class ScanGuidancePresentationController: ObservableObject {
 // MARK: - Speed Indicator
 
 private struct SpeedIndicator: View {
+    @ScaledMetric(relativeTo: .caption) private var barWidth: CGFloat = 48
     let speed: Float
 
     private var normalizedSpeed: CGFloat {
@@ -194,10 +196,10 @@ private struct SpeedIndicator: View {
                         .animation(.easeOut(duration: 0.2), value: normalizedSpeed)
                 }
             }
-            .frame(width: 40, height: 4)
+            .frame(width: barWidth, height: 4)
 
             Text(L10n.ScanGuidance.speed(speed))
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .font(.caption).monospacedDigit()
                 .foregroundColor(.white.opacity(0.6))
         }
     }
@@ -222,11 +224,11 @@ extension ScanGuidanceHint {
     var iconColor: Color {
         switch self {
         case .none: return .clear
-        case .tooFast: return Design.Colors.apple
-        case .tooClose, .tooFar, .sparseDepth: return Design.Colors.harvest
-        case .trackingLost: return Design.Colors.apple
-        case .lowLight: return Design.Colors.harvest
-        case .goodPace: return Design.Colors.forest
+        case .tooFast: return Design.Colors.Dark.error
+        case .tooClose, .tooFar, .sparseDepth: return Design.Colors.Dark.warning
+        case .trackingLost: return Design.Colors.Dark.error
+        case .lowLight: return Design.Colors.Dark.warning
+        case .goodPace: return Design.Colors.Dark.success
         }
     }
 

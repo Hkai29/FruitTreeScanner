@@ -1,5 +1,13 @@
+// VarietyDatabaseComponents.swift
+// 品种参数库的展示组件。
+//
+// 所有读数都来自 FruitParametersStore 里的真实参数，不做二次估算或四舍五入。
+// 颜色只用工作区令牌：当前品种用信号青，已自定义用次级墨色，不引入新的色相。
+
 import Foundation
 import SwiftUI
+
+// MARK: - 参数格式化
 
 enum VarietyParameterFormatter {
     static func integer(_ value: Int, locale: Locale = .current) -> String {
@@ -18,7 +26,7 @@ enum VarietyParameterFormatter {
 
     static func millimeters(_ meters: Float, locale: Locale = .current) -> String {
         L10n.VarietyDatabase.unitValue(
-            integer(Int(meters * 1_000), locale: locale),
+            millimeterNumber(meters, locale: locale),
             unit: "mm"
         )
     }
@@ -29,8 +37,8 @@ enum VarietyParameterFormatter {
         locale: Locale = .current
     ) -> String {
         L10n.VarietyDatabase.diameterRange(
-            minimum: integer(Int(minimumMeters * 1_000), locale: locale),
-            maximum: integer(Int(maximumMeters * 1_000), locale: locale),
+            minimum: millimeterNumber(minimumMeters, locale: locale),
+            maximum: millimeterNumber(maximumMeters, locale: locale),
             unit: "mm"
         )
     }
@@ -49,6 +57,11 @@ enum VarietyParameterFormatter {
         )
     }
 
+    private static func millimeterNumber(_ meters: Float, locale: Locale) -> String {
+        // Display the nearest whole millimeter without changing the stored physical value.
+        integer(Int((meters * 1_000).rounded()), locale: locale)
+    }
+
     private static func numberFormatter(fractionDigits: Int, locale: Locale) -> NumberFormatter {
         let formatter = NumberFormatter()
         formatter.locale = locale
@@ -60,37 +73,59 @@ enum VarietyParameterFormatter {
     }
 }
 
+/// 品种列表里的补充文案。放在视图文件内，避免与 Core/L10n.swift 的改动冲突。
+enum VarietyCopy {
+    static let customized = NSLocalizedString(
+        "variety.customized_badge",
+        value: "已自定义",
+        comment: "Variety row marker for parameters the user changed"
+    )
+}
+
+// MARK: - 顶部摘要
+
 struct VarietyDatabaseSummaryBar: View {
     let activeCategoryName: String
     let customizedCount: Int
 
     var body: some View {
-        HStack(spacing: Design.Space.sm) {
+        HStack(spacing: 10) {
             Image(systemName: "leaf.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(Design.Colors.forest)
-                .frame(width: 28, height: 28)
-                .background(Design.Colors.forest.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Design.Colors.Workspace.accent)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .fill(Design.Colors.Workspace.accentSoft)
+                )
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.VarietyDatabase.activeScan(activeCategoryName))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(L10n.VarietyDatabase.customizedCount(customizedCount))
                     .font(.caption)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, 10)
-        .background(Design.Colors.Dark.bgSurface)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Design.Colors.Workspace.surface)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Design.Colors.Workspace.line).frame(height: 0.5)
+        }
     }
 }
+
+// MARK: - 搜索结果条
 
 struct VarietySearchResultBar: View {
     let count: Int
@@ -99,45 +134,35 @@ struct VarietySearchResultBar: View {
         HStack {
             Text(L10n.VarietyDatabase.searchResults(count))
                 .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-            Spacer()
+                .monospacedDigit()
+                .foregroundColor(Design.Colors.Workspace.secondary)
+            Spacer(minLength: 8)
         }
-        .padding(.horizontal, Design.Space.md)
-        .padding(.vertical, Design.Space.xs)
-        .background(Design.Colors.Dark.bgDeep)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Design.Colors.Workspace.surfaceQuiet)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Design.Colors.Workspace.lineSoft).frame(height: 0.5)
+        }
     }
 }
+
+// MARK: - 搜索空状态
 
 struct VarietySearchEmptyState: View {
     let searchText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Design.Colors.harvest)
-                    .frame(width: 28, height: 28)
-                    .background(Design.Colors.harvest.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                    .accessibilityHidden(true)
-
-                Text(L10n.VarietyDatabase.searchEmptyTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-            }
-
-            Text(L10n.VarietyDatabase.searchEmptyMessage(searchText))
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
-        .padding(.horizontal, Design.Space.md)
+        InstrumentEmptyState(
+            systemImage: "magnifyingglass",
+            title: L10n.VarietyDatabase.searchEmptyTitle,
+            message: L10n.VarietyDatabase.searchEmptyMessage(searchText)
+        )
     }
 }
+
+// MARK: - 品种行
 
 struct VarietyRow: View {
     let category: FruitCategory
@@ -145,53 +170,16 @@ struct VarietyRow: View {
     let isCurrent: Bool
     let onUse: () -> Void
     let onEdit: () -> Void
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                accessibilityLayout
-            } else {
-                compactLayout
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(rowBackground)
-    }
-
-    private var compactLayout: some View {
-        HStack(spacing: 4) {
+        HStack(alignment: .top, spacing: 8) {
             Button(action: onUse) {
-                HStack(spacing: Design.Space.xs) {
-                    fruitIcon
+                HStack(alignment: .top, spacing: 10) {
+                    categoryMark
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 7) {
                         titleRow
-                        parameterChips
-                    }
-
-                    Spacer(minLength: Design.Space.sm)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(rowAccessibilityLabel)
-            .accessibilityHint(L10n.VarietyDatabase.useHint)
-
-            editButton
-        }
-    }
-
-    private var accessibilityLayout: some View {
-        HStack(alignment: .top, spacing: Design.Space.xs) {
-            Button(action: onUse) {
-                HStack(alignment: .top, spacing: Design.Space.xs) {
-                    fruitIcon
-
-                    VStack(alignment: .leading, spacing: Design.Space.xs) {
-                        titleRow
-                        parameterChips
+                        parameterReadouts
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -203,13 +191,84 @@ struct VarietyRow: View {
 
             editButton
         }
+        .padding(.vertical, 11)
+    }
+
+    // MARK: 组成
+
+    private var categoryMark: some View {
+        Image(systemName: "leaf.fill")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(Design.Colors.Workspace.secondary)
+            .frame(width: 26, height: 26)
+            .background(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .fill(Design.Colors.Workspace.inset)
+            )
+            .accessibilityHidden(true)
+    }
+
+    private var titleRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                fruitNameText
+                statusMarkers
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                fruitNameText
+                statusMarkers
+            }
+        }
+    }
+
+    private var fruitNameText: some View {
+        Text(fruitName)
+            .font(.subheadline.weight(isCurrent ? .semibold : .regular))
+            .foregroundColor(Design.Colors.Workspace.ink)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var statusMarkers: some View {
+        if isCurrent {
+            Text(L10n.VarietyDatabase.current)
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.accent)
+                .fixedSize(horizontal: true, vertical: true)
+        }
+        if params.isCustomized {
+            Text(VarietyCopy.customized)
+                .font(.caption2)
+                .foregroundColor(Design.Colors.Workspace.muted)
+                .fixedSize(horizontal: true, vertical: true)
+        }
+    }
+
+    private var parameterReadouts: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ParamChip(
+                label: L10n.VarietyDatabase.diameterChip,
+                value: VarietyParameterFormatter.diameterRange(
+                    minimumMeters: params.diamMin,
+                    maximumMeters: params.diamMax
+                )
+            )
+            ParamChip(
+                label: L10n.VarietyDatabase.averageWeightChip,
+                value: VarietyParameterFormatter.grams(params.averageWeightG)
+            )
+            ParamChip(
+                label: L10n.VarietyDatabase.epsChip,
+                value: VarietyParameterFormatter.decimal(params.clusterEps, fractionDigits: 3)
+            )
+        }
     }
 
     private var editButton: some View {
         Button(action: onEdit) {
             Image(systemName: "pencil")
-                .font(.body.weight(.semibold))
-                .foregroundColor(Design.Colors.Dark.glow)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Design.Colors.Workspace.accent)
                 .frame(width: Design.Touch.minimumWidth, height: Design.Touch.minimumHeight)
                 .contentShape(Rectangle())
         }
@@ -217,84 +276,7 @@ struct VarietyRow: View {
         .accessibilityLabel(L10n.VarietyDatabase.editAccessibility(fruitName))
     }
 
-    private var titleRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack {
-                fruitNameText
-                statusIndicator
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                fruitNameText
-                statusIndicator
-            }
-        }
-    }
-
-    private var fruitNameText: some View {
-        Text(fruitName)
-            .font(.subheadline)
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    @ViewBuilder
-    private var statusIndicator: some View {
-        if isCurrent {
-            Text(L10n.VarietyDatabase.current)
-                .font(.caption2.weight(.semibold))
-                .foregroundColor(Design.Colors.Dark.bgDeep)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Design.Colors.harvest))
-                .fixedSize(horizontal: true, vertical: true)
-        } else if params.isCustomized {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundColor(Design.Colors.harvest)
-                .accessibilityHidden(true)
-        }
-    }
-
-    private var parameterChips: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 2) {
-                diameterChip
-                averageWeightChip
-                epsChip
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                diameterChip
-                averageWeightChip
-                epsChip
-            }
-        }
-    }
-
-    private var diameterChip: some View {
-        ParamChip(
-            label: L10n.VarietyDatabase.diameterChip,
-            value: VarietyParameterFormatter.diameterRange(
-                minimumMeters: params.diamMin,
-                maximumMeters: params.diamMax
-            )
-        )
-    }
-
-    private var averageWeightChip: some View {
-        ParamChip(
-            label: L10n.VarietyDatabase.averageWeightChip,
-            value: VarietyParameterFormatter.grams(params.averageWeightG)
-        )
-    }
-
-    private var epsChip: some View {
-        ParamChip(
-            label: L10n.VarietyDatabase.epsChip,
-            value: VarietyParameterFormatter.decimal(params.clusterEps, fractionDigits: 3)
-        )
-    }
+    // MARK: 文案
 
     private var fruitName: String {
         L10n.Fruit.name(for: category)
@@ -309,83 +291,42 @@ struct VarietyRow: View {
         }
         return L10n.VarietyDatabase.useAccessibility(fruitName)
     }
-
-    private var rowBackground: some View {
-        RoundedRectangle(cornerRadius: 10)
-            .fill(isCurrent ? Design.Colors.harvest.opacity(0.12) : Design.Colors.Dark.bgSurface)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isCurrent ? Design.Colors.harvest : Color.clear, lineWidth: 1)
-            )
-    }
-
-    private var fruitIcon: some View {
-        Image(systemName: "leaf.fill")
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(fruitColor)
-            .frame(width: 28, height: 28)
-            .background(fruitColor.opacity(0.14))
-            .clipShape(RoundedRectangle(cornerRadius: 7))
-            .accessibilityHidden(true)
-    }
-
-    private var fruitColor: Color {
-        switch category {
-        case .apple: return Design.Colors.apple
-        case .orange, .mandarin, .pomelo: return Design.Colors.harvest
-        case .pear: return Color(hex: "9BAE78")
-        case .peach: return Color(hex: "B98575")
-        case .cherry: return Color(hex: "9E4D49")
-        case .grape: return Color(hex: "6F5D78")
-        case .mango: return Color(hex: "C09A45")
-        case .kiwi: return Color(hex: "7F955C")
-        default: return Design.Colors.harvest
-        }
-    }
 }
 
+// MARK: - 行内读数
+
+/// 品种参数行内读数。保留既有类型名，绘制改用仪器式行内读数。
 struct ParamChip: View {
     let label: String
     let value: String
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: dynamicTypeSize.isAccessibilitySize ? Design.Space.xs : 2) {
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-            Text(value)
-                .font(.caption2.weight(.medium))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .lineLimit(1)
-                .monospacedDigit()
-        }
-        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? Design.Space.xs : 4)
-        .padding(.vertical, 2)
-        .background(
-            Capsule()
-                .fill(Design.Colors.Dark.bgDeep)
-        )
-        .fixedSize(horizontal: true, vertical: false)
+        InstrumentInlineDatum(label: label, value: value)
     }
 }
 
+// MARK: - 分区标题
+
+/// 品种参数编辑页的分组标题：小标签样式 + 可选图标。
 struct VarietySectionHeader: View {
     let title: String
-    let icon: String
+    var icon: String?
 
     var body: some View {
-        HStack(spacing: Design.Space.xs) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundColor(Design.Colors.Dark.glow)
-                .accessibilityHidden(true)
+        HStack(spacing: 6) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .accessibilityHidden(true)
+            }
             Text(title)
-                .font(.subheadline)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .instrumentLabel()
         }
     }
 }
+
+// MARK: - 滑杆行
 
 struct VarietySliderRow: View {
     let title: String
@@ -395,39 +336,30 @@ struct VarietySliderRow: View {
     let displayValue: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
-            ViewThatFits(in: .horizontal) {
-                HStack {
-                    titleText
-                    Spacer()
-                    valueText
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                    .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    titleText
-                    valueText
-                }
+                Spacer(minLength: 8)
+
+                Text(displayValue)
+                    .font(.subheadline.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundColor(Design.Colors.Workspace.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityHidden(true)
             }
 
             Slider(value: $value, in: range, step: step)
-                .tint(Design.Colors.Dark.glow)
+                .tint(Design.Colors.Workspace.accent)
                 .accessibilityLabel(title)
                 .accessibilityValue(displayValue)
                 .accessibilityHint(L10n.VarietyDatabase.sliderHint)
         }
-    }
-
-    private var titleText: some View {
-        Text(title)
-            .font(.subheadline)
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var valueText: some View {
-        Text(displayValue)
-            .font(.system(.body, design: .monospaced).weight(.medium))
-            .foregroundColor(Design.Colors.Dark.glow)
-            .fixedSize(horizontal: true, vertical: true)
+        .padding(.vertical, 12)
     }
 }

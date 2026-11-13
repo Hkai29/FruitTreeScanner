@@ -1,3 +1,6 @@
+// DashboardSharedComponents.swift
+// 仪表盘共享组件。统一为仪器式排版：发丝线、小标签、等宽读数。
+
 import SwiftUI
 
 struct InputCard<Content: View>: View {
@@ -5,16 +8,14 @@ struct InputCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-
+                .instrumentLabel()
             content()
         }
-        .padding(16)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .dashboardSurface(cornerRadius: 10)
+        .workspaceSurface(cornerRadius: Design.Radius.medium)
     }
 }
 
@@ -27,176 +28,72 @@ struct ScaleButtonStyle: ButtonStyle {
 }
 
 struct DashboardSectionHeader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     var actionTitle: String? = nil
     var onAction: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        headerLayout {
             Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-
-            Spacer()
+                .instrumentLabel()
+                .accessibilityAddTraits(.isHeader)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             if let actionTitle, let onAction {
-                Button(actionTitle, action: onAction)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Design.Colors.harvestLight)
-                    .buttonStyle(.plain)
+                Button(action: onAction) {
+                    Text(actionTitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Design.Colors.Workspace.accent)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }
-}
 
-struct DashboardFeatureImage: View {
-    let name: String
-    var accent: Color = Design.Colors.harvest
-    var cornerRadius: CGFloat = 9
-
-    var body: some View {
-        Image(name)
-            .resizable()
-            .scaledToFill()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
-            .overlay(
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.02),
-                        Color.black.opacity(0.34)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .overlay(alignment: .bottomLeading) {
-                Rectangle()
-                    .fill(accent)
-                    .frame(width: 26, height: 3)
-                    .padding(8)
-                    .opacity(0.9)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    private var headerLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
     }
 }
 
-struct DashboardFeatureHeader: View {
-    let imageName: String
-    let title: String
-    let subtitle: String
-    var accent: Color = Design.Colors.harvest
-
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            DashboardFeatureImage(name: imageName, accent: accent, cornerRadius: 10)
-
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.02),
-                    Color.black.opacity(0.72)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(14)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 126)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .shadow(color: Color.black.opacity(0.18), radius: 8, y: 4)
-    }
-}
-
+/// 工具页标题。取代原先的“图片 + 暗色渐变”英雄块。
 struct DashboardToolHeader: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let imageName: String
     let title: String
     let subtitle: String
     var icon: String
-    var accent: Color = Design.Colors.harvest
+    var accent: Color = Design.Colors.Workspace.accent
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                accessibilityLayout
-            } else {
-                regularLayout
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(accent)
+                .frame(width: 34, height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                        .fill(accent.opacity(0.10))
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(.title3, design: .default).weight(.semibold))
+                    .foregroundColor(Design.Colors.Workspace.ink)
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(title))
         .accessibilityValue(Text(subtitle))
         .accessibilityAddTraits(.isHeader)
-    }
-
-    private var regularLayout: some View {
-        HStack(alignment: .center, spacing: 12) {
-            featureImage
-                .frame(width: 86, height: 66)
-                .clipped()
-
-            textContent
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var accessibilityLayout: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            featureImage
-                .frame(maxWidth: .infinity)
-                .frame(height: 96)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-
-            textContent
-        }
-    }
-
-    private var featureImage: some View {
-        DashboardFeatureImage(name: imageName, accent: accent)
-            .accessibilityHidden(true)
-    }
-
-    private var textContent: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(accent)
-                    .frame(width: 25, height: 25)
-                    .background(accent.opacity(0.14))
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                    .accessibilityHidden(true)
-
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
     }
 }
 
@@ -205,34 +102,15 @@ struct DashboardToolHeader: View {
 struct DashboardMiniIcon: View {
     let icon: String
     var size: CGFloat = 40
-
-    private var radius: CGFloat { size > 36 ? 10 : 8 }
-
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            RoundedRectangle(cornerRadius: radius)
-                .fill(Design.Colors.Dark.bgElevated)
-
-            RoundedRectangle(cornerRadius: radius)
-                .stroke(Design.Colors.harvest.opacity(0.18), lineWidth: 1)
-
-            Image(systemName: icon)
-                .font(.system(size: size * 0.44, weight: .semibold))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Design.Colors.harvest, Design.Colors.harvestLight],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Circle()
-                .fill(Design.Colors.harvest.opacity(0.85))
-                .frame(width: 5, height: 5)
-                .padding(6)
-        }
-        .frame(width: size, height: size)
+        Image(systemName: icon)
+            .font(.system(size: size * 0.44, weight: .regular))
+            .foregroundColor(Design.Colors.Workspace.accent)
+            .frame(width: size, height: size)
+            .background(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .fill(Design.Colors.Workspace.accentSoft)
+            )
     }
 }
 
@@ -249,11 +127,11 @@ extension View {
     ) -> some View {
         self
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(fill)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(Design.Colors.Dark.glassBorder, lineWidth: 1)
             )
             .shadow(
@@ -264,6 +142,6 @@ extension View {
     }
 
     func dashboardSurface(cornerRadius: CGFloat) -> some View {
-        darkSurface(cornerRadius: cornerRadius)
+        workspaceSurface(cornerRadius: cornerRadius)
     }
 }

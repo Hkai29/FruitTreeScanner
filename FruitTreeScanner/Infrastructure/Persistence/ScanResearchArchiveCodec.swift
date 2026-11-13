@@ -5,8 +5,15 @@ import Foundation
 /// into batch orchestration and no intermediate JSON encoding is introduced.
 enum ScanResearchArchiveCodec {
     static func encodeRecord(_ record: ScanFileRecord, sidecar: [String: Any]?) throws -> Data {
-        try JSONSerialization.data(
-            withJSONObject: recordPayload(for: record, sidecar: sidecar),
+        var payload = recordPayload(for: record, sidecar: sidecar)
+        if let sidecar, try ScanClassificationArchiveCodec.snapshot(in: sidecar) != nil {
+            // Keep version-one extensions alongside the verified known values.
+            payload["scanClassification"] = sidecar["scanClassification"]
+        }
+        payload["observationReplay"] = try ScanReplayDescriptor.decode(sidecar?["observationReplay"])
+            .map { try $0.payload() } ?? ScanReplayDescriptor.unavailable("legacyInputUnavailable").payload()
+        return try JSONSerialization.data(
+            withJSONObject: payload,
             options: [.prettyPrinted, .sortedKeys]
         )
     }

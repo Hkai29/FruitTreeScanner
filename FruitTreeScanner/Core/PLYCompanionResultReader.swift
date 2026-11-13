@@ -16,6 +16,7 @@ extension PLYParserHelper {
         let yieldKg: Float
         let fruitType: String
         let confidence: String
+        var classification: ScanClassificationSnapshot? = nil
     }
 
     struct CompanionReadResult: Equatable, Sendable {
@@ -126,6 +127,15 @@ extension PLYParserHelper {
                   hasValidPointCloudHeader(at: urls.ply),
                   (try? ScanCompanionIntegrity.digestFile(at: urls.ply)) == expectedDigest else { return nil }
         }
+        do {
+            let replay = try ScanReplayDescriptor.decode(metadata["observationReplay"])
+            guard replay == manifest.observationReplay else { return nil }
+            if let replay {
+                guard manifest.schemaVersion == 3,
+                      replay.identity == nil || replay.identity?.sourceSHA256 == manifest.sourcePLYSHA256 else { return nil }
+                try ScanReplayArchive.verifyArtifacts(source: urls.ply, descriptor: replay)
+            }
+        } catch { return nil }
         return metadata
     }
 
@@ -166,7 +176,8 @@ extension PLYParserHelper {
                 fruitCount: dto.fruitCount,
                 yieldKg: dto.yieldKg,
                 fruitType: dto.fruitType,
-                confidence: dto.confidence
+                confidence: dto.confidence,
+                classification: dto.classification
             ),
             dto.exportRevision,
             dto.hasExportRevision

@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct PointCloudFileSelector: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let records: [ScanFileRecord]
     let selectedFile: URL?
     @Binding var searchText: String
@@ -14,94 +12,51 @@ struct PointCloudFileSelector: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            searchField
-
-            if !filteredFiles.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 7) {
-                        ForEach(filteredFiles) { record in
-                            PointCloudFileSelectorChip(
-                                record: record,
-                                isSelected: selectedFile == record.fileURL,
-                                onSelect: { onSelect(record.fileURL) }
-                            )
+        List {
+            ForEach(filteredFiles) { record in
+                let presentation = ScanHistoryRecordPresentation(record: record)
+                Button { onSelect(record.fileURL) } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(record.treeID)
+                                .font(.body.weight(.medium))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            if selectedFile == record.fileURL {
+                                Image(systemName: "checkmark").foregroundColor(Design.Colors.Workspace.accent)
+                                    .accessibilityHidden(true)
+                            }
                         }
+                        Text(record.scanDate.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption).foregroundColor(Design.Colors.Workspace.secondary)
+                        HStack {
+                            Text(presentation.statusTitle)
+                            Spacer(minLength: 8)
+                            if let yield = presentation.yieldKg {
+                                Text(L10n.History.yieldKilograms(yield)).monospacedDigit()
+                            }
+                        }
+                        .font(.caption).foregroundColor(Design.Colors.Workspace.secondary)
                     }
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-            } else if !searchText.isEmpty {
-                Text(L10n.PointCloud.noSearchResults(for: searchText))
-                    .font(.subheadline)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                .buttonStyle(.plain)
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .accessibilityLabel(record.treeID)
+                .accessibilityValue("\(record.scanDate.formatted(date: .abbreviated, time: .shortened)), \(presentation.accessibilityValue)")
+                .accessibilityAddTraits(selectedFile == record.fileURL ? .isSelected : [])
+            }
+            if filteredFiles.isEmpty {
+                Text(searchText.isEmpty ? L10n.PointCloud.emptyTitle : L10n.PointCloud.noSearchResults(for: searchText))
+                    .font(.subheadline).foregroundColor(Design.Colors.Workspace.secondary)
+                    .listRowSeparator(.hidden)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-        .background(Design.Colors.Dark.bgDeep)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 10) {
-            if !dynamicTypeSize.isAccessibilitySize {
-                Image(systemName: "magnifyingglass")
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-                    .accessibilityHidden(true)
-            }
-
-            TextField(L10n.PointCloud.searchPlaceholder, text: $searchText)
-                .textFieldStyle(.plain)
-                .font(.body)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .foregroundColor(Design.Colors.Dark.textSecondary)
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .accessibilityLabel(L10n.PointCloud.clearSearchAccessibility)
-            }
-        }
-        .padding(.horizontal, 10)
-        .frame(minHeight: 44)
-        .background(Design.Colors.Dark.bgElevated)
-        .cornerRadius(9)
-    }
-}
-
-private struct PointCloudFileSelectorChip: View {
-    let record: ScanFileRecord
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 6) {
-                Image(systemName: "cube")
-                    .font(.caption.weight(.semibold))
-                    .accessibilityHidden(true)
-                Text(record.treeID)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(L10n.History.yieldKilograms(record.yieldKg))
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                    .opacity(0.72)
-            }
-            .foregroundColor(isSelected ? Color.black.opacity(0.82) : Design.Colors.Dark.textPrimary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .frame(minHeight: 44)
-            .background(isSelected ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
-            .cornerRadius(8)
-        }
-        .accessibilityLabel(record.treeID)
-        .accessibilityValue(L10n.History.yieldKilograms(record.yieldKg))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .listStyle(.plain)
+        .searchable(text: $searchText, prompt: L10n.PointCloud.searchPlaceholder)
+        .scrollContentBackground(.hidden)
+        .workspacePage(background: Design.Colors.Workspace.surface)
     }
 }

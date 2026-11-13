@@ -1,5 +1,8 @@
 // StartTagSelectionView.swift
-// 标签选择步骤
+// 第 4 步：标签。
+//
+// 标签片来自 TagStore 的真实数据；"不加标签"是显式选项，
+// 便于把"不分组"和"还没决定"区分开。
 
 import SwiftUI
 
@@ -8,14 +11,22 @@ struct Step4_TagSelection: View {
     @Binding var selectedTagIds: Set<UUID>
     let onAddTag: () -> Void
 
+    private static let noTagTitle = NSLocalizedString(
+        "start.setup.tags.no_tag",
+        value: "不加标签",
+        comment: "Chip that clears the current tag selection"
+    )
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            StartStepHeader(
-                step: 4,
-                totalSteps: 5,
-                title: L10n.StartSetup.text(.tagsTitle),
-                subtitle: L10n.StartSetup.text(.tagsSubtitle)
-            )
+        VStack(alignment: .leading, spacing: 16) {
+            InstrumentSectionLabel(title: L10n.StartSetup.text(.tagsTitle))
+
+            if !selectedTagIds.isEmpty {
+                Text(L10n.StartSetup.selectedTagCount(selectedTagIds.count))
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Design.Colors.Workspace.accent)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if tags.isEmpty {
                 StartEmptyAction(
@@ -32,40 +43,46 @@ struct Step4_TagSelection: View {
     }
 
     private var tagPanel: some View {
-        VStack(alignment: .leading, spacing: Design.Space.md) {
-            FlowLayout(spacing: Design.Space.sm) {
-                ForEach(tags) { tag in
-                    TagChip(tag: tag, isSelected: selectedTagIds.contains(tag.id)) {
-                        toggle(tag)
-                    }
-                }
-
-                Button(action: onAddTag) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                        Text(L10n.StartSetup.text(.tagsAdd))
-                    }
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Design.Colors.harvest)
-                    .padding(.horizontal, Design.Space.md)
-                    .padding(.vertical, Design.Space.sm)
-                    .frame(minHeight: Design.Touch.minimumHeight)
-                    .background(
-                        Capsule()
-                            .strokeBorder(Design.Colors.Dark.glassBorder, lineWidth: 1)
-                    )
+        FlowLayout(spacing: 8) {
+            ForEach(tags) { tag in
+                TagChip(tag: tag, isSelected: selectedTagIds.contains(tag.id)) {
+                    toggle(tag)
                 }
             }
 
-            if !selectedTagIds.isEmpty {
-                Text(L10n.StartSetup.selectedTagCount(selectedTagIds.count))
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Design.Colors.forest)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            noTagChip
+
+            addTagChip
         }
-        .padding(Design.Space.md)
-        .startSurface(cornerRadius: 10)
+    }
+
+    private var noTagChip: some View {
+        InstrumentChip(title: Self.noTagTitle, isSelected: selectedTagIds.isEmpty) {
+            selectedTagIds.removeAll()
+        }
+        .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: selectedTagIds.isEmpty))
+    }
+
+    private var addTagChip: some View {
+        Button(action: onAddTag) {
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(L10n.StartSetup.text(.tagsAdd))
+                    .font(.footnote.weight(.semibold))
+            }
+            .foregroundColor(Design.Colors.Workspace.accent)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .frame(minHeight: 32)
+            .overlay(
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .stroke(Design.Colors.Workspace.line, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.StartSetup.text(.tagsAdd))
     }
 
     private func toggle(_ tag: GroupTag) {
@@ -83,36 +100,15 @@ struct TagChip: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: Design.Space.xs) {
-                Circle()
-                    .fill(Color(hex: tag.colorHex))
-                    .frame(width: 10, height: 10)
-                    .accessibilityHidden(true)
+        HStack(spacing: 5) {
+            Circle()
+                .fill(Color(hex: tag.colorHex))
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
 
-                Text(tag.name)
-                    .font(.body.weight(.medium))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.bold))
-                        .accessibilityHidden(true)
-                }
-            }
-            .foregroundColor(isSelected ? .white : Design.Colors.Dark.textPrimary)
-            .padding(.horizontal, Design.Space.md)
-            .padding(.vertical, Design.Space.sm)
-            .frame(minHeight: Design.Touch.minimumHeight)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Design.Colors.forest : Design.Colors.Dark.bgElevated)
-            )
+            InstrumentChip(title: tag.name, isSelected: isSelected, action: action)
+                .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: isSelected))
+                .accessibilityHint(L10n.QuickTagging.tagHint)
         }
-        .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel(tag.name)
-        .accessibilityValue(L10n.QuickTagging.selectionValue(isSelected: isSelected))
-        .accessibilityHint(L10n.QuickTagging.tagHint)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

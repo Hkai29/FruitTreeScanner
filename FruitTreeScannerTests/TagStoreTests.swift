@@ -703,6 +703,94 @@ final class TagStoreTests: XCTestCase {
         XCTAssertEqual(store.getAssignment(treeId: "T003")?.status, .notScanned)
     }
 
+    /// 回归：写入是异步的，「已保存」只能在快照真正落盘之后出现。
+    /// 修复前界面在排队写入后就显示已保存，写入还没发生。
+    func testAssignmentSaveOnlyReportsSuccessAfterTheSnapshotIsWritten() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let store = TagStore(defaults: defaults, commitDelayNanoseconds: { _ in 80_000_000 })
+        XCTAssertTrue(store.createOrUpdateAssignment(treeId: "A-01", plotId: nil, tagIds: [], status: .scanned))
+
+        /* 快照还在写：此刻不允许声称已保存，也不该有失败原因。 */
+        XCTAssertTrue(store.hasPendingSave)
+        XCTAssertNil(store.lastPersistError)
+        XCTAssertNil(defaults.data(forKey: TagStore.snapshotUserDefaultsKey))
+
+        await store.waitForPendingSave()
+
+        XCTAssertNil(store.lastPersistError)
+        let persisted: PersistedSnapshot = try persistedSnapshot(from: defaults)
+        XCTAssertEqual(persisted.assignments.map(\.treeId), ["A-01"])
+        XCTAssertEqual(persisted.assignments.first?.status, .scanned)
+    }
+
+    /// 回归：树号非法时这次标记根本没有被接受，调用方必须能知道，
+    /// 不能把它当成一次成功的保存。
+    func testAssignmentWithInvalidTreeIDIsRejectedInsteadOfSilentlyDropped() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let store = TagStore(defaults: defaults)
+        XCTAssertFalse(store.createOrUpdateAssignment(treeId: "   ", plotId: nil, tagIds: [], status: .scanned))
+        XCTAssertTrue(store.assignments.isEmpty)
+
+        await store.waitForPendingSave()
+        XCTAssertNil(defaults.data(forKey: TagStore.snapshotUserDefaultsKey))
+    }
+
+    /// 回归：保存按钮在快照落盘之前不能宣布「已保存」。
+    /// 修复前界面在排队写入之后立刻显示已保存，写入还没发生。
+    func testQuickTaggingSaveControllerReportsSavedOnlyAfterTheSnapshotIsWritten() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let store = TagStore(defaults: defaults, commitDelayNanoseconds: { _ in 120_000_000 })
+        let controller = QuickTaggingSaveController(store: store)
+
+        controller.save(treeId: "A-01", plotId: nil, tagIds: [], status: .scanned)
+        XCTAssertEqual(controller.state, .saving, "写入还没落盘，不该宣布已保存")
+
+        await controller.waitForCompletion()
+
+        XCTAssertEqual(controller.state, .saved)
+        let persisted: PersistedSnapshot = try persistedSnapshot(from: defaults)
+        XCTAssertEqual(persisted.assignments.map(\.treeId), ["A-01"])
+    }
+
+    /// 回归：树号非法时这次保存没有被接受，界面必须说失败，不能停在「已保存」。
+    func testQuickTaggingSaveControllerReportsRejectionInsteadOfSaved() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let store = TagStore(defaults: defaults)
+        let controller = QuickTaggingSaveController(store: store)
+
+        controller.save(treeId: "   ", plotId: nil, tagIds: [], status: .scanned)
+
+        XCTAssertEqual(controller.state, .failed(L10n.QuickTagging.saveRejected))
+        XCTAssertTrue(store.assignments.isEmpty)
+    }
+
+    /// 回归：用户在写入期间改了选择，那次保存已经作废。
+    /// 作废的保存在写入落地后**不许**再把界面写成「已保存」——
+    /// 用户的新选择会被悄无声息地丢掉。
+    func testSupersededSaveDoesNotAnnounceSavedAfterTheWriteLands() async throws {
+        let defaults = makeDefaults()
+        defer { clear(defaults) }
+
+        let store = TagStore(defaults: defaults, commitDelayNanoseconds: { _ in 120_000_000 })
+        let controller = QuickTaggingSaveController(store: store)
+
+        controller.save(treeId: "A-01", plotId: nil, tagIds: [], status: .scanned)
+        XCTAssertEqual(controller.state, .saving)
+
+        controller.reset()   // 用户改了选择 → 这次保存作废
+        await controller.waitForCompletion()
+
+        XCTAssertEqual(controller.state, .idle, "作废的保存不许把状态改回已保存")
+    }
+
     private struct PersistedSnapshot: Codable {
         let plots: [Plot]
         let tags: [GroupTag]

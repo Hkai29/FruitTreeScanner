@@ -9,28 +9,23 @@ struct ScanPickerView: View {
 
     var body: some View {
         NavigationView {
-            ZStack {
-                Design.Colors.Dark.bgDeep
-                    .ignoresSafeArea()
-
-                ScrollView {
-                    LazyVStack(spacing: Design.Space.md) {
-                        ForEach(scans) { scan in
-                            Button {
-                                select(scan)
-                            } label: {
-                                ScanPickerRow(
-                                    scan: scan,
-                                    isSelected: selectedScan?.id == scan.id,
-                                    slot: slot
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
+            List {
+                ForEach(scans) { scan in
+                    Button {
+                        select(scan)
+                    } label: {
+                        ScanPickerRow(
+                            scan: scan,
+                            isSelected: selectedScan?.id == scan.id,
+                            slot: slot
+                        )
                     }
-                    .padding(Design.Space.lg)
+                    .buttonStyle(.plain)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Design.Colors.Workspace.surface)
             .navigationTitle(presentation.pickerTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -39,6 +34,7 @@ struct ScanPickerView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
         .environment(\.historicalComparePresentation, presentation)
     }
 
@@ -61,66 +57,44 @@ struct ScanPickerRow: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: Design.Space.sm) {
                     HStack(alignment: .top, spacing: Design.Space.sm) {
-                        icon
                         scanInfo
                     }
                     selectedIndicator
                 }
             } else {
                 HStack(spacing: Design.Space.md) {
-                    icon
                     scanInfo
                     Spacer()
                     selectedIndicator
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Design.Space.md)
-        .background(Design.Colors.Dark.bgSurface)
-        .cornerRadius(Design.Radius.large)
-        .overlay(border)
-        .shadow(
-            color: Design.Shadow.subtle.color,
-            radius: Design.Shadow.subtle.radius,
-            y: Design.Shadow.subtle.y
-        )
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(presentation.treeTitle(scan.treeID)))
         .accessibilityValue(
-            Text(presentation.pickerValue(scan: scan, isSelected: isSelected, locale: locale))
+            Text("\(presentation.pickerValue(scan: scan, isSelected: isSelected, locale: locale)), \(scan.scanDate.formatted(date: .omitted, time: .shortened))")
         )
         .accessibilityHint(Text(presentation.pickerSelectionHint(slot: slot)))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    private var icon: some View {
-        ZStack {
-            Circle()
-                .fill(isSelected ? Design.Colors.Dark.glow.opacity(0.12) : Design.Colors.Dark.bgSurface)
-                .frame(width: 44, height: 44)
-
-            Image(systemName: "doc.text.fill")
-                .font(.title3.weight(.medium))
-                .foregroundColor(isSelected ? Design.Colors.Dark.glow : Design.Colors.Dark.textSecondary)
-        }
-        .accessibilityHidden(true)
     }
 
     private var scanInfo: some View {
         VStack(alignment: .leading, spacing: Design.Space.xs) {
             Text(presentation.treeTitle(scan.treeID))
                 .font(.subheadline.weight(.medium))
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .foregroundColor(Design.Colors.Workspace.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(presentation.dateText(scan.scanDate, locale: locale))
+            Text("\(presentation.dateText(scan.scanDate, locale: locale)) \(scan.scanDate.formatted(date: .omitted, time: .shortened))")
                 .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .foregroundColor(Design.Colors.Workspace.secondary)
 
             Text(presentation.yieldText(scan.yieldKg, locale: locale))
                 .font(.caption)
-                .foregroundColor(Design.Colors.Dark.glow)
+                .foregroundColor(Design.Colors.Workspace.accent)
         }
     }
 
@@ -129,12 +103,8 @@ struct ScanPickerRow: View {
         if isSelected {
             Label(presentation.pickerState(isSelected: true), systemImage: "checkmark.circle.fill")
                 .font(.subheadline)
-                .foregroundColor(Design.Colors.Dark.glow)
+                .foregroundColor(Design.Colors.Workspace.accent)
         }
     }
 
-    private var border: some View {
-        RoundedRectangle(cornerRadius: Design.Radius.large)
-            .stroke(isSelected ? Design.Colors.Dark.glow : Color.clear, lineWidth: 2)
-    }
 }

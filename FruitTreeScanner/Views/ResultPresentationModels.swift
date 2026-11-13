@@ -15,10 +15,10 @@ struct ResultConfidencePresentation {
 
     var color: Color {
         switch rawValue {
-        case "high": return Design.Colors.forest
-        case "medium": return Design.Colors.harvest
-        case "manual_review": return Design.Colors.apple
-        default: return Design.Colors.slate
+        case "high": return Design.Colors.Workspace.reliable
+        case "medium": return Design.Colors.Workspace.attention
+        case "manual_review": return Design.Colors.Workspace.failure
+        default: return Design.Colors.Workspace.secondary
         }
     }
 }
@@ -170,11 +170,11 @@ struct ResultReliabilityPresentation {
     var tint: Color {
         switch level {
         case .reliable:
-            return Design.Colors.forest
+            return Design.Colors.Workspace.reliable
         case .review:
-            return Design.Colors.harvest
+            return Design.Colors.Workspace.attention
         case .unreliable, .noReliableEstimate:
-            return Design.Colors.warning
+            return Design.Colors.Workspace.failure
         }
     }
 

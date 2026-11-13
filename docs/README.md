@@ -14,6 +14,10 @@ superpowers/     Planning/spec artifacts from earlier workflows
 
 The user-facing project overview remains in `../README.md`.
 
+Executable engineering workflow: [Code improvement workflow](implementation/CODE_IMPROVEMENT_WORKFLOW.md)
+(Chinese), with a local validation runner, risk profiles, iteration evidence and
+review criteria.
+
 Current architecture proposal: [Redesign blueprint](architecture/REDESIGN_BLUEPRINT_2026-09-26.md) and [implementation prompts](architecture/REFACTOR_PROMPTS_2026-09-26.md) (Chinese, 2026-09-26). These documents describe a proposed migration; they do not indicate that it has been implemented.
 
 Latest reassessment: [Findings and next refactoring steps](architecture/REASSESSMENT_NEXT_STEPS_2026-09-27.md) (2026-09-27), with reproducible source-identity and cancellation findings against the implementation snapshot before the subsequent fixes.

@@ -1,5 +1,7 @@
 // TagEditView.swift
-// 标签编辑页面 - 创建和编辑 GroupTag 对象
+// 标签编辑页面 - 创建和编辑 GroupTag 对象。
+//
+// 草稿语义：表单只改本地草稿；保存提交并关闭，取消丢弃草稿。
 
 import SwiftUI
 
@@ -30,35 +32,56 @@ struct TagEditView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Design.Colors.Dark.bgDeep.ignoresSafeArea()
-
                 TagEntityEditForm(
                     name: $name,
                     selectedColor: $selectedColor,
                     namePlaceholder: L10n.TagManagement.tagPlaceholder
                 )
             }
+            .workspacePage()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                saveBand
+            }
             .navigationTitle(isEditing ? L10n.TagManagement.editTag : L10n.TagManagement.addTag)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Design.Colors.Dark.bgDeep, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Design.Colors.Workspace.surface, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(L10n.TagManagement.cancel) {
                         dismiss()
                     }
-                    .foregroundColor(Design.Colors.forest)
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(L10n.TagManagement.save) {
-                        saveTag()
-                    }
-                    .foregroundColor(Design.Colors.forest)
-                    .fontWeight(.semibold)
-                    .disabled(!isSaveEnabled)
+                    .foregroundColor(Design.Colors.Workspace.accent)
                 }
             }
+        }
+    }
+
+    // MARK: - 底部主操作
+
+    private var saveBand: some View {
+        VStack(spacing: 0) {
+            Button(action: saveTag) {
+                Label(L10n.TagManagement.save, systemImage: "checkmark")
+            }
+            .buttonStyle(WorkspacePrimaryButtonStyle())
+            .disabled(!isSaveEnabled)
+            .opacity(isSaveEnabled ? 1 : 0.5)
+            .accessibilityLabel(L10n.TagManagement.save)
+            .accessibilityIdentifier("tagManagement.save")
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(maxWidth: 1080)
+        .frame(maxWidth: .infinity)
+        .background(Design.Colors.Workspace.surface)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Design.Colors.Workspace.line)
+                .frame(height: 0.5)
+                .accessibilityHidden(true)
         }
     }
 

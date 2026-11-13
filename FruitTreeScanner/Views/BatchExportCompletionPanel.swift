@@ -1,3 +1,6 @@
+// BatchExportCompletionPanel.swift
+// 导出完成面板：真实输出文件与真实输出位置，以及分享 / 收起动作。
+
 import SwiftUI
 
 struct BatchExportCompletionPanel: View {
@@ -8,100 +11,81 @@ struct BatchExportCompletionPanel: View {
     let onClear: () -> Void
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Design.Space.sm) {
-                    completionText
-                    VStack(spacing: Design.Space.xs) {
-                        actionButtons(fillWidth: true)
-                    }
-                }
-            } else {
-                HStack(alignment: .top, spacing: Design.Space.sm) {
-                    completionIcon
-
-                    VStack(alignment: .leading, spacing: Design.Space.xs) {
-                        completionText
-
-                        HStack(spacing: Design.Space.sm) {
-                            actionButtons(fillWidth: false)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-                }
+        InstrumentPanel(
+            label: L10n.Export.completionTitle,
+            systemImage: "checkmark.circle.fill",
+            tone: .accent
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                fileName
+                outputLocation
+                actions
             }
         }
-        .padding(Design.Space.md)
-        .darkSurface(cornerRadius: 10, fill: Design.Colors.Dark.bgSurface)
     }
 
-    private var completionIcon: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.headline)
-            .foregroundColor(Design.Colors.forest)
-            .frame(width: 30, height: 30)
-            .background(Design.Colors.forest.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .accessibilityHidden(true)
+    private var fileName: some View {
+        Text(url.lastPathComponent)
+            .font(.system(.subheadline, design: .monospaced).weight(.medium))
+            .foregroundColor(Design.Colors.Workspace.ink)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+            .truncationMode(.middle)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(L10n.Export.completionFileName(url.lastPathComponent))
     }
 
-    private var completionText: some View {
-        VStack(alignment: .leading, spacing: Design.Space.xs) {
-            Text(L10n.Export.completionTitle)
-                .font(.headline)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-
-            Text(url.lastPathComponent)
-                .font(.system(.caption, design: .monospaced).weight(.medium))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                .truncationMode(.middle)
+    private var outputLocation: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(BatchExportStrings.outputLocation)
+                .instrumentLabel()
+            Text(directoryPath)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(Design.Colors.Workspace.muted)
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(L10n.Export.completionFileName(url.lastPathComponent))
+        }
+    }
+
+    private var directoryPath: String {
+        url.deletingLastPathComponent().path
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 8) {
+                actionButtons(fillWidth: true)
+            }
+        } else {
+            HStack(spacing: 10) {
+                actionButtons(fillWidth: false)
+            }
         }
     }
 
     @ViewBuilder
     private func actionButtons(fillWidth: Bool) -> some View {
-        completionButton(
-            title: L10n.Export.completionShare,
-            hint: L10n.Export.completionShareHint,
-            icon: "square.and.arrow.up",
-            accessibilityIdentifier: "batchExport.completion.share",
-            fillWidth: fillWidth,
-            action: onShare
-        )
-
-        completionButton(
-            title: L10n.Export.completionDismiss,
-            hint: L10n.Export.completionDismissHint,
-            icon: "xmark",
-            accessibilityIdentifier: "batchExport.completion.dismiss",
-            fillWidth: fillWidth,
-            action: onClear
-        )
-    }
-
-    private func completionButton(
-        title: String,
-        hint: String,
-        icon: String,
-        accessibilityIdentifier: String,
-        fillWidth: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
+        Button(action: onShare) {
+            Label(L10n.Export.completionShare, systemImage: "square.and.arrow.up")
                 .font(.subheadline.weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.accent)
                 .frame(maxWidth: fillWidth ? .infinity : nil, minHeight: Design.Touch.minimumHeight, alignment: .leading)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundColor(Design.Colors.harvest)
-        .accessibilityLabel(title)
-        .accessibilityHint(hint)
-        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(L10n.Export.completionShare)
+        .accessibilityHint(L10n.Export.completionShareHint)
+        .accessibilityIdentifier("batchExport.completion.share")
+
+        Button(action: onClear) {
+            Label(L10n.Export.completionDismiss, systemImage: "xmark")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(Design.Colors.Workspace.secondary)
+                .frame(maxWidth: fillWidth ? .infinity : nil, minHeight: Design.Touch.minimumHeight, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.Export.completionDismiss)
+        .accessibilityHint(L10n.Export.completionDismissHint)
+        .accessibilityIdentifier("batchExport.completion.dismiss")
     }
 }

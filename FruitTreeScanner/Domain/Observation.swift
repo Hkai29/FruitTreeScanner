@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import simd
 
-enum DepthConfidenceProvenance: String, Sendable {
+enum DepthConfidenceProvenance: String, Sendable, Codable {
     case available
     case unavailable
     case copyFailed
@@ -18,14 +18,14 @@ struct FrameID: Hashable, Sendable {
     }
 }
 
-enum ObservationCoordinateConvention: String, Sendable {
+enum ObservationCoordinateConvention: String, Sendable, Codable {
     /// Vision normalized image coordinates: origin at lower-left, x right, y up.
     case visionNormalizedLowerLeft
     /// Camera space uses right, up, and backward as positive axes after projection.
     case arKitCameraRightUpBack
 }
 
-enum ObservationRejectionReason: String, Sendable {
+enum ObservationRejectionReason: String, Sendable, Codable {
     case missingDepthMap
     case missingCameraPose
     case missingCameraIntrinsics

@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// 地图标记的可读性文案。
+///
+/// 标记用**结构**（实心方块 / 空心方块）表达记录是否需要复核，
+/// 颜色只作强化，色觉差异用户也能分辨。
 struct OrchardTreePinPresentation: Equatable {
     let symbolName: String
     let accessibilityLabel: String
@@ -19,10 +23,18 @@ struct OrchardTreePinPresentation: Equatable {
     }
 }
 
+/// 地图上的树体标记。
+///
+/// 方块是全应用统一的标记形状（与果园空间的小地图一致），
+/// 实心 = 可直接使用，空心 = 需要复核。触达区域固定 44×44。
 struct TreeMapPin: View {
     @Environment(\.orchardMapPresentation) private var presentation
     let tree: TreeAnnotation
     let isSelected: Bool
+
+    private var needsReview: Bool {
+        ResultReviewPolicy.needsReview(tree.confidence)
+    }
 
     var body: some View {
         let pinPresentation = presentation.treePinPresentation(
@@ -30,84 +42,40 @@ struct TreeMapPin: View {
             isSelected: isSelected
         )
 
-        VStack(spacing: 0) {
-            ZStack {
-                Circle()
-                    .fill(tree.yieldLevel.color)
-                    .frame(width: isSelected ? 36 : 28, height: isSelected ? 36 : 28)
-                    .shadow(color: tree.yieldLevel.color.opacity(0.4), radius: isSelected ? 8 : 4, y: 2)
-
-                Image(systemName: pinPresentation.symbolName)
-                    .font(.system(size: isSelected ? 16 : 12, weight: .medium))
-                    .foregroundColor(.white)
-            }
-
-            Triangle()
-                .fill(tree.yieldLevel.color)
-                .frame(width: 10, height: 6)
-                .offset(y: -2)
-        }
-        .frame(width: 44, height: 44, alignment: .bottom)
-        .contentShape(Rectangle())
-        .animation(.spring(response: 0.3), value: isSelected)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(pinPresentation.accessibilityLabel))
-        .accessibilityValue(Text(pinPresentation.accessibilityValue))
-        .accessibilityHint(Text(presentation.selectTreeHint))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        RoundedRectangle(cornerRadius: 2, style: .continuous)
+            .fill(needsReview ? Color.clear : pinColor)
+            .frame(width: 9, height: 9)
+            .padding(4)
+            .background(
+                Design.Colors.Workspace.surface,
+                in: RoundedRectangle(cornerRadius: 2, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .stroke(
+                        needsReview ? pinColor : Color.clear,
+                        lineWidth: 1.5
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .stroke(
+                        isSelected ? Design.Colors.Workspace.accent : Color.clear,
+                        lineWidth: 1.5
+                    )
+            )
+            .frame(width: Design.Touch.minimumHeight, height: Design.Touch.minimumHeight)
+            .contentShape(Rectangle())
+            .animation(.easeOut(duration: Design.Animation.micro), value: isSelected)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(pinPresentation.accessibilityLabel))
+            .accessibilityValue(Text(pinPresentation.accessibilityValue))
+            .accessibilityHint(Text(presentation.selectTreeHint))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
-}
 
-struct Triangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        return path
-    }
-}
-
-struct YieldStatMini: View {
-    let level: YieldLevel
-    let presentation: OrchardYieldLevelCountPresentation
-
-    var body: some View {
-        HStack(spacing: Design.Space.xs) {
-            Image(systemName: level.icon)
-                .font(.caption)
-                .foregroundColor(level.color)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(presentation.label)
-                    .font(.caption)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
-
-                Text(presentation.countText)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundColor(Design.Colors.Dark.textPrimary)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(presentation.label))
-        .accessibilityValue(Text(presentation.countText))
-    }
-}
-
-struct TreeStatItem: View {
-    let label: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
-            Text(value)
-                .font(.subheadline.weight(.medium))
-                .foregroundColor(color)
-        }
-        .accessibilityElement(children: .combine)
+    private var pinColor: Color {
+        needsReview ? Design.Colors.Workspace.attention : Design.Colors.Workspace.accent
     }
 }

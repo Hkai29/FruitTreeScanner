@@ -1,3 +1,8 @@
+// CalibrationRecordRow.swift
+// 一条校准记录：估算值、实测值、两者的误差，以及这条记录是否仍可用于自动校准。
+//
+// 误差值直接取自 CalibrationRecord.countError / yieldError，不做二次处理。
+
 import SwiftUI
 
 struct CalibrationRecordRow: View {
@@ -8,18 +13,15 @@ struct CalibrationRecordRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Design.Space.sm) {
+        VStack(alignment: .leading, spacing: 8) {
             header
             detailRow
             Text(calibrationStatusText)
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Workspace.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Design.Space.md)
-        .background(
-            RoundedRectangle(cornerRadius: Design.Radius.medium)
-                .fill(Design.Colors.Dark.bgSurface.opacity(0.3))
-        )
+        .padding(.vertical, 12)
     }
 
     private var calibrationStatusText: String {
@@ -39,16 +41,19 @@ struct CalibrationRecordRow: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(L10n.Calibration.recordTitle(treeID: record.treeID))
-                .font(Design.Typography.subheadlineMedium)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.system(.subheadline, design: .monospaced).weight(.medium))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .lineLimit(1)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Text(formatDate(record.scanDate))
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundColor(Design.Colors.Workspace.muted)
+                .lineLimit(1)
         }
         .accessibilityElement(children: .combine)
     }
@@ -56,14 +61,14 @@ struct CalibrationRecordRow: View {
     @ViewBuilder
     private var detailRow: some View {
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: Design.Space.md) {
+            VStack(alignment: .leading, spacing: 10) {
                 valuesContent
                 errorAndDeleteActions
             }
         } else {
-            HStack(spacing: Design.Space.lg) {
+            HStack(alignment: .top, spacing: 16) {
                 valuesContent
-                Spacer()
+                Spacer(minLength: 8)
                 errorAndDeleteActions
             }
         }
@@ -78,7 +83,7 @@ struct CalibrationRecordRow: View {
                 actualValues
             }
         } else {
-            HStack(spacing: Design.Space.lg) {
+            HStack(alignment: .top, spacing: 16) {
                 estimatedValues
 
                 if record.manualFruitCount != nil || record.actualYieldKg != nil {
@@ -89,7 +94,7 @@ struct CalibrationRecordRow: View {
     }
 
     private var errorAndDeleteActions: some View {
-        HStack(spacing: Design.Space.sm) {
+        HStack(spacing: 12) {
             if let countError = record.countError {
                 ErrorBadge(label: L10n.Calibration.countError, error: countError)
             }
@@ -102,10 +107,9 @@ struct CalibrationRecordRow: View {
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Design.Colors.Dark.error)
-                    .frame(width: 32, height: 32)
-                    .background(Design.Colors.Dark.error.opacity(0.1))
-                    .clipShape(Circle())
+                    .foregroundColor(Design.Colors.Workspace.failure)
+                    .frame(width: Design.Touch.minimumWidth, height: Design.Touch.minimumHeight)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(!isDeleteEnabled)
@@ -118,31 +122,32 @@ struct CalibrationRecordRow: View {
     private var estimatedValues: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(L10n.Calibration.estimated)
-                .font(Design.Typography.caption)
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Workspace.secondary)
             Text(
                 L10n.Calibration.countAndYield(
                     count: record.estimatedFruitCount,
                     yieldKg: record.estimatedYieldKg
                 )
             )
-                .font(Design.Typography.monoSmall)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.system(.footnote, design: .monospaced).weight(.medium))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
     }
 
     private var actualValues: some View {
-        HStack(spacing: Design.Space.lg) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: "arrow.right")
                 .font(.system(size: 10))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .foregroundColor(Design.Colors.Workspace.faint)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.Calibration.actual)
-                    .font(Design.Typography.caption)
-                    .foregroundColor(Design.Colors.Dark.textSecondary)
+                    .font(.caption)
+                    .foregroundColor(Design.Colors.Workspace.secondary)
                 actualValueText
             }
         }
@@ -153,16 +158,19 @@ struct CalibrationRecordRow: View {
     private var actualValueText: some View {
         if let manual = record.manualFruitCount, let actual = record.actualYieldKg {
             Text(L10n.Calibration.countAndYield(count: manual, yieldKg: actual))
-                .font(Design.Typography.monoSmall)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.system(.footnote, design: .monospaced).weight(.medium))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .fixedSize(horizontal: false, vertical: true)
         } else if let manual = record.manualFruitCount {
             Text(L10n.Calibration.countOnly(manual))
-                .font(Design.Typography.monoSmall)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.system(.footnote, design: .monospaced).weight(.medium))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .fixedSize(horizontal: false, vertical: true)
         } else if let actual = record.actualYieldKg {
             Text(L10n.Calibration.yieldOnly(actual))
-                .font(Design.Typography.monoSmall)
-                .foregroundColor(Design.Colors.Dark.textPrimary)
+                .font(.system(.footnote, design: .monospaced).weight(.medium))
+                .foregroundColor(Design.Colors.Workspace.ink)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -173,6 +181,7 @@ struct CalibrationRecordRow: View {
     }
 }
 
+/// 误差读数：数值用等宽字形，颜色只按误差大小分级。
 struct ErrorBadge: View {
     let label: String
     let error: Double
@@ -180,19 +189,16 @@ struct ErrorBadge: View {
     var body: some View {
         let color = CalibrationErrorPalette.color(for: error)
 
-        VStack(spacing: 2) {
+        HStack(spacing: 4) {
             Text(String(format: "%+.1f%%", error))
-                .font(Design.Typography.monoSmall)
+                .font(.system(.footnote, design: .monospaced).weight(.semibold))
                 .foregroundColor(color)
+                .lineLimit(1)
 
             Text(label)
-                .font(.system(size: 8))
-                .foregroundColor(Design.Colors.Dark.textSecondary)
+                .font(.caption)
+                .foregroundColor(Design.Colors.Workspace.secondary)
         }
-        .padding(.horizontal, Design.Space.sm)
-        .padding(.vertical, Design.Space.xs)
-        .background(color.opacity(0.1))
-        .cornerRadius(Design.Radius.small)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(String(format: "%+.1f%%", error))

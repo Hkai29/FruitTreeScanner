@@ -192,7 +192,8 @@ final class ScanPlanFactory {
         treeID: String,
         season: Season,
         selectedCategory: FruitCategory,
-        renderer: Renderer?
+        renderer: Renderer?,
+        classification: ScanClassificationSnapshot = .empty
     ) -> ScanPlan {
         let particleCapacity = max(renderer?.particlesBuffer.count ?? settings.maxPointCount, 1)
         let snapshot = ScanFruitConfigurationSnapshot.capture(
@@ -226,7 +227,8 @@ final class ScanPlanFactory {
             requestedCameraFrameRate: settings.cameraFrameRate,
             autoExportCSV: settings.autoExportCSV,
             modelIdentity: modelIdentity,
-            experimentConfiguration: experimentConfiguration
+            experimentConfiguration: experimentConfiguration,
+            classification: classification
         )
     }
 }

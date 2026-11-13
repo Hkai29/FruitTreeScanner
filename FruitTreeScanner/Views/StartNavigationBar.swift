@@ -1,14 +1,19 @@
+// StartNavigationBar.swift
+// 底部主操作带：每屏唯一的主操作（下一步 / 开始扫描）。
+//
+// 视觉沿用工作台的信号青实心按钮；返回由顶部导航的箭头承担，
+// 因此这里不再重复放置"上一步"，避免同一动作出现两处。
+
 import SwiftUI
 
 struct StepNavigationBar: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     let currentStep: Int
     let totalSteps: Int
-    let canGoBack: Bool
     let canGoNext: Bool
     var isLaunching: Bool = false
-    let onBack: () -> Void
     let onNext: () -> Void
 
     private var isLastStep: Bool { currentStep == totalSteps }
@@ -19,92 +24,42 @@ struct StepNavigationBar: View {
 
     var body: some View {
         Group {
-            if layoutPolicy.stacksVertically {
-                VStack(alignment: .leading, spacing: Design.Space.sm) {
-                    stepCount
-
-                    if canGoBack {
-                        backButton
-                    }
-
-                    nextButton
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
+            if layoutPolicy.stacksVertically && verticalSizeClass != .compact {
+                nextButton
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             } else {
-                HStack {
-                    if canGoBack {
-                        backButton
-                    }
-
-                    Spacer()
-
-                    stepCount
-
-                    Spacer()
-
-                    nextButton
-                }
+                nextButton
             }
         }
-        .padding(.vertical, Design.Space.sm)
-    }
-
-    private var stepCount: some View {
-        Text(L10n.StartFlow.stepCount(currentStep: currentStep, totalSteps: totalSteps))
-            .font(.subheadline.weight(.medium))
-            .foregroundColor(Design.Colors.Dark.textSecondary)
-            .accessibilityLabel(
-                L10n.StartFlow.stepCountAccessibility(
-                    currentStep: currentStep,
-                    totalSteps: totalSteps
-                )
-            )
-    }
-
-    private var backButton: some View {
-        Button(action: onBack) {
-            HStack(spacing: 4) {
-                Image(systemName: "chevron.left")
-                    .font(.subheadline.weight(.medium))
-                Text(L10n.StartFlow.previous)
-                    .font(.body.weight(.medium))
-            }
-            .foregroundColor(Design.Colors.Dark.textPrimary)
-            .padding(.vertical, 13)
-            .padding(.horizontal, 18)
-            .background(Design.Colors.Dark.bgElevated)
-            .cornerRadius(8)
-        }
-        .accessibilityLabel(L10n.StartFlow.previous)
-        .accessibilityIdentifier("start.back")
     }
 
     private var nextButton: some View {
         Button(action: onNext) {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Text(nextButtonTitle)
-                    .font(.body.weight(.semibold))
+                    .font(.headline)
                 if isLaunching {
                     ProgressView()
                         .tint(.white)
                         .scaleEffect(0.75)
                         .accessibilityHidden(true)
-                } else if !isLastStep {
-                    Image(systemName: "chevron.right")
-                        .font(.subheadline.weight(.medium))
+                } else if isLastStep {
+                    Image(systemName: "viewfinder")
+                        .font(.system(size: 15, weight: .semibold))
                 } else {
-                    Image(systemName: "play.fill")
-                        .font(.subheadline.weight(.medium))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 15, weight: .semibold))
                 }
             }
-            .foregroundColor(canGoNext ? Design.Colors.Dark.bgDeep : Design.Colors.Dark.textSecondary)
-            .padding(.vertical, 13)
-            .padding(.horizontal, 22)
+            .foregroundColor(canGoNext ? .white : Design.Colors.Workspace.secondary)
+            .frame(maxWidth: .infinity, minHeight: 54)
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(canGoNext ? Design.Colors.harvest : Design.Colors.Dark.bgElevated)
+                RoundedRectangle(cornerRadius: Design.Radius.control, style: .continuous)
+                    .fill(canGoNext ? Design.Colors.Workspace.accent : Design.Colors.Workspace.inset)
             )
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .disabled(!canGoNext)
         .accessibilityLabel(nextButtonTitle)
         .accessibilityIdentifier(isLastStep ? "start.launchScan" : "start.next")
